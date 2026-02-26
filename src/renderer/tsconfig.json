@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "../../lib/renderer",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": [],
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["./**/*.ts", "./**/*.d.ts", "../shared/**/*.ts"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

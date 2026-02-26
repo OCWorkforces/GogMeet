@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "..",
+    "outDir": "../../lib/main",
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "moduleResolution": "nodenext",
+    "module": "nodenext"
+  },
+  "include": ["./**/*.ts", "../shared/**/*.ts"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

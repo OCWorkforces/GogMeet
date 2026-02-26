@@ -1,0 +1,24 @@
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM"],
+    "allowSyntheticDefaultImports": true,
+    "declaration": false,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "nodenext",
+    "newLine": "lf",
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "outDir": "./lib",
+    "pretty": true,
+    "sourceMap": false,
+    "typeRoots": ["node_modules/@types"]
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "coverage/**", "node_modules"]
+}

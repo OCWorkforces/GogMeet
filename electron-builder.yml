@@ -1,0 +1,36 @@
+appId: com.ccworkforce.gimeet
+productName: GiMeet
+copyright: Copyright © 2024 CCWorkforce
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - lib/**/*
+  - src/assets/**/*
+  - package.json
+  - '!**/*.map'
+  - '!**/node_modules'
+
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  extendInfo:
+    LSUIElement: true
+    NSCalendarsFullAccessUsageDescription: GiMeet needs calendar access to find your Google Meet events.
+    NSAppleEventsUsageDescription: GiMeet uses AppleScript to read your calendar events.
+  notarize: false
+
+afterSign: build/notarize.js
+
+nsis:
+  oneClick: false
+  perMachine: true
