@@ -87,8 +87,8 @@ function parseEvents(raw: string): MeetingEvent[] {
       const parts = line.split('||');
       if (parts.length < 7) return [];
 
-      const [id, title, startStr, endStr, urlField, calendarName, allDayStr] = parts as [
-        string, string, string, string, string, string, string
+      const [id, title, startStr, endStr, urlField, calendarName, allDayStr, emailField] = parts as [
+        string, string, string, string, string, string, string, string | undefined
       ];
 
       const meetUrl = urlField.trim();
@@ -115,6 +115,7 @@ function parseEvents(raw: string): MeetingEvent[] {
           meetUrl,
           calendarName: calendarName.trim(),
           isAllDay: allDayStr.trim() === 'true',
+          ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
         },
       ];
     })

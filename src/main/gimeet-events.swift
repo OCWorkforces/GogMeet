@@ -3,7 +3,7 @@ import Foundation
 
 // GiMeet Swift EventKit Helper
 // Outputs Google Meet events for today+tomorrow in pipe-delimited format:
-// uid||title||startISO||endISO||meetUrl||calendarName||isAllDay
+// uid||title||startISO||endISO||meetUrl||calendarName||isAllDay||userEmail
 //
 // Each line is one event. Exit 0 on success, exit 1 on permission denied.
 
@@ -47,7 +47,21 @@ store.requestFullAccessToEvents { granted, _ in
     let calName = event.calendar?.title ?? ""
     let allDay = event.isAllDay ? "true" : "false"
 
-    print("\(uid)||\(title)||\(start)||\(end)||\(url)||\(calName)||\(allDay)")
+    // Extract user's Google email from attendees (self attendee)
+    var userEmail = ""
+    if let attendees = event.attendees {
+      for attendee in attendees {
+        if attendee.isCurrentUser {
+          let raw = attendee.url.absoluteString
+          if raw.hasPrefix("mailto:") {
+            userEmail = String(raw.dropFirst(7))
+          }
+          break
+        }
+      }
+    }
+
+    print("\(uid)||\(title)||\(start)||\(end)||\(url)||\(calName)||\(allDay)||\(userEmail)")
   }
 
   sema.signal()

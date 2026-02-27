@@ -42,11 +42,6 @@ function formatRelativeTime(isoDate: string): { label: string; cls: string } {
 function renderHeader(): string {
   return `
     <div class="header">
-      <span class="header-title">Google Meet</span>
-      <div class="header-actions">
-        <button class="btn-icon" id="btn-refresh" title="Refresh">↺</button>
-        <button class="btn-icon" id="btn-close" title="Close">×</button>
-      </div>
     </div>
   `;
 }
@@ -116,6 +111,7 @@ function renderBody(s: AppState): string {
         html += `<p class="section-header">Today & Tomorrow</p>`;
         upcoming.forEach((event, i) => {
           const rel = formatRelativeTime(event.startDate);
+          const autoJoin = !event.isAllDay;
           html += `
             <div class="meeting-item">
               <div class="meeting-item-row">
@@ -124,7 +120,10 @@ function renderBody(s: AppState): string {
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>
-                <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
+                <span class="meeting-meta">
+                  ${autoJoin ? '<span class="badge-auto" title="Browser will open automatically 1 min before">⚡ Auto</span>' : ''}
+                  <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
+                </span>
               </div>
             </div>
           `;
@@ -164,17 +163,9 @@ function render() {
 }
 
 function bindEvents() {
-  document.getElementById('btn-refresh')?.addEventListener('click', () => loadEvents());
+
   document.getElementById('footer-refresh')?.addEventListener('click', () => loadEvents());
-  document.getElementById('btn-close')?.addEventListener('click', () => {
-    const app = document.getElementById('app');
-    if (app) {
-      app.classList.add('hiding');
-      app.addEventListener('transitionend', () => window.api.window.minimizeToTray(), { once: true });
-    } else {
-      window.api.window.minimizeToTray();
-    }
-  });
+
   document.getElementById('btn-grant')?.addEventListener('click', () => grantAccess());
   document.getElementById('btn-retry')?.addEventListener('click', () => loadEvents());
 

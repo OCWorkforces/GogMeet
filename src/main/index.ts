@@ -1,8 +1,9 @@
-import { app, BrowserWindow, shell, nativeImage, screen } from 'electron';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { setupTray } from './tray.js';
-import { registerIpcHandlers } from './ipc.js';
+import { app, BrowserWindow, shell, nativeImage, screen } from "electron";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { setupTray } from "./tray.js";
+import { registerIpcHandlers } from "./ipc.js";
+import { startScheduler, stopScheduler } from "./scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,13 +21,13 @@ function createWindow(): BrowserWindow {
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    vibrancy: 'popover',
-    visualEffectState: 'active',
-    titleBarStyle: 'hidden',
+    vibrancy: "popover",
+    visualEffectState: "active",
+    titleBarStyle: "hidden",
     transparent: true,
     hasShadow: true,
     webPreferences: {
-      preload: path.join(__dirname, '..', 'preload', 'index.cjs'),
+      preload: path.join(__dirname, "..", "preload", "index.cjs"),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -34,26 +35,27 @@ function createWindow(): BrowserWindow {
   });
 
   if (isDev) {
-    const devUrl = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localhost:5173';
+    const devUrl =
+      process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
     win.loadURL(devUrl);
   } else {
-    win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+    win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
   }
 
   // Intercept close/minimize → hide to tray
-  win.on('close', (event) => {
+  win.on("close", (event) => {
     event.preventDefault();
     win.hide();
     app.dock?.hide();
   });
 
-  win.on('minimize', () => {
+  win.on("minimize", () => {
     win.hide();
     app.dock?.hide();
   });
 
   // Hide when focus lost (popover behavior)
-  win.on('blur', () => {
+  win.on("blur", () => {
     if (!isDev) {
       win.hide();
       app.dock?.hide();
@@ -70,17 +72,19 @@ app.whenReady().then(() => {
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
   setupTray(mainWindow);
+  startScheduler();
 });
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   // Prevent default quit — tray-only app stays alive
   // No-op: keep app running in tray
 });
 
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   // Allow quit from tray menu
+  stopScheduler();
   if (mainWindow) {
-    mainWindow.removeListener('close', () => {});
+    mainWindow.removeListener("close", () => {});
     mainWindow.destroy();
   }
 });

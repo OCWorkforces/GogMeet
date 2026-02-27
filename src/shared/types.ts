@@ -22,6 +22,7 @@ export interface MeetingEvent {
   location?: string;
   notes?: string;
   isAllDay: boolean;
+  userEmail?: string; // Current user's Google email from EventKit attendee list
 }
 
 /** Calendar permission states */
