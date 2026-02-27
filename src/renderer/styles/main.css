@@ -73,7 +73,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 8px 12px;
+  padding: 28px 12px 8px;
   -webkit-app-region: drag;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;

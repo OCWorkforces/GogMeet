@@ -53,10 +53,9 @@ export function setupTray(win: BrowserWindow): void {
     },
     { type: 'separator' },
     {
-      label: 'About Google Meet',
+      label: 'About',
       click: () => app.showAboutPanel(),
     },
-    { type: 'separator' },
     {
       label: 'Quit',
       accelerator: 'Cmd+Q',
