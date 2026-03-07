@@ -1,7 +1,7 @@
 import EventKit
 import Foundation
 
-// GiMeet Swift EventKit Helper
+// GoogleMeet Swift EventKit Helper
 // Outputs Google Meet events for today+tomorrow in pipe-delimited format:
 // uid||title||startISO||endISO||meetUrl||calendarName||isAllDay||userEmail
 //

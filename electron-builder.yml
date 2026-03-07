@@ -9,11 +9,14 @@ directories:
 files:
   - lib/**/*
   - src/assets/**/*
-  - src/main/gimeet-events.swift
+  - src/main/googlemeet-events.swift
   - package.json
   - assets/**/*
   - '!**/*.map'
   - '!**/node_modules'
+# Unpack Swift file from asar so swiftc can read it (external tools cannot read asar archives)
+asarUnpack:
+  - "src/main/googlemeet-events.swift"
 
 mac:
   target:

@@ -1,4 +1,4 @@
-# GiMeet — Project Knowledge Base
+# GoogleMeet — Project Knowledge Base
 
 **Generated:** 2026-03-07
 **Commit:** fd142e4
@@ -29,7 +29,7 @@ src/
 │   ├── scheduler.ts  # Auto-launch browser 1 min before meetings
 │   ├── tray.ts       # System tray icon + menu
 │   ├── ipc.ts        # IPC handlers (calendar, window, app)
-│   └── gimeet-events.swift  # Native EventKit helper (compiled at runtime)
+│   └── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
 ├── renderer/         # UI (web context, vanilla TS)
 │   ├── index.ts      # Main UI logic, state machine
 │   ├── index.html    # CSP-protected template
@@ -55,7 +55,7 @@ src/
 | Use in UI                 | `src/renderer/index.ts`                | Call via `window.api.*`                                            |
 | Calendar logic            | `src/main/calendar.ts`                 | Swift EventKit via compiled binary                                 |
 | Auto-launch scheduler     | `src/main/scheduler.ts`                | `startScheduler` / `stopScheduler`                                 |
-| Swift EventKit output     | `src/main/gimeet-events.swift`         | Format: `id\|\|title\|\|start\|\|end\|\|url\|\|cal\|\|allDay\|\|email` |
+| Swift EventKit output     | `src/main/googlemeet-events.swift`         | Format: `id\|\|title\|\|start\|\|end\|\|url\|\|cal\|\|allDay\|\|email` |
 | UI state                  | `src/renderer/index.ts`                | `AppState` type union                                              |
 | Window config             | `src/main/index.ts`                    | `createWindow()`                                                   |
 | Tray behavior             | `src/main/tray.ts`                     | Menu, positioning                                                  |
@@ -104,7 +104,7 @@ bun run package      # Build + create DMG/ZIP (macOS arm64)
 bun run typecheck    # TypeScript check
 bun run test         # Run Vitest tests (main + renderer workspaces)
 bun run clean        # Remove lib/ dist/
-rm -rf /tmp/gimeet   # Force Swift binary recompile after .swift changes
+rm -rf /tmp/googlemeet   # Force Swift binary recompile after .swift changes
 ```
 
 ## BUILD SYSTEM
@@ -126,7 +126,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 ## NOTES
 
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
-- **Swift binary cache**: Compiled to `/tmp/gimeet/gimeet-events` on first run; `rm -rf /tmp/gimeet` to recompile after Swift changes
+- **Swift binary cache**: Compiled to `/tmp/googlemeet/googlemeet-events` on first run; `rm -rf /tmp/googlemeet` to recompile after Swift changes
 - **Auto-open**: Browser opens 1 min before each non-all-day meeting; `?authuser=email` from event attendee data
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)

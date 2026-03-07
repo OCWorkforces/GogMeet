@@ -13,11 +13,11 @@ const execFileAsync = promisify(execFile);
 const __dirname = join(fileURLToPath(import.meta.url), '..');
 
 /** Path to bundled Swift source file */
-const SWIFT_SRC_DEV = join(__dirname, '..', '..', 'src', 'main', 'gimeet-events.swift');
+const SWIFT_SRC_DEV = join(__dirname, '..', '..', 'src', 'main', 'googlemeet-events.swift');
 
 /** Cached compiled binary location */
-const BINARY_DIR = join(tmpdir(), 'gimeet');
-const BINARY_PATH = join(BINARY_DIR, 'gimeet-events');
+const BINARY_DIR = join(tmpdir(), 'googlemeet');
+const BINARY_PATH = join(BINARY_DIR, 'googlemeet-events');
 
 /** Sidecar file storing the SHA-256 hash of the Swift source used for the current binary */
 const HASH_PATH = join(BINARY_DIR, 'source.hash');
@@ -30,17 +30,20 @@ async function computeSwiftSourceHash(swiftSrc: string): Promise<string> {
 
 /** Compile the Swift EventKit helper if not already compiled */
 async function ensureBinary(): Promise<void> {
-  // Locate Swift source (dev: from src/, packaged: from Resources/app/src/main/)
+  // Locate Swift source (dev: from src/, packaged: from app.asar.unpacked/)
+  // Note: Must use asarUnpack in electron-builder.yml to extract Swift file
+  // because swiftc cannot read files from inside asar archives
   let swiftSrc = SWIFT_SRC_DEV;
   try {
     await access(swiftSrc, constants.R_OK);
   } catch {
+    // Packaged app: Swift file is unpacked to app.asar.unpacked/
     swiftSrc = join(
       process.resourcesPath,
-      'app',
+      'app.asar.unpacked',
       'src',
       'main',
-      'gimeet-events.swift'
+      'googlemeet-events.swift'
     );
   }
 

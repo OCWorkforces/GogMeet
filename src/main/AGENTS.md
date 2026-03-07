@@ -7,11 +7,11 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, and ma
 | File                   | Role                                                                    |
 | ---------------------- | ----------------------------------------------------------------------- |
 | `index.ts`             | App bootstrap, BrowserWindow factory, lifecycle events                  |
-| `calendar.ts`          | Swift EventKit calendar queries (compiles/caches `gimeet-events` binary) |
+| `calendar.ts`          | Swift EventKit calendar queries (compiles/caches `googlemeet-events` binary) |
 | `scheduler.ts`         | Auto-opens browser 1 min before meetings; 2-min poll loop               |
 | `tray.ts`              | System tray icon, context menu, window positioning                      |
 | `ipc.ts`               | IPC handlers for renderer communication                                 |
-| `gimeet-events.swift`  | Native EventKit helper (compiled to `/tmp/gimeet/` at runtime)          |
+| `googlemeet-events.swift`  | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)          |
 
 ## ENTRY POINT
 
@@ -32,7 +32,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, and ma
 
 ## SWIFT EVENTKIT PATTERNS
 
-- **Helper**: `gimeet-events.swift` compiled to `/tmp/gimeet/gimeet-events` on first call
+- **Helper**: `googlemeet-events.swift` compiled to `/tmp/googlemeet/googlemeet-events` on first call
 - **Compile time**: <1s (`swiftc` invoked at runtime, cached)
 - **Query time**: ~0.7s (EventKit indexed queries, no network waits)
 - **Output format**: Pipe-delimited `id||title||startISO||endISO||url||calendar||allDay||userEmail` (8 fields)
