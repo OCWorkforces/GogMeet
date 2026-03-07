@@ -2,6 +2,7 @@ import {
   Tray,
   BrowserWindow,
   nativeImage,
+  nativeTheme,
   Menu,
   app,
   screen,
@@ -9,7 +10,6 @@ import {
 } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let tray: Tray | null = null;
@@ -23,22 +23,26 @@ export function setupTray(win: BrowserWindow): void {
   // which silently prevents the tray from ever being created.
   const assetsDir = path.join(__dirname, '..', '..', 'src', 'assets');
 
-  const iconPath = path.join(assetsDir, 'tray-iconTemplate.png');
-  const icon2xPath = path.join(assetsDir, 'tray-iconTemplate@2x.png');
+  function buildIcon(isDark: boolean): Electron.NativeImage {
+    const suffix = isDark ? 'dark' : 'light';
+    const icon1x = nativeImage.createFromPath(path.join(assetsDir, `tray-icon-${suffix}.png`));
+    const icon2x = nativeImage.createFromPath(path.join(assetsDir, `tray-icon-${suffix}@2x.png`));
+    const icon = nativeImage.createEmpty();
+    icon.addRepresentation({ scaleFactor: 1.0, buffer: icon1x.toPNG() });
+    icon.addRepresentation({ scaleFactor: 2.0, buffer: icon2x.toPNG() });
+    return icon;
+  }
 
-  // nativeImage.createFromPath handles asar virtual paths correctly in both
-  // dev and packaged modes. addRepresentation with a buffer + fs.readFileSync
-  // breaks in packaged builds because main-process fs cannot read inside .asar.
-  const icon1x = nativeImage.createFromPath(iconPath);
-  const icon2x = nativeImage.createFromPath(icon2xPath);
-
-  const icon = nativeImage.createEmpty();
-  icon.addRepresentation({ scaleFactor: 1.0, buffer: icon1x.toPNG() });
-  icon.addRepresentation({ scaleFactor: 2.0, buffer: icon2x.toPNG() });
-  icon.setTemplateImage(true);
-
-  tray = new Tray(icon);
+  tray = new Tray(buildIcon(nativeTheme.shouldUseDarkColors));
   tray.setToolTip('Google Meet');
+
+  // Update icon whenever the system theme changes
+  const onThemeUpdated = (): void => {
+    tray?.setImage(buildIcon(nativeTheme.shouldUseDarkColors));
+  };
+  nativeTheme.on('updated', onThemeUpdated);
+
+  // Listener is cleaned up on process exit (app.before-quit destroys the tray).
 
   const contextMenu = Menu.buildFromTemplate([
     {
