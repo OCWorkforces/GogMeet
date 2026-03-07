@@ -13,6 +13,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 let state: AppState = { type: 'loading' };
 let version = '';
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let lastUpdatedAt: number | null = null;
 
 function formatRelativeTime(isoDate: string): { label: string; cls: string } {
   const now = Date.now();
@@ -39,18 +40,24 @@ function formatRelativeTime(isoDate: string): { label: string; cls: string } {
   return { label: `${hours}:${minutes}`, cls: '' };
 }
 
-function renderHeader(): string {
-  return `
-    <div class="header">
-    </div>
-  `;
+
+
+function formatLastUpdated(ts: number): string {
+  const diffMs = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Updated just now';
+  if (diffMin === 1) return 'Updated 1 min ago';
+  return `Updated ${diffMin} min ago`;
 }
 
 function renderFooter(): string {
+  const label = lastUpdatedAt === null
+    ? 'Loading...'
+    : formatLastUpdated(lastUpdatedAt);
   return `
     <div class="footer">
       <span class="footer-version">v${version}</span>
-      <button class="footer-refresh" data-action="refresh">Last updated just now</button>
+      <button class="footer-refresh" data-action="refresh">${label}</button>
     </div>
   `;
 }
@@ -158,7 +165,7 @@ function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  app.innerHTML = renderHeader() + `<div class="body">${renderBody(state)}</div>` + renderFooter();
+  app.innerHTML = `<div class="body">${renderBody(state)}</div>` + renderFooter();
 
 }
 
@@ -229,6 +236,7 @@ async function loadEvents() {
   }
 
   render();
+  lastUpdatedAt = Date.now();
 }
 
 async function init() {
@@ -241,6 +249,21 @@ async function init() {
   // Auto-refresh every 5 minutes
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
+
+  // Pause refresh when window hidden, resume when visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    } else {
+      // Resumed — reload immediately then restart interval
+      void loadEvents();
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => init());
