@@ -50,7 +50,7 @@ function renderFooter(): string {
   return `
     <div class="footer">
       <span class="footer-version">v${version}</span>
-      <button class="footer-refresh" id="footer-refresh">Last updated just now</button>
+      <button class="footer-refresh" data-action="refresh">Last updated just now</button>
     </div>
   `;
 }
@@ -71,7 +71,7 @@ function renderBody(s: AppState): string {
           <div class="state-icon">📅</div>
           <p class="state-title">Calendar Access Needed</p>
           <p class="state-desc">GiMeet needs access to your calendar to show upcoming events.</p>
-          <button class="btn-primary" id="btn-grant" ${s.retrying ? 'disabled' : ''}>
+          <button class="btn-primary" id="btn-grant" data-action="grant-access" ${s.retrying ? 'disabled' : ''}>
             ${s.retrying ? 'Requesting...' : 'Grant Access'}
           </button>
         </div>
@@ -92,7 +92,7 @@ function renderBody(s: AppState): string {
           <div class="state-icon">⚠️</div>
           <p class="state-title">Something went wrong</p>
           <p class="state-desc">${escapeHtml(s.message)}</p>
-          <button class="btn-primary" id="btn-retry">Try Again</button>
+          <button class="btn-primary" id="btn-retry" data-action="retry">Try Again</button>
         </div>
       `;
 
@@ -116,7 +116,7 @@ function renderBody(s: AppState): string {
             <div class="meeting-item">
               <div class="meeting-item-row">
                 <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                ${event.meetUrl ? `<button class="btn-join" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ''}
+                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ''}
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>
@@ -159,21 +159,32 @@ function render() {
   if (!app) return;
 
   app.innerHTML = renderHeader() + `<div class="body">${renderBody(state)}</div>` + renderFooter();
-  bindEvents();
+
 }
 
-function bindEvents() {
+function setupDelegatedEvents(): void {
+  const container = document.getElementById('app');
+  if (!container) return;
 
-  document.getElementById('footer-refresh')?.addEventListener('click', () => loadEvents());
+  container.addEventListener('click', (e: MouseEvent) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+    if (!target) return;
 
-  document.getElementById('btn-grant')?.addEventListener('click', () => grantAccess());
-  document.getElementById('btn-retry')?.addEventListener('click', () => loadEvents());
-
-  document.querySelectorAll<HTMLButtonElement>('.btn-join').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const url = btn.dataset['url'];
-      if (url) window.api.app.openExternal(url);
-    });
+    const action = target.dataset['action'];
+    switch (action) {
+      case 'refresh':
+      case 'retry':
+        void loadEvents();
+        break;
+      case 'grant-access':
+        void grantAccess();
+        break;
+      case 'join-meeting': {
+        const url = target.dataset['url'];
+        if (url) window.api.app.openExternal(url);
+        break;
+      }
+    }
   });
 }
 
@@ -221,6 +232,7 @@ async function loadEvents() {
 }
 
 async function init() {
+  setupDelegatedEvents();
   version = await window.api.app.getVersion();
 
   // Initial load
