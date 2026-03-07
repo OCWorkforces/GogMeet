@@ -44,7 +44,7 @@ store.requestFullAccessToEvents { granted, _ in
     if event.status == .canceled { continue }
     let url = findMeetUrl(event.url?.absoluteString) ?? findMeetUrl(event.location) ?? findMeetUrl(event.notes) ?? ""
 
-    let uid = event.eventIdentifier ?? ""
+    let uid = event.calendarItemIdentifier
     let title = event.title ?? ""
     let start = isoFormatter.string(from: event.startDate)
     let end = isoFormatter.string(from: event.endDate)
