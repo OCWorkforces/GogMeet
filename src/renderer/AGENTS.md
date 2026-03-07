@@ -69,3 +69,13 @@ window.api.app.getVersion(); // → string
 
 - CSP in `index.html`: `default-src 'self'; style-src 'self' 'unsafe-inline'`
 - HTML escaping via `escapeHtml()` for user content
+
+## TESTS
+
+**Location**: `tests/renderer/delegation.test.ts` (77 lines)
+
+Tests event delegation pattern:
+- `[data-action="refresh"]` click handling
+- `[data-action="join-meeting"]` URL extraction
+- Click outside action elements (no trigger)
+- Single listener survives multiple renders

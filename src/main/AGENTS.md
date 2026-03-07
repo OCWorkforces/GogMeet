@@ -76,6 +76,19 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, and ma
 
 | Symbol               | Location           | Role                                      |
 | -------------------- | ------------------ | ----------------------------------------- |
+| `startScheduler`     | `scheduler.ts:345` | Start poll loop + initial poll            |
+| `stopScheduler`      | `scheduler.ts:357` | Clear all timers on quit                  |
+| `buildMeetUrl`       | `scheduler.ts:56`  | Append `?authuser=email` to Meet URL      |
+| `scheduleEvents`     | `scheduler.ts:102` | Set/clear per-event `setTimeout` timers   |
+| `poll`               | `scheduler.ts:312` | Calendar poll with error handling         |
+| `getCalendarEvents`  | `calendar.ts:148`  | Swift EventKit fetch (returns CalendarResult) |
+| `parseEvents`        | `calendar.ts:95`   | Parse 8-field pipe-delimited Swift output |
+| `setupTray`          | `tray.ts:17`       | System tray init                          |
+| `registerIpcHandlers`| `ipc.ts:31`        | IPC registration (validateSender pattern) |
+| `createWindow`       | `index.ts:24`      | BrowserWindow factory                     |
+
+| Symbol               | Location           | Role                                      |
+| -------------------- | ------------------ | ----------------------------------------- |
 | `startScheduler`     | `scheduler.ts:105` | Start poll loop + initial poll            |
 | `stopScheduler`      | `scheduler.ts:117` | Clear all timers on quit                  |
 | `buildMeetUrl`       | `scheduler.ts:27`  | Append `?authuser=email` to Meet URL      |

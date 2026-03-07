@@ -75,3 +75,14 @@ export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 | renderer | `../shared/types.js` |
 
 Note: `.js` extension required for ESM resolution even though source is `.ts`.
+
+## CALENDAR RESULT TYPE
+
+```typescript
+// types.ts:24-26
+export type CalendarResult =
+  | { events: MeetingEvent[] }
+  | { error: string };
+```
+
+Returned by `getCalendarEventsResult()` — distinguishes success vs failure.
