@@ -45,7 +45,7 @@ export function setupTray(win: BrowserWindow): void {
     applicationName: 'Google Meet',
     applicationVersion: app.getVersion(),
     version: app.getVersion(),
-    credits: 'Developed by CCWorkforce',
+    credits: 'Developed by CCWorkforce Engineers',
     copyright: `© ${new Date().getFullYear()} CCWorkforce`,
     iconPath,
   });
