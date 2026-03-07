@@ -248,8 +248,8 @@ async function loadEvents() {
     };
   }
 
-  render();
   lastUpdatedAt = Date.now();
+  render();
 }
 
 async function init() {
