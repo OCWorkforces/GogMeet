@@ -57,12 +57,17 @@ export function setupTray(win: BrowserWindow): void {
     },
   ]);
 
-  // Left-click → pop up context menu (native macOS tray style)
+  // Left-click → toggle window (show/hide)
   tray.on('click', () => {
-    tray!.popUpContextMenu(contextMenu);
+    if (win.isVisible()) {
+      win.hide();
+      app.dock?.hide();
+    } else {
+      showWindow(win);
+    }
   });
 
-  // Right-click → same menu
+  // Right-click → context menu
   tray.on('right-click', () => {
     tray!.popUpContextMenu(contextMenu);
   });
