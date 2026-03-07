@@ -42,6 +42,12 @@ store.requestFullAccessToEvents { granted, _ in
 
   for event in events {
     if event.status == .canceled { continue }
+    // Skip events the user has declined
+    if let attendees = event.attendees,
+       let self_ = attendees.first(where: { $0.isCurrentUser }),
+       self_.participantStatus == .declined {
+      continue
+    }
     let url = findMeetUrl(event.url?.absoluteString) ?? findMeetUrl(event.location) ?? findMeetUrl(event.notes) ?? ""
 
     let uid = event.calendarItemIdentifier
