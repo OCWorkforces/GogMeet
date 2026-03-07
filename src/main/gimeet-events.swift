@@ -26,7 +26,7 @@ store.requestFullAccessToEvents { granted, _ in
   let events = store.events(matching: pred)
 
   let meetRegex = try! NSRegularExpression(
-    pattern: #"https://meet\.google\.com/[a-z]{3}-[a-z]{4}-[a-z]{3}"#
+    pattern: #"https://meet\.google\.com/[^\s"'<>\\]+"#
   )
   let isoFormatter = ISO8601DateFormatter()
 
@@ -38,7 +38,7 @@ store.requestFullAccessToEvents { granted, _ in
   }
 
   for event in events {
-    guard let url = findMeetUrl(event.location) ?? findMeetUrl(event.notes) else { continue }
+    let url = findMeetUrl(event.location) ?? findMeetUrl(event.notes) ?? ""
 
     let uid = event.eventIdentifier ?? ""
     let title = event.title ?? ""

@@ -91,8 +91,7 @@ function parseEvents(raw: string): MeetingEvent[] {
         string, string, string, string, string, string, string, string | undefined
       ];
 
-      const meetUrl = urlField.trim();
-      if (!meetUrl || !meetUrl.startsWith('https://meet.google.com/')) return [];
+      const meetUrl = urlField.trim() || undefined;
 
       const startDate = new Date(startStr);
       const endDate = new Date(endStr);
@@ -112,7 +111,7 @@ function parseEvents(raw: string): MeetingEvent[] {
           title: title.trim(),
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          meetUrl,
+          ...(meetUrl ? { meetUrl } : {}),
           calendarName: calendarName.trim(),
           isAllDay: allDayStr.trim() === 'true',
           ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),

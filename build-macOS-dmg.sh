@@ -64,18 +64,16 @@ fi
 
 success "DMG build complete."
 
-# ── 4. Re-sign all nested helpers (deep ad-hoc) ──────────────────────────────
-# electron-builder signs the outer bundle but nested .app helpers may be missed.
-# A deep re-sign ensures every executable inside carries a valid signature.
+# ── 4. Sign the DMG (ad-hoc) ─────────────────────────────────────────────────
+# Without a DMG signature, macOS marks it as having "no usable signature" and
+# quarantine removal may not help.  Ad-hoc sign the DMG so the quarantine flag
+# is the only remaining gate (easily removed with xattr).
 if [[ "$SIGN_MODE" == "adhoc" ]]; then
-  APP_BUNDLE=$(find dist/mac-arm64 -maxdepth 1 -name '*.app' | head -1)
-  if [[ -n "$APP_BUNDLE" ]]; then
-    info "Re-signing bundle deeply (ad-hoc)…"
-    codesign --force --deep --sign - \
-      --entitlements build/entitlements.mac.plist \
-      --options runtime \
-      "$APP_BUNDLE" 2>&1
-    success "Deep ad-hoc re-sign complete."
+  DMG_FILE=$(find dist -maxdepth 1 -name '*.dmg' | head -1)
+  if [[ -n "$DMG_FILE" ]]; then
+    info "Ad-hoc signing DMG: ${DMG_FILE}…"
+    codesign --force --sign - "$DMG_FILE"
+    success "DMG signed (ad-hoc)."
   fi
 fi
 

@@ -17,7 +17,7 @@ export interface MeetingEvent {
   title: string;
   startDate: string; // ISO 8601
   endDate: string; // ISO 8601
-  meetUrl: string; // meet.google.com/xxx-xxxx-xxx
+  meetUrl?: string; // meet.google.com/xxx-xxxx-xxx (absent for non-Meet events)
   calendarName: string;
   location?: string;
   notes?: string;

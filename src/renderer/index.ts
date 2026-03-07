@@ -70,7 +70,7 @@ function renderBody(s: AppState): string {
         <div class="state-screen">
           <div class="state-icon">📅</div>
           <p class="state-title">Calendar Access Needed</p>
-          <p class="state-desc">Google Meet needs access to your calendar to find Google Meet events.</p>
+          <p class="state-desc">GiMeet needs access to your calendar to show upcoming events.</p>
           <button class="btn-primary" id="btn-grant" ${s.retrying ? 'disabled' : ''}>
             ${s.retrying ? 'Requesting...' : 'Grant Access'}
           </button>
@@ -82,7 +82,7 @@ function renderBody(s: AppState): string {
         <div class="state-screen">
           <div class="state-icon">☕</div>
           <p class="state-title">No upcoming meetings</p>
-          <p class="state-desc">No Google Meet events found for today or tomorrow.</p>
+          <p class="state-desc">No calendar events found for today or tomorrow.</p>
         </div>
       `;
 
@@ -111,12 +111,12 @@ function renderBody(s: AppState): string {
         html += `<p class="section-header">Today & Tomorrow</p>`;
         upcoming.forEach((event, i) => {
           const rel = formatRelativeTime(event.startDate);
-          const autoJoin = !event.isAllDay;
+          const autoJoin = !event.isAllDay && !!event.meetUrl;
           html += `
             <div class="meeting-item">
               <div class="meeting-item-row">
                 <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                <button class="btn-join" data-url="${escapeHtml(event.meetUrl)}">Join</button>
+                ${event.meetUrl ? `<button class="btn-join" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ''}
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>

@@ -25,12 +25,12 @@ let pollInterval: ReturnType<typeof setInterval> | null = null;
  * Appends ?authuser=email if we have a Google email for the user.
  */
 function buildMeetUrl(event: MeetingEvent): string {
-  const base = event.meetUrl.startsWith("https://")
-    ? event.meetUrl
+  const base = (event.meetUrl ?? '').startsWith('https://')
+    ? event.meetUrl!
     : `https://${event.meetUrl}`;
 
   const email = event.userEmail?.trim();
-  if (email && email.includes("@")) {
+  if (email && email.includes('@')) {
     return `${base}?authuser=${encodeURIComponent(email)}`;
   }
   return base;
@@ -68,6 +68,7 @@ function scheduleEvents(events: MeetingEvent[]): void {
     const handle = setTimeout(() => {
       timers.delete(event.id);
       firedEvents.add(event.id);
+      if (!event.meetUrl) return; // no URL — nothing to open
       const url = buildMeetUrl(event);
       shell.openExternal(url).catch((err) => {
         console.error(`[scheduler] Failed to open ${url}:`, err);
