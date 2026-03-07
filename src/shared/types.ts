@@ -19,8 +19,6 @@ export interface MeetingEvent {
   endDate: string; // ISO 8601
   meetUrl?: string; // meet.google.com/xxx-xxxx-xxx (absent for non-Meet events)
   calendarName: string;
-  location?: string;
-  notes?: string;
   isAllDay: boolean;
   userEmail?: string; // Current user's Google email from EventKit attendee list
 }
