@@ -1,23 +1,23 @@
 # GiMeet — Project Knowledge Base
 
-**Generated:** 2026-02-27
-**Commit:** 55f8887
+**Generated:** 2026-03-07
+**Commit:** fd142e4
 **Branch:** develop
+
 
 ## OVERVIEW
 
-macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI.
 
-## STACK
+macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI.
 
 | Layer     | Tech                                      |
 | --------- | ----------------------------------------- |
-| Runtime   | Bun 1.3.10+ / Node.js 24.13.1+            |
+| Runtime   | Bun 1.3.10+ / Node.js 24.14.0+            |
 | Framework | Electron 40                               |
 | Language  | TypeScript 5.9 (strict)                   |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-| Test      | Vitest (configured, no tests)             |
+| Test      | Vitest 4 (workspace, 522 lines tests)     |
 
 ## STRUCTURE
 
@@ -38,7 +38,11 @@ src/
 │   └── index.ts      # Exposes window.api to renderer
 ├── shared/           # Types shared across processes
 │   └── types.ts      # IPC_CHANNELS, MeetingEvent, CalendarPermission
-└── assets/           # Static (tray icons)
+├── assets/           # Static (tray icons)
+└── tests/            # Vitest tests (main/renderer workspaces)
+    ├── setup.main.ts # Electron mock for main process
+    ├── main/         # Scheduler tests (445 lines)
+    └── renderer/     # Event delegation tests (77 lines)
 ```
 
 ## WHERE TO LOOK
@@ -66,9 +70,9 @@ src/
 | `registerIpcHandlers` | fn    | src/main/ipc.ts:5         | IPC registration                          |
 | `getCalendarEvents`   | fn    | src/main/calendar.ts:125  | Swift EventKit fetch                      |
 | `parseEvents`         | fn    | src/main/calendar.ts:72   | Parses pipe-delimited Swift output        |
-| `startScheduler`      | fn    | src/main/scheduler.ts:105 | Starts 2-min poll + per-event open timers |
 | `stopScheduler`       | fn    | src/main/scheduler.ts:117 | Clears all timers on quit                 |
-| `buildMeetUrl`        | fn    | src/main/scheduler.ts:27  | Appends `?authuser=email` to Meet URL     |
+| `buildMeetUrl`        | fn    | src/main/scheduler.ts:56  | Appends `?authuser=email` to Meet URL     |
+| `scheduleEvents`      | fn    | src/main/scheduler.ts:102 | Set/clear per-event setTimeout timers     |
 | `IPC_CHANNELS`        | const | src/shared/types.ts:2     | Channel names                             |
 | `MeetingEvent`        | iface | src/shared/types.ts:15    | Event data model (incl. `userEmail`)      |
 | `AppState`            | type  | src/renderer/index.ts:4   | UI state union                            |
@@ -98,6 +102,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64)
 bun run typecheck    # TypeScript check
+bun run test         # Run Vitest tests (main + renderer workspaces)
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/gimeet   # Force Swift binary recompile after .swift changes
 ```
@@ -118,7 +123,6 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - Hardened runtime, Gatekeeper disabled
 - Notarization via `build/notarize.js` (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 - Entitlements in `build/entitlements.mac*.plist`
-
 ## NOTES
 
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
@@ -126,5 +130,16 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - **Auto-open**: Browser opens 1 min before each non-all-day meeting; `?authuser=email` from event attendee data
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **No tests yet**: Vitest installed but no test files
+- **Tests exist**: 522 lines covering scheduler state machine and event delegation
 - **No CI**: No GitHub workflows or other CI configured
+
+## TESTS
+
+| Project   | Env    | Location                    | Focus                           |
+| --------- | ------ | --------------------------- | ------------------------------- |
+| main      | node   | `tests/main/*.test.ts`      | Scheduler, tray, timer logic    |
+| renderer  | jsdom  | `tests/renderer/*.test.ts`  | Event delegation, DOM behavior  |
+
+**Setup**: `tests/setup.main.ts` mocks full Electron API (app, BrowserWindow, ipcMain, Tray, etc.)
+
+**Test Commands**: `bun run test` (run once) | `bun run test:watch` (watch mode)
