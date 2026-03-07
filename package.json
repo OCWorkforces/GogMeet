@@ -1,29 +1,9 @@
 {
   "name": "googlemeet",
-  "productName": "Google Meet Reminder",
   "version": "1.0.3",
-  "description": "Google Meet Reminder is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
-  "private": true,
-  "repository": "https://github.com/CCWorkforce/Google Meet",
-  "homepage": "https://github.com/CCWorkforce/Google Meet",
   "author": "CCWorkforce Engineers",
-  "packageManager": "bun@1.3.10",
-  "type": "module",
+  "repository": "https://github.com/CCWorkforce/Google Meet",
   "main": "lib/main/index.cjs",
-  "sideEffects": false,
-  "scripts": {
-    "dev": "bun run scripts/dev.ts",
-    "build": "bun run build:main && bun run build:preload && bun run build:renderer",
-    "build:main": "rslib build -c rslib.config.ts",
-    "build:preload": "rslib build -c rslib.config.preload.ts",
-    "build:renderer": "rsbuild build",
-    "package": "bun run build && electron-builder --mac --arm64",
-    "package:dir": "bun run build && electron-builder --mac --arm64 --dir",
-    "typecheck": "tsc -b",
-    "test": "vitest run -c vitest.workspace.ts",
-    "test:watch": "vitest -c vitest.workspace.ts",
-    "clean": "rimraf lib dist"
-  },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^10.0.1",
@@ -31,8 +11,6 @@
     "@rslib/core": "^0.19.6",
     "@rspack/core": "^1.7.7",
     "@tsconfig/node24": "^24.0.4",
-    "@types/auto-launch": "^5.0.5",
-    "@types/throttle-debounce": "^5.0.2",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/browser": "^4.0.18",
@@ -50,18 +28,29 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
-  "dependencies": {
-    "auto-launch": "^5.0.6",
-    "electron-context-menu": "^4.1.1",
-    "electron-log": "^5.4.3",
-    "electron-store": "^11.0.2",
-    "electron-unhandled": "^5.0.0",
-    "electron-update-notifier": "^1.7.0",
-    "throttle-debounce": "^5.0.2"
-  },
+  "description": "Google Meet Reminder is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
   "engineStrict": true,
   "engines": {
     "node": ">=24.14.0",
     "bun": ">=1.3.10"
-  }
+  },
+  "homepage": "https://github.com/CCWorkforce/Google Meet",
+  "packageManager": "bun@1.3.10",
+  "private": true,
+  "productName": "Google Meet Reminder",
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "build": "bun run build:main && bun run build:preload && bun run build:renderer",
+    "build:main": "rslib build -c rslib.config.ts",
+    "build:preload": "rslib build -c rslib.config.preload.ts",
+    "build:renderer": "rsbuild build",
+    "package": "bun run build && electron-builder --mac --arm64",
+    "package:dir": "bun run build && electron-builder --mac --arm64 --dir",
+    "typecheck": "tsc -b",
+    "test": "vitest run -c vitest.workspace.ts",
+    "test:watch": "vitest -c vitest.workspace.ts",
+    "clean": "rimraf lib dist"
+  },
+  "sideEffects": false,
+  "type": "module"
 }
