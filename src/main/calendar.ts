@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,18 +19,17 @@ const SWIFT_SRC_DEV = join(__dirname, '..', '..', 'src', 'main', 'gimeet-events.
 const BINARY_DIR = join(tmpdir(), 'gimeet');
 const BINARY_PATH = join(BINARY_DIR, 'gimeet-events');
 
+/** Sidecar file storing the SHA-256 hash of the Swift source used for the current binary */
+const HASH_PATH = join(BINARY_DIR, 'source.hash');
+
+async function computeSwiftSourceHash(swiftSrc: string): Promise<string> {
+  const content = await readFile(swiftSrc);
+  return createHash('sha256').update(content).digest('hex');
+}
+
+
 /** Compile the Swift EventKit helper if not already compiled */
 async function ensureBinary(): Promise<void> {
-  // Check if binary already exists
-  try {
-    await access(BINARY_PATH, constants.X_OK);
-    return; // already compiled
-  } catch {
-    // need to compile
-  }
-
-  await mkdir(BINARY_DIR, { recursive: true });
-
   // Locate Swift source (dev: from src/, packaged: from Resources/app/src/main/)
   let swiftSrc = SWIFT_SRC_DEV;
   try {
@@ -43,7 +44,26 @@ async function ensureBinary(): Promise<void> {
     );
   }
 
-  // Try compile (without explicit SDK first, fallback to Xcode SDK)
+  await mkdir(BINARY_DIR, { recursive: true });
+
+  // Compute hash of current Swift source
+  const currentHash = await computeSwiftSourceHash(swiftSrc);
+
+  // Check if binary exists AND hash matches
+  try {
+    await access(BINARY_PATH, constants.X_OK);
+    const storedHash = await readFile(HASH_PATH, 'utf-8').catch(() => '');
+    if (storedHash.trim() === currentHash) {
+      return; // binary is up-to-date
+    }
+    // Hash changed — delete stale binary and recompile
+    console.log('[calendar] Swift source changed — recompiling binary');
+    await unlink(BINARY_PATH).catch(() => {});
+  } catch {
+    // Binary doesn't exist — need to compile
+  }
+
+  // Compile
   try {
     await execFileAsync('swiftc', [swiftSrc, '-o', BINARY_PATH], { timeout: 60_000 });
   } catch {
@@ -59,6 +79,9 @@ async function ensureBinary(): Promise<void> {
       { timeout: 60_000 }
     );
   }
+
+  // Store hash for future comparisons
+  await writeFile(HASH_PATH, currentHash, 'utf-8');
 }
 
 /** Run the compiled Swift EventKit helper and return raw output */
