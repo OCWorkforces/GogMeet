@@ -27,11 +27,24 @@ const countdownIntervals = new Map<string, ReturnType<typeof setInterval>>();
 /** Map of eventId → setTimeout handle that fires at meeting start to clear title */
 const clearTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-/** Map of eventId → the startMs that was used when the timer was scheduled */
-const scheduledStartMs = new Map<string, number>();
+/** Map of eventId → stored event snapshot for change detection (replaces scheduledStartMs) */
+const scheduledEventData = new Map<string, {
+  title: string;
+  meetUrl: string | undefined;
+  startMs: number;
+}>();
 
 /** Set of eventIds that have already fired (prevents re-fire on refresh) */
 const firedEvents = new Set<string>();
+
+/** Which event currently owns the tray title display (null = no countdown active) */
+let activeTitleEventId: string | null = null;
+
+/** Counter of consecutive calendar fetch errors — reset to 0 on success */
+let consecutiveErrors = 0;
+
+/** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
+const MAX_CONSECUTIVE_ERRORS = 3;
 
 /** Active poll interval handle */
 let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -50,6 +63,36 @@ function buildMeetUrl(event: MeetingEvent): string {
     return `${base}?authuser=${encodeURIComponent(email)}`;
   }
   return base;
+}
+
+/**
+ * Determine which event should own the tray title.
+ * Policy: earliest startMs among events with an active countdownInterval wins.
+ * Updates the tray immediately if ownership changes.
+ */
+function resolveActiveTitleEvent(): void {
+  let bestId: string | null = null;
+  let bestStartMs = Infinity;
+
+  for (const id of countdownIntervals.keys()) {
+    const data = scheduledEventData.get(id);
+    if (data && data.startMs < bestStartMs) {
+      bestStartMs = data.startMs;
+      bestId = id;
+    }
+  }
+
+  activeTitleEventId = bestId;
+
+  if (bestId) {
+    const data = scheduledEventData.get(bestId)!;
+    const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
+    if (remaining > 0) {
+      updateTrayTitle(data.title, remaining);
+    }
+  } else {
+    updateTrayTitle(null);
+  }
 }
 
 /**
@@ -76,26 +119,52 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     // Already fired — skip
     if (firedEvents.has(event.id)) continue;
 
-    // Already scheduled — check if start time changed (reschedule needed)
+    // Already scheduled — check what changed
     if (timers.has(event.id)) {
-      const prevStartMs = scheduledStartMs.get(event.id);
-      if (prevStartMs === startMs) continue; // same time, timer still valid
-      // Start time changed — cancel old timer and reschedule
-      clearTimeout(timers.get(event.id)!);
-      timers.delete(event.id);
-      scheduledStartMs.delete(event.id);
-      firedEvents.delete(event.id); // allow re-fire at new time
-      console.log(
-        `[scheduler] Rescheduled "${event.title}" — start time changed`,
-      );
-      // fall through to schedule new timer
+      const prevData = scheduledEventData.get(event.id);
+      if (prevData) {
+        const timeChanged = prevData.startMs !== startMs;
+        const titleChanged = prevData.title !== event.title;
+        const urlChanged = prevData.meetUrl !== event.meetUrl;
+
+        if (!timeChanged && !titleChanged && !urlChanged) continue; // nothing changed
+
+        if (!timeChanged) {
+          // Only metadata changed — update snapshot and refresh in-place (no timer reschedule)
+          scheduledEventData.set(event.id, { title: event.title, meetUrl: event.meetUrl, startMs });
+
+          if (urlChanged) {
+            // Reschedule the browser-open timer with the new URL
+            clearTimeout(timers.get(event.id)!);
+            timers.delete(event.id);
+            // fall through below to schedule new browser timer (same start time)
+            console.log(`[scheduler] URL changed for "${event.title}" — rescheduling browser open`);
+          } else {
+            // Title-only change — update tray immediately if this event owns the title
+            if (activeTitleEventId === event.id) {
+              const remaining = Math.ceil((startMs - Date.now()) / 60_000);
+              if (remaining > 0) updateTrayTitle(event.title, remaining);
+            }
+            console.log(`[scheduler] Title updated for "${event.title}"`);
+            continue; // no timer changes needed
+          }
+        } else {
+          // Start time changed — cancel all timers and fully reschedule
+          clearTimeout(timers.get(event.id)!);
+          timers.delete(event.id);
+          scheduledEventData.delete(event.id);
+          firedEvents.delete(event.id); // allow re-fire at new time
+          console.log(`[scheduler] Rescheduled "${event.title}" — start time changed`);
+          // fall through to schedule new timer
+        }
+      }
     }
 
     const effectiveDelay = Math.max(0, delayMs);
 
     const handle = setTimeout(() => {
       timers.delete(event.id);
-      scheduledStartMs.delete(event.id);
+      scheduledEventData.delete(event.id);
       firedEvents.add(event.id);
       if (!event.meetUrl) return; // no URL — nothing to open
       new Notification({
@@ -110,7 +179,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     }, effectiveDelay);
 
     timers.set(event.id, handle);
-    scheduledStartMs.set(event.id, startMs);
+    scheduledEventData.set(event.id, { title: event.title, meetUrl: event.meetUrl, startMs });
     console.log(
       `[scheduler] Scheduled "${event.title}" to open in ${Math.round(effectiveDelay / 1000)}s`,
     );
@@ -132,29 +201,43 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     /** Compute whole minutes remaining until startMs and update tray */
     function tickCountdown(): void {
-      const remaining = Math.ceil((startMs - Date.now()) / 60_000);
+      // Only update tray if this event currently owns the title
+      if (event.id !== activeTitleEventId) return;
+      const data = scheduledEventData.get(event.id);
+      if (!data) return;
+      const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
       if (remaining > 0) {
-        updateTrayTitle(event.title, remaining);
+        updateTrayTitle(data.title, remaining);
       }
     }
 
     /** Start per-minute countdown interval and schedule clear at startMs */
     function startCountdown(): void {
-      tickCountdown(); // immediate tick so title appears right away
+      // Guard: bail if event was deleted between titleTimer fire and now
+      if (!scheduledEventData.has(event.id)) return;
+
+      tickCountdown(); // immediate tick so title appears right away — sets ownership via resolveActiveTitleEvent below
       const intervalHandle = setInterval(() => {
         tickCountdown();
       }, 60_000);
       countdownIntervals.set(event.id, intervalHandle);
       console.log(`[scheduler] Countdown started for "${event.title}"`);
 
+      // Resolve ownership so tray title reflects earliest-starting meeting
+      resolveActiveTitleEvent();
+
       const clearHandle = setTimeout(
         () => {
           clearInterval(countdownIntervals.get(event.id)!);
           countdownIntervals.delete(event.id);
           clearTimers.delete(event.id);
-          updateTrayTitle(null);
+          // If this event was the owner, release ownership then promote next
+          if (activeTitleEventId === event.id) {
+            activeTitleEventId = null;
+          }
+          resolveActiveTitleEvent();
           console.log(
-            `[scheduler] Tray title cleared (meeting started: "${event.title}")`,
+            `[scheduler] Tray title updated (meeting started: "${event.title}")`,
           );
         },
         Math.max(0, startMs - Date.now()),
@@ -208,12 +291,21 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     }
   }
 
-  // Prune firedEvents for events no longer in the active list
+  // Prune firedEvents and scheduledEventData for events no longer in the active list
   for (const id of firedEvents) {
     if (!activeIds.has(id)) {
       firedEvents.delete(id);
     }
   }
+  for (const id of scheduledEventData.keys()) {
+    if (!activeIds.has(id)) {
+      scheduledEventData.delete(id);
+    }
+  }
+
+  // After cleanup, re-resolve tray title ownership
+  // (handles the case where the active countdown event was just removed)
+  resolveActiveTitleEvent();
 }
 
 /** Poll calendar and refresh timers */
@@ -221,12 +313,31 @@ async function poll(): Promise<void> {
   try {
     const result = await getCalendarEventsResult();
     if ("events" in result) {
+      consecutiveErrors = 0;
       scheduleEvents(result.events);
     } else {
       console.error("[scheduler] Calendar error:", result.error);
+      consecutiveErrors++;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        for (const handle of countdownIntervals.values()) clearInterval(handle);
+        countdownIntervals.clear();
+        for (const handle of clearTimers.values()) clearTimeout(handle);
+        clearTimers.clear();
+        resolveActiveTitleEvent();
+        console.error(`[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`);
+      }
     }
   } catch (err) {
     console.error("[scheduler] Poll error:", err);
+    consecutiveErrors++;
+    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      for (const handle of countdownIntervals.values()) clearInterval(handle);
+      countdownIntervals.clear();
+      for (const handle of clearTimers.values()) clearTimeout(handle);
+      clearTimers.clear();
+      resolveActiveTitleEvent();
+      console.error(`[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`);
+    }
   }
 }
 
@@ -251,7 +362,7 @@ export function stopScheduler(): void {
 
   for (const handle of timers.values()) clearTimeout(handle);
   timers.clear();
-  scheduledStartMs.clear();
+  scheduledEventData.clear();
   firedEvents.clear();
 
   for (const handle of titleTimers.values()) clearTimeout(handle);
@@ -263,9 +374,15 @@ export function stopScheduler(): void {
   for (const handle of clearTimers.values()) clearTimeout(handle);
   clearTimers.clear();
 
+  activeTitleEventId = null;
+  consecutiveErrors = 0;
   updateTrayTitle(null);
   console.log("[scheduler] Stopped");
 }
 
 // Export for testing
-export { firedEvents, scheduledStartMs, timers };
+export { activeTitleEventId, consecutiveErrors, countdownIntervals, firedEvents, poll, resolveActiveTitleEvent, scheduledEventData, timers };
+/** Reset mutable state for tests — not for production use */
+export function _resetConsecutiveErrors(): void {
+  consecutiveErrors = 0;
+}
