@@ -7,7 +7,7 @@ import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { MeetingEvent, CalendarPermission } from '../shared/types.js';
+import type { MeetingEvent, CalendarPermission, CalendarResult } from '../shared/types.js';
 
 const execFileAsync = promisify(execFile);
 const __dirname = join(fileURLToPath(import.meta.url), '..');
@@ -144,15 +144,22 @@ export function parseEvents(raw: string): MeetingEvent[] {
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 }
 
-/** Fetch Google Meet events via EventKit Swift helper */
-export async function getCalendarEvents(): Promise<MeetingEvent[]> {
+/** Fetch Google Meet events — returns structured result with events or error */
+export async function getCalendarEventsResult(): Promise<CalendarResult> {
   try {
     const output = await runSwiftHelper();
-    return parseEvents(output);
+    return { events: parseEvents(output) };
   } catch (err) {
-    console.error('[calendar] getCalendarEvents error:', err);
-    return [];
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[calendar] getCalendarEventsResult error:', err);
+    return { error: message };
   }
+}
+
+/** @deprecated Use getCalendarEventsResult() for structured error handling */
+export async function getCalendarEvents(): Promise<MeetingEvent[]> {
+  const result = await getCalendarEventsResult();
+  return 'events' in result ? result.events : [];
 }
 
 /** Run an inline AppleScript for permission checks (fast, no event queries) */

@@ -25,6 +25,9 @@ export interface MeetingEvent {
   userEmail?: string; // Current user's Google email from EventKit attendee list
 }
 
+/** Structured result from calendar fetch — either events or an error message */
+export type CalendarResult = { events: MeetingEvent[] } | { error: string };
+
 /** Calendar permission states */
 export type CalendarPermission =
   | 'granted'
