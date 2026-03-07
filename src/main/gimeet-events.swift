@@ -19,8 +19,11 @@ store.requestFullAccessToEvents { granted, _ in
   let cal = Calendar.current
   var startComps = cal.dateComponents([.year, .month, .day], from: Date())
   startComps.hour = 0; startComps.minute = 0; startComps.second = 0
-  let startDate = cal.date(from: startComps)!
-  let endDate = cal.date(byAdding: .day, value: 2, to: startDate)!
+  guard let startDate = cal.date(from: startComps),
+        let endDate = cal.date(byAdding: .day, value: 2, to: startDate) else {
+    fputs("error: could not compute date range\n", stderr)
+    exit(1)
+  }
 
   let pred = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
   let events = store.events(matching: pred)
