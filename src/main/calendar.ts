@@ -15,6 +15,8 @@ const __dirname = join(fileURLToPath(import.meta.url), '..');
 /** Path to bundled Swift source file */
 const SWIFT_SRC_DEV = join(__dirname, '..', '..', 'src', 'main', 'googlemeet-events.swift');
 
+/** Check if running from within an ASAR archive */
+const isPackaged = __dirname.includes('.asar');
 /** Cached compiled binary location */
 const BINARY_DIR = join(tmpdir(), 'googlemeet');
 const BINARY_PATH = join(BINARY_DIR, 'googlemeet-events');
@@ -30,22 +32,13 @@ async function computeSwiftSourceHash(swiftSrc: string): Promise<string> {
 
 /** Compile the Swift EventKit helper if not already compiled */
 async function ensureBinary(): Promise<void> {
-  // Locate Swift source (dev: from src/, packaged: from app.asar.unpacked/)
-  // Note: Must use asarUnpack in electron-builder.yml to extract Swift file
-  // because swiftc cannot read files from inside asar archives
-  let swiftSrc = SWIFT_SRC_DEV;
-  try {
-    await access(swiftSrc, constants.R_OK);
-  } catch {
-    // Packaged app: Swift file is unpacked to app.asar.unpacked/
-    swiftSrc = join(
-      process.resourcesPath,
-      'app.asar.unpacked',
-      'src',
-      'main',
-      'googlemeet-events.swift'
-    );
-  }
+  // Locate Swift source
+  // IMPORTANT: swiftc cannot read files from inside ASAR archives.
+  // We must use the unpacked version when running from ASAR.
+  // electron-builder.yml has asarUnpack configured for this file.
+  const swiftSrc = isPackaged
+    ? join(process.resourcesPath, 'app.asar.unpacked', 'src', 'main', 'googlemeet-events.swift')
+    : SWIFT_SRC_DEV;
 
   await mkdir(BINARY_DIR, { recursive: true });
 
