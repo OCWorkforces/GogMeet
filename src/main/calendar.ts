@@ -146,7 +146,8 @@ export async function getCalendarEventsResult(): Promise<CalendarResult> {
     const output = await runSwiftHelper();
     return { events: parseEvents(output) };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const stderr = (err as { stderr?: string }).stderr?.trim();
+    const message = stderr || (err instanceof Error ? err.message : 'Unknown error');
     console.error('[calendar] getCalendarEventsResult error:', err);
     return { error: message };
   }

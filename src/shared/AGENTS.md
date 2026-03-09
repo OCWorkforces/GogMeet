@@ -11,13 +11,12 @@ Type definitions shared across main, preload, and renderer processes. Single sou
 ## IPC CHANNELS
 
 ```typescript
-// types.ts:2-10
+// types.ts:2-9
 export const IPC_CHANNELS = {
   CALENDAR_GET_EVENTS: "calendar:get-events",
   CALENDAR_REQUEST_PERMISSION: "calendar:request-permission",
   CALENDAR_PERMISSION_STATUS: "calendar:permission-status",
-  WINDOW_MINIMIZE_TO_TRAY: "window:minimize-to-tray",
-  WINDOW_RESTORE: "window:restore",
+  WINDOW_SET_HEIGHT: "window:set-height",
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_GET_VERSION: "app:get-version",
 } as const;
@@ -28,30 +27,31 @@ export const IPC_CHANNELS = {
 ### MeetingEvent
 
 ```typescript
-// types.ts:15-26
+// types.ts:12-21
 export interface MeetingEvent {
   id: string;
   title: string;
   startDate: string; // ISO 8601
   endDate: string; // ISO 8601
-  meetUrl: string; // meet.google.com/xxx-xxxx-xxx
+  meetUrl?: string; // meet.google.com/xxx-xxxx-xxx (absent for non-Meet events)
   calendarName: string;
-  location?: string;
-  notes?: string;
   isAllDay: boolean;
-  userEmail?: string; // Extracted from EKParticipant (self attendee)
+  userEmail?: string; // Current user's Google email from EventKit attendee list
 }
+```
+
+### CalendarResult
+
+```typescript
+// types.ts:23-24
+export type CalendarResult = { events: MeetingEvent[] } | { error: string };
 ```
 
 ### CalendarPermission
 
 ```typescript
-// types.ts:28-32
-export type CalendarPermission =
-  | "granted"
-  | "denied"
-  | "not-determined"
-  | "restricted";
+// types.ts:26-30
+export type CalendarPermission = "granted" | "denied" | "not-determined";
 ```
 
 ## TYPE UTILITIES
@@ -75,14 +75,3 @@ export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 | renderer | `../shared/types.js` |
 
 Note: `.js` extension required for ESM resolution even though source is `.ts`.
-
-## CALENDAR RESULT TYPE
-
-```typescript
-// types.ts:24-26
-export type CalendarResult =
-  | { events: MeetingEvent[] }
-  | { error: string };
-```
-
-Returned by `getCalendarEventsResult()` — distinguishes success vs failure.

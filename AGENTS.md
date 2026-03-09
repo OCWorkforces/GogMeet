@@ -1,12 +1,10 @@
 # GoogleMeet — Project Knowledge Base
 
-**Generated:** 2026-03-07
-**Commit:** fd142e4
+**Generated:** 2026-03-09
+**Commit:** 758a0e2
 **Branch:** develop
 
-
 ## OVERVIEW
-
 
 macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI.
 
@@ -17,7 +15,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Language  | TypeScript 5.9 (strict)                   |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-| Test      | Vitest 4 (workspace, 522 lines tests)     |
+| Test      | Vitest 4 (workspace, 1,127 lines tests)   |
 
 ## STRUCTURE
 
@@ -41,42 +39,42 @@ src/
 ├── assets/           # Static (tray icons)
 └── tests/            # Vitest tests (main/renderer workspaces)
     ├── setup.main.ts # Electron mock for main process
-    ├── main/         # Scheduler tests (445 lines)
-    └── renderer/     # Event delegation tests (77 lines)
+    ├── main/         # Scheduler, calendar, IPC tests (906 lines)
+    └── renderer/     # Event delegation, XSS tests (159 lines)
 ```
 
 ## WHERE TO LOOK
 
-| Task                      | Location                               | Notes                                                              |
-| ------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
-| Add IPC channel           | `src/shared/types.ts` → `IPC_CHANNELS` | Single source of truth                                             |
-| Implement IPC handler     | `src/main/ipc.ts`                      | Register with `ipcMain.handle()`                                   |
-| Expose to renderer        | `src/preload/index.ts`                 | Add to `api` object                                                |
-| Use in UI                 | `src/renderer/index.ts`                | Call via `window.api.*`                                            |
-| Calendar logic            | `src/main/calendar.ts`                 | Swift EventKit via compiled binary                                 |
-| Auto-launch scheduler     | `src/main/scheduler.ts`                | `startScheduler` / `stopScheduler`                                 |
-| Swift EventKit output     | `src/main/googlemeet-events.swift`         | Format: `id\|\|title\|\|start\|\|end\|\|url\|\|cal\|\|allDay\|\|email` |
-| UI state                  | `src/renderer/index.ts`                | `AppState` type union                                              |
-| Window config             | `src/main/index.ts`                    | `createWindow()`                                                   |
-| Tray behavior             | `src/main/tray.ts`                     | Menu, positioning                                                  |
-| Build config              | `rslib.config.ts`, `rsbuild.config.ts` | Separate for each process                                          |
+| Task                  | Location                               | Notes                                                         |
+| --------------------- | -------------------------------------- | ------------------------------------------------------------- |
+| Add IPC channel       | `src/shared/types.ts` → `IPC_CHANNELS` | Single source of truth                                        |
+| Implement IPC handler | `src/main/ipc.ts`                      | Register with `ipcMain.handle()`                              |
+| Expose to renderer    | `src/preload/index.ts`                 | Add to `api` object                                           |
+| Use in UI             | `src/renderer/index.ts`                | Call via `window.api.*`                                       |
+| Calendar logic        | `src/main/calendar.ts`                 | Swift EventKit via compiled binary                            |
+| Auto-launch scheduler | `src/main/scheduler.ts`                | `startScheduler` / `stopScheduler`                            |
+| Swift EventKit output | `src/main/googlemeet-events.swift`     | Tab-delimited: id\ttitle\tstart\tend\turl\tcal\tallDay\temail |
+| UI state              | `src/renderer/index.ts`                | `AppState` type union                                         |
+| Window config         | `src/main/index.ts`                    | `createWindow()`                                              |
+| Tray behavior         | `src/main/tray.ts`                     | Menu, positioning                                             |
+| Build config          | `rslib.config.ts`, `rsbuild.config.ts` | Separate for each process                                     |
 
 ## CODE MAP
 
-| Symbol                | Type  | Location                  | Role                                      |
-| --------------------- | ----- | ------------------------- | ----------------------------------------- |
-| `createWindow`        | fn    | src/main/index.ts:14      | BrowserWindow factory                     |
-| `setupTray`           | fn    | src/main/tray.ts:18       | System tray init                          |
-| `registerIpcHandlers` | fn    | src/main/ipc.ts:5         | IPC registration                          |
-| `getCalendarEvents`   | fn    | src/main/calendar.ts:125  | Swift EventKit fetch                      |
-| `parseEvents`         | fn    | src/main/calendar.ts:72   | Parses pipe-delimited Swift output        |
-| `stopScheduler`       | fn    | src/main/scheduler.ts:117 | Clears all timers on quit                 |
-| `buildMeetUrl`        | fn    | src/main/scheduler.ts:56  | Appends `?authuser=email` to Meet URL     |
-| `scheduleEvents`      | fn    | src/main/scheduler.ts:102 | Set/clear per-event setTimeout timers     |
-| `IPC_CHANNELS`        | const | src/shared/types.ts:2     | Channel names                             |
-| `MeetingEvent`        | iface | src/shared/types.ts:15    | Event data model (incl. `userEmail`)      |
-| `AppState`            | type  | src/renderer/index.ts:4   | UI state union                            |
-| `api`                 | const | src/preload/index.ts:5    | Context bridge API                        |
+| Symbol                | Type  | Location                     | Role                                  |
+| --------------------- | ----- | ---------------------------- | ------------------------------------- |
+| `createWindow`        | fn    | src/main/index.ts:38         | BrowserWindow factory                 |
+| `setupTray`           | fn    | src/main/tray.ts:29          | System tray init                      |
+| `registerIpcHandlers` | fn    | src/main/ipc.ts:44           | IPC registration                      |
+| `getCalendarEvents`   | fn    | src/main/calendar.ts:144     | Swift EventKit fetch                  |
+| `parseEvents`         | fn    | src/main/calendar.ts:91      | Parses tab-delimited Swift output     |
+| `stopScheduler`       | fn    | src/main/scheduler.ts:342    | Clears all timers on quit             |
+| `buildMeetUrl`        | fn    | src/main/utils/meet-url.ts:7 | Appends `?authuser=email` to Meet URL |
+| `scheduleEvents`      | fn    | src/main/scheduler.ts:87     | Set/clear per-event setTimeout timers |
+| `IPC_CHANNELS`        | const | src/shared/types.ts:2        | Channel names                         |
+| `MeetingEvent`        | iface | src/shared/types.ts:12       | Event data model (incl. `userEmail`)  |
+| `AppState`            | type  | src/renderer/index.ts:4      | UI state union                        |
+| `api`                 | const | src/preload/index.ts:5       | Context bridge API                    |
 
 ## CONVENTIONS
 
@@ -123,6 +121,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - Hardened runtime, Gatekeeper disabled
 - Notarization via `build/notarize.js` (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 - Entitlements in `build/entitlements.mac*.plist`
+
 ## NOTES
 
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
@@ -130,15 +129,15 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - **Auto-open**: Browser opens 1 min before each non-all-day meeting; `?authuser=email` from event attendee data
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **Tests exist**: 522 lines covering scheduler state machine and event delegation
+- **Tests exist**: 1,127 lines covering scheduler, calendar, IPC, event delegation, and XSS protection
 - **No CI**: No GitHub workflows or other CI configured
 
 ## TESTS
 
-| Project   | Env    | Location                    | Focus                           |
-| --------- | ------ | --------------------------- | ------------------------------- |
-| main      | node   | `tests/main/*.test.ts`      | Scheduler, tray, timer logic    |
-| renderer  | jsdom  | `tests/renderer/*.test.ts`  | Event delegation, DOM behavior  |
+| Project  | Env   | Location                   | Focus                              |
+| -------- | ----- | -------------------------- | ---------------------------------- |
+| main     | node  | `tests/main/*.test.ts`     | Scheduler, calendar, IPC, security |
+| renderer | jsdom | `tests/renderer/*.test.ts` | Event delegation, XSS protection   |
 
 **Setup**: `tests/setup.main.ts` mocks full Electron API (app, BrowserWindow, ipcMain, Tray, etc.)
 

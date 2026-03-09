@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setupTray } from "./tray.js";
@@ -8,6 +8,20 @@ import { startScheduler, stopScheduler } from "./scheduler.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const isDev = !app.isPackaged;
+
+// === Process-level error handlers ===
+process.on("uncaughtException", (error: Error) => {
+  console.error("[main] Uncaught exception:", error);
+  if (!isDev) {
+    dialog.showErrorBox("Unexpected Error", error.message || "An unexpected error occurred.");
+    app.exit(1);
+  }
+});
+
+process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) => {
+  console.error("[main] Unhandled rejection at:", promise, "reason:", reason);
+  // Do not exit on unhandled rejection - these are often recoverable
+});
 
 // Must be called before app.whenReady() on macOS for iconPath to take effect
 app.setAboutPanelOptions({

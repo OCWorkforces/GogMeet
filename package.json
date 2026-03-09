@@ -1,6 +1,6 @@
 {
   "name": "googlemeet",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "author": "CCWorkforce Engineers",
   "repository": "https://github.com/CCWorkforce/GiMeet",
   "main": "lib/main/index.cjs",
@@ -49,6 +49,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run -c vitest.workspace.ts",
     "test:watch": "vitest -c vitest.workspace.ts",
+    "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
     "clean": "rimraf lib dist"
   },
   "sideEffects": false,

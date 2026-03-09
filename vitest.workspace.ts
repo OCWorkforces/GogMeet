@@ -10,6 +10,12 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/main/**/*.test.ts'],
           setupFiles: ['./tests/setup.main.ts'],
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json-summary'],
+            include: ['src/main/**/*.ts'],
+            exclude: ['src/main/**/*.d.ts', 'src/main/**/*.swift'],
+          },
         },
       },
       {
@@ -17,6 +23,12 @@ export default defineConfig({
           name: 'renderer',
           environment: 'jsdom',
           include: ['tests/renderer/**/*.test.ts'],
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json-summary'],
+            include: ['src/renderer/**/*.ts'],
+            exclude: ['src/renderer/**/*.d.ts'],
+          },
         },
       },
     ],
