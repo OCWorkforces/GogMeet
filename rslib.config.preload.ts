@@ -30,12 +30,10 @@ export default defineConfig({
             callback();
           });
           config.externals = arr;
+          // Configure extension alias for TypeScript imports
+          config.resolve = config.resolve ?? {};
+          config.resolve.extensionAlias = { '.js': ['.ts', '.js'] };
           return config;
-        },
-      },
-      resolve: {
-        extensionAlias: {
-          '.js': ['.ts', '.js'],
         },
       },
     },
