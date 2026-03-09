@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { getCalendarEventsResult } from "./calendar.js";
-import { buildMeetUrl } from "./scheduler.js";
+import { buildMeetUrl } from "./utils/meet-url.js";
 import type { MeetingEvent } from "../shared/types.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

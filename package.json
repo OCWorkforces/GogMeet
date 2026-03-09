@@ -49,6 +49,10 @@
     "typecheck": "tsc -b",
     "test": "vitest run -c vitest.workspace.ts",
     "test:watch": "vitest -c vitest.workspace.ts",
+    "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
+    "test:watch": "vitest -c vitest.workspace.ts",
+    "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
+    "test:watch": "vitest -c vitest.workspace.ts",
     "clean": "rimraf lib dist"
   },
   "sideEffects": false,

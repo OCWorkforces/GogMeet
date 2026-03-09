@@ -2,7 +2,7 @@ import { Notification, shell } from "electron";
 import { getCalendarEventsResult } from "./calendar.js";
 import type { MeetingEvent } from "../shared/types.js";
 import { updateTrayTitle } from "./tray.js";
-
+import { buildMeetUrl } from "./utils/meet-url.js";
 /** How long before meeting start to open the browser (ms) */
 const OPEN_BEFORE_MS = 60 * 1000; // 1 minute
 
@@ -49,21 +49,6 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 /** Active poll interval handle */
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-/**
- * Build the URL to open for a meeting.
- * Appends ?authuser=email if we have a Google email for the user.
- */
-export function buildMeetUrl(event: MeetingEvent): string {
-  const base = (event.meetUrl ?? "").startsWith("https://")
-    ? event.meetUrl!
-    : `https://${event.meetUrl}`;
-
-  const email = event.userEmail?.trim();
-  if (email && email.includes("@")) {
-    return `${base}?authuser=${encodeURIComponent(email)}`;
-  }
-  return base;
-}
 
 /**
  * Determine which event should own the tray title.
