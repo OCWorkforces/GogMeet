@@ -53,7 +53,7 @@ let pollInterval: ReturnType<typeof setInterval> | null = null;
  * Build the URL to open for a meeting.
  * Appends ?authuser=email if we have a Google email for the user.
  */
-function buildMeetUrl(event: MeetingEvent): string {
+export function buildMeetUrl(event: MeetingEvent): string {
   const base = (event.meetUrl ?? "").startsWith("https://")
     ? event.meetUrl!
     : `https://${event.meetUrl}`;
