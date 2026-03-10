@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { setupTray } from "./tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
+import { getPackageInfo } from "./utils/packageInfo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,15 +25,14 @@ process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) =>
   // Do not exit on unhandled rejection - these are often recoverable
 });
 
-// Must be called before app.whenReady() on macOS for iconPath to take effect
-const versionString = `Version ${app.getVersion()} (${process.platform[0]?.toUpperCase()}${process.platform.slice(1)}, ${os.release()}, ${process.arch})`;
+const packageJson = getPackageInfo();
+const platform = [os.type(), os.release(), os.arch()].join(', ');
 
 app.setAboutPanelOptions({
   applicationName: 'Google Meet',
-  applicationVersion: versionString,
-  version: '',
-  credits: 'Developed by OCWorkforce Engineers',
-  iconPath: path.join(__dirname, '..', '..', 'assets', 'google-meet-icon.png'),
+  applicationVersion: app.getVersion(),
+  copyright: `Developed by ${packageJson.author}`,
+  version: platform,
 });
 
 let mainWindow: BrowserWindow | null = null;
