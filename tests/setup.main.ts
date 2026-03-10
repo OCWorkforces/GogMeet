@@ -1,5 +1,3 @@
-import { vi } from "vitest";
-
 vi.mock("electron", () => ({
   app: {
     getVersion: vi.fn().mockReturnValue("1.0.0"),
@@ -19,25 +17,42 @@ vi.mock("electron", () => ({
   shell: {
     openExternal: vi.fn().mockResolvedValue(undefined),
   },
-  BrowserWindow: vi.fn().mockImplementation(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn(),
-    focus: vi.fn(),
-    destroy: vi.fn(),
-    isVisible: vi.fn().mockReturnValue(false),
-    getBounds: vi.fn().mockReturnValue({ x: 0, y: 0, width: 360, height: 480 }),
-    setPosition: vi.fn(),
+  dialog: {
+    showErrorBox: vi.fn(),
+    showMessageBox: vi.fn().mockResolvedValue({ response: 0 }),
+  },
+  nativeTheme: {
+    shouldUseDarkColors: false,
     on: vi.fn(),
-    removeListener: vi.fn(),
-    webContents: { send: vi.fn() },
-  })),
+  },
+  BrowserWindow: Object.assign(
+    vi.fn().mockImplementation(() => ({
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      focus: vi.fn(),
+      destroy: vi.fn(),
+      isVisible: vi.fn().mockReturnValue(false),
+      getBounds: vi.fn().mockReturnValue({ x: 0, y: 0, width: 360, height: 480 }),
+      setPosition: vi.fn(),
+      setSize: vi.fn(),
+      setAlwaysOnTop: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      webContents: { send: vi.fn() },
+    })),
+    {
+      getAllWindows: vi.fn().mockReturnValue([]),
+    }
+  ),
   Notification: vi.fn().mockImplementation(() => ({
     show: vi.fn(),
   })),
   Tray: vi.fn().mockImplementation(() => ({
     setToolTip: vi.fn(),
+    setTitle: vi.fn(),
+    setImage: vi.fn(),
     on: vi.fn(),
     getBounds: vi.fn().mockReturnValue({ x: 100, y: 0, width: 22, height: 22 }),
     popUpContextMenu: vi.fn(),
