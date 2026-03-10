@@ -105,6 +105,7 @@ describe("scheduleEvents", () => {
       title: "Test Meeting",
       meetUrl: "https://meet.google.com/abc-def-ghi",
       startMs,
+      endMs: startMs + 30 * 60 * 1000, // 30 min duration
     });
     scheduleEvents([event]);
 

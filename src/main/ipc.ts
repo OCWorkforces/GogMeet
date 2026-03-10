@@ -18,6 +18,9 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
 ]);
 
+/** Acceptable height bounds for the popover window */
+const MIN_WINDOW_HEIGHT = 220;
+const MAX_WINDOW_HEIGHT = 480;
 /** Returns true if the sender's origin is the app's own renderer */
 export function validateSender(event: IpcMainInvokeEvent): boolean {
   const senderUrl = event.senderFrame?.url ?? "";
@@ -27,6 +30,8 @@ export function validateSender(event: IpcMainInvokeEvent): boolean {
   for (const origin of ALLOWED_ORIGINS) {
     if (senderUrl.startsWith(origin)) return true;
   }
+  // Log unauthorized attempt for security auditing
+  console.warn("[ipc] Rejected IPC from unauthorized sender:", senderUrl);
   return false;
 }
 
@@ -73,10 +78,22 @@ export function registerIpcHandlers(win: BrowserWindow): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.WINDOW_SET_HEIGHT, (_event, height: number) => {
+  ipcMain.on(IPC_CHANNELS.WINDOW_SET_HEIGHT, (event, height: number) => {
+    // Validate sender (inline check for ipcMain.on which uses IpcMainEvent)
+    const senderUrl = event.senderFrame?.url ?? "";
+    const isAllowed =
+      senderUrl.startsWith("file://") ||
+      [...ALLOWED_ORIGINS].some((o) => senderUrl.startsWith(o));
+    if (!isAllowed) {
+      console.warn("[ipc] WINDOW_SET_HEIGHT from unauthorized sender:", senderUrl);
+      return;
+    }
+
     try {
       if (typeof height === "number" && height > 0) {
-        win.setSize(360, Math.round(height), true);
+        // Clamp height to acceptable bounds
+        const clampedHeight = Math.max(MIN_WINDOW_HEIGHT, Math.min(MAX_WINDOW_HEIGHT, Math.round(height)));
+        win.setSize(360, clampedHeight, true);
       }
     } catch (err) {
       console.error("[ipc] WINDOW_SET_HEIGHT error:", err);
