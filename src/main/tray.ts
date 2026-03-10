@@ -180,28 +180,44 @@ export function setupTray(mainWindow: BrowserWindow): void {
 /** Max characters to show for the event title portion of the tray label */
 const TRAY_TITLE_MAX_CHARS = 12;
 
+/** Format minutes remaining as "Xh Ym" or "Xm" for in-meeting display */
+export function formatRemainingTime(totalMins: number): string {
+  if (totalMins <= 0) return "0m";
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}m`;
+}
+
 /**
  * Update the tray status bar title next to the icon.
  * Pass null or empty string to clear.
  * Pass minsRemaining to append " in X mins" / " in 1 min" countdown suffix.
+ * Pass inMeeting=true to use "Xh Ym" format instead of "in X mins".
  */
 export function updateTrayTitle(
   title: string | null,
   minsRemaining?: number,
+  inMeeting?: boolean,     // when true, use "Xh Ym" format instead of "in X mins"
 ): void {
   if (!tray) return;
   if (!title) {
     tray.setTitle("");
     return;
   }
-  const truncated =
-    title.length > TRAY_TITLE_MAX_CHARS
-      ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026"
-      : title;
+  const truncated = title.length > TRAY_TITLE_MAX_CHARS
+    ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026"
+    : title;
   if (minsRemaining !== undefined && minsRemaining > 0) {
-    const suffix =
-      minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
-    tray.setTitle(truncated + suffix);
+    if (inMeeting) {
+      // In-meeting format: "Title 1h 23m" or "Title 45m"
+      tray.setTitle(truncated + " " + formatRemainingTime(minsRemaining));
+    } else {
+      // Pre-meeting format: "Title in 15 mins"
+      const suffix = minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
+      tray.setTitle(truncated + suffix);
+    }
   } else {
     tray.setTitle(truncated);
   }
