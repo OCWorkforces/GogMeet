@@ -31,7 +31,7 @@ app.setAboutPanelOptions({
   applicationName: 'Google Meet',
   applicationVersion: versionString,
   version: '',
-  credits: 'Developed by CCWorkforce Engineers',
+  credits: 'Developed by OCWorkforce Engineers',
   iconPath: path.join(__dirname, '..', '..', 'assets', 'google-meet-icon.png'),
 });
 
