@@ -1,6 +1,6 @@
 {
   "name": "googlemeet",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "author": "CCWorkforce Engineers",
   "repository": "https://github.com/CCWorkforce/GiMeet",
   "main": "lib/main/index.cjs",
