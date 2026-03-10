@@ -1,8 +1,8 @@
 {
   "name": "googlemeet",
-  "version": "1.2.4",
-  "author": "CCWorkforce Engineers",
-  "repository": "https://github.com/CCWorkforce/GiMeet",
+  "version": "1.2.5",
+  "author": "OCWorkforce Engineers",
+  "repository": "https://github.com/OCWorkforce/GiMeet",
   "main": "lib/main/index.cjs",
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
@@ -34,7 +34,7 @@
     "node": ">=24.14.0",
     "bun": ">=1.3.10"
   },
-  "homepage": "https://github.com/CCWorkforce/GiMeet",
+  "homepage": "https://github.com/OCWorkforce/GiMeet",
   "packageManager": "bun@1.3.10",
   "private": true,
   "productName": "Google Meet Reminder",

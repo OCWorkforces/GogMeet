@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog } from "electron";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setupTray } from "./tray.js";
@@ -24,10 +25,13 @@ process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) =>
 });
 
 // Must be called before app.whenReady() on macOS for iconPath to take effect
+const versionString = `Version ${app.getVersion()} (${process.platform[0]?.toUpperCase()}${process.platform.slice(1)}, ${os.release()}, ${process.arch})`;
+
 app.setAboutPanelOptions({
   applicationName: 'Google Meet',
-  applicationVersion: app.getVersion(),
-  credits: 'Developed by CCWorkforce Engineers',
+  applicationVersion: versionString,
+  version: '',
+  credits: 'Developed by OCWorkforce Engineers',
   iconPath: path.join(__dirname, '..', '..', 'assets', 'google-meet-icon.png'),
 });
 
