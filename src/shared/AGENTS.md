@@ -22,12 +22,14 @@ export const IPC_CHANNELS = {
 } as const;
 ```
 
+`IpcChannelMap` (types.ts:12) maps each channel to its `request` / `response` types.
+
 ## DATA MODELS
 
 ### MeetingEvent
 
 ```typescript
-// types.ts:12-21
+// types.ts:45-54
 export interface MeetingEvent {
   id: string;
   title: string;
@@ -43,21 +45,24 @@ export interface MeetingEvent {
 ### CalendarResult
 
 ```typescript
-// types.ts:23-24
+// types.ts:57
 export type CalendarResult = { events: MeetingEvent[] } | { error: string };
 ```
 
 ### CalendarPermission
 
 ```typescript
-// types.ts:26-30
+// types.ts:60
 export type CalendarPermission = "granted" | "denied" | "not-determined";
 ```
 
 ## TYPE UTILITIES
 
 ```typescript
+// types.ts:40-42
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]['request'];
+export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]['response'];
 ```
 
 ## USAGE PATTERN

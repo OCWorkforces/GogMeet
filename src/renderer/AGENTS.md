@@ -14,7 +14,7 @@ Electron renderer (web context). Vanilla TypeScript UI with native macOS popover
 ## STATE MACHINE
 
 ```typescript
-// index.ts:4-9
+// index.ts:5-10
 type AppState =
   | { type: "loading" }
   | { type: "no-permission"; retrying: boolean }
@@ -26,8 +26,8 @@ type AppState =
 ## RENDERING PATTERN
 
 - No virtual DOM — direct `innerHTML` assignment
-- Template literal functions: `renderHeader()`, `renderBody()`, `renderFooter()`
-- Event binding: `bindEvents()` called after each render
+- Template literal functions: `render()`, `renderBody()`, `renderFooter()`
+- Event binding: single delegated listener on `document`, set up once at init
 
 ## AUTO-REFRESH
 
@@ -69,6 +69,7 @@ window.api.app.getVersion(); // → string
 
 - CSP in `index.html`: `default-src 'self'; style-src 'self' 'unsafe-inline'`
 - HTML escaping via `escapeHtml()` for user content
+- `escapeHtml()` imported from `src/shared/utils/escape-html.ts`
 
 ## TESTS
 

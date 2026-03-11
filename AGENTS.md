@@ -1,7 +1,7 @@
-# GoogleMeet — Project Knowledge Base
+# GiMeet — Project Knowledge Base
 
-**Generated:** 2026-03-09
-**Commit:** 758a0e2
+**Generated:** 2026-03-11
+**Commit:** 03cf128
 **Branch:** develop
 
 ## OVERVIEW
@@ -61,29 +61,35 @@ src/
 
 ## CODE MAP
 
-| Symbol                | Type  | Location                     | Role                                  |
-| --------------------- | ----- | ---------------------------- | ------------------------------------- |
-| `createWindow`        | fn    | src/main/index.ts:38         | BrowserWindow factory                 |
-| `setupTray`           | fn    | src/main/tray.ts:29          | System tray init                      |
-| `registerIpcHandlers` | fn    | src/main/ipc.ts:44           | IPC registration                      |
-| `getCalendarEvents`   | fn    | src/main/calendar.ts:144     | Swift EventKit fetch                  |
-| `parseEvents`         | fn    | src/main/calendar.ts:91      | Parses tab-delimited Swift output     |
-| `stopScheduler`       | fn    | src/main/scheduler.ts:342    | Clears all timers on quit             |
-| `buildMeetUrl`        | fn    | src/main/utils/meet-url.ts:7 | Appends `?authuser=email` to Meet URL |
-| `scheduleEvents`      | fn    | src/main/scheduler.ts:87     | Set/clear per-event setTimeout timers |
-| `IPC_CHANNELS`        | const | src/shared/types.ts:2        | Channel names                         |
-| `MeetingEvent`        | iface | src/shared/types.ts:12       | Event data model (incl. `userEmail`)  |
-| `AppState`            | type  | src/renderer/index.ts:4      | UI state union                        |
-| `api`                 | const | src/preload/index.ts:5       | Context bridge API                    |
+| Symbol | Type | Location | Role |
+| ------ | ---- | -------- | ---- |
+| `createWindow` | fn | src/main/index.ts:38 | BrowserWindow factory |
+| `setupTray` | fn | src/main/tray.ts:29 | System tray init |
+| `registerIpcHandlers` | fn | src/main/ipc.ts:68 | IPC registration |
+| `typedHandle` | fn | src/main/ipc.ts:58 | Type-safe IPC wrapper |
+| `validateSender` | fn | src/main/ipc.ts:32 | Origin validation |
+| `getCalendarEventsResult` | fn | src/main/calendar.ts:144 | Swift EventKit fetch |
+| `parseEvents` | fn | src/main/calendar.ts:91 | Parses tab-delimited Swift output |
+| `startScheduler` | fn | src/main/scheduler.ts:496 | Start poll loop |
+| `stopScheduler` | fn | src/main/scheduler.ts:508 | Clear all timers |
+| `scheduleEvents` | fn | src/main/scheduler.ts:219 | Per-event setTimeout timers |
+| `poll` | fn | src/main/scheduler.ts:463 | Calendar poll with error handling |
+| `buildMeetUrl` | fn | src/main/utils/meet-url.ts:7 | Appends `?authuser=email` |
+| `IPC_CHANNELS` | const | src/shared/types.ts:2 | Channel names |
+| `IpcChannelMap` | type | src/shared/types.ts:12 | Request/response type map |
+| `MeetingEvent` | iface | src/shared/types.ts:45 | Event data model |
+| `AppState` | type | src/renderer/index.ts:4 | UI state union |
+| `api` | const | src/preload/index.ts:5 | Context bridge API |
 
 ## CONVENTIONS
 
-- **ESM source → CJS output**: Source is `.ts` with ESM, outputs `.cjs` for Electron
-- **IPC channels**: Define in `src/shared/types.ts` first, use in all 3 processes
-- **No UI framework**: Renderer uses vanilla TS with `innerHTML` string templates
+- **ESM source → CJS output**: Source `.ts` with ESM, outputs `.cjs` for Electron
+- **Import paths**: Always `.js` extension (`from './types.js'`) even for `.ts` source
+- **IPC channels**: Define in `src/shared/types.ts` → `IpcChannelMap` for type safety
+- **Type-safe IPC**: Use `typedHandle()` in main, `IpcResponse<T>` in preload
+- **No UI framework**: Vanilla TS with `innerHTML` string templates
 - **macOS only**: Swift EventKit, dock hiding, entitlements — no cross-platform
 - **Tray-only**: `LSUIElement: true` — no Dock icon
-
 ## ANTI-PATTERNS (THIS PROJECT)
 
 ```
@@ -91,7 +97,9 @@ src/
 // electron must never be bundled in preload
 ```
 
-Electron module must be external in preload builds. Already handled in rspack config.
+- Electron module MUST be external in preload builds (handled in rspack config)
+- Never suppress type errors (`as any`, `@ts-ignore`)
+- Never bypass `validateSender()` in IPC handlers
 
 ## COMMANDS
 

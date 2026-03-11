@@ -6,14 +6,14 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 
 ```
 tests/
-├── setup.main.ts     # Electron API mocks (62 lines)
+├── setup.main.ts     # Electron API mocks (77 lines)
 ├── main/
-│   ├── scheduler.test.ts  # 373 lines — scheduler state machine tests
+│   ├── scheduler.test.ts  # 446 lines — scheduler state machine tests
 │   ├── calendar.test.ts   # 360 lines — Swift output parsing tests
-│   └── ipc.test.ts        # 101 lines — IPC security validation tests
+│   └── ipc.test.ts        # 102 lines — IPC security validation tests
 └── renderer/
     ├── delegation.test.ts # 77 lines — event delegation pattern tests
-    └── escape-html.test.ts # 82 lines — XSS/HTML escaping tests
+    └── escape-html.test.ts # 71 lines — XSS/HTML escaping tests
 ```
 
 ## CONFIGURATION
@@ -35,7 +35,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (906 lines)
+## MAIN PROCESS TESTS (908 lines)
 
 **Mock Pattern**:
 
@@ -49,9 +49,9 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 
 | File              | Lines | Focus                                  | Tests |
 | ----------------- | ----- | -------------------------------------- | ----- |
-| scheduler.test.ts | 373   | State machine, race conditions, timers | 18    |
+| scheduler.test.ts | 446   | State machine, race conditions, timers | 18    |
 | calendar.test.ts  | 360   | parseEvents, dedup, date filtering     | 16    |
-| ipc.test.ts       | 101   | validateSender, isAllowedMeetUrl       | 16    |
+| ipc.test.ts       | 102   | validateSender, isAllowedMeetUrl       | 16    |
 
 **Scheduler Test Groups** (A-E labeled):
 
@@ -69,12 +69,12 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 - `firedEvents`, `timers`, `scheduledEventData` cleared in `beforeEach`
 - `updateTrayTitle` mock for tray behavior assertions
 
-## RENDERER TESTS (159 lines)
+## RENDERER TESTS (148 lines)
 
 | File                | Lines | Focus                    | Tests |
 | ------------------- | ----- | ------------------------ | ----- |
 | delegation.test.ts  | 77    | Event delegation on #app | 4     |
-| escape-html.test.ts | 82    | XSS protection           | 11    |
+| escape-html.test.ts | 71    | XSS protection           | 11    |
 
 **Delegation tests**:
 
@@ -105,4 +105,4 @@ bun run test:watch  # Watch mode
 - `Tray`: setToolTip, on, getBounds, popUpContextMenu
 - `Menu`, `Notification`, `screen`, `nativeImage`
 
-**Total**: 1,127 lines across 5 test files
+**Total**: 1,056 lines across 5 test files + 77-line setup mock (1,133 total)

@@ -69,12 +69,4 @@ if (req === "electron" || req.startsWith("electron/")) {
 
 ## CHANNEL IMPORT
 
-Channels imported from `../shared/types.js` — single source of truth.
-
-## TYPE EXPORT
-
-```typescript
-export type Api = typeof api;
-```
-
-Used by renderer for `window.api` type safety.
+Channels imported from `../shared/types.js` (single source of truth).
