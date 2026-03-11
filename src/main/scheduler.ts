@@ -63,6 +63,38 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
+ * Clear all display-related timers (countdown and in-meeting).
+ * Used when clearing tray title after consecutive errors.
+ */
+function clearAllDisplayTimers(): void {
+  for (const handle of countdownIntervals.values()) clearInterval(handle);
+  countdownIntervals.clear();
+  for (const handle of clearTimers.values()) clearTimeout(handle);
+  clearTimers.clear();
+  for (const handle of inMeetingIntervals.values()) clearInterval(handle);
+  inMeetingIntervals.clear();
+  for (const handle of inMeetingEndTimers.values()) clearTimeout(handle);
+  inMeetingEndTimers.clear();
+}
+
+/**
+ * Generic helper to cleanup stale entries from a map.
+ * Removes entries not in the active set, calling clearFn on each removed value.
+ */
+function cleanupStaleEntries<K, V>(
+  map: Map<K, V>,
+  activeIds: Set<K>,
+  clearFn: (v: V) => void,
+): void {
+  for (const [id, handle] of map) {
+    if (!activeIds.has(id)) {
+      clearFn(handle);
+      map.delete(id);
+    }
+  }
+}
+
+/**
  * Determine which event should own the tray title.
  * Policy: earliest startMs among events with an active countdownInterval wins.
  * Updates the tray immediately if ownership changes.
@@ -90,10 +122,12 @@ function resolveActiveTitleEvent(): void {
   activeTitleEventId = bestId;
 
   if (bestId) {
-    const data = scheduledEventData.get(bestId)!;
-    const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
-    if (remaining > 0) {
-      updateTrayTitle(data.title, remaining);
+    const data = scheduledEventData.get(bestId);
+    if (data) {
+      const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
+      if (remaining > 0) {
+        updateTrayTitle(data.title, remaining);
+      }
     }
   } else {
     updateTrayTitle(null);
@@ -119,10 +153,12 @@ function resolveActiveInMeetingEvent(): void {
   activeInMeetingEventId = bestId;
 
   if (bestId) {
-    const data = scheduledEventData.get(bestId)!;
-    const remaining = Math.ceil((data.endMs - Date.now()) / 60_000);
-    if (remaining > 0) {
-      updateTrayTitle(data.title, remaining, true);
+    const data = scheduledEventData.get(bestId);
+    if (data) {
+      const remaining = Math.ceil((data.endMs - Date.now()) / 60_000);
+      if (remaining > 0) {
+        updateTrayTitle(data.title, remaining, true);
+      }
     }
   } else {
     // No in-meeting event — fall back to pre-meeting
@@ -159,7 +195,10 @@ function startInMeetingCountdown(
 
   // Set timer to clear at meeting end
   const endHandle = setTimeout(() => {
-    clearInterval(inMeetingIntervals.get(eventId)!);
+    const interval = inMeetingIntervals.get(eventId);
+    if (interval) {
+      clearInterval(interval);
+    }
     inMeetingIntervals.delete(eventId);
     inMeetingEndTimers.delete(eventId);
     scheduledEventData.delete(eventId);
@@ -235,7 +274,10 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
           if (urlChanged) {
             // Reschedule the browser-open timer with the new URL
-            clearTimeout(timers.get(event.id)!);
+            const existingTimer = timers.get(event.id);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+            }
             timers.delete(event.id);
             // fall through below to schedule new browser timer (same start time)
             console.log(
@@ -252,7 +294,10 @@ export function scheduleEvents(events: MeetingEvent[]): void {
           }
         } else {
           // Start time changed — cancel all timers and fully reschedule
-          clearTimeout(timers.get(event.id)!);
+          const existingTimer = timers.get(event.id);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
           timers.delete(event.id);
           scheduledEventData.delete(event.id);
           firedEvents.delete(event.id); // allow re-fire at new time
@@ -295,16 +340,19 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     // --- 30-min tray title countdown ---
     // Cancel any existing title/countdown/clear timers before (re-)scheduling
-    if (titleTimers.has(event.id)) {
-      clearTimeout(titleTimers.get(event.id)!);
+    const existingTitleTimer = titleTimers.get(event.id);
+    if (existingTitleTimer) {
+      clearTimeout(existingTitleTimer);
       titleTimers.delete(event.id);
     }
-    if (countdownIntervals.has(event.id)) {
-      clearInterval(countdownIntervals.get(event.id)!);
+    const existingCountdown = countdownIntervals.get(event.id);
+    if (existingCountdown) {
+      clearInterval(existingCountdown);
       countdownIntervals.delete(event.id);
     }
-    if (clearTimers.has(event.id)) {
-      clearTimeout(clearTimers.get(event.id)!);
+    const existingClearTimer = clearTimers.get(event.id);
+    if (existingClearTimer) {
+      clearTimeout(existingClearTimer);
       clearTimers.delete(event.id);
     }
 
@@ -338,7 +386,10 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       const clearHandle = setTimeout(
         () => {
           // Clear pre-meeting countdown
-          clearInterval(countdownIntervals.get(event.id)!);
+          const countdown = countdownIntervals.get(event.id);
+          if (countdown) {
+            clearInterval(countdown);
+          }
           countdownIntervals.delete(event.id);
           clearTimers.delete(event.id);
           if (activeTitleEventId === event.id) {
@@ -380,44 +431,16 @@ export function scheduleEvents(events: MeetingEvent[]): void {
   }
 
   // Cancel timers for events that are no longer in the list (e.g. cancelled meetings)
-  for (const [id, handle] of timers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      timers.delete(id);
-      console.log(`[scheduler] Cancelled timer for removed event ${id}`);
-    }
-  }
-  for (const [id, handle] of titleTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      titleTimers.delete(id);
-    }
-  }
-  for (const [id, handle] of countdownIntervals) {
-    if (!activeIds.has(id)) {
-      clearInterval(handle);
-      countdownIntervals.delete(id);
-    }
-  }
-  for (const [id, handle] of clearTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      clearTimers.delete(id);
-    }
-  }
+  cleanupStaleEntries(timers, activeIds, (h) => {
+    clearTimeout(h);
+    console.log("[scheduler] Cancelled timer for removed event");
+  });
+  cleanupStaleEntries(titleTimers, activeIds, (h) => clearTimeout(h));
+  cleanupStaleEntries(countdownIntervals, activeIds, (h) => clearInterval(h));
+  cleanupStaleEntries(clearTimers, activeIds, (h) => clearTimeout(h));
   // Cleanup stale in-meeting timers
-  for (const [id, handle] of inMeetingIntervals) {
-    if (!activeIds.has(id)) {
-      clearInterval(handle);
-      inMeetingIntervals.delete(id);
-    }
-  }
-  for (const [id, handle] of inMeetingEndTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      inMeetingEndTimers.delete(id);
-    }
-  }
+  cleanupStaleEntries(inMeetingIntervals, activeIds, (h) => clearInterval(h));
+  cleanupStaleEntries(inMeetingEndTimers, activeIds, (h) => clearTimeout(h));
 
   // Prune firedEvents and scheduledEventData for events no longer in the active list
   for (const id of firedEvents) {
@@ -447,14 +470,7 @@ async function poll(): Promise<void> {
       console.error("[scheduler] Calendar error:", result.error);
       consecutiveErrors++;
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        for (const handle of countdownIntervals.values()) clearInterval(handle);
-        countdownIntervals.clear();
-        for (const handle of clearTimers.values()) clearTimeout(handle);
-        clearTimers.clear();
-        for (const handle of inMeetingIntervals.values()) clearInterval(handle);
-        inMeetingIntervals.clear();
-        for (const handle of inMeetingEndTimers.values()) clearTimeout(handle);
-        inMeetingEndTimers.clear();
+        clearAllDisplayTimers();
         activeInMeetingEventId = null;
         resolveActiveTitleEvent();
         console.error(
@@ -466,14 +482,7 @@ async function poll(): Promise<void> {
     console.error("[scheduler] Poll error:", err);
     consecutiveErrors++;
     if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-      for (const handle of countdownIntervals.values()) clearInterval(handle);
-      countdownIntervals.clear();
-      for (const handle of clearTimers.values()) clearTimeout(handle);
-      clearTimers.clear();
-      for (const handle of inMeetingIntervals.values()) clearInterval(handle);
-      inMeetingIntervals.clear();
-      for (const handle of inMeetingEndTimers.values()) clearTimeout(handle);
-      inMeetingEndTimers.clear();
+      clearAllDisplayTimers();
       activeInMeetingEventId = null;
       resolveActiveTitleEvent();
       console.error(
