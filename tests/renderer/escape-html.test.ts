@@ -1,16 +1,5 @@
 import { describe, it, expect } from "vitest";
-
-// Import escapeHtml - we need to test it in isolation
-// Since it's not exported, we'll test via a simple inline implementation
-// that matches the actual function
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "../../src/shared/utils/escape-html.js";
 
 describe("escapeHtml", () => {
   it("escapes & to &amp;", () => {

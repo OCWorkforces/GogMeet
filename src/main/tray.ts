@@ -31,17 +31,23 @@ let aboutOpen = false;
 function showAbout(mainWindow: BrowserWindow): void {
   if (aboutOpen) {
     // Focus the existing about window
-    const existing = BrowserWindow.getAllWindows().find(w => w !== mainWindow);
+    const existing = BrowserWindow.getAllWindows().find(
+      (w) => w !== mainWindow,
+    );
     existing?.focus();
     return;
   }
   aboutOpen = true;
   app.showAboutPanel();
   setImmediate(() => {
-    const aboutWindow = BrowserWindow.getAllWindows().find(w => w !== mainWindow);
+    const aboutWindow = BrowserWindow.getAllWindows().find(
+      (w) => w !== mainWindow,
+    );
     if (aboutWindow) {
-      aboutWindow.setAlwaysOnTop(true, 'floating');
-      aboutWindow.once('closed', () => { aboutOpen = false; });
+      aboutWindow.setAlwaysOnTop(true, "floating");
+      aboutWindow.once("closed", () => {
+        aboutOpen = false;
+      });
     } else {
       aboutOpen = false;
     }
@@ -129,7 +135,11 @@ export function setupTray(mainWindow: BrowserWindow): void {
         items.push({
           label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
           click: () => {
-            shell.openExternal(buildMeetUrl(event));
+            const url = buildMeetUrl(event);
+            if (!url) return;
+            void shell.openExternal(url).catch((err) => {
+              console.error("[tray] Failed to open meeting URL:", err);
+            });
           },
         });
       }
@@ -142,7 +152,11 @@ export function setupTray(mainWindow: BrowserWindow): void {
         items.push({
           label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
           click: () => {
-            shell.openExternal(buildMeetUrl(event));
+            const url = buildMeetUrl(event);
+            if (!url) return;
+            void shell.openExternal(url).catch((err) => {
+              console.error("[tray] Failed to open meeting URL:", err);
+            });
           },
         });
       }
@@ -199,23 +213,25 @@ export function formatRemainingTime(totalMins: number): string {
 export function updateTrayTitle(
   title: string | null,
   minsRemaining?: number,
-  inMeeting?: boolean,     // when true, use "Xh Ym" format instead of "in X mins"
+  inMeeting?: boolean, // when true, use "Xh Ym" format instead of "in X mins"
 ): void {
   if (!tray) return;
   if (!title) {
     tray.setTitle("");
     return;
   }
-  const truncated = title.length > TRAY_TITLE_MAX_CHARS
-    ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026"
-    : title;
+  const truncated =
+    title.length > TRAY_TITLE_MAX_CHARS
+      ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026"
+      : title;
   if (minsRemaining !== undefined && minsRemaining > 0) {
     if (inMeeting) {
       // In-meeting format: "Title 1h 23m" or "Title 45m"
       tray.setTitle(truncated + " " + formatRemainingTime(minsRemaining));
     } else {
       // Pre-meeting format: "Title in 15 mins"
-      const suffix = minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
+      const suffix =
+        minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
       tray.setTitle(truncated + suffix);
     }
   } else {

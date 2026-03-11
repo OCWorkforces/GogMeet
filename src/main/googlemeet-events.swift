@@ -28,16 +28,20 @@ store.requestFullAccessToEvents { granted, _ in
   let pred = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
   let events = store.events(matching: pred)
 
-  let meetRegex = try! NSRegularExpression(
+  guard let meetRegex = try? NSRegularExpression(
     pattern: #"https://meet\.google\.com/[^\s"'<>\\]+"#
-  )
+  ) else {
+    fputs("error: could not compile meet URL regex\n", stderr)
+    exit(1)
+  }
   let isoFormatter = ISO8601DateFormatter()
 
   func findMeetUrl(_ text: String?) -> String? {
     guard let t = text else { return nil }
     let range = NSRange(t.startIndex..., in: t)
     guard let match = meetRegex.firstMatch(in: t, range: range) else { return nil }
-    return String(t[Range(match.range, in: t)!])
+    guard let matchRange = Range(match.range, in: t) else { return nil }
+    return String(t[matchRange])
   }
 
   for event in events {

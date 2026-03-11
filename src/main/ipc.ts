@@ -3,9 +3,15 @@ import {
   shell,
   app,
   BrowserWindow,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
-import { IPC_CHANNELS, type IpcChannelMap, type IpcRequest, type IpcResponse } from "../shared/types.js";
+import {
+  IPC_CHANNELS,
+  type IpcChannelMap,
+  type IpcRequest,
+  type IpcResponse,
+} from "../shared/types.js";
 import {
   getCalendarEventsResult,
   requestCalendarPermission,
@@ -25,6 +31,10 @@ const MAX_WINDOW_HEIGHT = 480;
 /** Returns true if the sender's origin is the app's own renderer */
 export function validateSender(event: IpcMainInvokeEvent): boolean {
   const senderUrl = event.senderFrame?.url ?? "";
+  return validateSenderUrl(senderUrl);
+}
+
+function validateSenderUrl(senderUrl: string): boolean {
   // file:// origin check (packaged app)
   if (senderUrl.startsWith("file://")) return true;
   // Dev server origins
@@ -36,6 +46,11 @@ export function validateSender(event: IpcMainInvokeEvent): boolean {
   return false;
 }
 
+function validateOnSender(event: IpcMainEvent): boolean {
+  const senderUrl = event.senderFrame?.url ?? "";
+  return validateSenderUrl(senderUrl);
+}
+
 /**
  * Type-safe IPC handler wrapper.
  * Ensures handler return type matches IpcChannelMap response type at compile time.
@@ -44,73 +59,88 @@ function typedHandle<K extends keyof IpcChannelMap>(
   channel: K,
   handler: (
     event: IpcMainInvokeEvent,
-    request: IpcChannelMap[K]['request']
-  ) => Promise<IpcChannelMap[K]['response']> | IpcChannelMap[K]['response']
+    request: IpcChannelMap[K]["request"],
+  ) => Promise<IpcChannelMap[K]["response"]> | IpcChannelMap[K]["response"],
 ): void {
   ipcMain.handle(channel, handler as Parameters<typeof ipcMain.handle>[1]);
 }
 
 export function registerIpcHandlers(win: BrowserWindow): void {
   // Calendar
-  typedHandle(IPC_CHANNELS.CALENDAR_GET_EVENTS, async (event): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
-    if (!validateSender(event)) return { error: "unauthorized" };
-    try {
-      return await getCalendarEventsResult();
-    } catch (err) {
-      console.error("[ipc] CALENDAR_GET_EVENTS error:", err);
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  });
+  typedHandle(
+    IPC_CHANNELS.CALENDAR_GET_EVENTS,
+    async (
+      event,
+    ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
+      if (!validateSender(event)) return { error: "unauthorized" };
+      try {
+        return await getCalendarEventsResult();
+      } catch (err) {
+        console.error("[ipc] CALENDAR_GET_EVENTS error:", err);
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
 
-  typedHandle(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION, async (event): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>> => {
-    if (!validateSender(event)) return "denied";
-    try {
-      return await requestCalendarPermission();
-    } catch (err) {
-      console.error("[ipc] CALENDAR_REQUEST_PERMISSION error:", err);
-      return "denied";
-    }
-  });
+  typedHandle(
+    IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION,
+    async (
+      event,
+    ): Promise<
+      IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>
+    > => {
+      if (!validateSender(event)) return "denied";
+      try {
+        return await requestCalendarPermission();
+      } catch (err) {
+        console.error("[ipc] CALENDAR_REQUEST_PERMISSION error:", err);
+        return "denied";
+      }
+    },
+  );
 
-  typedHandle(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS, async (event): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>> => {
-    if (!validateSender(event)) return "denied";
-    try {
-      return await getCalendarPermissionStatus();
-    } catch (err) {
-      console.error("[ipc] CALENDAR_PERMISSION_STATUS error:", err);
-      return "denied";
-    }
-  });
+  typedHandle(
+    IPC_CHANNELS.CALENDAR_PERMISSION_STATUS,
+    async (
+      event,
+    ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>> => {
+      if (!validateSender(event)) return "denied";
+      try {
+        return await getCalendarPermissionStatus();
+      } catch (err) {
+        console.error("[ipc] CALENDAR_PERMISSION_STATUS error:", err);
+        return "denied";
+      }
+    },
+  );
   // Window (uses ipcMain.on for fire-and-forget)
   ipcMain.on(
     IPC_CHANNELS.WINDOW_SET_HEIGHT,
     (event, height: IpcRequest<typeof IPC_CHANNELS.WINDOW_SET_HEIGHT>) => {
-      // Validate sender (inline check for ipcMain.on which uses IpcMainEvent)
-      const senderUrl = event.senderFrame?.url ?? "";
-      const isAllowed =
-        senderUrl.startsWith("file://") ||
-        [...ALLOWED_ORIGINS].some((o) => senderUrl.startsWith(o));
-      if (!isAllowed) {
-        console.warn("[ipc] WINDOW_SET_HEIGHT from unauthorized sender:", senderUrl);
-        return;
-      }
+      if (!validateOnSender(event)) return;
 
       try {
         if (typeof height === "number" && height > 0) {
           // Clamp height to acceptable bounds
-        const clampedHeight = Math.max(MIN_WINDOW_HEIGHT, Math.min(MAX_WINDOW_HEIGHT, Math.round(height)));
+          const clampedHeight = Math.max(
+            MIN_WINDOW_HEIGHT,
+            Math.min(MAX_WINDOW_HEIGHT, Math.round(height)),
+          );
           win.setSize(360, clampedHeight, true);
         }
       } catch (err) {
         console.error("[ipc] WINDOW_SET_HEIGHT error:", err);
       }
-    }
+    },
   );
 
   // App utilities
   typedHandle(
     IPC_CHANNELS.APP_OPEN_EXTERNAL,
-    async (event, url: IpcRequest<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
+    async (
+      event,
+      url: IpcRequest<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>,
+    ): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
       if (!validateSender(event)) return;
       try {
         if (typeof url === "string" && isAllowedMeetUrl(url)) {
@@ -119,7 +149,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
       } catch (err) {
         console.error("[ipc] APP_OPEN_EXTERNAL error:", err);
       }
-    }
+    },
   );
 
   typedHandle(
@@ -132,6 +162,6 @@ export function registerIpcHandlers(win: BrowserWindow): void {
         console.error("[ipc] APP_GET_VERSION error:", err);
         return "";
       }
-    }
+    },
   );
 }

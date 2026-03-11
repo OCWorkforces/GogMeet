@@ -1,17 +1,18 @@
-import './styles/main.css';
-import type { MeetingEvent } from '../shared/types.js';
+import "./styles/main.css";
+import type { MeetingEvent } from "../shared/types.js";
+import { escapeHtml } from "../shared/utils/escape-html.js";
 
 type AppState =
-  | { type: 'loading' }
-  | { type: 'no-permission'; retrying: boolean }
-  | { type: 'no-events' }
-  | { type: 'has-events'; events: MeetingEvent[] }
-  | { type: 'error'; message: string };
+  | { type: "loading" }
+  | { type: "no-permission"; retrying: boolean }
+  | { type: "no-events" }
+  | { type: "has-events"; events: MeetingEvent[] }
+  | { type: "error"; message: string };
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-let state: AppState = { type: 'loading' };
-let version = '';
+let state: AppState = { type: "loading" };
+let version = "";
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
 
@@ -22,41 +23,43 @@ function formatRelativeTime(isoDate: string): { label: string; cls: string } {
   const diffMin = Math.round(diffMs / 60000);
 
   if (diffMs < 0 && Math.abs(diffMs) < 30 * 60000) {
-    return { label: 'In progress', cls: 'now' };
+    return { label: "In progress", cls: "now" };
   }
   if (diffMin <= 0) {
-    return { label: 'Ended', cls: '' };
+    return { label: "Ended", cls: "" };
   }
   if (diffMin < 1) {
-    return { label: 'Starting now!', cls: 'now' };
+    return { label: "Starting now!", cls: "now" };
   }
   if (diffMin <= 15) {
-    return { label: `In ${diffMin} min`, cls: 'soon' };
+    return { label: `In ${diffMin} min`, cls: "soon" };
   }
 
   const startTime = new Date(isoDate);
-  const hours = startTime.getHours().toString().padStart(2, '0');
-  const minutes = startTime.getMinutes().toString().padStart(2, '0');
-  return { label: `${hours}:${minutes}`, cls: '' };
+  const hours = startTime.getHours().toString().padStart(2, "0");
+  const minutes = startTime.getMinutes().toString().padStart(2, "0");
+  return { label: `${hours}:${minutes}`, cls: "" };
 }
 
 function formatLastUpdated(ts: number): string {
   const diffMs = Date.now() - ts;
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'Updated just now';
-  if (diffMin === 1) return 'Updated 1 min ago';
+  if (diffMin < 1) return "Updated just now";
+  if (diffMin === 1) return "Updated 1 min ago";
   return `Updated ${diffMin} min ago`;
 }
 
 function renderFooter(): string {
   const isLoading = lastUpdatedAt === null;
-  const label = isLoading ? 'Loading…' : formatLastUpdated(lastUpdatedAt!);
-  const icon = isLoading ? '' : '<span class="footer-refresh-icon" aria-hidden="true">↻</span>';
+  const label = isLoading ? "Loading…" : formatLastUpdated(lastUpdatedAt!);
+  const icon = isLoading
+    ? ""
+    : '<span class="footer-refresh-icon" aria-hidden="true">↻</span>';
   return `
     <footer class="footer">
       <span class="footer-version">v${version}</span>
       <span class="footer-sep" aria-hidden="true"></span>
-      <button class="footer-refresh${isLoading ? ' footer-refresh--loading' : ''}" data-action="refresh" aria-label="Refresh meetings">
+      <button class="footer-refresh${isLoading ? " footer-refresh--loading" : ""}" data-action="refresh" aria-label="Refresh meetings">
         ${icon}<span class="footer-refresh-label">${label}</span>
       </button>
     </footer>
@@ -65,7 +68,7 @@ function renderFooter(): string {
 
 function renderBody(s: AppState): string {
   switch (s.type) {
-    case 'loading':
+    case "loading":
       return `
         <div class="state-screen">
           <div class="spinner"></div>
@@ -73,19 +76,19 @@ function renderBody(s: AppState): string {
         </div>
       `;
 
-    case 'no-permission':
+    case "no-permission":
       return `
         <div class="state-screen">
           <div class="state-icon">📅</div>
           <p class="state-title">Calendar Access Needed</p>
           <p class="state-desc">Google Meet needs access to your calendar to show upcoming events.</p>
-          <button class="btn-primary" id="btn-grant" data-action="grant-access" ${s.retrying ? 'disabled' : ''}>
-            ${s.retrying ? 'Requesting...' : 'Grant Access'}
+          <button class="btn-primary" id="btn-grant" data-action="grant-access" ${s.retrying ? "disabled" : ""}>
+            ${s.retrying ? "Requesting..." : "Grant Access"}
           </button>
         </div>
       `;
 
-    case 'no-events':
+    case "no-events":
       return `
         <div class="state-screen">
           <div class="state-icon">☕</div>
@@ -94,7 +97,7 @@ function renderBody(s: AppState): string {
         </div>
       `;
 
-    case 'error':
+    case "error":
       return `
         <div class="state-screen">
           <div class="state-icon">⚠️</div>
@@ -104,16 +107,14 @@ function renderBody(s: AppState): string {
         </div>
       `;
 
-    case 'has-events': {
+    case "has-events": {
       const now = Date.now();
       const upcoming = s.events.filter(
-        (e) => new Date(e.endDate).getTime() > now
+        (e) => new Date(e.endDate).getTime() > now,
       );
-      const past = s.events.filter(
-        (e) => new Date(e.endDate).getTime() <= now
-      );
+      const past = s.events.filter((e) => new Date(e.endDate).getTime() <= now);
 
-      let html = '';
+      let html = "";
 
       if (upcoming.length > 0) {
         html += `<p class="section-header">Today & Tomorrow</p>`;
@@ -124,18 +125,19 @@ function renderBody(s: AppState): string {
             <div class="meeting-item">
               <div class="meeting-item-row">
                 <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ''}
+                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ""}
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>
                 <span class="meeting-meta">
-                  ${autoJoin ? '<span class="badge-auto" title="Browser will open automatically 1 min before">⚡ Auto</span>' : ''}
+                  ${autoJoin ? '<span class="badge-auto" title="Browser will open automatically 1 min before">⚡ Auto</span>' : ""}
                   <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
                 </span>
               </div>
             </div>
           `;
-          if (i < upcoming.length - 1) html += `<div class="meeting-divider"></div>`;
+          if (i < upcoming.length - 1)
+            html += `<div class="meeting-divider"></div>`;
         });
       }
 
@@ -154,50 +156,44 @@ function renderBody(s: AppState): string {
   }
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function render() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
   if (!app) return;
 
-  app.innerHTML = `<div class="body">${renderBody(state)}</div>` + renderFooter();
+  app.innerHTML =
+    `<div class="body">${renderBody(state)}</div>` + renderFooter();
 
   // Measure actual rendered height and resize the Electron BrowserWindow
   const FOOTER_H = 32;
   const MIN_H = 220;
   const MAX_H = 480;
-  const bodyEl = app.querySelector<HTMLElement>('.body');
+  const bodyEl = app.querySelector<HTMLElement>(".body");
   const bodyH = bodyEl ? bodyEl.scrollHeight : 0;
   const targetH = Math.min(MAX_H, Math.max(MIN_H, bodyH + FOOTER_H));
   window.api.window.setHeight(targetH);
 }
 
 function setupDelegatedEvents(): void {
-  const container = document.getElementById('app');
+  const container = document.getElementById("app");
   if (!container) return;
 
-  container.addEventListener('click', (e: MouseEvent) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+  container.addEventListener("click", (e: MouseEvent) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>(
+      "[data-action]",
+    );
     if (!target) return;
 
-    const action = target.dataset['action'];
+    const action = target.dataset["action"];
     switch (action) {
-      case 'refresh':
-      case 'retry':
+      case "refresh":
+      case "retry":
         void loadEvents();
         break;
-      case 'grant-access':
+      case "grant-access":
         void grantAccess();
         break;
-      case 'join-meeting': {
-        const url = target.dataset['url'];
+      case "join-meeting": {
+        const url = target.dataset["url"];
         if (url) window.api.app.openExternal(url);
         break;
       }
@@ -206,44 +202,44 @@ function setupDelegatedEvents(): void {
 }
 
 async function grantAccess() {
-  state = { type: 'no-permission', retrying: true };
+  state = { type: "no-permission", retrying: true };
   render();
 
   const status = await window.api.calendar.requestPermission();
-  if (status === 'granted') {
+  if (status === "granted") {
     await loadEvents();
   } else {
-    state = { type: 'no-permission', retrying: false };
+    state = { type: "no-permission", retrying: false };
     render();
   }
 }
 
 async function loadEvents() {
-  state = { type: 'loading' };
+  state = { type: "loading" };
   render();
 
   try {
     const permission = await window.api.calendar.getPermissionStatus();
 
-    if (permission === 'denied' || permission === 'not-determined') {
-      state = { type: 'no-permission', retrying: false };
+    if (permission === "denied" || permission === "not-determined") {
+      state = { type: "no-permission", retrying: false };
       render();
       return;
     }
 
     const result = await window.api.calendar.getEvents();
 
-    if ('error' in result) {
-      state = { type: 'error', message: result.error };
+    if ("error" in result) {
+      state = { type: "error", message: result.error };
     } else if (result.events.length === 0) {
-      state = { type: 'no-events' };
+      state = { type: "no-events" };
     } else {
-      state = { type: 'has-events', events: result.events };
+      state = { type: "has-events", events: result.events };
     }
   } catch (err) {
     state = {
-      type: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      type: "error",
+      message: err instanceof Error ? err.message : "Unknown error",
     };
   }
 
@@ -263,7 +259,7 @@ async function init() {
   refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
 
   // Pause refresh when window hidden, resume when visible
-  document.addEventListener('visibilitychange', () => {
+  document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       if (refreshTimer) {
         clearInterval(refreshTimer);
@@ -278,4 +274,4 @@ async function init() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => init());
+document.addEventListener("DOMContentLoaded", () => init());
