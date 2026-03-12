@@ -1,5 +1,5 @@
-appId: com.ocworkforce.googlemeet
-productName: Google Meet
+appId: com.ocworkforce.gogmeet
+productName: GogMeet
 
 directories:
   output: dist
@@ -29,8 +29,8 @@ mac:
   entitlementsInherit: build/entitlements.mac.inherit.plist
   extendInfo:
     LSUIElement: true
-    NSCalendarsFullAccessUsageDescription: Google Meet needs calendar access to find your Google Meet events.
-    NSAppleEventsUsageDescription: Google Meet uses AppleScript to read your calendar events.
+    NSCalendarsFullAccessUsageDescription: GogMeet needs calendar access to find your Google Meet events.
+    NSAppleEventsUsageDescription: GogMeet uses AppleScript to read your calendar events.
   notarize: false
 
 afterSign: build/notarize.js

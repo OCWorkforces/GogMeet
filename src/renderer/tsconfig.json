@@ -9,7 +9,7 @@
     "moduleResolution": "bundler",
     "module": "ESNext",
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "emitDeclarationOnly": true
   },
   "include": ["./**/*.ts", "./**/*.d.ts", "../shared/**/*.ts"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts"]

@@ -99,7 +99,7 @@ echo ""
 # ── 6. Post-install instructions ─────────────────────────────────────────────
 if [[ "$SIGN_MODE" == "adhoc" ]]; then
   echo -e "${BOLD}To run the app after copying to /Applications:${RESET}"
-  echo    "  sudo xattr -rd com.apple.quarantine \"/Applications/Google Meet.app\""
+  echo    "  sudo xattr -rd com.apple.quarantine \"/Applications/GogMeet.app\""
   echo
   echo    "  Or, open System Settings → Privacy & Security → scroll down and click 'Open Anyway'."
   echo

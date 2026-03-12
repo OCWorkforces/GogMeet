@@ -29,7 +29,7 @@ const packageJson = getPackageInfo();
 const platform = [os.type(), os.release(), os.arch()].join(', ');
 
 app.setAboutPanelOptions({
-  applicationName: 'Google Meet',
+  applicationName: 'GogMeet',
   applicationVersion: app.getVersion(),
   copyright: `Developed by ${packageJson.author}`,
   version: platform,

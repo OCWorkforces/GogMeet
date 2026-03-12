@@ -1,8 +1,8 @@
 {
-  "name": "gimeet",
-  "version": "1.3.5",
+  "name": "gogmeet",
+  "version": "1.3.6",
   "author": "OCWorkforce Engineers",
-  "repository": "https://github.com/OCWorkforce/GiMeet",
+  "repository": "https://github.com/OCWorkforce/GogMeet",
   "main": "lib/main/index.cjs",
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
@@ -28,16 +28,16 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
-  "description": "GiMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
+  "description": "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
   "engineStrict": true,
   "engines": {
     "node": ">=24.14.0",
     "bun": ">=1.3.10"
   },
-  "homepage": "https://github.com/OCWorkforce/GiMeet",
+  "homepage": "https://github.com/OCWorkforce/GogMeet",
   "packageManager": "bun@1.3.10",
   "private": true,
-  "productName": "GiMeet",
+  "productName": "GogMeet",
   "scripts": {
     "dev": "bun run scripts/dev.ts",
     "build": "bun run build:main && bun run build:preload && bun run build:renderer",

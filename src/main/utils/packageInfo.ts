@@ -46,12 +46,12 @@ export function getPackageInfo(): Readonly<PackageInfo> {
       log.error('[PackageInfo] Failed to load package.json:', error);
       // Return minimal fallback to prevent crashes
       packageInfo = {
-        name: 'gimeet',
-        productName: 'Google Meet',
+        name: 'gogmeet',
+        productName: 'GogMeet',
         version: '1.0.0',
-        description: 'Google Meet',
-        repository: 'https://github.com/OCWorkforce/GiMeet',
-        homepage: 'https://github.com/OCWorkforce/GiMeet',
+        description: 'GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.',
+        repository: 'https://github.com/OCWorkforce/GogMeet',
+        homepage: 'https://github.com/OCWorkforce/GogMeet',
         author: 'OCWorkforce Engineers',
       };
     }

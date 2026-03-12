@@ -1,4 +1,4 @@
-# GiMeet — Project Knowledge Base
+# GogMeet — Project Knowledge Base
 
 **Generated:** 2026-03-11
 **Commit:** 03cf128

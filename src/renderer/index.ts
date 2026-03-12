@@ -81,7 +81,7 @@ function renderBody(s: AppState): string {
         <div class="state-screen">
           <div class="state-icon">📅</div>
           <p class="state-title">Calendar Access Needed</p>
-          <p class="state-desc">Google Meet needs access to your calendar to show upcoming events.</p>
+          <p class="state-desc">GogMeet needs access to your calendar to show upcoming events.</p>
           <button class="btn-primary" id="btn-grant" data-action="grant-access" ${s.retrying ? "disabled" : ""}>
             ${s.retrying ? "Requesting..." : "Grant Access"}
           </button>

@@ -78,7 +78,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
   }
 
   tray = new Tray(buildIcon(nativeTheme.shouldUseDarkColors));
-  tray.setToolTip("Google Meet");
+  tray.setToolTip("GogMeet");
 
   // Update icon whenever the system theme changes
   const onThemeUpdated = (): void => {
