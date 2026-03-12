@@ -29,8 +29,14 @@ bun run typecheck    # TypeScript check
 ### Build DMG
 
 ```bash
-# Build DMG for distribution
+# Build DMG with environment suffix
 ./build-macOS-dmg.sh --environment stable
+
+# Build DMG without suffix (default)
+./build-macOS-dmg.sh
+
+# Show help
+./build-macOS-dmg.sh --help
 ```
 
 The script will:
@@ -38,8 +44,11 @@ The script will:
 2. Build all TypeScript sources (main, preload, renderer)
 3. Package the app into a DMG for macOS arm64
 4. Sign the app (Developer ID if available, otherwise ad-hoc)
+5. Append environment suffix to filename (if `--environment` provided)
 
-Output will be in `dist/` directory (e.g., `dist/GogMeet-1.0.0-arm64.dmg`).
+Output examples:
+- With `--environment stable`: `dist/GogMeet-1.3.6-arm64-stable.dmg`
+- Without flag: `dist/GogMeet-1.3.6-arm64.dmg`
 
 ### Install to Applications
 

@@ -16,6 +16,40 @@ info()    { echo -e "${CYAN}▶ $*${RESET}"; }
 success() { echo -e "${GREEN}✔ $*${RESET}"; }
 error()   { echo -e "${RED}✘ $*${RESET}" >&2; exit 1; }
 
+# ── Argument parsing ──────────────────────────────────────────────────────────
+ENVIRONMENT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --environment)
+      if [[ -z "${2:-}" ]]; then
+        error "--environment requires a value (e.g., stable, beta, dev)"
+      fi
+      ENVIRONMENT="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: $0 [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --environment <name>  Append environment name to DMG filename (e.g., stable, beta)"
+      echo "  -h, --help            Show this help message"
+      echo ""
+      echo "Examples:"
+      echo "  $0                              # Build DMG with default name"
+      echo "  $0 --environment stable         # Build DMG: GogMeet-1.0.0-arm64-stable.dmg"
+      exit 0
+      ;;
+    *)
+      error "Unknown option: $1. Use --help for usage."
+      ;;
+  esac
+done
+
+if [[ -n "$ENVIRONMENT" ]]; then
+  info "Environment suffix: ${ENVIRONMENT}"
+fi
+
 # ── Prerequisite checks ───────────────────────────────────────────────────────
 [[ "$(uname -s)" == "Darwin" ]] || error "This script must run on macOS."
 [[ "$(uname -m)" == "arm64"  ]] || error "This script requires an Apple Silicon (arm64) Mac."
@@ -84,6 +118,21 @@ if [[ "$SIGN_MODE" == "adhoc" ]]; then
     info "Ad-hoc signing DMG: ${DMG_FILE}…"
     codesign --force --sign - "$DMG_FILE"
     success "DMG signed (ad-hoc)."
+  fi
+fi
+
+# ── 4.5. Rename DMG with environment suffix ──────────────────────────────────────
+if [[ -n "$ENVIRONMENT" ]]; then
+  DMG_FILE=$(find dist -maxdepth 1 -name '*.dmg' | head -1)
+  if [[ -n "$DMG_FILE" ]]; then
+    # Get filename without extension and construct new name
+    DMG_DIR=$(dirname "$DMG_FILE")
+    DMG_BASE=$(basename "$DMG_FILE" .dmg)
+    NEW_DMG="${DMG_DIR}/${DMG_BASE}-${ENVIRONMENT}.dmg"
+    
+    info "Renaming DMG with environment suffix: ${NEW_DMG}…"
+    mv "$DMG_FILE" "$NEW_DMG"
+    success "DMG renamed: ${NEW_DMG}"
   fi
 fi
 
