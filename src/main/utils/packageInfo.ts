@@ -46,13 +46,13 @@ export function getPackageInfo(): Readonly<PackageInfo> {
       log.error('[PackageInfo] Failed to load package.json:', error);
       // Return minimal fallback to prevent crashes
       packageInfo = {
-        name: 'googlechat',
-        productName: 'Google Chat',
-        version: '0.0.0',
-        description: 'Google Chat',
-        repository: '',
-        homepage: '',
-        author: '',
+        name: 'gimeet',
+        productName: 'Google Meet',
+        version: '1.0.0',
+        description: 'Google Meet',
+        repository: 'https://github.com/OCWorkforce/GiMeet',
+        homepage: 'https://github.com/OCWorkforce/GiMeet',
+        author: 'OCWorkforce Engineers',
       };
     }
   }
