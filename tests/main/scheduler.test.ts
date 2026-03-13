@@ -26,7 +26,7 @@ vi.mock("../../src/main/tray.js", () => ({
 }));
 
 const schedulerModule = await import("../../src/main/scheduler.js");
-const { scheduleEvents, firedEvents, scheduledEventData, timers } = schedulerModule;
+const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, poll } = schedulerModule;
 
 const { updateTrayTitle } = await import("../../src/main/tray.js");
 
@@ -445,5 +445,93 @@ describe("scheduleEvents", () => {
     expect(schedulerModule.countdownIntervals.size).toBe(0);
     const nullCalls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("setSchedulerWindow and poll IPC notification", () => {
+  let mockWebContentsSend: ReturnType<typeof vi.fn>;
+  let mockWindow: { isDestroyed: ReturnType<typeof vi.fn>; webContents: { send: ReturnType<typeof vi.fn> } };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    timers.clear();
+    firedEvents.clear();
+    scheduledEventData.clear();
+    schedulerModule.countdownIntervals.clear();
+    schedulerModule._resetConsecutiveErrors();
+    vi.mocked(updateTrayTitle).mockClear();
+
+    // Create mock window with webContents.send
+    mockWebContentsSend = vi.fn();
+    mockWindow = {
+      isDestroyed: vi.fn().mockReturnValue(false),
+      webContents: {
+        send: mockWebContentsSend,
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    timers.clear();
+    firedEvents.clear();
+    scheduledEventData.clear();
+    schedulerModule.countdownIntervals.clear();
+    schedulerModule._resetConsecutiveErrors();
+  });
+
+  it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
+    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+
+    setSchedulerWindow(mockWindow as never);
+    await poll();
+
+    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated");
+  });
+
+  it("F2: poll does NOT send IPC if window is null", async () => {
+    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+
+    // Don't set window - it should remain null
+    setSchedulerWindow(null as never);
+    await poll();
+
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
+  });
+
+  it("F3: poll does NOT send IPC if window is destroyed", async () => {
+    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+
+    mockWindow.isDestroyed.mockReturnValue(true);
+    setSchedulerWindow(mockWindow as never);
+    await poll();
+
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
+  });
+
+  it("F4: poll does NOT send IPC on calendar fetch error", async () => {
+    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "Calendar access denied" } as never);
+
+    setSchedulerWindow(mockWindow as never);
+    await poll();
+
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
+    expect(schedulerModule.consecutiveErrors).toBe(1);
+  });
+
+  it("F5: poll sends IPC after successful fetch with events", async () => {
+    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const event = makeEvent({ id: "f5-event" });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [event] });
+
+    setSchedulerWindow(mockWindow as never);
+    await poll();
+
+    expect(schedulerModule.consecutiveErrors).toBe(0);
+    expect(schedulerModule.consecutiveErrors).toBe(0);
   });
 });
