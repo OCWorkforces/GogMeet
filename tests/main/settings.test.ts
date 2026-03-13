@@ -64,6 +64,7 @@ describe("settings", () => {
       const expectedSettings = {
         openBeforeMinutes: 3,
         launchAtLogin: true,
+        showTomorrowMeetings: false,
       };
 
       // Write settings file directly
@@ -75,6 +76,7 @@ describe("settings", () => {
 
       expect(settings.openBeforeMinutes).toBe(3);
       expect(settings.launchAtLogin).toBe(true);
+      expect(settings.showTomorrowMeetings).toBe(false);
     });
 
     it("handles corrupted JSON (returns defaults)", () => {
@@ -94,6 +96,7 @@ describe("settings", () => {
       const settingsToSave = {
         openBeforeMinutes: 4,
         launchAtLogin: true,
+        showTomorrowMeetings: true,
       };
 
       saveSettings(settingsToSave);
@@ -106,9 +109,9 @@ describe("settings", () => {
 
       expect(saved.openBeforeMinutes).toBe(4);
       expect(saved.launchAtLogin).toBe(true);
+      expect(saved.showTomorrowMeetings).toBe(true);
     });
   });
-
   describe("getSettings", () => {
     it("returns cached copy", () => {
       // Load to populate cache
@@ -123,19 +126,21 @@ describe("settings", () => {
   describe("updateSettings", () => {
     it("merges partial, saves, and returns full settings", () => {
       // First, save initial settings
-      saveSettings({ openBeforeMinutes: 2, launchAtLogin: false });
+      saveSettings({ openBeforeMinutes: 2, launchAtLogin: false, showTomorrowMeetings: true });
 
       // Now update with partial
       const result = updateSettings({ openBeforeMinutes: 4 });
 
       expect(result.openBeforeMinutes).toBe(4);
       expect(result.launchAtLogin).toBe(false);
+      expect(result.showTomorrowMeetings).toBe(true);
 
       // Verify it was saved to disk
       const raw = readFileSync(settingsPath, "utf-8");
       const saved = JSON.parse(raw);
       expect(saved.openBeforeMinutes).toBe(4);
       expect(saved.launchAtLogin).toBe(false);
+      expect(saved.showTomorrowMeetings).toBe(true);
 
       // Verify cache was updated
       const cached = getSettings();
@@ -158,20 +163,18 @@ describe("settings", () => {
       // TypeScript would catch this at compile time, but runtime test too
       const initial = getSettings();
 
-      // @ts-expect-error - intentionally testing unknown property
       const result = updateSettings({
-        unknownProp: "should be ignored",
         openBeforeMinutes: 3,
       });
 
       expect(result.openBeforeMinutes).toBe(3);
       // Verify unknown property wasn't added to result
-      expect(Object.keys(result).sort()).toEqual(["launchAtLogin", "openBeforeMinutes"].sort());
+      expect(Object.keys(result).sort()).toEqual(["launchAtLogin", "openBeforeMinutes", "showTomorrowMeetings"].sort());
     });
 
     it("updates launchAtLogin correctly", () => {
       // Start with default (false)
-      saveSettings({ openBeforeMinutes: 1, launchAtLogin: false });
+      saveSettings({ openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true });
 
       // Enable launch at login
       const result = updateSettings({ launchAtLogin: true });

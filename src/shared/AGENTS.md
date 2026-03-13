@@ -62,20 +62,22 @@ export type CalendarPermission = "granted" | "denied" | "not-determined";
 ### AppSettings
 
 ```typescript
-// types.ts:73-77
+// types.ts:74-80
 export interface AppSettings {
   openBeforeMinutes: number;  // 1-5, default 1
   launchAtLogin: boolean;     // macOS login item toggle
+  showTomorrowMeetings: boolean; // show tomorrow's meetings in tray menu
 }
 ```
 
 ### Constants
 
 ```typescript
-// types.ts:81-88
+// types.ts:84-92
 export const DEFAULT_SETTINGS: AppSettings = { 
   openBeforeMinutes: 1, 
-  launchAtLogin: false 
+  launchAtLogin: false,
+  showTomorrowMeetings: true,
 };
 export const OPEN_BEFORE_MINUTES_MIN = 1;
 export const OPEN_BEFORE_MINUTES_MAX = 5;

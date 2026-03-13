@@ -8,6 +8,7 @@ import { startScheduler, stopScheduler } from "./scheduler.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
 import { getSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
+import { checkNotificationPermission } from "./notification.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -101,6 +102,9 @@ app.whenReady().then(() => {
   registerIpcHandlers(mainWindow);
   setupTray(mainWindow);
   startScheduler();
+
+  // Check notification permission on first run
+  void checkNotificationPermission();
   
   // Sync auto-launch setting on startup
   const settings = getSettings();

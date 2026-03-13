@@ -193,6 +193,11 @@ export function registerIpcHandlers(win: BrowserWindow): void {
         syncAutoLaunch(partial.launchAtLogin);
       }
       
+      // Notify popover window to refresh if settings affect display
+      if (partial.showTomorrowMeetings !== undefined || partial.launchAtLogin !== undefined) {
+        win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
+      }
+      
       return updated;
     },
   );

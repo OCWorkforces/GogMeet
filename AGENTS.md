@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
 **Generated:** 2026-03-13
-**Commit:** 3f9879c
+**Commit:** d6ceff1
 **Branch:** develop
 
 ## OVERVIEW
@@ -11,8 +11,8 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Layer     | Tech                                      |
 | --------- | ----------------------------------------- |
 | Runtime   | Bun 1.3.10+ / Node.js 24.14.0+            |
-| Framework | Electron 40                               |
-| Language  | TypeScript 5.9 (strict)                   |
+| Framework | Electron 41                               |
+| Framework | Electron 41                               |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
 | Test      | Vitest 4 (workspace, 104 tests)           |
@@ -96,8 +96,8 @@ src/
 | `IPC_CHANNELS` | const | src/shared/types.ts:2 | 8 channel names |
 | `IpcChannelMap` | type | src/shared/types.ts:14 | Request/response type map |
 | `MeetingEvent` | iface | src/shared/types.ts:55 | Event data model |
-| `AppSettings` | iface | src/shared/types.ts:73 | { openBeforeMinutes, launchAtLogin } |
-| `DEFAULT_SETTINGS` | const | src/shared/types.ts:81 | { openBeforeMinutes: 1, launchAtLogin: false } |
+| `AppSettings` | iface | src/shared/types.ts:80 | { openBeforeMinutes, launchAtLogin, showTomorrowMeetings } |
+| `DEFAULT_SETTINGS` | const | src/shared/types.ts:87 | { openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true } |
 | `AppState` | type | src/renderer/index.ts:4 | UI state union |
 | `api` | const | src/preload/index.ts:5 | Context bridge API |
 

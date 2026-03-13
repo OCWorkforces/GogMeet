@@ -5,7 +5,11 @@ import {
   OPEN_BEFORE_MINUTES_MAX,
 } from "../../shared/types.js";
 
-let settings: AppSettings = { openBeforeMinutes: 1, launchAtLogin: false };
+let settings: AppSettings = {
+  openBeforeMinutes: 1,
+  launchAtLogin: false,
+  showTomorrowMeetings: true,
+};
 let isSaving = false;
 let saveIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -68,6 +72,23 @@ function render(errorMessage?: string): void {
           </label>
         </div>
       </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="show-tomorrow-toggle">
+            📅 Show Tomorrow's Meetings
+          </label>
+          <span class="setting-description">Display tomorrow's meetings in the popover</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="tomorrow-save-indicator"></span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="show-tomorrow-toggle" class="toggle-input"${settings.showTomorrowMeetings ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
     </div>
     <div class="settings-footer">
       <span class="settings-footer-text">GogMeet &middot; &copy; ${new Date().getFullYear()}</span>
@@ -76,6 +97,7 @@ function render(errorMessage?: string): void {
 
   setupSelectListener();
   setupToggleListener();
+  setupTomorrowToggleListener();
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -122,11 +144,31 @@ function setupToggleListener(): void {
   if (!toggle) return;
 
   toggle.addEventListener("change", () => {
-    void saveSettings({ launchAtLogin: toggle.checked }, "launch-save-indicator");
+    void saveSettings(
+      { launchAtLogin: toggle.checked },
+      "launch-save-indicator",
+    );
   });
 }
 
-async function saveSettings(partial: Partial<AppSettings>, indicatorId: string = "save-indicator"): Promise<void> {
+function setupTomorrowToggleListener(): void {
+  const toggle = document.getElementById(
+    "show-tomorrow-toggle",
+  ) as HTMLInputElement | null;
+  if (!toggle) return;
+
+  toggle.addEventListener("change", () => {
+    void saveSettings(
+      { showTomorrowMeetings: toggle.checked },
+      "tomorrow-save-indicator",
+    );
+  });
+}
+
+async function saveSettings(
+  partial: Partial<AppSettings>,
+  indicatorId: string = "save-indicator",
+): Promise<void> {
   if (isSaving) return;
   isSaving = true;
 

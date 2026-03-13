@@ -109,3 +109,4 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `setAutoLaunch`           | `auto-launch.ts:14`    | Set macOS login item                          |
 | `syncAutoLaunch`          | `auto-launch.ts:26`    | Sync if state differs                         |
 | `buildMeetUrl`            | `utils/meet-url.ts:7`  | Append `?authuser=email` to Meet URL          |
+| `getSettings`             | `settings.ts:75`       | Get cached settings (used in tray for showTomorrowMeetings) |

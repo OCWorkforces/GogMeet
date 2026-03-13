@@ -5,7 +5,7 @@ import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-  } from "../shared/types.js";
+} from "../shared/types.js";
 import type { AppSettings } from "../shared/types.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
@@ -52,6 +52,10 @@ export function loadSettings(): AppSettings {
         typeof parsed.launchAtLogin === "boolean"
           ? parsed.launchAtLogin
           : DEFAULT_SETTINGS.launchAtLogin,
+      showTomorrowMeetings:
+        typeof parsed.showTomorrowMeetings === "boolean"
+          ? parsed.showTomorrowMeetings
+          : DEFAULT_SETTINGS.showTomorrowMeetings,
     };
     return settingsCache;
   } catch {
@@ -87,6 +91,10 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
 
   if (typeof partial.launchAtLogin === "boolean") {
     merged.launchAtLogin = partial.launchAtLogin;
+  }
+
+  if (typeof partial.showTomorrowMeetings === "boolean") {
+    merged.showTomorrowMeetings = partial.showTomorrowMeetings;
   }
 
   // Save and update cache

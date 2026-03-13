@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
   SETTINGS_SET: "settings:set",
+  SETTINGS_CHANGED: "settings:changed",
 } as const;
 
 /** IPC Request/Response type map for type-safe IPC */
@@ -48,8 +49,8 @@ export type IpcChannelMap = {
 
 /** Type utilities for type-safe IPC */
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
-export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]['request'];
-export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]['response'];
+export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]["request"];
+export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
 
 /** Meeting event data model */
 export interface MeetingEvent {
@@ -75,12 +76,15 @@ export interface AppSettings {
   openBeforeMinutes: number;
   /** Whether to launch the app at login (auto-start on system restart) */
   launchAtLogin: boolean;
+  /** Whether to show tomorrow's meetings in the popover */
+  showTomorrowMeetings: boolean;
 }
 
 /** Default settings values */
 export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
+  showTomorrowMeetings: true,
 };
 
 /** Valid range for openBeforeMinutes */

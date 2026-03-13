@@ -1,5 +1,5 @@
 import "./styles/main.css";
-import type { MeetingEvent } from "../shared/types.js";
+import type { MeetingEvent, AppSettings } from "../shared/types.js";
 import { escapeHtml } from "../shared/utils/escape-html.js";
 
 type AppState =
@@ -13,6 +13,11 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let state: AppState = { type: "loading" };
 let version = "";
+let settings: AppSettings = {
+  openBeforeMinutes: 1,
+  launchAtLogin: false,
+  showTomorrowMeetings: true,
+};
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
 
@@ -47,6 +52,18 @@ function formatLastUpdated(ts: number): string {
   if (diffMin < 1) return "Updated just now";
   if (diffMin === 1) return "Updated 1 min ago";
   return `Updated ${diffMin} min ago`;
+}
+
+/** Check if a date is tomorrow (local time) */
+function isTomorrow(isoDate: string): boolean {
+  const date = new Date(isoDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfter = new Date(tomorrow);
+  dayAfter.setDate(dayAfter.getDate() + 1);
+  return date >= tomorrow && date < dayAfter;
 }
 
 function renderFooter(): string {
@@ -93,7 +110,7 @@ function renderBody(s: AppState): string {
         <div class="state-screen">
           <div class="state-icon">☕</div>
           <p class="state-title">No upcoming meetings</p>
-          <p class="state-desc">No calendar events found for today or tomorrow.</p>
+          <p class="state-desc">${settings.showTomorrowMeetings ? "No calendar events found for today or tomorrow." : "No calendar events found for today."}</p>
         </div>
       `;
 
@@ -114,10 +131,13 @@ function renderBody(s: AppState): string {
       );
       const past = s.events.filter((e) => new Date(e.endDate).getTime() <= now);
 
-      let html = "";
+      // Check if any upcoming event is tomorrow
+      const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
+      const sectionHeader = hasTomorrowEvents ? "Today & Tomorrow" : "Today";
 
+      let html = "";
       if (upcoming.length > 0) {
-        html += `<p class="section-header">Today & Tomorrow</p>`;
+        html += `<p class="section-header">${sectionHeader}</p>`;
         upcoming.forEach((event, i) => {
           const rel = formatRelativeTime(event.startDate);
           const autoJoin = !event.isAllDay && !!event.meetUrl;
@@ -219,6 +239,9 @@ async function loadEvents() {
   render();
 
   try {
+    // Fetch settings first
+    settings = await window.api.settings.get();
+
     const permission = await window.api.calendar.getPermissionStatus();
 
     if (permission === "denied" || permission === "not-determined") {
@@ -231,10 +254,18 @@ async function loadEvents() {
 
     if ("error" in result) {
       state = { type: "error", message: result.error };
-    } else if (result.events.length === 0) {
-      state = { type: "no-events" };
     } else {
-      state = { type: "has-events", events: result.events };
+      // Filter events based on settings
+      let events = result.events;
+      if (!settings.showTomorrowMeetings) {
+        events = events.filter((e) => !isTomorrow(e.startDate));
+      }
+
+      if (events.length === 0) {
+        state = { type: "no-events" };
+      } else {
+        state = { type: "has-events", events };
+      }
     }
   } catch (err) {
     state = {

@@ -21,9 +21,9 @@ export function createSettingsWindow(): BrowserWindow {
 
   const win = new BrowserWindow({
     width: 520,
-    height: 340,
+    height: 420,
     minWidth: 520,
-    minHeight: 340,
+    minHeight: 420,
     resizable: false,
     minimizable: false,
     maximizable: false,

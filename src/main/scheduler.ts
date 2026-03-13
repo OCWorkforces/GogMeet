@@ -319,11 +319,16 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       timers.delete(event.id);
       scheduledEventData.delete(event.id);
       firedEvents.add(event.id);
-      if (!event.meetUrl) return; // no URL — nothing to open
+      // Always show notification for all meetings
       new Notification({
-        title: "Meeting Starting",
-        body: event.title,
+        title: event.title,
+        body: "Starting now",
       }).show();
+      // Only open browser for meetings with a URL
+      if (!event.meetUrl) {
+        console.log(`[scheduler] Notification shown for "${event.title}" (no URL)`);
+        return;
+      }
       const url = buildMeetUrl(event);
       shell.openExternal(url).catch((err) => {
         console.error(`[scheduler] Failed to open ${url}:`, err);

@@ -66,6 +66,9 @@ describe("formatRemainingTime", () => {
     vi.mock("../../src/main/utils/meet-url.js", () => ({
       buildMeetUrl: vi.fn((event) => event.meetUrl || ""),
     }));
+    vi.mock("../../src/main/settings.js", () => ({
+      getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
+    }));
 
     const trayModule = await import("../../src/main/tray.js");
     formatRemainingTime = trayModule.formatRemainingTime;
@@ -135,6 +138,9 @@ describe("tray module exports", () => {
     }));
     vi.mock("../../src/main/utils/meet-url.js", () => ({
       buildMeetUrl: vi.fn((event) => event.meetUrl || ""),
+    }));
+    vi.mock("../../src/main/settings.js", () => ({
+      getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
     }));
   });
 

@@ -41,6 +41,16 @@ const api = {
       partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET>> =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, partial),
+
+    onChanged: (callback: (settings: AppSettings) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings): void => {
+        callback(settings);
+      };
+      ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, handler);
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.SETTINGS_CHANGED, handler);
+      };
+    },
   },
 };
 

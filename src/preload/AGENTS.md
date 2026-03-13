@@ -37,6 +37,9 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
     set: (partial: Partial<AppSettings>): Promise<AppSettings> =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, partial),
+    onChanged: (callback: (settings: AppSettings) => void) => {
+      ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, (_event, settings) => callback(settings));
+    },
   },
   };
 ```

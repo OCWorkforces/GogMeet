@@ -49,6 +49,9 @@ window.api.app.openExternal(url); // → void
 window.api.app.getVersion(); // → string
 window.api.settings.get(); // → AppSettings
 window.api.settings.set(partial); // → AppSettings
+window.api.settings.onChanged(callback); // → void (listen for changes)
+```
+window.api.settings.set(partial); // → AppSettings
 ```
 
 ## CSS CONVENTIONS
@@ -98,4 +101,4 @@ Separate renderer entry at `settings/`. Key differences from main UI:
 - Shows in Dock when open (tray-only app otherwise)
 - Singleton BrowserWindow (focus if already open)
 - Auto-saves on dropdown change with "✓ Saved" indicator
-- iOS-style toggle switch for "Launch at Login" option
+- iOS-style toggle switch for "Launch at Login" and "Show Tomorrow" options
