@@ -92,7 +92,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
   /**
    * Build menu template with upcoming meetings grouped by day.
-   * Only includes events with a meetUrl (Google Meet links).
+   * Includes all non-all-day upcoming events. Items without a meetUrl are shown disabled.
    */
   function buildMeetingMenuTemplate(
     events: MeetingEvent[],
@@ -107,7 +107,6 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
     const upcoming = events.filter((e) => {
       if (e.isAllDay) return false;
-      if (!e.meetUrl) return false;
       return new Date(e.startDate) > now;
     });
 
@@ -135,15 +134,19 @@ export function setupTray(mainWindow: BrowserWindow): void {
     if (todayEvents.length > 0) {
       items.push({ label: "Today", enabled: false });
       for (const event of todayEvents) {
+        const hasUrl = !!event.meetUrl;
         items.push({
           label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
-          click: () => {
-            const url = buildMeetUrl(event);
-            if (!url) return;
-            void shell.openExternal(url).catch((err) => {
-              console.error("[tray] Failed to open meeting URL:", err);
-            });
-          },
+          enabled: hasUrl,
+          ...(hasUrl && {
+            click: () => {
+              const url = buildMeetUrl(event);
+              if (!url) return;
+              void shell.openExternal(url).catch((err) => {
+                console.error("[tray] Failed to open meeting URL:", err);
+              });
+            },
+          }),
         });
       }
     }
@@ -152,15 +155,19 @@ export function setupTray(mainWindow: BrowserWindow): void {
       if (items.length > 0) items.push({ type: "separator" });
       items.push({ label: "Tomorrow", enabled: false });
       for (const event of tomorrowEvents) {
+        const hasUrl = !!event.meetUrl;
         items.push({
           label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
-          click: () => {
-            const url = buildMeetUrl(event);
-            if (!url) return;
-            void shell.openExternal(url).catch((err) => {
-              console.error("[tray] Failed to open meeting URL:", err);
-            });
-          },
+          enabled: hasUrl,
+          ...(hasUrl && {
+            click: () => {
+              const url = buildMeetUrl(event);
+              if (!url) return;
+              void shell.openExternal(url).catch((err) => {
+                console.error("[tray] Failed to open meeting URL:", err);
+              });
+            },
+          }),
         });
       }
     }
