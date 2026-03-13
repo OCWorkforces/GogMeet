@@ -1,10 +1,14 @@
 import { Notification, shell } from "electron";
+import { getSettings } from "./settings.js";
+
 import { getCalendarEventsResult } from "./calendar.js";
 import type { MeetingEvent } from "../shared/types.js";
 import { updateTrayTitle } from "./tray.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
-/** How long before meeting start to open the browser (ms) */
-const OPEN_BEFORE_MS = 60 * 1000; // 1 minute
+/** Get milliseconds before meeting start to open browser, based on settings */
+function getOpenBeforeMs(): number {
+  return getSettings().openBeforeMinutes * 60 * 1000;
+}
 
 /** How long before meeting start to show the tray title (ms) */
 const TITLE_BEFORE_MS = 30 * 60 * 1000; // 30 minutes
@@ -225,7 +229,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     const startMs = new Date(event.startDate).getTime();
     const endMs = new Date(event.endDate).getTime();
-    const openAtMs = startMs - OPEN_BEFORE_MS;
+    const openAtMs = startMs - getOpenBeforeMs();
     const delayMs = openAtMs - now;
 
     // Handle already-in-progress events
@@ -537,6 +541,12 @@ export function stopScheduler(): void {
   updateTrayTitle(null);
   console.log("[scheduler] Stopped");
 }
+/** Restart the scheduler - call when settings change to apply new timing */
+export function restartScheduler(): void {
+  stopScheduler();
+  startScheduler();
+}
+
 
 // Export for testing
 export {

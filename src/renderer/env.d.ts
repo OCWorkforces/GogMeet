@@ -1,4 +1,4 @@
-import type { CalendarPermission, CalendarResult } from "../shared/types.js";
+import type { AppSettings, CalendarPermission, CalendarResult } from "../shared/types.js";
 
 declare global {
   interface Window {
@@ -14,6 +14,10 @@ declare global {
       app: {
         openExternal(url: string): Promise<void>;
         getVersion(): Promise<string>;
+      };
+      settings: {
+        get(): Promise<AppSettings>;
+        set(partial: Partial<AppSettings>): Promise<AppSettings>;
       };
     };
   }

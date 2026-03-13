@@ -1,0 +1,188 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: rgba(246, 246, 246, 0.92);
+  --surface: rgba(255, 255, 255, 0.8);
+  --border: rgba(0, 0, 0, 0.08);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #aeaeb2;
+  --accent: #007aff;
+  --accent-hover: #0051d3;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: rgba(30, 30, 30, 0.92);
+    --surface: rgba(45, 45, 45, 0.8);
+    --border: rgba(255, 255, 255, 0.08);
+    --text-primary: #f5f5f7;
+    --text-secondary: #98989d;
+    --text-tertiary: #636366;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+  }
+}
+
+html,
+body {
+  width: 400px;
+  height: 200px;
+  overflow: hidden;
+  background: transparent;
+}
+
+#app {
+  width: 400px;
+  height: 200px;
+  background: var(--bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Title bar / drag region ---- */
+.settings-titlebar {
+  -webkit-app-region: drag;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  -webkit-app-region: no-drag;
+  user-select: none;
+}
+
+/* ---- Settings content ---- */
+.settings-content {
+  flex: 1;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+
+/* ---- Setting row ---- */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.setting-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 400;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ---- Select ---- */
+.setting-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 24px 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  min-width: 80px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236e6e73' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition:
+    border-color 0.1s,
+    background-color 0.1s;
+}
+
+@media (prefers-color-scheme: dark) {
+  .setting-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2398989d' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  }
+}
+
+.setting-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.setting-select:hover {
+  background-color: var(--surface);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .setting-select:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* ---- Save indicator ---- */
+.save-indicator {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: right;
+}
+
+.save-indicator.visible {
+  opacity: 1;
+}
+
+/* ---- Error message ---- */
+.settings-error {
+  font-size: 11px;
+  color: #ff3b30;
+  text-align: center;
+  padding: 4px 16px 8px;
+  line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-error {
+    color: #ff453a;
+  }
+}

@@ -13,7 +13,9 @@ import { fileURLToPath } from "node:url";
 
 import { getCalendarEventsResult } from "./calendar.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
+import { createSettingsWindow } from "./settings-window.js";
 import type { MeetingEvent } from "../shared/types.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Format ISO date string to locale time like "10:00 AM" */
@@ -113,6 +115,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
       return [
         { label: "No upcoming meetings", enabled: false },
         { type: "separator" },
+        { label: "Settings...", click: () => createSettingsWindow() },
         { label: "About", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
@@ -163,6 +166,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
     }
 
     items.push({ type: "separator" });
+    items.push({ label: "Settings...", click: () => createSettingsWindow() });
     items.push({ label: "About", click: () => showAbout(mainWindow) });
     items.push({
       label: "Quit",
@@ -181,6 +185,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
       template = [
         { label: "Calendar unavailable", enabled: false },
         { type: "separator" },
+        { label: "Settings...", click: () => createSettingsWindow() },
         { label: "About", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];

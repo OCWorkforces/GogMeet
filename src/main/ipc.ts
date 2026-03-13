@@ -17,6 +17,9 @@ import {
   requestCalendarPermission,
   getCalendarPermissionStatus,
 } from "./calendar.js";
+
+import { getSettings, updateSettings } from "./settings.js";
+import { restartScheduler } from "./scheduler.js";
 import { isAllowedMeetUrl } from "./utils/url-validation.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
@@ -164,4 +167,27 @@ export function registerIpcHandlers(win: BrowserWindow): void {
       }
     },
   );
+
+  // Settings
+  typedHandle(
+    IPC_CHANNELS.SETTINGS_GET,
+    (event): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
+      if (!validateSender(event)) return getSettings();
+      return getSettings();
+    },
+  );
+
+  typedHandle(
+    IPC_CHANNELS.SETTINGS_SET,
+    (
+      event,
+      partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
+    ): IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET> => {
+      if (!validateSender(event)) return getSettings();
+      const updated = updateSettings(partial);
+      restartScheduler(); // Apply new timing immediately
+      return updated;
+    },
+  );
+
 }
