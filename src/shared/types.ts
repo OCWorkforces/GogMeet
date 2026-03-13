@@ -73,11 +73,14 @@ export type CalendarPermission = "granted" | "denied" | "not-determined";
 export interface AppSettings {
   /** Minutes before meeting start to auto-open browser (1-5) */
   openBeforeMinutes: number;
+  /** Whether to launch the app at login (auto-start on system restart) */
+  launchAtLogin: boolean;
 }
 
 /** Default settings values */
 export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
+  launchAtLogin: false,
 };
 
 /** Valid range for openBeforeMinutes */

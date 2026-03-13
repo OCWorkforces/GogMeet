@@ -63,6 +63,7 @@ describe("settings", () => {
     it("reads existing file correctly", () => {
       const expectedSettings = {
         openBeforeMinutes: 3,
+        launchAtLogin: true,
       };
 
       // Write settings file directly
@@ -73,6 +74,7 @@ describe("settings", () => {
       const settings = loadSettings();
 
       expect(settings.openBeforeMinutes).toBe(3);
+      expect(settings.launchAtLogin).toBe(true);
     });
 
     it("handles corrupted JSON (returns defaults)", () => {
@@ -91,6 +93,7 @@ describe("settings", () => {
     it("persists to disk", () => {
       const settingsToSave = {
         openBeforeMinutes: 4,
+        launchAtLogin: true,
       };
 
       saveSettings(settingsToSave);
@@ -102,6 +105,7 @@ describe("settings", () => {
       const saved = JSON.parse(raw);
 
       expect(saved.openBeforeMinutes).toBe(4);
+      expect(saved.launchAtLogin).toBe(true);
     });
   });
 
@@ -119,17 +123,19 @@ describe("settings", () => {
   describe("updateSettings", () => {
     it("merges partial, saves, and returns full settings", () => {
       // First, save initial settings
-      saveSettings({ openBeforeMinutes: 2 });
+      saveSettings({ openBeforeMinutes: 2, launchAtLogin: false });
 
       // Now update with partial
       const result = updateSettings({ openBeforeMinutes: 4 });
 
       expect(result.openBeforeMinutes).toBe(4);
+      expect(result.launchAtLogin).toBe(false);
 
       // Verify it was saved to disk
       const raw = readFileSync(settingsPath, "utf-8");
       const saved = JSON.parse(raw);
       expect(saved.openBeforeMinutes).toBe(4);
+      expect(saved.launchAtLogin).toBe(false);
 
       // Verify cache was updated
       const cached = getSettings();
@@ -160,7 +166,36 @@ describe("settings", () => {
 
       expect(result.openBeforeMinutes).toBe(3);
       // Verify unknown property wasn't added to result
-      expect(Object.keys(result)).toEqual(["openBeforeMinutes"]);
+      expect(Object.keys(result).sort()).toEqual(["launchAtLogin", "openBeforeMinutes"].sort());
+    });
+
+    it("updates launchAtLogin correctly", () => {
+      // Start with default (false)
+      saveSettings({ openBeforeMinutes: 1, launchAtLogin: false });
+
+      // Enable launch at login
+      const result = updateSettings({ launchAtLogin: true });
+
+      expect(result.launchAtLogin).toBe(true);
+
+      // Verify it was saved to disk
+      const raw = readFileSync(settingsPath, "utf-8");
+      const saved = JSON.parse(raw);
+      expect(saved.launchAtLogin).toBe(true);
+
+      // Disable again
+      const result2 = updateSettings({ launchAtLogin: false });
+      expect(result2.launchAtLogin).toBe(false);
+    });
+
+    it("defaults launchAtLogin to false when not in file", () => {
+      // Write settings without launchAtLogin
+      const fs = require("fs");
+      fs.writeFileSync(settingsPath, JSON.stringify({ openBeforeMinutes: 2 }));
+
+      const settings = loadSettings();
+
+      expect(settings.launchAtLogin).toBe(false);
     });
   });
 });

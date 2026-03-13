@@ -10,6 +10,10 @@ Electron renderer (web context). Vanilla TypeScript UI with native macOS popover
 | `index.html`      | CSP-protected HTML template                  |
 | `env.d.ts`        | TypeScript declarations                      |
 | `styles/main.css` | Native macOS styling, dark mode support      |
+| `settings/`       | Settings window UI (separate entry)          |
+| `settings/index.ts` | Settings form logic, save indicator        |
+| `settings/index.html` | Settings HTML template                    |
+| `settings/styles.css` | Settings-specific styles (iOS-style toggles) |
 
 ## STATE MACHINE
 
@@ -43,6 +47,8 @@ window.api.calendar.getPermissionStatus(); // → CalendarPermission
 window.api.window.minimizeToTray(); // → void
 window.api.app.openExternal(url); // → void
 window.api.app.getVersion(); // → string
+window.api.settings.get(); // → AppSettings
+window.api.settings.set(partial); // → AppSettings
 ```
 
 ## CSS CONVENTIONS
@@ -73,10 +79,23 @@ window.api.app.getVersion(); // → string
 
 ## TESTS
 
-**Location**: `tests/renderer/delegation.test.ts` (77 lines)
+**Location**: `tests/renderer/*.test.ts` (148 lines)
 
-Tests event delegation pattern:
+**Delegation tests** (`delegation.test.ts`):
 - `[data-action="refresh"]` click handling
 - `[data-action="join-meeting"]` URL extraction
 - Click outside action elements (no trigger)
 - Single listener survives multiple renders
+
+**XSS tests** (`escape-html.test.ts`):
+- HTML special chars escaped (`<`, `>`, `&`, `"`, `'`)
+- User content safe for innerHTML insertion
+
+## SETTINGS WINDOW
+
+Separate renderer entry at `settings/`. Key differences from main UI:
+- Uses native window chrome (`titleBarStyle: "hiddenInset"`)
+- Shows in Dock when open (tray-only app otherwise)
+- Singleton BrowserWindow (focus if already open)
+- Auto-saves on dropdown change with "✓ Saved" indicator
+- iOS-style toggle switch for "Launch at Login" option

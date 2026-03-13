@@ -6,14 +6,17 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 
 ```
 tests/
-├── setup.main.ts     # Electron API mocks (77 lines)
+├── setup.main.ts     # Electron API mocks (78 lines)
 ├── main/
-│   ├── scheduler.test.ts  # 446 lines — scheduler state machine tests
-│   ├── calendar.test.ts   # 360 lines — Swift output parsing tests
-│   └── ipc.test.ts        # 102 lines — IPC security validation tests
+│   ├── scheduler.test.ts  # 449 lines — scheduler state machine
+│   ├── calendar.test.ts   # 360 lines — Swift output parsing
+│   ├── settings.test.ts   # ~180 lines — file I/O, launchAtLogin
+│   ├── tray.test.ts       # 183 lines — tray module
+│   ├── ipc.test.ts        # 102 lines — security validation
+│   └── meet-url.test.ts   # 140 lines — URL building
 └── renderer/
-    ├── delegation.test.ts # 77 lines — event delegation pattern tests
-    └── escape-html.test.ts # 71 lines — XSS/HTML escaping tests
+    ├── delegation.test.ts # 77 lines — event delegation
+    └── escape-html.test.ts # 71 lines — XSS protection
 ```
 
 ## CONFIGURATION
@@ -35,7 +38,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (908 lines)
+## MAIN PROCESS TESTS (104 tests total)
 
 **Mock Pattern**:
 
@@ -47,11 +50,14 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 
 **Test Files**:
 
-| File              | Lines | Focus                                  | Tests |
-| ----------------- | ----- | -------------------------------------- | ----- |
-| scheduler.test.ts | 446   | State machine, race conditions, timers | 18    |
-| calendar.test.ts  | 360   | parseEvents, dedup, date filtering     | 16    |
-| ipc.test.ts       | 102   | validateSender, isAllowedMeetUrl       | 16    |
+| File              | Lines | Focus                                  |
+| ----------------- | ----- | -------------------------------------- |
+| scheduler.test.ts | 449   | State machine, race conditions, timers |
+| calendar.test.ts  | 360   | parseEvents, dedup, date filtering     |
+| settings.test.ts  | ~180  | File I/O, clamping, defaults, launchAtLogin |
+| tray.test.ts      | 183   | Tray title, time formatting            |
+| ipc.test.ts       | 102   | validateSender, isAllowedMeetUrl       |
+| meet-url.test.ts  | 140   | URL building with authuser             |
 
 **Scheduler Test Groups** (A-E labeled):
 
@@ -66,8 +72,9 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 **Key Test Patterns**:
 
 - `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
-- `firedEvents`, `timers`, `scheduledEventData` cleared in `beforeEach`
+- All state maps cleared in `beforeEach`: `timers`, `firedEvents`, `scheduledEventData`, `countdownIntervals`
 - `updateTrayTitle` mock for tray behavior assertions
+- `vi.resetModules()` + dynamic import for fresh module state
 
 ## RENDERER TESTS (148 lines)
 
@@ -97,12 +104,8 @@ bun run test:watch  # Watch mode
 
 ## SETUP FILE
 
-`tests/setup.main.ts` exports complete Electron mock:
-
-- `app`: getVersion, quit, dock, isPackaged, whenReady, on
+- `app`: getVersion, quit, dock, isPackaged, whenReady, on, getPath
 - `BrowserWindow`: loadURL, show, hide, destroy, getBounds, setPosition, webContents
 - `ipcMain`: handle, on, off
-- `Tray`: setToolTip, on, getBounds, popUpContextMenu
+- `Tray`: setToolTip, setTitle, on, getBounds, popUpContextMenu
 - `Menu`, `Notification`, `screen`, `nativeImage`
-
-**Total**: 1,056 lines across 5 test files + 77-line setup mock (1,133 total)

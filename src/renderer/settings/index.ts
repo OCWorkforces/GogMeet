@@ -5,7 +5,7 @@ import {
   OPEN_BEFORE_MINUTES_MAX,
 } from "../../shared/types.js";
 
-let settings: AppSettings = { openBeforeMinutes: 1 };
+let settings: AppSettings = { openBeforeMinutes: 1, launchAtLogin: false };
 let isSaving = false;
 let saveIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -51,6 +51,23 @@ function render(errorMessage?: string): void {
         </div>
       </div>
       ${errorMessage ? `<p class="settings-error">${errorMessage}</p>` : ""}
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="launch-at-login-toggle">
+            🚀 Launch at Login
+          </label>
+          <span class="setting-description">Automatically start GogMeet when you log in</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="launch-save-indicator"></span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="launch-at-login-toggle" class="toggle-input"${settings.launchAtLogin ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
     </div>
     <div class="settings-footer">
       <span class="settings-footer-text">GogMeet &middot; &copy; ${new Date().getFullYear()}</span>
@@ -58,10 +75,11 @@ function render(errorMessage?: string): void {
   `;
 
   setupSelectListener();
+  setupToggleListener();
 }
 
-function showSaveIndicator(text: string): void {
-  const indicator = document.getElementById("save-indicator");
+function showSaveIndicator(id: string, text: string): void {
+  const indicator = document.getElementById(id);
   if (!indicator) return;
 
   if (saveIndicatorTimer !== null) {
@@ -93,18 +111,29 @@ function setupSelectListener(): void {
     ) {
       return;
     }
-    void saveSettings({ openBeforeMinutes: value });
+    void saveSettings({ openBeforeMinutes: value }, "save-indicator");
   });
 }
 
-async function saveSettings(partial: Partial<AppSettings>): Promise<void> {
+function setupToggleListener(): void {
+  const toggle = document.getElementById(
+    "launch-at-login-toggle",
+  ) as HTMLInputElement | null;
+  if (!toggle) return;
+
+  toggle.addEventListener("change", () => {
+    void saveSettings({ launchAtLogin: toggle.checked }, "launch-save-indicator");
+  });
+}
+
+async function saveSettings(partial: Partial<AppSettings>, indicatorId: string = "save-indicator"): Promise<void> {
   if (isSaving) return;
   isSaving = true;
 
   try {
     const updated = await window.api.settings.set(partial);
     settings = updated;
-    showSaveIndicator("✓ Saved");
+    showSaveIndicator(indicatorId, "✓ Saved");
     // Re-render to sync state without losing focus feel
     render();
   } catch (err) {

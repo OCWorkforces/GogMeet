@@ -4,14 +4,15 @@ Type definitions shared across main, preload, and renderer processes. Single sou
 
 ## FILES
 
-| File       | Role                                  |
-| ---------- | ------------------------------------- |
-| `types.ts` | IPC channels, interfaces, type unions |
+| File                  | Role                                  |
+| --------------------- | ------------------------------------- |
+| `types.ts`            | IPC channels, interfaces, type unions |
+| `utils/escape-html.ts` | XSS protection utility |
 
 ## IPC CHANNELS
 
 ```typescript
-// types.ts:2-9
+// types.ts:2-10
 export const IPC_CHANNELS = {
   CALENDAR_GET_EVENTS: "calendar:get-events",
   CALENDAR_REQUEST_PERMISSION: "calendar:request-permission",
@@ -19,6 +20,8 @@ export const IPC_CHANNELS = {
   WINDOW_SET_HEIGHT: "window:set-height",
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_GET_VERSION: "app:get-version",
+  SETTINGS_GET: "settings:get",
+  SETTINGS_SET: "settings:set",
 } as const;
 ```
 
@@ -54,6 +57,28 @@ export type CalendarResult = { events: MeetingEvent[] } | { error: string };
 ```typescript
 // types.ts:60
 export type CalendarPermission = "granted" | "denied" | "not-determined";
+```
+
+### AppSettings
+
+```typescript
+// types.ts:73-77
+export interface AppSettings {
+  openBeforeMinutes: number;  // 1-5, default 1
+  launchAtLogin: boolean;     // macOS login item toggle
+}
+```
+
+### Constants
+
+```typescript
+// types.ts:81-88
+export const DEFAULT_SETTINGS: AppSettings = { 
+  openBeforeMinutes: 1, 
+  launchAtLogin: false 
+};
+export const OPEN_BEFORE_MINUTES_MIN = 1;
+export const OPEN_BEFORE_MINUTES_MAX = 5;
 ```
 
 ## TYPE UTILITIES

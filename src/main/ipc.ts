@@ -21,6 +21,7 @@ import {
 import { getSettings, updateSettings } from "./settings.js";
 import { restartScheduler } from "./scheduler.js";
 import { isAllowedMeetUrl } from "./utils/url-validation.js";
+import { syncAutoLaunch } from "./auto-launch.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
 const ALLOWED_ORIGINS = new Set([
@@ -186,6 +187,12 @@ export function registerIpcHandlers(win: BrowserWindow): void {
       if (!validateSender(event)) return getSettings();
       const updated = updateSettings(partial);
       restartScheduler(); // Apply new timing immediately
+      
+      // Sync auto-launch if the setting changed
+      if (typeof partial.launchAtLogin === "boolean") {
+        syncAutoLaunch(partial.launchAtLogin);
+      }
+      
       return updated;
     },
   );

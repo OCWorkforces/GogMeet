@@ -6,6 +6,8 @@ import { setupTray } from "./tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
+import { getSettings } from "./settings.js";
+import { syncAutoLaunch } from "./auto-launch.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -99,6 +101,10 @@ app.whenReady().then(() => {
   registerIpcHandlers(mainWindow);
   setupTray(mainWindow);
   startScheduler();
+  
+  // Sync auto-launch setting on startup
+  const settings = getSettings();
+  syncAutoLaunch(settings.launchAtLogin);
 });
 
 app.on("window-all-closed", () => {

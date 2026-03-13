@@ -48,8 +48,11 @@ export function loadSettings(): AppSettings {
           ? parsed.openBeforeMinutes
           : DEFAULT_SETTINGS.openBeforeMinutes,
       ),
+      launchAtLogin:
+        typeof parsed.launchAtLogin === "boolean"
+          ? parsed.launchAtLogin
+          : DEFAULT_SETTINGS.launchAtLogin,
     };
-
     return settingsCache;
   } catch {
     // Corrupted JSON or other error - return defaults
@@ -80,6 +83,10 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
     merged.openBeforeMinutes = clampOpenBeforeMinutes(
       partial.openBeforeMinutes,
     );
+  }
+
+  if (typeof partial.launchAtLogin === "boolean") {
+    merged.launchAtLogin = partial.launchAtLogin;
   }
 
   // Save and update cache
