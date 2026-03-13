@@ -6,14 +6,16 @@ It's a macOS tray app for Google Meet calendar reminders. Fetches events from ma
 
 - **Tray-native** — Lives in the menu bar, no Dock icon
 - **Calendar integration** — Reads Google Meet events from macOS Calendar via Swift EventKit
-- **Auto-launch** — Opens meeting URLs automatically 1 minute before start
+- **Auto-launch** — Opens meeting URLs automatically (configurable 1-5 minutes before start)
+- **Settings UI** — Configure auto-open timing via native macOS settings window
 - **Popover UI** — Click the tray icon to see upcoming meetings
 
 ## Screenshots
 
-![Settings](./assets/setting-page.png)
+![Settings](assets/setting-page.png)
 
 _Configure how many minutes before a meeting to auto-open the browser (1-5 minutes)_
+
 ## Requirements
 
 - macOS (Apple Silicon)
@@ -45,6 +47,7 @@ bun run typecheck    # TypeScript check
 ```
 
 The script will:
+
 1. Clean the `dist/` directory
 2. Build all TypeScript sources (main, preload, renderer)
 3. Package the app into a DMG for macOS arm64
@@ -52,6 +55,7 @@ The script will:
 5. Append environment suffix to filename (if `--environment` provided)
 
 Output examples:
+
 - With `--environment stable`: `dist/GogMeet-1.3.6-arm64-stable.dmg`
 - Without flag: `dist/GogMeet-1.3.6-arm64.dmg`
 
@@ -66,17 +70,20 @@ Output examples:
 If macOS blocks the app with "cannot be opened because it is from an unidentified developer":
 
 **Option 1: Remove quarantine (recommended for ad-hoc signed builds)**
+
 ```bash
 sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 ```
 
 **Option 2: System Settings**
+
 1. Open **System Settings** → **Privacy & Security**
 2. Scroll down to find the security warning
 3. Click **Open Anyway**
 4. Confirm by clicking **Open** in the dialog
 
 **Option 3: Right-click open**
+
 1. Right-click (or Control-click) on **GogMeet.app**
 2. Select **Open** from the context menu
 3. Click **Open** in the confirmation dialog
@@ -86,16 +93,19 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 If the app crashes or won't start:
 
 1. **Check Console logs:**
+
    ```bash
    log stream --predicate 'process == "GogMeet"' --level debug
    ```
 
 2. **Verify architecture:** Ensure you're on Apple Silicon (arm64)
+
    ```bash
    uname -m  # should output "arm64"
    ```
 
 3. **Re-sign the app bundle:**
+
    ```bash
    codesign --force --deep --sign - "/Applications/GogMeet.app"
    ```
@@ -110,13 +120,13 @@ If the app crashes or won't start:
 
 ## Tech Stack
 
-| Layer | Tech |
-|-------|------|
-| Runtime | Electron 41 |
-| Language | TypeScript 5.9 |
-| Build | Rslib + Rsbuild |
-| Calendar | Swift EventKit |
-| Test | Vitest 4 |
+| Layer    | Tech            |
+| -------- | --------------- |
+| Runtime  | Electron 41     |
+| Language | TypeScript 5.9  |
+| Build    | Rslib + Rsbuild |
+| Calendar | Swift EventKit  |
+| Test     | Vitest 4        |
 
 ## License
 
