@@ -9,6 +9,11 @@ It's a macOS tray app for Google Meet calendar reminders. Fetches events from ma
 - **Auto-launch** — Opens meeting URLs automatically 1 minute before start
 - **Popover UI** — Click the tray icon to see upcoming meetings
 
+## Screenshots
+
+![Settings](./assets/setting-page.png)
+
+_Configure how many minutes before a meeting to auto-open the browser (1-5 minutes)_
 ## Requirements
 
 - macOS (Apple Silicon)
