@@ -8,8 +8,9 @@ It's a macOS tray app for Google Meet calendar reminders. Fetches events from ma
 - **Calendar integration** — Reads Google Meet events from macOS Calendar via Swift EventKit
 - **Auto-launch** — Opens meeting URLs automatically (configurable 1-5 minutes before start)
 - **Launch at Login** — Optionally start GogMeet automatically when you log in to macOS
-- **Settings UI** — Configure auto-open timing and login preferences via native macOS settings window
+- **Settings UI** — Configure auto-open timing, login preferences, and display options via native macOS settings window
 - **Popover UI** — Click the tray icon to see upcoming meetings
+- **Tomorrow's Meetings** — Toggle to show or hide tomorrow's meetings in the popover
 
 ## Screenshots
 
