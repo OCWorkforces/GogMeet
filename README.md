@@ -1,6 +1,6 @@
 # GogMeet
 
-macOS tray app for Google Meet calendar reminders. Fetches events from macOS Calendar via EventKit and auto-opens meetings in your browser 1 minute before they start.
+It's a macOS tray app for Google Meet calendar reminders. Fetches events from macOS Calendar via EventKit and auto-opens meetings in your browser 1 minute before they start.
 
 ## Features
 
