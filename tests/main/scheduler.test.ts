@@ -7,6 +7,9 @@ vi.mock("electron", () => {
     this.show = vi.fn();
   }
   return {
+    app: {
+      getPath: vi.fn().mockReturnValue("/tmp/test-user-data"),
+    },
     shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
     Notification: MockNotification,
   };

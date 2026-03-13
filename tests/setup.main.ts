@@ -1,5 +1,5 @@
 vi.mock("electron", () => ({
-  app: {
+app: {
     getVersion: vi.fn().mockReturnValue("1.0.0"),
     quit: vi.fn(),
     dock: { hide: vi.fn(), show: vi.fn() },
@@ -8,6 +8,7 @@ vi.mock("electron", () => ({
     whenReady: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
     showAboutPanel: vi.fn(),
+    getPath: vi.fn().mockReturnValue("/tmp/test-user-data"),
   },
   ipcMain: {
     handle: vi.fn(),

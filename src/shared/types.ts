@@ -6,6 +6,8 @@ export const IPC_CHANNELS = {
   WINDOW_SET_HEIGHT: "window:set-height",
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_GET_VERSION: "app:get-version",
+  SETTINGS_GET: "settings:get",
+  SETTINGS_SET: "settings:set",
 } as const;
 
 /** IPC Request/Response type map for type-safe IPC */
@@ -34,6 +36,14 @@ export type IpcChannelMap = {
     request: void;
     response: string;
   };
+  [IPC_CHANNELS.SETTINGS_GET]: {
+    request: void;
+    response: AppSettings;
+  };
+  [IPC_CHANNELS.SETTINGS_SET]: {
+    request: Partial<AppSettings>;
+    response: AppSettings;
+  };
 };
 
 /** Type utilities for type-safe IPC */
@@ -58,3 +68,18 @@ export type CalendarResult = { events: MeetingEvent[] } | { error: string };
 
 /** Calendar permission states */
 export type CalendarPermission = "granted" | "denied" | "not-determined";
+
+/** Application settings */
+export interface AppSettings {
+  /** Minutes before meeting start to auto-open browser (1-5) */
+  openBeforeMinutes: number;
+}
+
+/** Default settings values */
+export const DEFAULT_SETTINGS: AppSettings = {
+  openBeforeMinutes: 1,
+};
+
+/** Valid range for openBeforeMinutes */
+export const OPEN_BEFORE_MINUTES_MIN = 1;
+export const OPEN_BEFORE_MINUTES_MAX = 5;

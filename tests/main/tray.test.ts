@@ -165,7 +165,7 @@ describe("tray module exports", () => {
 
     const trayInstance = (Tray as ReturnType<typeof vi.fn>).mock.results[0]
       .value;
-    expect(trayInstance.setToolTip).toHaveBeenCalledWith("Google Meet");
+    expect(trayInstance.setToolTip).toHaveBeenCalledWith("GogMeet");
   });
 
   it("setupTray registers nativeTheme.on('updated') handler", async () => {

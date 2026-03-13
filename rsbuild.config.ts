@@ -1,17 +1,30 @@
 import { defineConfig } from '@rsbuild/core';
 
 export default defineConfig({
-  source: {
-    entry: { index: './src/renderer/index.ts' },
-    tsconfigPath: './src/renderer/tsconfig.json',
+  environments: {
+    main: {
+      source: {
+        entry: { index: './src/renderer/index.ts' },
+        tsconfigPath: './src/renderer/tsconfig.json',
+      },
+      html: {
+        template: './src/renderer/index.html',
+      },
+    },
+    settings: {
+      source: {
+        entry: { settings: './src/renderer/settings/index.ts' },
+        tsconfigPath: './src/renderer/tsconfig.json',
+      },
+      html: {
+        template: './src/renderer/settings/index.html',
+      },
+    },
   },
   output: {
     distPath: { root: './lib/renderer' },
     assetPrefix: './',
     target: 'web',
-  },
-  html: {
-    template: './src/renderer/index.html',
   },
   tools: {
     bundlerChain(chain) {
