@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
   SETTINGS_SET: "settings:set",
+  SETTINGS_CHANGED: "settings:changed",
 } as const;
 
 /** IPC Request/Response type map for type-safe IPC */
