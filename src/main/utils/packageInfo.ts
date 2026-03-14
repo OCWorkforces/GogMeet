@@ -50,9 +50,9 @@ export function getPackageInfo(): Readonly<PackageInfo> {
         productName: 'GogMeet',
         version: '1.0.0',
         description: 'GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.',
-        repository: 'https://github.com/OCWorkforce/GogMeet',
-        homepage: 'https://github.com/OCWorkforce/GogMeet',
-        author: 'OCWorkforce Engineers',
+        repository: 'https://github.com/OCWorkforces/GogMeet',
+        homepage: 'https://github.com/OCWorkforces/GogMeet',
+        author: 'OCWorkforces Engineers',
       };
     }
   }

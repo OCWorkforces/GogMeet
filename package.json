@@ -1,8 +1,8 @@
 {
   "name": "gogmeet",
   "version": "1.4.2",
-  "author": "OCWorkforce Engineers",
-  "repository": "https://github.com/OCWorkforce/GogMeet",
+  "author": "OCWorkforces Engineers <kennydizi@ocworkforces.com>",
+  "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
@@ -34,7 +34,7 @@
     "node": ">=24.14.0",
     "bun": ">=1.3.10"
   },
-  "homepage": "https://github.com/OCWorkforce/GogMeet",
+  "homepage": "https://github.com/OCWorkforces/GogMeet",
   "packageManager": "bun@1.3.10",
   "private": true,
   "productName": "GogMeet",
