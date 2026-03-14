@@ -149,7 +149,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 
 - `electron-builder` for macOS arm64 only
 - Hardened runtime, Gatekeeper disabled
-- Notarization via `build/notarize.js` (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
+- Notarization via `build/notarize.cjs` (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 - Entitlements in `build/entitlements.mac*.plist`
 
 ## NOTES
