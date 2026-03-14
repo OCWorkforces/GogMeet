@@ -1,4 +1,4 @@
-appId: com.ocworkforce.gogmeet
+appId: com.ocworkforces.gogmeet
 productName: GogMeet
 
 # === COMPRESSION ===
@@ -32,6 +32,10 @@ mac:
       arch: arm64
     - target: zip
       arch: arm64
+  # ARM64-only: minimum macOS version aligns with Apple Silicon debut
+  minimumSystemVersion: "11.0.0"
+  # No universal build - don't merge ASARs
+  mergeASARs: false
   hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -51,7 +55,8 @@ dmg:
   # Don't sign DMG (not required, causes notarization issues)
   sign: false
 
-afterSign: build/notarize.js
+afterPack: build/after-pack.cjs
+afterSign: build/notarize.cjs
 
 nsis:
   oneClick: false

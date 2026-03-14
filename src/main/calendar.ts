@@ -59,21 +59,38 @@ async function ensureBinary(): Promise<void> {
     // Binary doesn't exist — need to compile
   }
 
-  // Compile
+  // Compile with ARM64-specific optimizations
+  // -target arm64-apple-macosx11.0: Target Apple Silicon (macOS Big Sur+)
+  // -Osize: Optimize for size (same performance, smaller binary)
+  // -whole-module-optimization: Enable cross-file optimizations
+  const swiftFlags = [
+    swiftSrc,
+    '-target', 'arm64-apple-macosx11.0',
+    '-Osize',
+    '-whole-module-optimization',
+    '-o', BINARY_PATH,
+  ];
+
   try {
-    await execFileAsync('swiftc', [swiftSrc, '-o', BINARY_PATH], { timeout: 60_000 });
+    await execFileAsync('swiftc', swiftFlags, { timeout: 60_000 });
   } catch {
+    // Fallback with explicit SDK path (for some CI environments)
     await execFileAsync(
       'swiftc',
       [
-        swiftSrc,
-        '-o',
-        BINARY_PATH,
+        ...swiftFlags,
         '-sdk',
         '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk',
       ],
       { timeout: 60_000 }
     );
+  }
+
+  // Strip debug symbols from compiled binary for smaller size
+  try {
+    await execFileAsync('strip', ['-x', '-S', BINARY_PATH], { timeout: 5_000 });
+  } catch {
+    // Stripping is optional - binary will still work if this fails
   }
 
   // Store hash for future comparisons

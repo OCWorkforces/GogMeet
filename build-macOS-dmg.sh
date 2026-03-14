@@ -75,17 +75,22 @@ else
   echo
 fi
 
-# ── 1. Clean dist/ ────────────────────────────────────────────────────────────
+# ── 1. Install dependencies ──────────────────────────────────────────────────
+info "Installing dependencies…"
+bun install
+success "Dependencies installed."
+
+# ── 2. Clean dist/ ────────────────────────────────────────────────────────────
 info "Cleaning dist/ directory…"
 rm -rf dist/
 success "dist/ cleaned."
 
-# ── 2. TypeScript / source build ──────────────────────────────────────────────
+# ── 3. TypeScript / source build ──────────────────────────────────────────────
 info "Building TypeScript sources (main + preload + renderer)…"
 bun run build
 success "Source build complete."
 
-# ── 3. Package → DMG (arm64 only) ────────────────────────────────────────────
+# ── 4. Package → DMG (arm64 only) ────────────────────────────────────────────
 info "Packaging macOS arm64 DMG…"
 
 if [[ "$SIGN_MODE" == "developer-id" ]]; then
@@ -98,7 +103,7 @@ fi
 
 success "DMG build complete."
 
-# ── 4. Re-sign .app (ad-hoc deep) + sign the DMG ────────────────────────────
+# ── 5. Re-sign .app (ad-hoc deep) + sign the DMG ────────────────────────────
 # electron-builder signs with --runtime (hardened runtime) which causes macOS
 # to enforce Team ID consistency between the process and loaded frameworks.
 # With ad-hoc signing (TeamIdentifier=not set) this triggers a dyld error:
@@ -121,7 +126,7 @@ if [[ "$SIGN_MODE" == "adhoc" ]]; then
   fi
 fi
 
-# ── 4.5. Rename DMG with environment suffix ──────────────────────────────────────
+# ── 5.5. Rename DMG with environment suffix ──────────────────────────────────────
 if [[ -n "$ENVIRONMENT" ]]; then
   DMG_FILE=$(find dist -maxdepth 1 -name '*.dmg' | head -1)
   if [[ -n "$DMG_FILE" ]]; then
@@ -129,14 +134,14 @@ if [[ -n "$ENVIRONMENT" ]]; then
     DMG_DIR=$(dirname "$DMG_FILE")
     DMG_BASE=$(basename "$DMG_FILE" .dmg)
     NEW_DMG="${DMG_DIR}/${DMG_BASE}-${ENVIRONMENT}.dmg"
-    
+
     info "Renaming DMG with environment suffix: ${NEW_DMG}…"
     mv "$DMG_FILE" "$NEW_DMG"
     success "DMG renamed: ${NEW_DMG}"
   fi
 fi
 
-# ── 5. Report artefacts ───────────────────────────────────────────────────────
+# ── 6. Report artefacts ───────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}Artefacts in dist/${RESET}"
 find dist -maxdepth 2 \( -name "*.dmg" \) | sort | while read -r f; do
@@ -145,7 +150,7 @@ find dist -maxdepth 2 \( -name "*.dmg" \) | sort | while read -r f; do
 done
 echo ""
 
-# ── 6. Post-install instructions ─────────────────────────────────────────────
+# ── 7. Post-install instructions ─────────────────────────────────────────────
 if [[ "$SIGN_MODE" == "adhoc" ]]; then
   echo -e "${BOLD}To run the app after copying to /Applications:${RESET}"
   echo    "  sudo xattr -rd com.apple.quarantine \"/Applications/GogMeet.app\""
