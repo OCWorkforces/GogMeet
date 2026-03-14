@@ -130,6 +130,13 @@ If the app crashes or won't start:
 | Calendar | Swift EventKit  |
 | Test     | Vitest 4        |
 
+## Contact
+
+If you have any questions or encounter issues, feel free to reach out:
+
+- **Email:** [kennydizi@ocworkforces.com](mailto:kennydizi@ocworkforces.com)
+
+
 ## License
 
 MIT
