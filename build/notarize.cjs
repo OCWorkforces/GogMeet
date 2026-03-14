@@ -33,6 +33,7 @@ module.exports = async function notarizing(context) {
   console.log(`[notarize] Notarizing ${appName}...`);
 
   await notarize({
+    bundleId: `com.ocworkforces.${appName.toLowerCase()}`,
     tool: "notarytool",
     appPath: `${appOutDir}/${appName}.app`,
     appleId,
