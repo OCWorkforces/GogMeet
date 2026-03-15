@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "author": "OCWorkforces Engineers",
   "authorEmail": "kennydizi@ocworkforces.com",
   "repository": "https://github.com/OCWorkforces/GogMeet",
@@ -23,7 +23,7 @@
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.0.0",
     "prettier": "^3.8.1",
     "rimraf": "^6.1.3",
     "typescript": "^5.9.3",
