@@ -132,9 +132,7 @@ If the app crashes or won't start:
 
 ## Contact
 
-If you have any questions or encounter issues, feel free to reach out:
-
-- **Email:** [kennydizi@ocworkforces.com](mailto:kennydizi@ocworkforces.com)
+If you have any questions or encounter issues, feel free to reach out to [kennydizi@ocworkforces.com](mailto:kennydizi@ocworkforces.com)
 
 
 ## License
