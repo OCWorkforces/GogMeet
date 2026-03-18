@@ -1,11 +1,9 @@
 /**
- * Generate calendar tray icon PNGs and app icon (.icns) for GiMeet.
+ * Generate calendar icon PNGs and app icon (.icns) for GiMeet.
  *
- * Creates 8 tray PNG files in src/assets/:
- *   Active:   tray-icon-dark.png, tray-icon-dark@2x.png
- *             tray-icon-light.png, tray-icon-light@2x.png
- *   Inactive: tray-icon-inactive-dark.png, tray-icon-inactive-dark@2x.png
- *             tray-icon-inactive-light.png, tray-icon-inactive-light@2x.png
+ * Creates 4 tray PNG files in src/assets/:
+ *   tray-icon-dark.png, tray-icon-dark@2x.png
+ *   tray-icon-light.png, tray-icon-light@2x.png
  *
  * Creates app icon in build/:
  *   icon.icns (macOS app icon from 1024x1024 calendar icon)
@@ -16,7 +14,7 @@
  */
 
 import sharp from "sharp";
-import { writeFileSync, mkdirSync, existsSync, cpSync, rmSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -154,29 +152,6 @@ async function svgToPng(svgString, size) {
 }
 
 /**
- * Apply inactive effect: multiply all alpha values by the given factor.
- * Processes raw RGBA pixel data directly.
- */
-async function createInactiveVariant(pngBuffer, opacity = 0.4) {
-  const { data, info } = await sharp(pngBuffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const factor = Math.round(opacity * 255);
-  const raw = Buffer.from(data);
-  for (let i = 3; i < raw.length; i += 4) {
-    raw[i] = Math.round((raw[i] / 255) * factor);
-  }
-
-  return sharp(raw, {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  })
-    .png()
-    .toBuffer();
-}
-
-/**
  * Generate macOS .icns file from a 1024x1024 PNG using iconutil.
  * Creates a temporary .iconset directory with all required sizes.
  */
@@ -221,69 +196,15 @@ async function generateIcns(png1024Buffer, outputPath) {
   }
 }
 
-// --- Tray icon definitions ---
+// --- Tray icon definitions (active only) ---
 
 const ICONS = [
-  // Active — dark theme (white calendar, dark number)
-  {
-    name: "tray-icon-dark.png",
-    size: 18,
-    fill: "#FFFFFF",
-    numberColor: "#1D1D1F",
-    inactive: false,
-  },
-  {
-    name: "tray-icon-dark@2x.png",
-    size: 36,
-    fill: "#FFFFFF",
-    numberColor: "#1D1D1F",
-    inactive: false,
-  },
-  // Active — light theme (dark calendar, white number)
-  {
-    name: "tray-icon-light.png",
-    size: 18,
-    fill: "#1D1D1F",
-    numberColor: "#FFFFFF",
-    inactive: false,
-  },
-  {
-    name: "tray-icon-light@2x.png",
-    size: 36,
-    fill: "#1D1D1F",
-    numberColor: "#FFFFFF",
-    inactive: false,
-  },
-  // Inactive — dark theme (dimmed white calendar)
-  {
-    name: "tray-icon-inactive-dark.png",
-    size: 18,
-    fill: "#FFFFFF",
-    numberColor: "#1D1D1F",
-    inactive: true,
-  },
-  {
-    name: "tray-icon-inactive-dark@2x.png",
-    size: 36,
-    fill: "#FFFFFF",
-    numberColor: "#1D1D1F",
-    inactive: true,
-  },
-  // Inactive — light theme (dimmed dark calendar)
-  {
-    name: "tray-icon-inactive-light.png",
-    size: 18,
-    fill: "#1D1D1F",
-    numberColor: "#FFFFFF",
-    inactive: true,
-  },
-  {
-    name: "tray-icon-inactive-light@2x.png",
-    size: 36,
-    fill: "#1D1D1F",
-    numberColor: "#FFFFFF",
-    inactive: true,
-  },
+  // Dark theme (white calendar, dark number)
+  { name: "tray-icon-dark.png", size: 18, fill: "#FFFFFF", numberColor: "#1D1D1F" },
+  { name: "tray-icon-dark@2x.png", size: 36, fill: "#FFFFFF", numberColor: "#1D1D1F" },
+  // Light theme (dark calendar, white number)
+  { name: "tray-icon-light.png", size: 18, fill: "#1D1D1F", numberColor: "#FFFFFF" },
+  { name: "tray-icon-light@2x.png", size: 36, fill: "#1D1D1F", numberColor: "#FFFFFF" },
 ];
 
 // --- Main ---
@@ -298,12 +219,7 @@ for (const icon of ICONS) {
   });
 
   try {
-    let png = await svgToPng(svg, icon.size);
-
-    if (icon.inactive) {
-      png = await createInactiveVariant(png, 0.4);
-    }
-
+    const png = await svgToPng(svg, icon.size);
     const outPath = join(ASSETS_DIR, icon.name);
     writeFileSync(outPath, png);
     console.log(`  OK: ${icon.name} (${icon.size}x${icon.size})`);
@@ -326,4 +242,4 @@ try {
   process.exitCode = 1;
 }
 
-console.log("\nDone. 8 tray icons + 1 app icon generated.");
+console.log("\nDone. 4 tray icons + 1 app icon generated.");
