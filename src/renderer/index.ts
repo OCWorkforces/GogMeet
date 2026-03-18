@@ -282,6 +282,8 @@ async function init() {
   setupDelegatedEvents();
   // Listen for calendar updates pushed from main process
   window.api.calendar.onEventsUpdated(() => void loadEvents());
+  // Listen for settings changes from the settings window
+  window.api.settings.onChanged(() => void loadEvents());
   version = await window.api.app.getVersion();
 
   // Initial load

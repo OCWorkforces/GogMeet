@@ -11,7 +11,7 @@ let settings: AppSettings = {
   showTomorrowMeetings: true,
 };
 let isSaving = false;
-let saveIndicatorTimer: ReturnType<typeof setTimeout> | null = null;
+let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function render(errorMessage?: string): void {
   const app = document.getElementById("app");
@@ -104,18 +104,20 @@ function showSaveIndicator(id: string, text: string): void {
   const indicator = document.getElementById(id);
   if (!indicator) return;
 
-  if (saveIndicatorTimer !== null) {
-    clearTimeout(saveIndicatorTimer);
-    saveIndicatorTimer = null;
+  // Clear existing timer for this specific indicator
+  const existingTimer = saveIndicatorTimers.get(id);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
   }
 
   indicator.textContent = text;
   indicator.classList.add("visible");
 
-  saveIndicatorTimer = setTimeout(() => {
+  const timer = setTimeout(() => {
     indicator.classList.remove("visible");
-    saveIndicatorTimer = null;
+    saveIndicatorTimers.delete(id);
   }, 1500);
+  saveIndicatorTimers.set(id, timer);
 }
 
 function setupSelectListener(): void {
@@ -175,9 +177,14 @@ async function saveSettings(
   try {
     const updated = await window.api.settings.set(partial);
     settings = updated;
+
+    // Only re-render for dropdown changes — toggles already reflect visual state
+    // and a full re-render would cut short the CSS slide animation
+    if (partial.openBeforeMinutes !== undefined) {
+      render();
+    }
+
     showSaveIndicator(indicatorId, "✓ Saved");
-    // Re-render to sync state without losing focus feel
-    render();
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to save settings";
