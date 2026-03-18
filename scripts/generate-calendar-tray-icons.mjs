@@ -1,11 +1,14 @@
 /**
- * Generate calendar tray icon PNGs for GiMeet.
+ * Generate calendar tray icon PNGs and app icon (.icns) for GiMeet.
  *
- * Creates 8 PNG files:
+ * Creates 8 tray PNG files in src/assets/:
  *   Active:   tray-icon-dark.png, tray-icon-dark@2x.png
  *             tray-icon-light.png, tray-icon-light@2x.png
  *   Inactive: tray-icon-inactive-dark.png, tray-icon-inactive-dark@2x.png
  *             tray-icon-inactive-light.png, tray-icon-inactive-light@2x.png
+ *
+ * Creates app icon in build/:
+ *   icon.icns (macOS app icon from 1024x1024 calendar icon)
  *
  * Usage:
  *   bun scripts/generate-calendar-tray-icons.mjs
@@ -13,12 +16,14 @@
  */
 
 import sharp from "sharp";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, cpSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = join(__dirname, "..", "src", "assets");
+const BUILD_DIR = join(__dirname, "..", "build");
 
 if (!existsSync(ASSETS_DIR)) {
   mkdirSync(ASSETS_DIR, { recursive: true });
@@ -81,6 +86,67 @@ function calendarSvg(opts) {
 }
 
 /**
+ * App icon SVG for macOS .icns (1024x1024).
+ * Same calendar style but with a colorful design for the Dock.
+ */
+function appIconSvg(size) {
+  const s = size;
+  const pad = s * 0.04;
+  const iw = s - pad * 2;
+  const ih = s - pad * 2;
+
+  // Calendar body
+  const bodyW = iw * 0.82;
+  const bodyH = ih * 0.84;
+  const bodyX = (iw - bodyW) / 2;
+  const bodyY = ih * 0.1;
+  const r = s * 0.1;
+
+  // Header strip
+  const headerH = bodyH * 0.32;
+
+  // Binding rings
+  const ringR = Math.max(s * 0.03, 3);
+  const ring1X = bodyX + bodyW * 0.28;
+  const ring2X = bodyX + bodyW * 0.72;
+  const ringY = bodyY;
+
+  // Day number
+  const fontSize = s * 0.38;
+  const numX = bodyX + bodyW / 2;
+  const numBaseline = bodyY + headerH + (bodyH - headerH) / 2 + fontSize * 0.36;
+
+  // macOS-style background with rounded corners
+  const bgR = s * 0.225; // ~22.5% radius matches macOS icon guidelines
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+  <!-- Rounded square background -->
+  <rect width="${s}" height="${s}" rx="${bgR}" fill="#1D1D1F"/>
+
+  <g transform="translate(${pad}, ${pad})">
+    <!-- Binding rings -->
+    <circle cx="${ring1X}" cy="${ringY}" r="${ringR}" fill="#FFFFFF"/>
+    <circle cx="${ring2X}" cy="${ringY}" r="${ringR}" fill="#FFFFFF"/>
+
+    <!-- Calendar body -->
+    <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${r}" fill="#FFFFFF"/>
+
+    <!-- Header strip -->
+    <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${headerH}" rx="${r}" ry="${r}" fill="#4285F4"/>
+    <rect x="${bodyX}" y="${bodyY + headerH - r}" width="${bodyW}" height="${r}" fill="#4285F4"/>
+
+    <!-- Day number -->
+    <text x="${numX}" y="${numBaseline}"
+          font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
+          font-size="${fontSize}"
+          font-weight="700"
+          fill="#1D1D1F"
+          text-anchor="middle">31</text>
+  </g>
+</svg>`;
+}
+
+/**
  * Convert SVG buffer to PNG at target size using sharp.
  */
 async function svgToPng(svgString, size) {
@@ -110,7 +176,52 @@ async function createInactiveVariant(pngBuffer, opacity = 0.4) {
     .toBuffer();
 }
 
-// --- Icon definitions ---
+/**
+ * Generate macOS .icns file from a 1024x1024 PNG using iconutil.
+ * Creates a temporary .iconset directory with all required sizes.
+ */
+async function generateIcns(png1024Buffer, outputPath) {
+  const iconsetDir = join(BUILD_DIR, "AppIcon.iconset");
+  if (existsSync(iconsetDir)) {
+    rmSync(iconsetDir, { recursive: true, force: true });
+  }
+  mkdirSync(iconsetDir, { recursive: true });
+
+  // iconutil requires these sizes in the iconset
+  const sizes = [
+    [16, "icon_16x16.png"],
+    [32, "icon_16x16@2x.png"],
+    [32, "icon_32x32.png"],
+    [64, "icon_32x32@2x.png"],
+    [128, "icon_128x128.png"],
+    [256, "icon_128x128@2x.png"],
+    [256, "icon_256x256.png"],
+    [512, "icon_256x256@2x.png"],
+    [512, "icon_512x512.png"],
+    [1024, "icon_512x512@2x.png"],
+  ];
+
+  // Resize the 1024 source to each required size
+  for (const [size, filename] of sizes) {
+    const resized = await sharp(png1024Buffer)
+      .resize(size, size)
+      .png()
+      .toBuffer();
+    writeFileSync(join(iconsetDir, filename), resized);
+  }
+
+  // Convert iconset to .icns
+  try {
+    execSync(`iconutil -c icns "${iconsetDir}" -o "${outputPath}"`, {
+      stdio: "pipe",
+    });
+  } finally {
+    // Clean up temporary iconset
+    rmSync(iconsetDir, { recursive: true, force: true });
+  }
+}
+
+// --- Tray icon definitions ---
 
 const ICONS = [
   // Active — dark theme (white calendar, dark number)
@@ -202,4 +313,17 @@ for (const icon of ICONS) {
   }
 }
 
-console.log("\nDone. 8 icons generated.");
+console.log("\nGenerating app icon (icon.icns)...\n");
+
+try {
+  const appSvg = appIconSvg(1024);
+  const png1024 = await svgToPng(appSvg, 1024);
+  const icnsPath = join(BUILD_DIR, "icon.icns");
+  await generateIcns(png1024, icnsPath);
+  console.log("  OK: build/icon.icns (1024x1024 source)");
+} catch (err) {
+  console.error(`  FAIL: icon.icns: ${err.message}`);
+  process.exitCode = 1;
+}
+
+console.log("\nDone. 8 tray icons + 1 app icon generated.");
