@@ -14,8 +14,13 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `settings.ts`             | Persistent app settings (JSON in userData)                                   |
 | `auto-launch.ts`          | macOS login items (launch at login)                                          |
 | `settings-window.ts`      | Settings BrowserWindow singleton (shows in Dock when open)                   |
-| `logger.ts`               | Structured logging utility                                                   |
+| `notification.ts`          | macOS notification permission check                                        |
+| `logger.ts`               | Structured logging utility (unused — dead code)                           |
 | `googlemeet-events.swift` | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)           |
+| `utils/`                  | Main process utilities                                                     |
+| `utils/meet-url.ts`       | Appends `?authuser=email` to Meet URL                                     |
+| `utils/url-validation.ts` | URL allowlist validation for `shell.openExternal`                           |
+| `utils/packageInfo.ts`    | Reads package.json at runtime                                              |
 
 ## ENTRY POINT
 
@@ -55,11 +60,19 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `settings:get`                | `getSettings()`                 |
 | `settings:set`                | `updateSettings()`              |
 
+**Push channels** (main → renderer via `win.webContents.send()`):
+
+| Channel                    | Trigger                    |
+| -------------------------- | -------------------------- |
+| `settings:changed`          | After `updateSettings()`     |
+| `calendar:events-updated`   | After successful `poll()`   |
+
 ## TRAY BEHAVIOR
 
-- Left/right click → pop up context menu
-- Menu: Open, About, Quit (Cmd+Q)
-- Window positioned below tray icon, clamped to screen bounds
+| Left/right click → pop up context menu
+| Menu: Open, About, Quit (Cmd+Q)
+| Window positioned below tray icon, clamped to screen bounds
+| Countdown shown in tray title via `updateTrayTitle()`
 
 ## LIFECYCLE
 
@@ -109,4 +122,23 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `setAutoLaunch`           | `auto-launch.ts:14`    | Set macOS login item                          |
 | `syncAutoLaunch`          | `auto-launch.ts:26`    | Sync if state differs                         |
 | `buildMeetUrl`            | `utils/meet-url.ts:7`  | Append `?authuser=email` to Meet URL          |
+| `isAllowedMeetUrl`        | `utils/url-validation.ts` | Validates URL against MEET_URL_ALLOWLIST         |
+| `MEET_URL_ALLOWLIST`      | `utils/url-validation.ts` | Google domains for `shell.openExternal`            |
+| `getPackageInfo`          | `utils/packageInfo.ts`   | Read package.json at runtime                   |
+| `formatRemainingTime`     | `tray.ts`               | Format countdown for tray title                  |
+| `updateTrayTitle`         | `tray.ts`               | Set tray title with countdown                     |
+| `checkNotificationPermission` | `notification.ts`      | macOS notification permission prompt              |
 | `getSettings`             | `settings.ts:75`       | Get cached settings (used in tray for showTomorrowMeetings) |
+
+## DEAD CODE
+
+| Symbol              | Location              | Reason                    |
+| ------------------- | --------------------- | ------------------------- |
+| `createLogger`       | `logger.ts`           | Never imported             |
+| `closeSettingsWindow`| `settings-window.ts`   | Exported but never called  |
+
+## ANTI-PATTERNS
+
+- Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required (understands ASAR paths)
+- Never bundle Swift source inside ASAR — `swiftc` cannot read from ASAR archives (see `asarUnpack` in `electron-builder.yml`)
+- Never bypass `validateSender()` in IPC handlers — every handler must check sender origin

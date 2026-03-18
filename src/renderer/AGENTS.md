@@ -44,14 +44,12 @@ type AppState =
 window.api.calendar.getEvents(); // → MeetingEvent[]
 window.api.calendar.requestPermission(); // → CalendarPermission
 window.api.calendar.getPermissionStatus(); // → CalendarPermission
-window.api.window.minimizeToTray(); // → void
+window.api.window.setHeight(height); // → void
 window.api.app.openExternal(url); // → void
 window.api.app.getVersion(); // → string
 window.api.settings.get(); // → AppSettings
 window.api.settings.set(partial); // → AppSettings
 window.api.settings.onChanged(callback); // → void (listen for changes)
-```
-window.api.settings.set(partial); // → AppSettings
 ```
 
 ## CSS CONVENTIONS
@@ -76,7 +74,7 @@ window.api.settings.set(partial); // → AppSettings
 
 ## SECURITY
 
-- CSP in `index.html`: `default-src 'self'; style-src 'self' 'unsafe-inline'`
+- CSP in `index.html` + `settings/index.html`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`
 - HTML escaping via `escapeHtml()` for user content
 - `escapeHtml()` imported from `src/shared/utils/escape-html.ts`
 

@@ -21,9 +21,15 @@ export const IPC_CHANNELS = {
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
-  SETTINGS_SET: "settings:set",
-} as const;
+  |   SETTINGS_SET: "settings:set",
+|   SETTINGS_CHANGED: "settings:changed",
+|   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
+| } as const;
 ```
+
+`IpcChannelMap` (types.ts:12) maps each **invoke** channel to its `request` / `response` types.
+
+**Push channels** (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`) are send-only — main → renderer via `win.webContents.send()`. Not in `IpcChannelMap`.
 
 `IpcChannelMap` (types.ts:12) maps each channel to its `request` / `response` types.
 
