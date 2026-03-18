@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-03-13
-**Commit:** d6ceff1
+**Generated:** 2026-03-18
+**Commit:** 5c11557
 **Branch:** develop
 
 ## OVERVIEW
@@ -12,10 +12,9 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | --------- | ----------------------------------------- |
 | Runtime   | Bun 1.3.10+ / Node.js 24.14.0+            |
 | Framework | Electron 41                               |
-| Framework | Electron 41                               |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-| Test      | Vitest 4 (workspace, 104 tests)           |
+| Test      | Vitest 4 (workspace, 109 tests)           |
 
 ## STRUCTURE
 
@@ -30,8 +29,13 @@ src/
 │   ├── settings.ts   # Persistent app settings (JSON in userData)
 │   ├── auto-launch.ts # macOS login items (launch at login)
 │   ├── settings-window.ts # Settings BrowserWindow singleton
-│   ├── logger.ts     # Structured logging utility
-│   └── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
+│   ├── notification.ts # Notification permission check
+│   ├── logger.ts     # Structured logging utility (unused)
+│   ├── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
+│   └── utils/        # Main process utilities
+│       ├── meet-url.ts       # buildMeetUrl with ?authuser=email
+│       ├── url-validation.ts # MEET_URL_ALLOWLIST for shell.openExternal
+│       └── packageInfo.ts    # Read package.json at runtime
 ├── renderer/         # UI (web context, vanilla TS)
 │   ├── index.ts      # Main UI logic, state machine
 │   ├── index.html    # CSP-protected template
@@ -47,7 +51,7 @@ src/
 │       └── escape-html.ts # XSS protection
 └── tests/            # Vitest tests (main/renderer workspaces)
     ├── setup.main.ts # Electron mock for main process
-    ├── main/         # Scheduler, calendar, IPC, settings, auto-launch tests
+    ├── main/         # Scheduler, calendar, IPC, settings, auto-launch, tray, meet-url tests
     └── renderer/     # Event delegation, XSS tests
 ```
 
@@ -68,38 +72,47 @@ src/
 | UI state              | `src/renderer/index.ts`                | `AppState` type union                                         |
 | Window config         | `src/main/index.ts`                    | `createWindow()`                                              |
 | Tray behavior         | `src/main/tray.ts`                     | Menu, positioning                                             |
+| URL validation        | `src/main/utils/url-validation.ts`     | `MEET_URL_ALLOWLIST` for `shell.openExternal`                 |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts` | Separate for each process                                     |
 
 ## CODE MAP
 
-| Symbol | Type | Location | Role |
-| ------ | ---- | -------- | ---- |
-| `createWindow` | fn | src/main/index.ts:42 | BrowserWindow factory |
-| `setupTray` | fn | src/main/tray.ts:29 | System tray init |
-| `registerIpcHandlers` | fn | src/main/ipc.ts:72 | IPC registration |
-| `typedHandle` | fn | src/main/ipc.ts:62 | Type-safe IPC wrapper |
-| `validateSender` | fn | src/main/ipc.ts:36 | Origin validation |
-| `getCalendarEventsResult` | fn | src/main/calendar.ts:144 | Swift EventKit fetch |
-| `parseEvents` | fn | src/main/calendar.ts:91 | Parses tab-delimited Swift output |
-| `startScheduler` | fn | src/main/scheduler.ts:500 | Start poll loop |
-| `stopScheduler` | fn | src/main/scheduler.ts:512 | Clear all timers |
-| `restartScheduler` | fn | src/main/scheduler.ts:545 | Restart on settings change |
-| `scheduleEvents` | fn | src/main/scheduler.ts:223 | Per-event setTimeout timers |
-| `poll` | fn | src/main/scheduler.ts:467 | Calendar poll with error handling |
-| `buildMeetUrl` | fn | src/main/utils/meet-url.ts:7 | Appends `?authuser=email` |
-| `loadSettings` | fn | src/main/settings.ts:32 | Load from userData/settings.json |
-| `updateSettings` | fn | src/main/settings.ts:72 | Persist partial settings |
-| `createSettingsWindow` | fn | src/main/settings-window.ts:15 | Singleton settings window |
-| `getAutoLaunchStatus` | fn | src/main/auto-launch.ts:7 | Read macOS login item status |
-| `setAutoLaunch` | fn | src/main/auto-launch.ts:14 | Set macOS login item |
-| `syncAutoLaunch` | fn | src/main/auto-launch.ts:26 | Sync if state differs |
-| `IPC_CHANNELS` | const | src/shared/types.ts:2 | 8 channel names |
-| `IpcChannelMap` | type | src/shared/types.ts:14 | Request/response type map |
-| `MeetingEvent` | iface | src/shared/types.ts:55 | Event data model |
-| `AppSettings` | iface | src/shared/types.ts:80 | { openBeforeMinutes, launchAtLogin, showTomorrowMeetings } |
-| `DEFAULT_SETTINGS` | const | src/shared/types.ts:87 | { openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true } |
-| `AppState` | type | src/renderer/index.ts:4 | UI state union |
-| `api` | const | src/preload/index.ts:5 | Context bridge API |
+| Symbol                        | Type  | Location                         | Role                                                                       |
+| ----------------------------- | ----- | -------------------------------- | -------------------------------------------------------------------------- |
+| `createWindow`                | fn    | src/main/index.ts:42             | BrowserWindow factory                                                      |
+| `setupTray`                   | fn    | src/main/tray.ts:29              | System tray init                                                           |
+| `registerIpcHandlers`         | fn    | src/main/ipc.ts:72               | IPC registration                                                           |
+| `typedHandle`                 | fn    | src/main/ipc.ts:62               | Type-safe IPC wrapper                                                      |
+| `validateSender`              | fn    | src/main/ipc.ts:36               | Origin validation against ALLOWED_ORIGINS                                  |
+| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:144         | Swift EventKit fetch                                                       |
+| `parseEvents`                 | fn    | src/main/calendar.ts:91          | Parses tab-delimited Swift output                                          |
+| `requestCalendarPermission`   | fn    | src/main/calendar.ts             | macOS EventKit permission prompt                                           |
+| `getCalendarPermissionStatus` | fn    | src/main/calendar.ts             | Read current calendar permission                                           |
+| `startScheduler`              | fn    | src/main/scheduler.ts:500        | Start poll loop                                                            |
+| `stopScheduler`               | fn    | src/main/scheduler.ts:512        | Clear all timers                                                           |
+| `restartScheduler`            | fn    | src/main/scheduler.ts:545        | Restart on settings change                                                 |
+| `scheduleEvents`              | fn    | src/main/scheduler.ts:223        | Per-event setTimeout timers                                                |
+| `poll`                        | fn    | src/main/scheduler.ts:467        | Calendar poll with error handling                                          |
+| `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7     | Appends `?authuser=email`                                                  |
+| `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts | Validates against MEET_URL_ALLOWLIST                                       |
+| `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts | Google domains for shell.openExternal                                      |
+| `loadSettings`                | fn    | src/main/settings.ts:32          | Load from userData/settings.json                                           |
+| `updateSettings`              | fn    | src/main/settings.ts:72          | Persist partial settings                                                   |
+| `createSettingsWindow`        | fn    | src/main/settings-window.ts:15   | Singleton settings window                                                  |
+| `getAutoLaunchStatus`         | fn    | src/main/auto-launch.ts:7        | Read macOS login item status                                               |
+| `setAutoLaunch`               | fn    | src/main/auto-launch.ts:14       | Set macOS login item                                                       |
+| `syncAutoLaunch`              | fn    | src/main/auto-launch.ts:26       | Sync if state differs                                                      |
+| `formatRemainingTime`         | fn    | src/main/tray.ts                 | Format countdown for tray title                                            |
+| `updateTrayTitle`             | fn    | src/main/tray.ts                 | Set tray title with countdown                                              |
+| `checkNotificationPermission` | fn    | src/main/notification.ts         | macOS notification permission prompt                                       |
+| `getPackageInfo`              | fn    | src/main/utils/packageInfo.ts    | Read package.json at runtime                                               |
+| `IPC_CHANNELS`                | const | src/shared/types.ts:2            | 8 channel names                                                            |
+| `IpcChannelMap`               | type  | src/shared/types.ts:14           | Request/response type map                                                  |
+| `MeetingEvent`                | iface | src/shared/types.ts:55           | Event data model                                                           |
+| `AppSettings`                 | iface | src/shared/types.ts:80           | { openBeforeMinutes, launchAtLogin, showTomorrowMeetings }                 |
+| `DEFAULT_SETTINGS`            | const | src/shared/types.ts:87           | { openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true } |
+| `AppState`                    | type  | src/renderer/index.ts:4          | UI state union                                                             |
+| `api`                         | const | src/preload/index.ts:5           | Context bridge API                                                         |
 
 ## CONVENTIONS
 
@@ -111,17 +124,25 @@ src/
 - **macOS only**: Swift EventKit, dock hiding, entitlements — no cross-platform
 - **Settings persistence**: JSON file in Electron userData directory; configurable open-before timing (1-5 min), launch at login toggle
 - **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
+- **No barrel files**: All imports use direct paths (e.g., `../shared/types.js`)
+- **Renderer logging**: Raw `console.*` calls (no structured logger)
+- **Dev env var**: `VITE_DEV_SERVER_URL` (legacy name from Vite migration, functional)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-```
-// rslib.config.preload.ts:22
-// electron must never be bundled in preload
+```typescript
+// rslib.config.preload.ts — electron must never be bundled in preload
+// rslib.config.ts — electron external appended AFTER ElectronTargetPlugin
 ```
 
 - Electron module MUST be external in preload builds (handled in rspack config)
-- Never suppress type errors (`as any`, `@ts-ignore`)
+- Never suppress type errors (`as any`, `@ts-ignore`, `@ts-expect-error`) — zero in source
 - Never bypass `validateSender()` in IPC handlers
+- Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required (understands ASAR paths)
+- Never bundle the Swift source file inside ASAR — `swiftc` cannot read from ASAR archives
+- Never open arbitrary URLs via `shell.openExternal()` — validate against `MEET_URL_ALLOWLIST`
+- Never insert user content via `innerHTML` without `escapeHtml()` — XSS protection
+- All BrowserWindows must have `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
 
 ## COMMANDS
 
@@ -129,8 +150,11 @@ src/
 bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64)
-bun run typecheck    # TypeScript check
+bun run package:dir  # Build + unpacked directory (no DMG)
+bun run typecheck    # TypeScript check (tsc -b)
 bun run test         # Run Vitest tests (main + renderer workspaces)
+bun run test:watch   # Watch mode tests
+bun run test:coverage # Tests with coverage report
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile after .swift changes
 ```
@@ -141,37 +165,43 @@ Three-process build:
 
 1. **Main** (`rslib.config.ts`): `electron-main` target → `lib/main/index.cjs`
 2. **Preload** (`rslib.config.preload.ts`): `electron-preload` target → `lib/preload/index.cjs`
-3. **Renderer** (`rsbuild.config.ts`): `electron-renderer` target → `lib/renderer/`
+3. **Renderer** (`rsbuild.config.ts`): Two environments (`main` popover + `settings` window) → `lib/renderer/`
 
-Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild dev), then Electron.
+Production: SWC minifier with `drop_console: true`, tree-shaking, no source maps.
+Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild dev), TCP health-checks build outputs, then launches Electron with `--disable-gpu-sandbox`.
 
 ## PACKAGING
 
 - `electron-builder` for macOS arm64 only
-- Hardened runtime, Gatekeeper disabled
-- Notarization via `build/notarize.cjs` (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
-- Entitlements in `build/entitlements.mac*.plist`
+- Hardened runtime disabled, Gatekeeper disabled (dev/unsigned build mode)
+- Notarization via `build/notarize.cjs` afterSign hook (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
+- Entitlements in `build/entitlements.mac*.plist` (JIT, unsigned memory, calendar, Apple Events)
+- Swift file unpacked from ASAR via `asarUnpack` in `electron-builder.yml`
+- English only (`electronLanguages: [en]`)
+- `LSUIElement: true` — tray-only, no Dock icon
+- Standalone DMG build script: `build-macOS-dmg.sh` (handles Developer ID + ad-hoc signing)
 
 ## NOTES
 
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
 - **Swift binary cache**: Compiled to `/tmp/googlemeet/googlemeet-events` on first run; `rm -rf /tmp/googlemeet` to recompile after Swift changes
-- **Auto-open**: Browser opens 1 min before each non-all-day meeting; `?authuser=email` from event attendee data
+- **Auto-open**: Browser opens configurable 1-5 min before each non-all-day meeting; `?authuser=email` from event attendee data
 - **Launch at login**: Uses `app.setLoginItemSettings()` to enable/disable auto-start on macOS login
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **Tests exist**: 104 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, event delegation, and XSS protection
+- **Dead code**: `src/main/logger.ts` (`createLogger` never imported); `closeSettingsWindow()` exported but never called
+- **Tests exist**: 109 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, event delegation, and XSS protection
 - **No CI**: No GitHub workflows configured
 
 ## TESTS
 
-| Project  | Env   | Focus                                        |
-| -------- | ----- | -------------------------------------------- |
-| main     | node  | Scheduler, calendar, IPC, settings, auto-launch |
-| renderer | jsdom | Event delegation, XSS protection             |
+| Project  | Env   | Focus                                              |
+| -------- | ----- | -------------------------------------------------- |
+| main     | node  | Scheduler, calendar, IPC, settings, tray, meet-url |
+| renderer | jsdom | Event delegation, XSS protection                   |
 
-**Groups**: scheduler.test.ts uses A-E labeled groups (deletion, changes, race conditions, countdowns, errors)
+**Groups**: scheduler.test.ts uses A-F labeled groups (deletion, changes, race conditions, countdowns, errors, poll IPC)
 
 **Setup**: `tests/setup.main.ts` mocks full Electron API
 
-**Commands**: `bun run test` | `bun run test:watch`
+**Commands**: `bun run test` | `bun run test:watch` | `bun run test:coverage`

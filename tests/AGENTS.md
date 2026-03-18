@@ -6,17 +6,18 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 
 ```
 tests/
-├── setup.main.ts     # Electron API mocks (78 lines)
 ├── main/
-│   ├── scheduler.test.ts  # 449 lines — scheduler state machine
-│   ├── calendar.test.ts   # 360 lines — Swift output parsing
-│   ├── settings.test.ts   # ~180 lines — file I/O, launchAtLogin
-│   ├── tray.test.ts       # 183 lines — tray module
-│   ├── ipc.test.ts        # 102 lines — security validation
-│   └── meet-url.test.ts   # 140 lines — URL building
+│   ├── scheduler.test.ts  # 537 lines — scheduler state machine (26 tests)
+│   ├── calendar.test.ts   # 360 lines — Swift output parsing (16 tests)
+│   ├── meet-url.test.ts   # 140 lines — URL building + allowlist (17 tests)
+│   ├── ipc.test.ts        # 102 lines — security validation (15 tests)
+│   ├── settings.test.ts   # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
+│   ├── tray.test.ts       # 189 lines — tray module (9 tests)
+│   └── .gitkeep
 └── renderer/
-    ├── delegation.test.ts # 77 lines — event delegation
-    └── escape-html.test.ts # 71 lines — XSS protection
+    ├── delegation.test.ts # 77 lines — event delegation (4 tests)
+    ├── escape-html.test.ts # 71 lines — XSS protection (11 tests)
+    └── .gitkeep
 ```
 
 ## CONFIGURATION
@@ -38,7 +39,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (104 tests total)
+## MAIN PROCESS TESTS (98 tests total)
 
 **Mock Pattern**:
 
@@ -48,16 +49,14 @@ vi.mock("../../src/main/calendar.js", () => ({ getCalendarEventsResult: vi.fn() 
 vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 ```
 
-**Test Files**:
-
-| File              | Lines | Focus                                  |
-| ----------------- | ----- | -------------------------------------- |
-| scheduler.test.ts | 449   | State machine, race conditions, timers |
-| calendar.test.ts  | 360   | parseEvents, dedup, date filtering     |
-| settings.test.ts  | ~180  | File I/O, clamping, defaults, launchAtLogin |
-| tray.test.ts      | 183   | Tray title, time formatting            |
-| ipc.test.ts       | 102   | validateSender, isAllowedMeetUrl       |
-| meet-url.test.ts  | 140   | URL building with authuser             |
+| File              | Lines | Tests | Focus                                  |
+| ----------------- | ----- | ----- | -------------------------------------- |
+| scheduler.test.ts | 537   | 26    | State machine, race conditions, timers |
+| meet-url.test.ts  | 140   | 17    | URL building with authuser + allowlist |
+| calendar.test.ts  | 360   | 16    | parseEvents, dedup, date filtering     |
+| ipc.test.ts       | 102   | 15    | validateSender, isAllowedMeetUrl       |
+| settings.test.ts  | 204   | 11    | File I/O, clamping, defaults, launchAtLogin |
+| tray.test.ts      | 189   | 9     | Tray title, time formatting            |
 
 **Scheduler Test Groups** (A-E labeled):
 
@@ -68,20 +67,19 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 | C10-C13 | Race conditions           |
 | D14-D15 | Concurrent countdowns     |
 | E16-E18 | Error handling            |
-
-**Key Test Patterns**:
+| F1-F5   | Poll IPC notification      |
 
 - `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
-- All state maps cleared in `beforeEach`: `timers`, `firedEvents`, `scheduledEventData`, `countdownIntervals`
+- All state maps cleared in `beforeEach`: `timers`, `firedEvents`, `scheduledEventData`, `countdownIntervals`, `consecutiveErrors`
 - `updateTrayTitle` mock for tray behavior assertions
 - `vi.resetModules()` + dynamic import for fresh module state
 
-## RENDERER TESTS (148 lines)
+## RENDERER TESTS (15 tests total)
 
-| File                | Lines | Focus                    | Tests |
-| ------------------- | ----- | ------------------------ | ----- |
-| delegation.test.ts  | 77    | Event delegation on #app | 4     |
-| escape-html.test.ts | 71    | XSS protection           | 11    |
+| File                | Lines | Tests | Focus                    |
+| ------------------- | ----- | ----- | ------------------------ |
+| delegation.test.ts  | 77    | 4     | Event delegation on #app |
+| escape-html.test.ts | 71    | 11    | XSS protection           |
 
 **Delegation tests**:
 
@@ -98,9 +96,15 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 ## COMMANDS
 
 ```bash
-bun run test        # Run all tests once
-bun run test:watch  # Watch mode
+bun run test          # Run all tests once
+bun run test:watch    # Watch mode
+bun run test:coverage # Tests with coverage report
 ```
+
+## UNTESTED MODULES
+
+- `src/main/auto-launch.ts` — no test file exists
+- `src/main/notification.ts` — no test file exists
 
 ## SETUP FILE
 
