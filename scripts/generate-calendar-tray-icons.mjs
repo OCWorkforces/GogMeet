@@ -34,15 +34,15 @@ if (!existsSync(ASSETS_DIR)) {
 function calendarSvg(opts) {
   const { fill, numberColor, size } = opts;
   const s = size;
-  const pad = s * 0.05;
+  const pad = s * 0.02;
   const iw = s - pad * 2; // inner width
   const ih = s - pad * 2; // inner height
 
   // Calendar body (rounded rectangle)
-  const bodyW = iw * 0.82;
-  const bodyH = ih * 0.84;
+  const bodyW = iw * 0.88;
+  const bodyH = ih * 0.90;
   const bodyX = (iw - bodyW) / 2;
-  const bodyY = ih * 0.1;
+  const bodyY = ih * 0.05;
   const r = Math.max(s * 0.06, 1); // corner radius
 
   // Header strip (top portion of calendar)
@@ -55,7 +55,7 @@ function calendarSvg(opts) {
   const ringY = bodyY;
 
   // Day number positioning
-  const fontSize = Math.max(s * 0.36, 6);
+  const fontSize = Math.max(s * 0.38, 6);
   const numX = bodyX + bodyW / 2;
   const numBaseline = bodyY + headerH + (bodyH - headerH) / 2 + fontSize * 0.36;
 
@@ -89,15 +89,15 @@ function calendarSvg(opts) {
  */
 function appIconSvg(size) {
   const s = size;
-  const pad = s * 0.04;
+  const pad = s * 0.02;
   const iw = s - pad * 2;
   const ih = s - pad * 2;
 
   // Calendar body
-  const bodyW = iw * 0.82;
-  const bodyH = ih * 0.84;
+  const bodyW = iw * 0.88;
+  const bodyH = ih * 0.90;
   const bodyX = (iw - bodyW) / 2;
-  const bodyY = ih * 0.1;
+  const bodyY = ih * 0.05;
   const r = s * 0.1;
 
   // Header strip
@@ -110,7 +110,7 @@ function appIconSvg(size) {
   const ringY = bodyY;
 
   // Day number
-  const fontSize = s * 0.38;
+  const fontSize = s * 0.42;
   const numX = bodyX + bodyW / 2;
   const numBaseline = bodyY + headerH + (bodyH - headerH) / 2 + fontSize * 0.36;
 
