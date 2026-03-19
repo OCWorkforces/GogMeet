@@ -14,6 +14,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 let state: AppState = { type: "loading" };
 let version = "";
 let settings: AppSettings = {
+  schemaVersion: 1,
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
@@ -180,8 +181,10 @@ function render() {
   const app = document.getElementById("app");
   if (!app) return;
 
-  app.innerHTML =
-    `<div class="body">${renderBody(state)}</div>` + renderFooter();
+  app.innerHTML = `<div role="dialog" aria-label="GogMeet meetings" aria-live="polite">
+      <div class="body">${renderBody(state)}</div>
+      ${renderFooter()}
+    </div>`;
 
   // Measure actual rendered height and resize the Electron BrowserWindow
   const FOOTER_H = 32;
@@ -305,6 +308,23 @@ async function init() {
       void loadEvents();
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
+    }
+  });
+
+  // Keyboard accessibility: Escape closes, Enter/Space activates focused button
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    const active = document.activeElement as HTMLElement | null;
+    switch (e.key) {
+      case "Escape":
+        window.blur?.();
+        break;
+      case "Enter":
+      case " ":
+        if (active?.dataset["action"]) {
+          e.preventDefault();
+          active.click();
+        }
+        break;
     }
   });
 }

@@ -169,7 +169,7 @@ describe("settings", () => {
 
       expect(result.openBeforeMinutes).toBe(3);
       // Verify unknown property wasn't added to result
-      expect(Object.keys(result).sort()).toEqual(["launchAtLogin", "openBeforeMinutes", "showTomorrowMeetings"].sort());
+      expect(Object.keys(result).sort()).toEqual(["launchAtLogin", "openBeforeMinutes", "schemaVersion", "showTomorrowMeetings"].sort());
     });
 
     it("updates launchAtLogin correctly", () => {

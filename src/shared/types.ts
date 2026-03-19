@@ -14,44 +14,11 @@ export const IPC_CHANNELS = {
 
 /** IPC Request/Response type map for type-safe IPC */
 export type IpcChannelMap = {
-  [IPC_CHANNELS.CALENDAR_GET_EVENTS]: {
-    request: void;
-    response: CalendarResult;
-  };
-  [IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION]: {
-    request: void;
-    response: CalendarPermission;
-  };
-  [IPC_CHANNELS.CALENDAR_PERMISSION_STATUS]: {
-    request: void;
-    response: CalendarPermission;
-  };
-  [IPC_CHANNELS.WINDOW_SET_HEIGHT]: {
-    request: number;
-    response: void;
-  };
-  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: {
-    request: string;
-    response: void;
-  };
-  [IPC_CHANNELS.APP_GET_VERSION]: {
-    request: void;
-    response: string;
-  };
-  [IPC_CHANNELS.SETTINGS_GET]: {
-    request: void;
-    response: AppSettings;
-  };
-  [IPC_CHANNELS.SETTINGS_SET]: {
-    request: Partial<AppSettings>;
-    response: AppSettings;
+  [K in (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]]: {
+    request: IpcChannelRequest<K>;
+    response: IpcChannelResponse<K>;
   };
 };
-
-/** Type utilities for type-safe IPC */
-export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
-export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]["request"];
-export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
 
 /** Meeting event data model */
 export interface MeetingEvent {
@@ -73,6 +40,8 @@ export type CalendarPermission = "granted" | "denied" | "not-determined";
 
 /** Application settings */
 export interface AppSettings {
+  /** Schema version for migrations */
+  schemaVersion: number;
   /** Minutes before meeting start to auto-open browser (1-5) */
   openBeforeMinutes: number;
   /** Whether to launch the app at login (auto-start on system restart) */
@@ -83,6 +52,7 @@ export interface AppSettings {
 
 /** Default settings values */
 export const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: 1,
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
@@ -91,3 +61,49 @@ export const DEFAULT_SETTINGS: AppSettings = {
 /** Valid range for openBeforeMinutes */
 export const OPEN_BEFORE_MINUTES_MIN = 1;
 export const OPEN_BEFORE_MINUTES_MAX = 5;
+
+// ─── Type utilities for IPC ──────────────────────────────────────────────────
+
+type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+
+type IpcChannelRequest<C extends IpcChannel> =
+  C extends typeof IPC_CHANNELS.CALENDAR_GET_EVENTS
+    ? void
+    : C extends typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION
+      ? void
+      : C extends typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS
+        ? void
+        : C extends typeof IPC_CHANNELS.WINDOW_SET_HEIGHT
+          ? number
+          : C extends typeof IPC_CHANNELS.APP_OPEN_EXTERNAL
+            ? string
+            : C extends typeof IPC_CHANNELS.APP_GET_VERSION
+              ? void
+              : C extends typeof IPC_CHANNELS.SETTINGS_GET
+                ? void
+                : C extends typeof IPC_CHANNELS.SETTINGS_SET
+                  ? Partial<AppSettings>
+                  : never;
+
+type IpcChannelResponse<C extends IpcChannel> =
+  C extends typeof IPC_CHANNELS.CALENDAR_GET_EVENTS
+    ? CalendarResult
+    : C extends typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION
+      ? CalendarPermission
+      : C extends typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS
+        ? CalendarPermission
+        : C extends typeof IPC_CHANNELS.WINDOW_SET_HEIGHT
+          ? void
+          : C extends typeof IPC_CHANNELS.APP_OPEN_EXTERNAL
+            ? void
+            : C extends typeof IPC_CHANNELS.APP_GET_VERSION
+              ? string
+              : C extends typeof IPC_CHANNELS.SETTINGS_GET
+                ? AppSettings
+                : C extends typeof IPC_CHANNELS.SETTINGS_SET
+                  ? AppSettings
+                  : never;
+
+/** Type-safe IPC request/response */
+export type IpcRequest<C extends IpcChannel> = IpcChannelRequest<C>;
+export type IpcResponse<C extends IpcChannel> = IpcChannelResponse<C>;

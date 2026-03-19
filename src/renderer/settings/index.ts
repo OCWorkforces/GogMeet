@@ -6,6 +6,7 @@ import {
 } from "../../shared/types.js";
 
 let settings: AppSettings = {
+  schemaVersion: 1,
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
