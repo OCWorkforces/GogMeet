@@ -2,7 +2,6 @@
   "name": "gogmeet",
   "version": "1.4.12",
   "author": "OCWorkforces Engineers",
-  "authorEmail": "kennydizi@ocworkforces.com",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
   "devDependencies": {
@@ -30,6 +29,7 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   },
+  "authorEmail": "kennydizi@ocworkforces.com",
   "description": "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
   "engineStrict": true,
   "engines": {
@@ -55,8 +55,5 @@
     "clean": "rimraf lib dist"
   },
   "sideEffects": false,
-  "type": "module",
-  "dependencies": {
-    "electron-log": "^5.4.3"
-  }
+  "type": "module"
 }
