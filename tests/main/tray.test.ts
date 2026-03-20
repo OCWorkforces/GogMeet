@@ -1,6 +1,53 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MeetingEvent } from "../../src/shared/types.js";
 
+vi.mock("electron", () => ({
+  Tray: vi.fn().mockImplementation(function (this: {
+    setToolTip: ReturnType<typeof vi.fn>;
+    setTitle: ReturnType<typeof vi.fn>;
+    setImage: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
+    getBounds: ReturnType<typeof vi.fn>;
+    popUpContextMenu: ReturnType<typeof vi.fn>;
+  }) {
+    this.setToolTip = vi.fn();
+    this.setTitle = vi.fn();
+    this.setImage = vi.fn();
+    this.on = vi.fn();
+    this.getBounds = vi
+      .fn()
+      .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
+    this.popUpContextMenu = vi.fn();
+  }),
+  Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
+  shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
+  app: { quit: vi.fn(), showAboutPanel: vi.fn() },
+  nativeImage: {
+    createFromPath: vi
+      .fn()
+      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)) }),
+    createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn() }),
+  },
+  nativeTheme: { shouldUseDarkColors: false, on: vi.fn() },
+  BrowserWindow: vi.fn().mockImplementation(function (this: {
+    on: ReturnType<typeof vi.fn>;
+  }) {
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock("../../src/main/calendar.js", () => ({
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+}));
+
+vi.mock("../../src/main/utils/meet-url.js", () => ({
+  buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl || ""),
+}));
+
+vi.mock("../../src/main/settings.js", () => ({
+  getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
+}));
+
 // Helper to create mock event
 function createMockEvent(
   overrides: Partial<{
@@ -35,41 +82,6 @@ describe("formatRemainingTime", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock("electron", () => ({
-      Tray: vi.fn().mockImplementation(function (this: any) {
-        this.setToolTip = vi.fn();
-        this.setTitle = vi.fn();
-        this.setImage = vi.fn();
-        this.on = vi.fn();
-        this.getBounds = vi
-          .fn()
-          .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
-        this.popUpContextMenu = vi.fn();
-      }),
-      Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
-      shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
-      app: { quit: vi.fn(), showAboutPanel: vi.fn() },
-      nativeImage: {
-        createFromPath: vi
-          .fn()
-          .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)) }),
-        createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn() }),
-      },
-      nativeTheme: { shouldUseDarkColors: false, on: vi.fn() },
-      BrowserWindow: vi.fn().mockImplementation(function (this: any) {
-        this.on = vi.fn();
-      }),
-    }));
-    vi.mock("../../src/main/calendar.js", () => ({
-      getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
-    }));
-    vi.mock("../../src/main/utils/meet-url.js", () => ({
-      buildMeetUrl: vi.fn((event) => event.meetUrl || ""),
-    }));
-    vi.mock("../../src/main/settings.js", () => ({
-      getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
-    }));
-
     const trayModule = await import("../../src/main/tray.js");
     formatRemainingTime = trayModule.formatRemainingTime;
   });
@@ -106,42 +118,8 @@ describe("formatRemainingTime", () => {
 
 // Tray module exports
 describe("tray module exports", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetModules();
-    vi.mock("electron", () => ({
-      Tray: vi.fn().mockImplementation(function (this: any) {
-        this.setToolTip = vi.fn();
-        this.setTitle = vi.fn();
-        this.setImage = vi.fn();
-        this.on = vi.fn();
-        this.getBounds = vi
-          .fn()
-          .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
-        this.popUpContextMenu = vi.fn();
-      }),
-      Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
-      shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
-      app: { quit: vi.fn(), showAboutPanel: vi.fn() },
-      nativeImage: {
-        createFromPath: vi
-          .fn()
-          .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)) }),
-        createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn() }),
-      },
-      nativeTheme: { shouldUseDarkColors: false, on: vi.fn() },
-      BrowserWindow: vi.fn().mockImplementation(function (this: any) {
-        this.on = vi.fn();
-      }),
-    }));
-    vi.mock("../../src/main/calendar.js", () => ({
-      getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
-    }));
-    vi.mock("../../src/main/utils/meet-url.js", () => ({
-      buildMeetUrl: vi.fn((event) => event.meetUrl || ""),
-    }));
-    vi.mock("../../src/main/settings.js", () => ({
-      getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
-    }));
   });
 
   it("exports setupTray, updateTrayTitle, and formatRemainingTime functions", async () => {
@@ -156,7 +134,7 @@ describe("tray module exports", () => {
     const { setupTray } = await import("../../src/main/tray.js");
     const { Tray } = await import("electron");
 
-    const mockWindow = {} as any;
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow);
 
     expect(Tray).toHaveBeenCalled();
@@ -166,7 +144,7 @@ describe("tray module exports", () => {
     const { setupTray } = await import("../../src/main/tray.js");
     const { Tray } = await import("electron");
 
-    const mockWindow = {} as any;
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow);
 
     const trayInstance = (Tray as ReturnType<typeof vi.fn>).mock.results[0]
@@ -178,7 +156,7 @@ describe("tray module exports", () => {
     const { setupTray } = await import("../../src/main/tray.js");
     const { nativeTheme } = await import("electron");
 
-    const mockWindow = {} as any;
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow);
 
     expect(nativeTheme.on).toHaveBeenCalledWith(

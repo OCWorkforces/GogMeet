@@ -151,7 +151,7 @@ function renderBody(s: AppState): string {
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>
                 <span class="meeting-meta">
-                  ${autoJoin ? '<span class="badge-auto" title="Browser will open automatically 1 min before">⚡ Auto</span>' : ""}
+                  ${autoJoin ? `<span class="badge-auto" title="Browser will open automatically ${settings.openBeforeMinutes === 1 ? "1 min" : `${settings.openBeforeMinutes} mins`} before">⚡ Auto</span>` : ""}
                   <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
                 </span>
               </div>
