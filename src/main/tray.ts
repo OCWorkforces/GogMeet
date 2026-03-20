@@ -117,7 +117,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
         { label: "No upcoming meetings", enabled: false },
         { type: "separator" },
         { label: "Settings...", click: () => createSettingsWindow() },
-        { label: "About", click: () => showAbout(mainWindow) },
+        { label: "About GogMeet", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
     }
@@ -176,7 +176,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
     items.push({ type: "separator" });
     items.push({ label: "Settings...", click: () => createSettingsWindow() });
-    items.push({ label: "About", click: () => showAbout(mainWindow) });
+    items.push({ label: "About GogMeet", click: () => showAbout(mainWindow) });
     items.push({
       label: "Quit",
       accelerator: "Cmd+Q",
@@ -195,7 +195,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
         { label: "Calendar unavailable", enabled: false },
         { type: "separator" },
         { label: "Settings...", click: () => createSettingsWindow() },
-        { label: "About", click: () => showAbout(mainWindow) },
+        { label: "About GogMeet", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
     } else {

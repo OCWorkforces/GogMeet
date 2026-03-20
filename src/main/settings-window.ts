@@ -66,14 +66,3 @@ export function createSettingsWindow(): BrowserWindow {
   settingsWindow = win;
   return win;
 }
-
-/**
- * Closes the settings window if open.
- * Called from app quit handler.
- */
-export function closeSettingsWindow(): void {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
-  }
-  settingsWindow = null;
-}

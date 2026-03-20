@@ -39,10 +39,11 @@ export function loadSettings(): AppSettings {
 
   try {
     const raw = readFileSync(settingsPath, "utf-8");
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
 
     // Validate and construct settings object
     settingsCache = {
+      schemaVersion: DEFAULT_SETTINGS.schemaVersion,
       openBeforeMinutes: clampOpenBeforeMinutes(
         typeof parsed.openBeforeMinutes === "number"
           ? parsed.openBeforeMinutes

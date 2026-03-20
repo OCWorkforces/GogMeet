@@ -66,7 +66,9 @@ function typedHandle<K extends keyof IpcChannelMap>(
     request: IpcChannelMap[K]["request"],
   ) => Promise<IpcChannelMap[K]["response"]> | IpcChannelMap[K]["response"],
 ): void {
-  ipcMain.handle(channel, handler as Parameters<typeof ipcMain.handle>[1]);
+  ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) =>
+    handler(event, args[0] as IpcChannelMap[K]["request"]),
+  );
 }
 
 export function registerIpcHandlers(win: BrowserWindow): void {
@@ -172,10 +174,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   // Settings
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
-    (event): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
-      if (!validateSender(event)) return getSettings();
-      return getSettings();
-    },
+    (): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => getSettings(),
   );
 
   typedHandle(
@@ -187,19 +186,21 @@ export function registerIpcHandlers(win: BrowserWindow): void {
       if (!validateSender(event)) return getSettings();
       const updated = updateSettings(partial);
       restartScheduler(); // Apply new timing immediately
-      
+
       // Sync auto-launch if the setting changed
       if (typeof partial.launchAtLogin === "boolean") {
         syncAutoLaunch(partial.launchAtLogin);
       }
-      
+
       // Notify popover window to refresh if settings affect display
-      if (partial.showTomorrowMeetings !== undefined || partial.launchAtLogin !== undefined) {
+      if (
+        partial.showTomorrowMeetings !== undefined ||
+        partial.launchAtLogin !== undefined
+      ) {
         win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
       }
-      
+
       return updated;
     },
   );
-
 }
