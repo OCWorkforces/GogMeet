@@ -12,7 +12,8 @@ tests/
 │   ├── meet-url.test.ts   # 140 lines — URL building + allowlist (17 tests)
 │   ├── ipc.test.ts        # 102 lines — security validation (15 tests)
 │   ├── settings.test.ts   # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
-│   ├── tray.test.ts       # 189 lines — tray module (9 tests)
+│   ├── notification.test.ts # 100 lines — notification permission (— tests)
+│   ├── auto-launch.test.ts  # 98 lines — login item status/set/sync (— tests)
 │   └── .gitkeep
 └── renderer/
     ├── delegation.test.ts # 77 lines — event delegation (4 tests)
@@ -39,7 +40,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (98 tests total)
+## MAIN PROCESS TESTS (119 tests total)
 
 **Mock Pattern**:
 
@@ -50,15 +51,16 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 ```
 
 | File              | Lines | Tests | Focus                                  |
-| ----------------- | ----- | ----- | -------------------------------------- |
 | scheduler.test.ts | 537   | 26    | State machine, race conditions, timers |
 | meet-url.test.ts  | 140   | 17    | URL building with authuser + allowlist |
 | calendar.test.ts  | 360   | 16    | parseEvents, dedup, date filtering     |
 | ipc.test.ts       | 102   | 15    | validateSender, isAllowedMeetUrl       |
 | settings.test.ts  | 204   | 11    | File I/O, clamping, defaults, launchAtLogin |
-| tray.test.ts      | 189   | 9     | Tray title, time formatting            |
+| tray.test.ts      | 167   | 9     | Tray title, time formatting            |
+| notification.test.ts| 100  | —     | macOS notification permission          |
+| auto-launch.test.ts | 98   | —     | macOS login item status/set/sync       |
 
-**Scheduler Test Groups** (A-E labeled):
+**Scheduler Test Groups** (A-F labeled):
 
 | Group   | Focus                     |
 | ------- | ------------------------- |
@@ -100,11 +102,6 @@ bun run test          # Run all tests once
 bun run test:watch    # Watch mode
 bun run test:coverage # Tests with coverage report
 ```
-
-## UNTESTED MODULES
-
-- `src/main/auto-launch.ts` — no test file exists
-- `src/main/notification.ts` — no test file exists
 
 ## SETUP FILE
 

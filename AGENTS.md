@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-03-18
-**Commit:** 5c11557
+**Generated:** 2026-03-21
+**Commit:** 02a88d6
 **Branch:** develop
 
 ## OVERVIEW
@@ -14,7 +14,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Framework | Electron 41                               |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-| Test      | Vitest 4 (workspace, 109 tests)           |
+| Test      | Vitest 4 (workspace, 119 tests)           |
 
 ## STRUCTURE
 
@@ -79,20 +79,20 @@ src/
 
 | Symbol                        | Type  | Location                         | Role                                                                       |
 | ----------------------------- | ----- | -------------------------------- | -------------------------------------------------------------------------- |
-| `createWindow`                | fn    | src/main/index.ts:42             | BrowserWindow factory                                                      |
+| `createWindow`                | fn    | src/main/index.ts:43             | BrowserWindow factory                                                      |
 | `setupTray`                   | fn    | src/main/tray.ts:29              | System tray init                                                           |
-| `registerIpcHandlers`         | fn    | src/main/ipc.ts:72               | IPC registration                                                           |
-| `typedHandle`                 | fn    | src/main/ipc.ts:62               | Type-safe IPC wrapper                                                      |
+| `registerIpcHandlers`         | fn    | src/main/ipc.ts:74               | IPC registration                                                           |
+| `typedHandle`                 | fn    | src/main/ipc.ts:58               | Type-safe IPC wrapper                                                      |
 | `validateSender`              | fn    | src/main/ipc.ts:36               | Origin validation against ALLOWED_ORIGINS                                  |
-| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:144         | Swift EventKit fetch                                                       |
-| `parseEvents`                 | fn    | src/main/calendar.ts:91          | Parses tab-delimited Swift output                                          |
+| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:217         | Swift EventKit fetch                                                       |
+| `parseEvents`                 | fn    | src/main/calendar.ts:145         | Parses tab-delimited Swift output                                          |
 | `requestCalendarPermission`   | fn    | src/main/calendar.ts             | macOS EventKit permission prompt                                           |
 | `getCalendarPermissionStatus` | fn    | src/main/calendar.ts             | Read current calendar permission                                           |
-| `startScheduler`              | fn    | src/main/scheduler.ts:500        | Start poll loop                                                            |
-| `stopScheduler`               | fn    | src/main/scheduler.ts:512        | Clear all timers                                                           |
-| `restartScheduler`            | fn    | src/main/scheduler.ts:545        | Restart on settings change                                                 |
-| `scheduleEvents`              | fn    | src/main/scheduler.ts:223        | Per-event setTimeout timers                                                |
-| `poll`                        | fn    | src/main/scheduler.ts:467        | Calendar poll with error handling                                          |
+| `startScheduler`              | fn    | src/main/scheduler.ts:651        | Start poll loop                                                            |
+| `stopScheduler`               | fn    | src/main/scheduler.ts:663        | Clear all timers                                                           |
+| `restartScheduler`            | fn    | src/main/scheduler.ts:670        | Restart on settings change                                                 |
+| `scheduleEvents`              | fn    | src/main/scheduler.ts:357        | Per-event setTimeout timers                                                |
+| `poll`                        | fn    | src/main/scheduler.ts:614        | Calendar poll with error handling                                          |
 | `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7     | Appends `?authuser=email`                                                  |
 | `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts | Validates against MEET_URL_ALLOWLIST                                       |
 | `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts | Google domains for shell.openExternal                                      |
@@ -190,7 +190,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
 - **Dead code**: `src/main/logger.ts` (`createLogger` never imported); `closeSettingsWindow()` exported but never called
-- **Tests exist**: 109 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, event delegation, and XSS protection
+- **Tests exist**: 119 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
 - **No CI**: No GitHub workflows configured
 
 ## TESTS

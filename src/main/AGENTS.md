@@ -102,19 +102,19 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 
 | Symbol                    | Location               | Role                                          |
 | ------------------------- | ---------------------- | --------------------------------------------- |
-| `startScheduler`          | `scheduler.ts:500`     | Start poll loop + initial poll                |
-| `stopScheduler`           | `scheduler.ts:512`     | Clear all timers on quit                      |
-| `restartScheduler`        | `scheduler.ts:545`     | Restart on settings change                    |
-| `scheduleEvents`          | `scheduler.ts:223`     | Set/clear per-event `setTimeout` timers       |
-| `poll`                    | `scheduler.ts:467`     | Calendar poll with error handling             |
-| `getCalendarEventsResult` | `calendar.ts:144`      | Swift EventKit fetch (returns CalendarResult) |
-| `parseEvents`             | `calendar.ts:91`       | Parse 8-field tab-delimited Swift output      |
+| `startScheduler`          | `scheduler.ts:651`     | Start poll loop + initial poll                |
+| `stopScheduler`           | `scheduler.ts:663`     | Clear all timers on quit                      |
+| `restartScheduler`        | `scheduler.ts:670`     | Restart on settings change                    |
+| `scheduleEvents`          | `scheduler.ts:357`     | Set/clear per-event `setTimeout` timers       |
+| `poll`                    | `scheduler.ts:614`     | Calendar poll with error handling             |
+| `getCalendarEventsResult` | `calendar.ts:217`      | Swift EventKit fetch (returns CalendarResult) |
+| `parseEvents`             | `calendar.ts:145`      | Parse 8-field tab-delimited Swift output      |
 | `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |
-| `registerIpcHandlers`     | `ipc.ts:72`            | IPC registration (validateSender pattern)     |
-| `typedHandle`             | `ipc.ts:62`            | Type-safe IPC wrapper                         |
+| `registerIpcHandlers`     | `ipc.ts:74`            | IPC registration (validateSender pattern)     |
+| `typedHandle`             | `ipc.ts:58`            | Type-safe IPC wrapper                         |
 | `validateSender`          | `ipc.ts:36`            | Origin validation against `ALLOWED_ORIGINS`   |
 | `setupTray`               | `tray.ts:29`           | System tray init                              |
-| `createWindow`            | `index.ts:38`          | BrowserWindow factory (tray popover)          |
+| `createWindow`            | `index.ts:43`          | BrowserWindow factory (tray popover)          |
 | `createSettingsWindow`    | `settings-window.ts:15`| Settings BrowserWindow singleton              |
 | `loadSettings`            | `settings.ts:32`       | Load from userData/settings.json              |
 | `updateSettings`          | `settings.ts:72`       | Persist partial settings with clamping        |
