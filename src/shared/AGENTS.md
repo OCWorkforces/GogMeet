@@ -31,8 +31,6 @@ export const IPC_CHANNELS = {
 
 **Push channels** (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`) are send-only — main → renderer via `win.webContents.send()`. Not in `IpcChannelMap`.
 
-`IpcChannelMap` (types.ts:12) maps each channel to its `request` / `response` types.
-
 ## DATA MODELS
 
 ### MeetingEvent

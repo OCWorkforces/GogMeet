@@ -174,9 +174,11 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   // Settings
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
-    (): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => getSettings(),
+    (event): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
+      if (!validateSender(event)) return getSettings();
+      return getSettings();
+    },
   );
-
   typedHandle(
     IPC_CHANNELS.SETTINGS_SET,
     (
@@ -195,7 +197,8 @@ export function registerIpcHandlers(win: BrowserWindow): void {
       // Notify popover window to refresh if settings affect display
       if (
         partial.showTomorrowMeetings !== undefined ||
-        partial.launchAtLogin !== undefined
+        partial.launchAtLogin !== undefined ||
+        partial.openBeforeMinutes !== undefined
       ) {
         win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
       }

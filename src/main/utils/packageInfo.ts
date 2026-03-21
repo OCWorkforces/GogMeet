@@ -7,7 +7,6 @@
 import { app } from 'electron';
 import path from 'path';
 import { readFileSync } from 'fs';
-import log from 'electron-log';
 
 /**
  * Package.json structure with commonly used fields
@@ -41,9 +40,8 @@ export function getPackageInfo(): Readonly<PackageInfo> {
       const pkgPath = path.join(app.getAppPath(), 'package.json');
       const pkgContent = readFileSync(pkgPath, 'utf-8');
       packageInfo = JSON.parse(pkgContent) as PackageInfo;
-      log.debug('[PackageInfo] Loaded package.json');
     } catch (error) {
-      log.error('[PackageInfo] Failed to load package.json:', error);
+      console.error('[PackageInfo] Failed to load package.json:', error);
       // Return minimal fallback to prevent crashes
       packageInfo = {
         name: 'gogmeet',
@@ -66,7 +64,6 @@ export function getPackageInfo(): Readonly<PackageInfo> {
  */
 export function clearPackageInfoCache(): void {
   packageInfo = null;
-  log.debug('[PackageInfo] Cleared package info cache');
 }
 
 /**
