@@ -14,6 +14,7 @@ const { rm, readdir } = require("node:fs/promises");
 const ARCH_ARM64 = 3;
 
 
+exports.default = async function(context) {
   const archLabel =
     context.arch === ARCH_ARM64 || context.arch === "arm64"
       ? "ARM64"
@@ -21,7 +22,6 @@ const ARCH_ARM64 = 3;
 
   const appOutDir = context.appOutDir;
 
-  const appOutDir = context.appOutDir;
   const appName = context.packager.appInfo.productFilename;
   const appPath = join(appOutDir, `${appName}.app`);
   const frameworksDir = join(appPath, "Contents", "Frameworks");
