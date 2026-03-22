@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
@@ -30,7 +30,7 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
-    "electron-log": "^5.3.4",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3"
   },
   "authorEmail": "kennydizi@ocworkforces.com",
