@@ -28,7 +28,7 @@ jobs:
         id: create-tag
         if: github.ref == 'refs/heads/main'
         run: |
-          VERSION="v$(node -p "require('./package.json').version")
+          VERSION="v$(node -p 'require(\"./package.json\").version')"
           if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION already exists, skipping"
             echo "skip=true" >> $GITHUB_OUTPUT
