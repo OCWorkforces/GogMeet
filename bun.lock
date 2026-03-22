@@ -5,7 +5,7 @@
     "": {
       "name": "googlemeet",
       "dependencies": {
-        "electron-log": "^5.3.4",
+        "electron-log": "^5.4.3",
         "electron-updater": "^6.8.3",
       },
       "devDependencies": {
