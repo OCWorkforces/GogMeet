@@ -14,6 +14,9 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `settings.ts`             | Persistent app settings (JSON in userData)                                   |
 | `auto-launch.ts`          | macOS login items (launch at login)                                          |
 | `settings-window.ts`      | Settings BrowserWindow singleton (shows in Dock when open)                   |
+| `alert-window.ts`         | Full-screen meeting alert BrowserWindow (singleton)                    |
+| `shortcuts.ts`            | Global keyboard shortcut (Cmd+Shift+M → join next meeting)            |
+| `auto-updater.ts`         | Electron auto-updater (packaged builds only)                         |
 | `notification.ts`          | macOS notification permission check                                        |
 | `logger.ts`               | Structured logging utility (unused — dead code)                           |
 | `googlemeet-events.swift` | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)           |
@@ -66,6 +69,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | -------------------------- | -------------------------- |
 | `settings:changed`          | After `updateSettings()`     |
 | `calendar:events-updated`   | After successful `poll()`   |
+| `alert:show`              | `showAlert()` sends title + meetUrl to alert window                  |
 
 ## TRAY BEHAVIOR
 
@@ -100,35 +104,38 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 
 ## CODE MAP
 
-| Symbol                    | Location               | Role                                          |
+| Symbol                        | Location               | Role                                          |
 | ------------------------- | ---------------------- | --------------------------------------------- |
-| `startScheduler`          | `scheduler.ts:651`     | Start poll loop + initial poll                |
-| `stopScheduler`           | `scheduler.ts:663`     | Clear all timers on quit                      |
-| `restartScheduler`        | `scheduler.ts:670`     | Restart on settings change                    |
-| `scheduleEvents`          | `scheduler.ts:357`     | Set/clear per-event `setTimeout` timers       |
-| `poll`                    | `scheduler.ts:614`     | Calendar poll with error handling             |
+| `startScheduler`          | `scheduler.ts:668`     | Start poll loop + initial poll                |
+| `stopScheduler`           | `scheduler.ts:680`     | Clear all timers on quit                      |
+| `restartScheduler`        | `scheduler.ts:687`     | Restart on settings change                    |
+| `scheduleEvents`          | `scheduler.ts:358`     | Set/clear per-event `setTimeout` timers       |
+| `poll`                    | `scheduler.ts:631`     | Calendar poll with error handling             |
 | `getCalendarEventsResult` | `calendar.ts:217`      | Swift EventKit fetch (returns CalendarResult) |
 | `parseEvents`             | `calendar.ts:145`      | Parse 8-field tab-delimited Swift output      |
 | `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |
 | `registerIpcHandlers`     | `ipc.ts:74`            | IPC registration (validateSender pattern)     |
-| `typedHandle`             | `ipc.ts:58`            | Type-safe IPC wrapper                         |
+| `typedHandle`             | `ipc.ts:62`            | Type-safe IPC wrapper                         |
 | `validateSender`          | `ipc.ts:36`            | Origin validation against `ALLOWED_ORIGINS`   |
-| `setupTray`               | `tray.ts:29`           | System tray init                              |
-| `createWindow`            | `index.ts:43`          | BrowserWindow factory (tray popover)          |
+| `setupTray`               | `tray.ts:60`           | System tray init                              |
+| `createWindow`            | `index.ts:44`          | BrowserWindow factory (tray popover)          |
+| `showAlert`               | `alert-window.ts:16`   | Full-screen alert BrowserWindow singleton      |
 | `createSettingsWindow`    | `settings-window.ts:15`| Settings BrowserWindow singleton              |
+| `registerShortcuts`       | `shortcuts.ts:8`       | Global shortcut Cmd+Shift+M                   |
+| `initAutoUpdater`         | `auto-updater.ts:10`   | electron-updater setup (packaged only)        |
 | `loadSettings`            | `settings.ts:32`       | Load from userData/settings.json              |
-| `updateSettings`          | `settings.ts:72`       | Persist partial settings with clamping        |
+| `updateSettings`          | `settings.ts:84`       | Persist partial settings with clamping        |
 | `getAutoLaunchStatus`     | `auto-launch.ts:7`     | Read macOS login item status                  |
-| `setAutoLaunch`           | `auto-launch.ts:14`    | Set macOS login item                          |
-| `syncAutoLaunch`          | `auto-launch.ts:26`    | Sync if state differs                         |
+| `setAutoLaunch`           | `auto-launch.ts:21`    | Set macOS login item                          |
+| `syncAutoLaunch`          | `auto-launch.ts:40`    | Sync if state differs                         |
 | `buildMeetUrl`            | `utils/meet-url.ts:7`  | Append `?authuser=email` to Meet URL          |
-| `isAllowedMeetUrl`        | `utils/url-validation.ts` | Validates URL against MEET_URL_ALLOWLIST         |
-| `MEET_URL_ALLOWLIST`      | `utils/url-validation.ts` | Google domains for `shell.openExternal`            |
+| `isAllowedMeetUrl`        | `utils/url-validation.ts` | Validates URL against MEET_URL_ALLOWLIST      |
+| `MEET_URL_ALLOWLIST`      | `utils/url-validation.ts` | Google domains for `shell.openExternal`       |
 | `getPackageInfo`          | `utils/packageInfo.ts`   | Read package.json at runtime                   |
-| `formatRemainingTime`     | `tray.ts`               | Format countdown for tray title                  |
-| `updateTrayTitle`         | `tray.ts`               | Set tray title with countdown                     |
-| `checkNotificationPermission` | `notification.ts`      | macOS notification permission prompt              |
-| `getSettings`             | `settings.ts:75`       | Get cached settings (used in tray for showTomorrowMeetings) |
+| `formatRemainingTime`     | `tray.ts:212`          | Format countdown for tray title               |
+| `updateTrayTitle`         | `tray.ts:227`          | Set tray title with countdown                 |
+| `checkNotificationPermission` | `notification.ts:26`  | macOS notification permission prompt           |
+| `getSettings`             | `settings.ts:80`       | Get cached settings (used in tray for showTomorrowMeetings) |
 
 ## DEAD CODE
 

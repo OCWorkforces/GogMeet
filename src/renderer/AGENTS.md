@@ -14,6 +14,10 @@ Electron renderer (web context). Vanilla TypeScript UI with native macOS popover
 | `settings/index.ts` | Settings form logic, save indicator        |
 | `settings/index.html` | Settings HTML template                    |
 | `settings/styles.css` | Settings-specific styles (iOS-style toggles) |
+| `alert/`                 | Full-screen meeting alert (separate entry)                           |
+| `alert/index.ts`         | Alert overlay logic (Escape dismisses)                              |
+| `alert/index.html`       | Alert HTML template                                                 |
+| `alert/styles.css`       | Dark full-screen styles                                             |
 
 ## STATE MACHINE
 
@@ -50,6 +54,7 @@ window.api.app.getVersion(); // → string
 window.api.settings.get(); // → AppSettings
 window.api.settings.set(partial); // → AppSettings
 window.api.settings.onChanged(callback); // → void (listen for changes)
+window.api.alert.onShowAlert(callback); // → void (listen for alert data)
 ```
 
 ## CSS CONVENTIONS
@@ -100,3 +105,13 @@ Separate renderer entry at `settings/`. Key differences from main UI:
 - Singleton BrowserWindow (focus if already open)
 - Auto-saves on dropdown change with "✓ Saved" indicator
 - iOS-style toggle switch for "Launch at Login" and "Show Tomorrow" options
+
+## ALERT WINDOW
+
+Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process when a meeting is about to start.
+
+- Receives `{ title, meetUrl }` via `ALERT_SHOW` push channel
+- Full-screen, frameless, `alwaysOnTop`, dark background (`#1d1d1f`)
+- Dismissed by Escape key, "Dismiss" button, or `window.close()`
+- "Join Meeting" button calls `window.api.app.openExternal(url)`
+- Singleton — `showAlert()` closes any existing alert before showing new one

@@ -12,8 +12,8 @@ tests/
 │   ├── meet-url.test.ts   # 140 lines — URL building + allowlist (17 tests)
 │   ├── ipc.test.ts        # 102 lines — security validation (15 tests)
 │   ├── settings.test.ts   # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
-│   ├── notification.test.ts # 100 lines — notification permission (— tests)
-│   ├── auto-launch.test.ts  # 98 lines — login item status/set/sync (— tests)
+│   ├── notification.test.ts # 100 lines — notification permission (4 tests)
+│   ├── auto-launch.test.ts  # 98 lines — login item status/set/sync (6 tests)
 │   └── .gitkeep
 └── renderer/
     ├── delegation.test.ts # 77 lines — event delegation (4 tests)
@@ -57,8 +57,8 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 | ipc.test.ts       | 102   | 15    | validateSender, isAllowedMeetUrl       |
 | settings.test.ts  | 204   | 11    | File I/O, clamping, defaults, launchAtLogin |
 | tray.test.ts      | 167   | 9     | Tray title, time formatting            |
-| notification.test.ts| 100  | —     | macOS notification permission          |
-| auto-launch.test.ts | 98   | —     | macOS login item status/set/sync       |
+| notification.test.ts| 100  | 4     | macOS notification permission          |
+| auto-launch.test.ts | 98   | 6     | macOS login item status/set/sync       |
 
 **Scheduler Test Groups** (A-F labeled):
 

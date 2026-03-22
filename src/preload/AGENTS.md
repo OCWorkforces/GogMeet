@@ -39,9 +39,13 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, partial),
     onChanged: (callback: (settings: AppSettings) => void) => {
       ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, (_event, settings) => callback(settings));
+  },
+  alert: {
+    onShowAlert: (callback: (data: { title: string; meetUrl: string }) => void) => {
+      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data));
     },
   },
-  };
+};
 ```
 
 ## EXPOSE
