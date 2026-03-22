@@ -75,14 +75,18 @@ async function ensureBinary(): Promise<void> {
     // Binary doesn't exist — need to compile
   }
 
-  // Compile with ARM64-specific optimizations
-  // -target arm64-apple-macosx11.0: Target Apple Silicon (macOS Big Sur+)
+  // Compile with architecture-appropriate target
+  // -target <arch>-apple-macosx11.0: Match Electron process architecture
   // -Osize: Optimize for size (same performance, smaller binary)
   // -whole-module-optimization: Enable cross-file optimizations
+  const swiftTarget =
+    process.arch === "arm64"
+      ? "arm64-apple-macosx11.0"
+      : "x86_64-apple-macosx11.0";
   const swiftFlags = [
     swiftSrc,
     "-target",
-    "arm64-apple-macosx11.0",
+    swiftTarget,
     "-Osize",
     "-whole-module-optimization",
     "-o",
