@@ -29,6 +29,10 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   },
+  "dependencies": {
+    "electron-log": "^5.3.4",
+    "electron-updater": "^6.8.3"
+  },
   "authorEmail": "kennydizi@ocworkforces.com",
   "description": "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
   "engineStrict": true,
