@@ -9,6 +9,7 @@ import { getPackageInfo } from "./utils/packageInfo.js";
 import { getSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
 import { checkNotificationPermission } from "./notification.js";
+import { registerShortcuts } from "./shortcuts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -103,6 +104,7 @@ app.whenReady().then(() => {
   setupTray(mainWindow);
   setSchedulerWindow(mainWindow);
   startScheduler();
+  registerShortcuts();
 
   // Check notification permission on first run
   void checkNotificationPermission();
