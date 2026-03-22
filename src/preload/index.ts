@@ -62,6 +62,10 @@ const api = {
       };
     },
   },
+  alert: {
+    onShowAlert: (callback: (data: { title: string; meetUrl: string }) => void) =>
+      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data)),
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);
