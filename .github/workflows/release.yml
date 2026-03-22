@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -22,7 +24,24 @@ jobs:
 
       - run: bun run build
 
+      - name: Create tag from package.json version
+        id: create-tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          VERSION="v$(node -p "require('./package.json').version")
+          if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            echo "tag_name=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and release
+        if: startsWith(github.ref, 'refs/tags/') || steps.create-tag.outputs.tag_name != ''
         run: bun run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,6 +50,8 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
 
       - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/') || steps.create-tag.outputs.tag_name != ''
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           files: dist/*.dmg,dist/*.zip
+          tag_name: ${{ steps.create-tag.outputs.tag_name || github.ref_name }}
