@@ -1,0 +1,128 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #1d1d1f;
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --danger: #ff453a;
+  --radius: 16px;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text-primary);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 40px;
+}
+
+.alert-badge {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+
+.alert-title {
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  max-width: 80%;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.alert-subtitle {
+  font-size: 24px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.alert-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.btn-join-alert {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  padding: 18px 48px;
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+
+.btn-join-alert:hover {
+  background: var(--accent-hover);
+}
+
+.btn-join-alert:active {
+  transform: scale(0.97);
+}
+
+.btn-join-alert:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.btn-dismiss {
+  background: none;
+  color: var(--text-secondary);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  padding: 16px 36px;
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.btn-dismiss:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn-dismiss:focus-visible {
+  outline: 3px solid var(--text-secondary);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

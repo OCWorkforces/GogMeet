@@ -57,6 +57,10 @@ export function loadSettings(): AppSettings {
         typeof parsed.showTomorrowMeetings === "boolean"
           ? parsed.showTomorrowMeetings
           : DEFAULT_SETTINGS.showTomorrowMeetings,
+      fullScreenAlert:
+        typeof parsed.fullScreenAlert === "boolean"
+          ? parsed.fullScreenAlert
+          : DEFAULT_SETTINGS.fullScreenAlert,
     };
     return settingsCache;
   } catch {
@@ -96,6 +100,10 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
 
   if (typeof partial.showTomorrowMeetings === "boolean") {
     merged.showTomorrowMeetings = partial.showTomorrowMeetings;
+  }
+
+  if (typeof partial.fullScreenAlert === "boolean") {
+    merged.fullScreenAlert = partial.fullScreenAlert;
   }
 
   // Save and update cache

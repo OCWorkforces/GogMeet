@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   SETTINGS_SET: "settings:set",
   SETTINGS_CHANGED: "settings:changed",
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
+  ALERT_SHOW: "alert:show",
 } as const;
 
 /** IPC Request/Response type map for type-safe IPC */
@@ -48,6 +49,8 @@ export interface AppSettings {
   launchAtLogin: boolean;
   /** Whether to show tomorrow's meetings in the popover */
   showTomorrowMeetings: boolean;
+  /** Whether to show a full-screen alert when a meeting starts */
+  fullScreenAlert: boolean;
 }
 
 /** Default settings values */
@@ -56,6 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
+  fullScreenAlert: false,
 };
 
 /** Valid range for openBeforeMinutes */

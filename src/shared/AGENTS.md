@@ -4,15 +4,15 @@ Type definitions shared across main, preload, and renderer processes. Single sou
 
 ## FILES
 
-| File                  | Role                                  |
-| --------------------- | ------------------------------------- |
-| `types.ts`            | IPC channels, interfaces, type unions |
-| `utils/escape-html.ts` | XSS protection utility |
+| File                   | Role                                  |
+| ---------------------- | ------------------------------------- |
+| `types.ts`             | IPC channels, interfaces, type unions |
+| `utils/escape-html.ts` | XSS protection utility                |
 
 ## IPC CHANNELS
 
 ```typescript
-// types.ts:2-10
+// types.ts:2-14
 export const IPC_CHANNELS = {
   CALENDAR_GET_EVENTS: "calendar:get-events",
   CALENDAR_REQUEST_PERMISSION: "calendar:request-permission",
@@ -21,22 +21,23 @@ export const IPC_CHANNELS = {
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
-  |   SETTINGS_SET: "settings:set",
-|   SETTINGS_CHANGED: "settings:changed",
-|   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
-| } as const;
+  SETTINGS_SET: "settings:set",
+  SETTINGS_CHANGED: "settings:changed",
+  CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
+  ALERT_SHOW: "alert:show",
+} as const;
 ```
 
-`IpcChannelMap` (types.ts:12) maps each **invoke** channel to its `request` / `response` types.
+`IpcChannelMap` (types.ts:17) maps each **invoke** channel to its `request` / `response` types.
 
-**Push channels** (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`) are send-only — main → renderer via `win.webContents.send()`. Not in `IpcChannelMap`.
+**Push channels** (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`) are send-only — main → renderer via `win.webContents.send()`. Not in `IpcChannelMap`.
 
 ## DATA MODELS
 
 ### MeetingEvent
 
 ```typescript
-// types.ts:45-54
+// types.ts:25-33
 export interface MeetingEvent {
   id: string;
   title: string;
@@ -52,36 +53,40 @@ export interface MeetingEvent {
 ### CalendarResult
 
 ```typescript
-// types.ts:57
+// types.ts:37
 export type CalendarResult = { events: MeetingEvent[] } | { error: string };
 ```
 
 ### CalendarPermission
 
 ```typescript
-// types.ts:60
+// types.ts:40
 export type CalendarPermission = "granted" | "denied" | "not-determined";
 ```
 
 ### AppSettings
 
 ```typescript
-// types.ts:74-80
+// types.ts:43-54
 export interface AppSettings {
-  openBeforeMinutes: number;  // 1-5, default 1
-  launchAtLogin: boolean;     // macOS login item toggle
+  schemaVersion: number; // Settings migration version
+  openBeforeMinutes: number; // 1-5, default 1
+  launchAtLogin: boolean; // macOS login item toggle
   showTomorrowMeetings: boolean; // show tomorrow's meetings in tray menu
+  fullScreenAlert: boolean; // show full-screen overlay instead of browser
 }
 ```
 
 ### Constants
 
 ```typescript
-// types.ts:84-92
-export const DEFAULT_SETTINGS: AppSettings = { 
-  openBeforeMinutes: 1, 
+// types.ts:57-67
+export const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: 1,
+  openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
+  fullScreenAlert: true,
 };
 export const OPEN_BEFORE_MINUTES_MIN = 1;
 export const OPEN_BEFORE_MINUTES_MAX = 5;
@@ -90,10 +95,10 @@ export const OPEN_BEFORE_MINUTES_MAX = 5;
 ## TYPE UTILITIES
 
 ```typescript
-// types.ts:40-42
+// types.ts:71+
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
-export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]['request'];
-export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]['response'];
+export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]["request"];
+export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
 ```
 
 ## USAGE PATTERN

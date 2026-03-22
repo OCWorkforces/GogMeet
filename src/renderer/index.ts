@@ -18,6 +18,7 @@ let settings: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
+  fullScreenAlert: false,
 };
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;

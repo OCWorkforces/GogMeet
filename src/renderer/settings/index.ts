@@ -10,6 +10,7 @@ let settings: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
+  fullScreenAlert: false,
 };
 let isSaving = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -49,7 +50,7 @@ function render(errorMessage?: string): void {
           <span class="setting-description">Automatically open meeting links before they start</span>
         </div>
         <div class="setting-control">
-          <span class="save-indicator" id="save-indicator"></span>
+          <span class="save-indicator" id="save-indicator" aria-live="polite"></span>
           <select class="setting-select" id="open-before-select">
             ${options}
           </select>
@@ -64,8 +65,8 @@ function render(errorMessage?: string): void {
           <span class="setting-description">Automatically start GogMeet when you log in</span>
         </div>
         <div class="setting-control">
-          <span class="save-indicator" id="launch-save-indicator"></span>
-          <label class="toggle-switch">
+          <span class="save-indicator" id="launch-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.launchAtLogin ? "true" : "false"}">
             <input type="checkbox" id="launch-at-login-toggle" class="toggle-input"${settings.launchAtLogin ? " checked" : ""} />
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
@@ -81,9 +82,26 @@ function render(errorMessage?: string): void {
           <span class="setting-description">Display tomorrow's meetings in the popover</span>
         </div>
         <div class="setting-control">
-          <span class="save-indicator" id="tomorrow-save-indicator"></span>
-          <label class="toggle-switch">
+          <span class="save-indicator" id="tomorrow-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.showTomorrowMeetings ? "true" : "false"}">
             <input type="checkbox" id="show-tomorrow-toggle" class="toggle-input"${settings.showTomorrowMeetings ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="fullscreen-alert-toggle">
+            🖥️ Full-Screen Alert
+          </label>
+          <span class="setting-description">Show a full-screen overlay when a meeting starts</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="alert-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.fullScreenAlert ? "true" : "false"}">
+            <input type="checkbox" id="fullscreen-alert-toggle" class="toggle-input"${settings.fullScreenAlert ? " checked" : ""} />
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
@@ -99,6 +117,7 @@ function render(errorMessage?: string): void {
   setupSelectListener();
   setupToggleListener();
   setupTomorrowToggleListener();
+  setupAlertToggleListener();
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -164,6 +183,20 @@ function setupTomorrowToggleListener(): void {
     void saveSettings(
       { showTomorrowMeetings: toggle.checked },
       "tomorrow-save-indicator",
+    );
+  });
+}
+
+function setupAlertToggleListener(): void {
+  const toggle = document.getElementById(
+    "fullscreen-alert-toggle",
+  ) as HTMLInputElement | null;
+  if (!toggle) return;
+
+  toggle.addEventListener("change", () => {
+    void saveSettings(
+      { fullScreenAlert: toggle.checked },
+      "alert-save-indicator",
     );
   });
 }

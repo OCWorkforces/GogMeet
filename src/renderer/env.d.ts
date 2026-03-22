@@ -21,6 +21,9 @@ declare global {
         set(partial: Partial<AppSettings>): Promise<AppSettings>;
         onChanged(callback: (settings: AppSettings) => void): () => void;
       };
+      alert: {
+        onShowAlert(callback: (data: { title: string; meetUrl: string }) => void): void;
+      };
     };
   }
 }

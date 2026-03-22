@@ -1,5 +1,6 @@
 import { Notification, shell } from "electron";
 import { getSettings } from "./settings.js";
+import { showAlert } from "./alert-window.js";
 
 import { getCalendarEventsResult } from "./calendar.js";
 import type { BrowserWindow } from "electron";
@@ -458,11 +459,27 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         title: event.title,
         body: "Starting now",
       }).show();
+      // Show full-screen alert if enabled — suppress auto-open when alert handles it
+      let alertShown = false;
+      try {
+        const settings = getSettings();
+        if (settings.fullScreenAlert) {
+          showAlert(event.title, event.meetUrl);
+          alertShown = true;
+        }
+      } catch {
+        // Non-critical — alert is optional UX
+      }
       // Only open browser for meetings with a URL
+      // Skip auto-open when full-screen alert is shown (user joins via alert button)
       if (!event.meetUrl) {
         console.log(
           `[scheduler] Notification shown for "${event.title}" (no URL)`,
         );
+        return;
+      }
+      if (alertShown) {
+        console.log(`[scheduler] Alert shown for "${event.title}" — skipping auto-open`);
         return;
       }
       const url = buildMeetUrl(event);

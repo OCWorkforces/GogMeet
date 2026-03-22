@@ -1,48 +1,57 @@
-import { defineConfig } from '@rsbuild/core';
+import { defineConfig } from "@rsbuild/core";
 
 export default defineConfig({
   environments: {
     main: {
       source: {
-        entry: { index: './src/renderer/index.ts' },
-        tsconfigPath: './src/renderer/tsconfig.json',
+        entry: { index: "./src/renderer/index.ts" },
+        tsconfigPath: "./src/renderer/tsconfig.json",
       },
       html: {
-        template: './src/renderer/index.html',
+        template: "./src/renderer/index.html",
       },
     },
     settings: {
       source: {
-        entry: { settings: './src/renderer/settings/index.ts' },
-        tsconfigPath: './src/renderer/tsconfig.json',
+        entry: { settings: "./src/renderer/settings/index.ts" },
+        tsconfigPath: "./src/renderer/tsconfig.json",
       },
       html: {
-        template: './src/renderer/settings/index.html',
+        template: "./src/renderer/settings/index.html",
+      },
+    },
+    alert: {
+      source: {
+        entry: { alert: "./src/renderer/alert/index.ts" },
+        tsconfigPath: "./src/renderer/tsconfig.json",
+      },
+      html: {
+        template: "./src/renderer/alert/index.html",
       },
     },
   },
   output: {
-    distPath: { root: './lib/renderer' },
-    assetPrefix: './',
-    target: 'web',
+    distPath: { root: "./lib/renderer" },
+    assetPrefix: "./",
+    target: "web",
   },
   tools: {
     bundlerChain(chain) {
-      chain.target('electron-renderer');
+      chain.target("electron-renderer");
     },
     rspack(config) {
       // electron-renderer sets global["webpackHotUpdate..."] which breaks in browser
       // Patch globalObject so HMR runtime uses globalThis instead
       if (config.output) {
-        config.output.globalObject = 'globalThis';
+        config.output.globalObject = "globalThis";
       } else {
-        config.output = { globalObject: 'globalThis' };
+        config.output = { globalObject: "globalThis" };
       }
       return config;
     },
   },
   performance: {
-    chunkSplit: { strategy: 'all-in-one' },
-    removeConsole: ['log', 'info', 'warn', 'error'],
+    chunkSplit: { strategy: "all-in-one" },
+    removeConsole: ["log", "info", "warn", "error"],
   },
 });

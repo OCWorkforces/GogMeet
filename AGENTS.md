@@ -1,12 +1,12 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-03-21
-**Commit:** 02a88d6
+**Generated:** 2026-03-22
+**Commit:** e2ac056
 **Branch:** develop
 
 ## OVERVIEW
 
-macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI.
+macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI. Supports full-screen meeting alerts and auto-updates.
 
 | Layer     | Tech                                      |
 | --------- | ----------------------------------------- |
@@ -29,8 +29,11 @@ src/
 │   ├── settings.ts   # Persistent app settings (JSON in userData)
 │   ├── auto-launch.ts # macOS login items (launch at login)
 │   ├── settings-window.ts # Settings BrowserWindow singleton
-│   ├── notification.ts # Notification permission check
-│   ├── logger.ts     # Structured logging utility (unused)
+│   ├── alert-window.ts   # Full-screen meeting alert BrowserWindow
+│   ├── shortcuts.ts      # Global keyboard shortcut (Cmd+Shift+M)
+│   ├── auto-updater.ts   # Electron auto-updater (packaged builds)
+│   ├── notification.ts   # Notification permission check
+│   ├── logger.ts         # Structured logging utility (unused)
 │   ├── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
 │   └── utils/        # Main process utilities
 │       ├── meet-url.ts       # buildMeetUrl with ?authuser=email
@@ -41,8 +44,14 @@ src/
 │   ├── index.html    # CSP-protected template
 │   ├── settings/     # Settings window (separate entry)
 │   │   ├── index.ts  # Settings form logic
-│   │   └── styles.css # Settings-specific styles (iOS-style toggles)
+│   │   ├── index.html
+│   │   └── styles.css # iOS-style toggles
+│   ├── alert/        # Full-screen meeting alert (separate entry)
+│   │   ├── index.ts  # Alert overlay logic
+│   │   ├── index.html
+│   │   └── styles.css # Dark full-screen styles
 │   └── styles/       # CSS (dark mode native aesthetic)
+│       └── main.css
 ├── preload/          # Context bridge (sandbox)
 │   └── index.ts      # Exposes window.api to renderer
 ├── shared/           # Types shared across processes
@@ -60,7 +69,7 @@ src/
 | Task                  | Location                               | Notes                                                         |
 | --------------------- | -------------------------------------- | ------------------------------------------------------------- |
 | Add IPC channel       | `src/shared/types.ts` → `IPC_CHANNELS` | Single source of truth                                        |
-| Implement IPC handler | `src/main/ipc.ts`                      | Register with `ipcMain.handle()`                              |
+| Implement IPC handler | `src/main/ipc.ts`                      | Register with `typedHandle()`                                 |
 | Expose to renderer    | `src/preload/index.ts`                 | Add to `api` object                                           |
 | Use in UI             | `src/renderer/index.ts`                | Call via `window.api.*`                                       |
 | Calendar logic        | `src/main/calendar.ts`                 | Swift EventKit via compiled binary                            |
@@ -69,6 +78,9 @@ src/
 | Swift EventKit output | `src/main/googlemeet-events.swift`     | Tab-delimited: id\ttitle\tstart\tend\turl\tcal\tallDay\temail |
 | User settings         | `src/main/settings.ts`                 | JSON in userData, clamped to min/max                          |
 | Settings window       | `src/main/settings-window.ts`          | Singleton BrowserWindow, shows in Dock                        |
+| Alert window          | `src/main/alert-window.ts`             | Full-screen overlay, singleton, dismissed by Escape           |
+| Global shortcut       | `src/main/shortcuts.ts`                | Cmd+Shift+M → join next meeting                               |
+| Auto-updater          | `src/main/auto-updater.ts`             | electron-updater, packaged builds only                        |
 | UI state              | `src/renderer/index.ts`                | `AppState` type union                                         |
 | Window config         | `src/main/index.ts`                    | `createWindow()`                                              |
 | Tray behavior         | `src/main/tray.ts`                     | Menu, positioning                                             |
@@ -77,42 +89,45 @@ src/
 
 ## CODE MAP
 
-| Symbol                        | Type  | Location                         | Role                                                                       |
-| ----------------------------- | ----- | -------------------------------- | -------------------------------------------------------------------------- |
-| `createWindow`                | fn    | src/main/index.ts:43             | BrowserWindow factory                                                      |
-| `setupTray`                   | fn    | src/main/tray.ts:29              | System tray init                                                           |
-| `registerIpcHandlers`         | fn    | src/main/ipc.ts:74               | IPC registration                                                           |
-| `typedHandle`                 | fn    | src/main/ipc.ts:58               | Type-safe IPC wrapper                                                      |
-| `validateSender`              | fn    | src/main/ipc.ts:36               | Origin validation against ALLOWED_ORIGINS                                  |
-| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:217         | Swift EventKit fetch                                                       |
-| `parseEvents`                 | fn    | src/main/calendar.ts:145         | Parses tab-delimited Swift output                                          |
-| `requestCalendarPermission`   | fn    | src/main/calendar.ts             | macOS EventKit permission prompt                                           |
-| `getCalendarPermissionStatus` | fn    | src/main/calendar.ts             | Read current calendar permission                                           |
-| `startScheduler`              | fn    | src/main/scheduler.ts:651        | Start poll loop                                                            |
-| `stopScheduler`               | fn    | src/main/scheduler.ts:663        | Clear all timers                                                           |
-| `restartScheduler`            | fn    | src/main/scheduler.ts:670        | Restart on settings change                                                 |
-| `scheduleEvents`              | fn    | src/main/scheduler.ts:357        | Per-event setTimeout timers                                                |
-| `poll`                        | fn    | src/main/scheduler.ts:614        | Calendar poll with error handling                                          |
-| `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7     | Appends `?authuser=email`                                                  |
-| `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts | Validates against MEET_URL_ALLOWLIST                                       |
-| `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts | Google domains for shell.openExternal                                      |
-| `loadSettings`                | fn    | src/main/settings.ts:32          | Load from userData/settings.json                                           |
-| `updateSettings`              | fn    | src/main/settings.ts:72          | Persist partial settings                                                   |
-| `createSettingsWindow`        | fn    | src/main/settings-window.ts:15   | Singleton settings window                                                  |
-| `getAutoLaunchStatus`         | fn    | src/main/auto-launch.ts:7        | Read macOS login item status                                               |
-| `setAutoLaunch`               | fn    | src/main/auto-launch.ts:14       | Set macOS login item                                                       |
-| `syncAutoLaunch`              | fn    | src/main/auto-launch.ts:26       | Sync if state differs                                                      |
-| `formatRemainingTime`         | fn    | src/main/tray.ts                 | Format countdown for tray title                                            |
-| `updateTrayTitle`             | fn    | src/main/tray.ts                 | Set tray title with countdown                                              |
-| `checkNotificationPermission` | fn    | src/main/notification.ts         | macOS notification permission prompt                                       |
-| `getPackageInfo`              | fn    | src/main/utils/packageInfo.ts    | Read package.json at runtime                                               |
-| `IPC_CHANNELS`                | const | src/shared/types.ts:2            | 8 channel names                                                            |
-| `IpcChannelMap`               | type  | src/shared/types.ts:14           | Request/response type map                                                  |
-| `MeetingEvent`                | iface | src/shared/types.ts:55           | Event data model                                                           |
-| `AppSettings`                 | iface | src/shared/types.ts:80           | { openBeforeMinutes, launchAtLogin, showTomorrowMeetings }                 |
-| `DEFAULT_SETTINGS`            | const | src/shared/types.ts:87           | { openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true } |
-| `AppState`                    | type  | src/renderer/index.ts:4          | UI state union                                                             |
-| `api`                         | const | src/preload/index.ts:5           | Context bridge API                                                         |
+| Symbol                        | Type  | Location                           | Role                                                                                                                |
+| ----------------------------- | ----- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `createWindow`                | fn    | src/main/index.ts:44               | BrowserWindow factory                                                                                               |
+| `setupTray`                   | fn    | src/main/tray.ts:60                | System tray init                                                                                                    |
+| `showAlert`                   | fn    | src/main/alert-window.ts:16        | Full-screen alert BrowserWindow                                                                                     |
+| `registerShortcuts`           | fn    | src/main/shortcuts.ts:8            | Global shortcut Cmd+Shift+M                                                                                         |
+| `initAutoUpdater`             | fn    | src/main/auto-updater.ts:10        | electron-updater setup (packaged only)                                                                              |
+| `registerIpcHandlers`         | fn    | src/main/ipc.ts:74                 | IPC registration                                                                                                    |
+| `typedHandle`                 | fn    | src/main/ipc.ts:62                 | Type-safe IPC wrapper                                                                                               |
+| `validateSender`              | fn    | src/main/ipc.ts:36                 | Origin validation against ALLOWED_ORIGINS                                                                           |
+| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:217           | Swift EventKit fetch                                                                                                |
+| `parseEvents`                 | fn    | src/main/calendar.ts:145           | Parses tab-delimited Swift output                                                                                   |
+| `requestCalendarPermission`   | fn    | src/main/calendar.ts:239           | macOS EventKit permission prompt                                                                                    |
+| `getCalendarPermissionStatus` | fn    | src/main/calendar.ts:253           | Read current calendar permission                                                                                    |
+| `startScheduler`              | fn    | src/main/scheduler.ts:668          | Start poll loop                                                                                                     |
+| `stopScheduler`               | fn    | src/main/scheduler.ts:680          | Clear all timers                                                                                                    |
+| `restartScheduler`            | fn    | src/main/scheduler.ts:687          | Restart on settings change                                                                                          |
+| `scheduleEvents`              | fn    | src/main/scheduler.ts:358          | Per-event setTimeout timers                                                                                         |
+| `poll`                        | fn    | src/main/scheduler.ts:631          | Calendar poll with error handling                                                                                   |
+| `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7       | Appends `?authuser=email`                                                                                           |
+| `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts   | Validates against MEET_URL_ALLOWLIST                                                                                |
+| `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts:2 | Google domains for shell.openExternal                                                                               |
+| `loadSettings`                | fn    | src/main/settings.ts:32            | Load from userData/settings.json                                                                                    |
+| `updateSettings`              | fn    | src/main/settings.ts:84            | Persist partial settings                                                                                            |
+| `createSettingsWindow`        | fn    | src/main/settings-window.ts:15     | Singleton settings window                                                                                           |
+| `getAutoLaunchStatus`         | fn    | src/main/auto-launch.ts:7          | Read macOS login item status                                                                                        |
+| `setAutoLaunch`               | fn    | src/main/auto-launch.ts:21         | Set macOS login item                                                                                                |
+| `syncAutoLaunch`              | fn    | src/main/auto-launch.ts:40         | Sync if state differs                                                                                               |
+| `formatRemainingTime`         | fn    | src/main/tray.ts:212               | Format countdown for tray title                                                                                     |
+| `updateTrayTitle`             | fn    | src/main/tray.ts:227               | Set tray title with countdown                                                                                       |
+| `checkNotificationPermission` | fn    | src/main/notification.ts:26        | macOS notification permission prompt                                                                                |
+| `getPackageInfo`              | fn    | src/main/utils/packageInfo.ts      | Read package.json at runtime                                                                                        |
+| `IPC_CHANNELS`                | const | src/shared/types.ts:2              | 11 channel names                                                                                                    |
+| `IpcChannelMap`               | type  | src/shared/types.ts:17             | Request/response type map                                                                                           |
+| `MeetingEvent`                | iface | src/shared/types.ts:25             | Event data model                                                                                                    |
+| `AppSettings`                 | iface | src/shared/types.ts:43             | { schemaVersion, openBeforeMinutes, launchAtLogin, showTomorrowMeetings, fullScreenAlert }                          |
+| `DEFAULT_SETTINGS`            | const | src/shared/types.ts:57             | { schemaVersion: 1, openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, fullScreenAlert: true } |
+| `AppState`                    | type  | src/renderer/index.ts:5            | UI state union                                                                                                      |
+| `api`                         | const | src/preload/index.ts:5             | Context bridge API                                                                                                  |
 
 ## CONVENTIONS
 
@@ -124,8 +139,10 @@ src/
 - **macOS only**: Swift EventKit, dock hiding, entitlements — no cross-platform
 - **Settings persistence**: JSON file in Electron userData directory; configurable open-before timing (1-5 min), launch at login toggle
 - **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
+- **Alert window**: Full-screen overlay, singleton, Escape to dismiss, `fullScreenAlert` setting toggle
 - **No barrel files**: All imports use direct paths (e.g., `../shared/types.js`)
 - **Renderer logging**: Raw `console.*` calls (no structured logger)
+- **Main process logging**: `electron-log` for shortcuts and auto-updater; `console.*` for auto-launch/notification
 - **Dev env var**: `VITE_DEV_SERVER_URL` (legacy name from Vite migration, functional)
 
 ## ANTI-PATTERNS (THIS PROJECT)
@@ -136,6 +153,7 @@ src/
 ```
 
 - Electron module MUST be external in preload builds (handled in rspack config)
+- Electron external MUST be appended AFTER `ElectronTargetPlugin` sets its own externals
 - Never suppress type errors (`as any`, `@ts-ignore`, `@ts-expect-error`) — zero in source
 - Never bypass `validateSender()` in IPC handlers
 - Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required (understands ASAR paths)
@@ -165,7 +183,7 @@ Three-process build:
 
 1. **Main** (`rslib.config.ts`): `electron-main` target → `lib/main/index.cjs`
 2. **Preload** (`rslib.config.preload.ts`): `electron-preload` target → `lib/preload/index.cjs`
-3. **Renderer** (`rsbuild.config.ts`): Two environments (`main` popover + `settings` window) → `lib/renderer/`
+3. **Renderer** (`rsbuild.config.ts`): Three environments (`main` popover + `settings` + `alert`) → `lib/renderer/`
 
 Production: SWC minifier with `drop_console: true`, tree-shaking, no source maps.
 Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild dev), TCP health-checks build outputs, then launches Electron with `--disable-gpu-sandbox`.
@@ -180,18 +198,27 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 - English only (`electronLanguages: [en]`)
 - `LSUIElement: true` — tray-only, no Dock icon
 - Standalone DMG build script: `build-macOS-dmg.sh` (handles Developer ID + ad-hoc signing)
+- Auto-updater enabled via `electron-updater` in packaged builds (checks on startup, installs on quit)
+
+## CI
+
+Two GitHub Actions workflows in `.github/workflows/`:
+
+- **`pr-check.yml`**: Runs on PR/push to `develop`/`main` — `bun install --frozen-lockfile`, `typecheck`, `test`, `test:coverage`
+- **`release.yml`**: Runs on version tags (`v*`) — `build`, `package` (requires `GH_TOKEN`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 
 ## NOTES
 
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
 - **Swift binary cache**: Compiled to `/tmp/googlemeet/googlemeet-events` on first run; `rm -rf /tmp/googlemeet` to recompile after Swift changes
 - **Auto-open**: Browser opens configurable 1-5 min before each non-all-day meeting; `?authuser=email` from event attendee data
+- **Full-screen alert**: When `fullScreenAlert` setting is true, shows full-screen overlay instead of just opening browser
+- **Global shortcut**: Cmd+Shift+M joins the next upcoming meeting with a URL
 - **Launch at login**: Uses `app.setLoginItemSettings()` to enable/disable auto-start on macOS login
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
 - **Dead code**: `src/main/logger.ts` (`createLogger` never imported); `closeSettingsWindow()` exported but never called
-- **Tests exist**: 119 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
-- **No CI**: No GitHub workflows configured
+- **Tests**: 119 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
 
 ## TESTS
 
