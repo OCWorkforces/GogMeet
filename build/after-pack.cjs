@@ -154,5 +154,5 @@ exports.default = async function(context) {
     /* ignore */
   }
 
-  console.log(`[after-pack] ${archLabel} optimizations complete\n");
+  console.log(`[after-pack] ${archLabel} optimizations complete\n`);
 };
