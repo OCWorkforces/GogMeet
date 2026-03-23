@@ -512,15 +512,11 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         title: event.title,
         body: "Starting now",
       }).show();
-      // Open browser only if alert was NOT already shown (alert handles the join action)
+      // Open browser for meetings with a URL (alert dismiss doesn't prevent this)
       if (!event.meetUrl) {
         console.log(
           `[scheduler] Notification shown for "${event.title}" (no URL)`,
         );
-        return;
-      }
-      if (state.alertFiredEvents.has(event.id)) {
-        console.log(`[scheduler] Alert already shown for "${event.title}" — skipping auto-open`);
         return;
       }
       const url = buildMeetUrl(event);
