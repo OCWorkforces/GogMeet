@@ -12,10 +12,14 @@ function makeSwiftLine(
   calendar: string,
   allDay: string,
   email?: string,
+  notes?: string,
 ): string {
   const parts = [id, title, start, end, url, calendar, allDay];
   if (email !== undefined) {
     parts.push(email);
+  }
+  if (notes !== undefined) {
+    parts.push(notes);
   }
   return parts.join("\t");
 }
@@ -356,5 +360,46 @@ describe("parseEvents", () => {
 
     const events = parseEvents(input);
     expect(events).toHaveLength(2);
+    expect(events).toHaveLength(2);
+  });
+
+  it("parses 9-field input with description", () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    const input = makeSwiftLine(
+      "evt-desc",
+      "Meeting with Notes",
+      start,
+      end,
+      "https://meet.google.com/desc",
+      "Work",
+      "false",
+      "user@example.com",
+      "This is a meeting note",
+    );
+
+    const events = parseEvents(input);
+    expect(events).toHaveLength(1);
+    expect(events[0].description).toBe("This is a meeting note");
+  });
+
+  it("excludes empty or whitespace-only description", () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    const input = makeSwiftLine(
+      "evt-nodesc",
+      "Meeting No Desc",
+      start,
+      end,
+      "https://meet.google.com/nodesc",
+      "Work",
+      "false",
+      "user@example.com",
+      "   ",
+    );
+
+    const events = parseEvents(input);
+    expect(events).toHaveLength(1);
+    expect(events[0].description).toBeUndefined();
   });
 });

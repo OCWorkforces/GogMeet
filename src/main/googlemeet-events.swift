@@ -3,7 +3,7 @@ import Foundation
 
 // GoogleMeet Swift EventKit Helper
 // Outputs Google Meet events for today+tomorrow in tab-delimited format:
-// uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail
+// uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
 //
 // Each line is one event. Exit 0 on success, exit 1 on permission denied.
 
@@ -89,7 +89,7 @@ requestCalendarAccess { granted in
             }
         }
 
-        print("\(uid)\t\(title)\t\(start)\t\(end)\t\(url)\t\(calName)\t\(allDay)\t\(userEmail)")
+        print("\(uid)\t\(title)\t\(start)\t\(end)\t\(url)\t\(calName)\t\(allDay)\t\(userEmail)\t\(event.notes ?? "")")
     }
 
     sema.signal()

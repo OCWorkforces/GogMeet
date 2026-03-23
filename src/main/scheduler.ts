@@ -459,19 +459,19 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         title: event.title,
         body: "Starting now",
       }).show();
-      // Show full-screen alert if enabled — suppress auto-open when alert handles it
+      // Show window alert if enabled — suppress auto-open when alert handles it
       let alertShown = false;
       try {
         const settings = getSettings();
-        if (settings.fullScreenAlert) {
-          showAlert(event.title, event.meetUrl);
+        if (settings.windowAlert) {
+          showAlert(event);
           alertShown = true;
         }
       } catch {
         // Non-critical — alert is optional UX
       }
       // Only open browser for meetings with a URL
-      // Skip auto-open when full-screen alert is shown (user joins via alert button)
+      // Skip auto-open when window alert is shown (user joins via alert button)
       if (!event.meetUrl) {
         console.log(
           `[scheduler] Notification shown for "${event.title}" (no URL)`,

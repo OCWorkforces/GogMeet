@@ -141,3 +141,5 @@ vite.config.ts.timestamp-*
 .agents/
 lib/
 dist/
+opencode.json
+.opencode/
