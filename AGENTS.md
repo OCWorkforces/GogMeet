@@ -124,8 +124,8 @@ src/
 | `IPC_CHANNELS`                | const | src/shared/types.ts:2              | 11 channel names                                                                                                    |
 | `IpcChannelMap`               | type  | src/shared/types.ts:17             | Request/response type map                                                                                           |
 | `MeetingEvent`                | iface | src/shared/types.ts:25             | Event data model                                                                                                    |
-| `AppSettings`                 | iface | src/shared/types.ts:43             | { schemaVersion, openBeforeMinutes, launchAtLogin, showTomorrowMeetings, fullScreenAlert }                          |
-| `DEFAULT_SETTINGS`            | const | src/shared/types.ts:57             | { schemaVersion: 1, openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, fullScreenAlert: true } |
+|| `AppSettings`                 | iface | `src/shared/types.ts:43`             | { schemaVersion, openBeforeMinutes, launchAtLogin, showTomorrowMeetings, windowAlert }                          
+|| `DEFAULT_SETTINGS`            | const | `src/shared/types.ts:57`             | { schemaVersion: 1, openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true }
 | `AppState`                    | type  | src/renderer/index.ts:5            | UI state union                                                                                                      |
 | `api`                         | const | src/preload/index.ts:5             | Context bridge API                                                                                                  |
 
@@ -139,7 +139,7 @@ src/
 - **macOS only**: Swift EventKit, dock hiding, entitlements — no cross-platform
 - **Settings persistence**: JSON file in Electron userData directory; configurable open-before timing (1-5 min), launch at login toggle
 - **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
-- **Alert window**: Full-screen overlay, singleton, Escape to dismiss, `fullScreenAlert` setting toggle
+- **Alert window**: Full-screen overlay, singleton, Escape to dismiss, `windowAlert` setting toggle
 - **No barrel files**: All imports use direct paths (e.g., `../shared/types.js`)
 - **Renderer logging**: Raw `console.*` calls (no structured logger)
 - **Main process logging**: `electron-log` for shortcuts and auto-updater; `console.*` for auto-launch/notification
@@ -212,7 +212,7 @@ Two GitHub Actions workflows in `.github/workflows/`:
 - **Calendar permission**: First access triggers macOS EventKit permission dialog
 - **Swift binary cache**: Compiled to `/tmp/googlemeet/googlemeet-events` on first run; `rm -rf /tmp/googlemeet` to recompile after Swift changes
 - **Auto-open**: Browser opens configurable 1-5 min before each non-all-day meeting; `?authuser=email` from event attendee data
-- **Full-screen alert**: When `fullScreenAlert` setting is true, shows full-screen overlay instead of just opening browser
+- **Full-screen alert**: When `windowAlert` setting is true, shows full-screen overlay instead of just opening browser
 - **Global shortcut**: Cmd+Shift+M joins the next upcoming meeting with a URL
 - **Launch at login**: Uses `app.setLoginItemSettings()` to enable/disable auto-start on macOS login
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
