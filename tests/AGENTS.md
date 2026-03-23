@@ -40,7 +40,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (119 tests total)
+## MAIN PROCESS TESTS (121 tests total)
 
 **Mock Pattern**:
 
@@ -72,7 +72,7 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 | F1-F5   | Poll IPC notification      |
 
 - `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
-- All state maps cleared in `beforeEach`: `timers`, `firedEvents`, `scheduledEventData`, `countdownIntervals`, `consecutiveErrors`
+- All state maps cleared in `beforeEach`: `timers`, `alertTimers`, `firedEvents`, `alertFiredEvents`, `scheduledEventData`, `countdownIntervals`, `consecutiveErrors`
 - `updateTrayTitle` mock for tray behavior assertions
 - `vi.resetModules()` + dynamic import for fresh module state
 

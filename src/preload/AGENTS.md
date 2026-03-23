@@ -41,7 +41,7 @@ const api = {
       ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, (_event, settings) => callback(settings));
   },
   alert: {
-    onShowAlert: (callback: (data: { title: string; meetUrl: string }) => void) => {
+    onShowAlert: (callback: (data: MeetingEvent) => void) => {
       ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data));
     },
   },

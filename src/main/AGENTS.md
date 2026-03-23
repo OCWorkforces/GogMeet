@@ -69,7 +69,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | -------------------------- | -------------------------- |
 | `settings:changed`          | After `updateSettings()`     |
 | `calendar:events-updated`   | After successful `poll()`   |
-| `alert:show`              | `showAlert()` sends title + meetUrl to alert window                  |
+TJ|| `alert:show`              | `showAlert()` sends title + meetUrl to alert window; alert fires 1 min before browser timer                
 
 ## TRAY BEHAVIOR
 
@@ -90,9 +90,11 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 - **Open-before**: Configurable 1-5 min via settings (default 1 min)
 - **Title notification**: `TITLE_BEFORE_MS` (30 min before)
 - **Max schedule-ahead**: 24 h (`MAX_SCHEDULE_AHEAD_MS`)
-- **State maps**: `timers`, `titleTimers`, `countdownIntervals`, `clearTimers`, `inMeetingIntervals`, `inMeetingEndTimers`, `scheduledEventData`
-- **`firedEvents` Set**: Prevents re-firing on refresh
-- **Stale cleanup**: `cleanupStaleEntries()` each poll
+JK|- **State maps**: `timers`, `alertTimers`, `titleTimers`, `countdownIntervals`, `clearTimers`, `inMeetingIntervals`, `inMeetingEndTimers`, `scheduledEventData`
+QB|- **`firedEvents` Set**: Prevents browser-open re-fire on refresh
+QT|- **`alertFiredEvents` Set**: Prevents alert re-fire on refresh
+QF|- **Alert offset**: `ALERT_OFFSET_MS = 60 * 1000` — alert fires 1 min before browser timer
+BH|- **Browser auto-open suppressed**: When alert was already shown (user joins via alert button)
 - **URL**: `buildMeetUrl()` appends `?authuser=email`
 
 ## AUTO-LAUNCH
@@ -106,11 +108,13 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 
 | Symbol                        | Location               | Role                                          |
 | ------------------------- | ---------------------- | --------------------------------------------- |
-| `startScheduler`          | `scheduler.ts:668`     | Start poll loop + initial poll                |
-| `stopScheduler`           | `scheduler.ts:680`     | Clear all timers on quit                      |
-| `restartScheduler`        | `scheduler.ts:687`     | Restart on settings change                    |
-| `scheduleEvents`          | `scheduler.ts:358`     | Set/clear per-event `setTimeout` timers       |
-| `poll`                    | `scheduler.ts:631`     | Calendar poll with error handling             |
+JN|| `startScheduler`          | `scheduler.ts:718`     | Start poll loop + initial poll                
+MW|| `stopScheduler`           | `scheduler.ts:730`     | Clear all timers on quit                      
+XH|| `restartScheduler`        | `scheduler.ts:737`     | Restart on settings change                    
+TY|| `scheduleEvents`          | `scheduler.ts:372`     | Set/clear per-event `setTimeout` timers       
+MB|| `poll`                    | `scheduler.ts:681`     | Calendar poll with error handling             
+VX|| `alertTimers`            | `scheduler.ts:179`     | Map of eventId → alert timer (fires 1 min before browser)
+QT|| `alertFiredEvents`        | `scheduler.ts:203`     | Set of eventIds that already showed alert     
 | `getCalendarEventsResult` | `calendar.ts:217`      | Swift EventKit fetch (returns CalendarResult) |
 | `parseEvents`             | `calendar.ts:145`      | Parse 8-field tab-delimited Swift output      |
 | `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |
@@ -137,12 +141,6 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `checkNotificationPermission` | `notification.ts:26`  | macOS notification permission prompt           |
 | `getSettings`             | `settings.ts:80`       | Get cached settings (used in tray for showTomorrowMeetings) |
 
-## DEAD CODE
-
-| Symbol              | Location              | Reason                    |
-| ------------------- | --------------------- | ------------------------- |
-| `createLogger`       | `logger.ts`           | Never imported             |
-| `closeSettingsWindow`| `settings-window.ts`   | Exported but never called  |
 
 ## ANTI-PATTERNS
 

@@ -24,8 +24,6 @@ export function showAlert(event: MeetingEvent): void {
     fullscreenable: false,
     alwaysOnTop: true,
     titleBarStyle: "hiddenInset",
-    vibrancy: "under-window",
-    visualEffectState: "active",
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "..", "preload", "index.cjs"),
@@ -38,7 +36,7 @@ export function showAlert(event: MeetingEvent): void {
   // Dev mode: load from dev server
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
-    alertWindow.loadURL(`${devUrl}alert.html`);
+    alertWindow.loadURL(`${devUrl}/alert.html`);
   } else {
     alertWindow.loadFile(
       path.join(__dirname, "..", "renderer", "alert.html"),
