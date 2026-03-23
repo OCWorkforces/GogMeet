@@ -199,7 +199,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
         partial.showTomorrowMeetings !== undefined ||
         partial.launchAtLogin !== undefined ||
         partial.openBeforeMinutes !== undefined ||
-        partial.fullScreenAlert !== undefined
+        partial.windowAlert !== undefined
 ) {
         win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
       }

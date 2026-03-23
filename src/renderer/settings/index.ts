@@ -10,7 +10,7 @@ let settings: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
-  fullScreenAlert: false,
+  windowAlert: false,
 };
 let isSaving = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -93,15 +93,15 @@ function render(errorMessage?: string): void {
       </div>
       <div class="setting-row setting-row--toggle">
         <div class="setting-row-inner">
-          <label class="setting-label" for="fullscreen-alert-toggle">
-            🖥️ Full-Screen Alert
+          <label class="setting-label" for="window-alert-toggle">
+            🔔 Show Window Alert
           </label>
-          <span class="setting-description">Show a full-screen overlay when a meeting starts</span>
+          <span class="setting-description">Show a notification window when a meeting starts</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="alert-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.fullScreenAlert ? "true" : "false"}">
-            <input type="checkbox" id="fullscreen-alert-toggle" class="toggle-input"${settings.fullScreenAlert ? " checked" : ""} />
+          <label class="toggle-switch" role="switch" aria-checked="${settings.windowAlert ? "true" : "false"}">
+            <input type="checkbox" id="window-alert-toggle" class="toggle-input"${settings.windowAlert ? " checked" : ""} />
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
@@ -189,13 +189,13 @@ function setupTomorrowToggleListener(): void {
 
 function setupAlertToggleListener(): void {
   const toggle = document.getElementById(
-    "fullscreen-alert-toggle",
+    "window-alert-toggle",
   ) as HTMLInputElement | null;
   if (!toggle) return;
 
   toggle.addEventListener("change", () => {
     void saveSettings(
-      { fullScreenAlert: toggle.checked },
+      { windowAlert: toggle.checked },
       "alert-save-indicator",
     );
   });

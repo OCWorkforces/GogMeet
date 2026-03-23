@@ -41,6 +41,15 @@ export function loadSettings(): AppSettings {
     const raw = readFileSync(settingsPath, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
 
+    // Migrate legacy fullScreenAlert → windowAlert
+    if (
+      parsed &&
+      typeof parsed.fullScreenAlert === "boolean" &&
+      typeof (parsed as Record<string, unknown>).windowAlert !== "boolean"
+    ) {
+      (parsed as Record<string, unknown>).windowAlert = parsed.fullScreenAlert;
+    }
+
     // Validate and construct settings object
     settingsCache = {
       schemaVersion: DEFAULT_SETTINGS.schemaVersion,
@@ -57,10 +66,10 @@ export function loadSettings(): AppSettings {
         typeof parsed.showTomorrowMeetings === "boolean"
           ? parsed.showTomorrowMeetings
           : DEFAULT_SETTINGS.showTomorrowMeetings,
-      fullScreenAlert:
-        typeof parsed.fullScreenAlert === "boolean"
-          ? parsed.fullScreenAlert
-          : DEFAULT_SETTINGS.fullScreenAlert,
+      windowAlert:
+        typeof (parsed as Record<string, unknown>).windowAlert === "boolean"
+          ? ((parsed as Record<string, unknown>).windowAlert as boolean)
+          : DEFAULT_SETTINGS.windowAlert,
     };
     return settingsCache;
   } catch {
@@ -102,8 +111,8 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
     merged.showTomorrowMeetings = partial.showTomorrowMeetings;
   }
 
-  if (typeof partial.fullScreenAlert === "boolean") {
-    merged.fullScreenAlert = partial.fullScreenAlert;
+  if (typeof partial.windowAlert === "boolean") {
+    merged.windowAlert = partial.windowAlert;
   }
 
   // Save and update cache
