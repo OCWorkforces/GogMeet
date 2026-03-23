@@ -31,6 +31,7 @@ export interface MeetingEvent {
   calendarName: string;
   isAllDay: boolean;
   userEmail?: string; // Current user's Google email from EventKit attendee list
+  description?: string; // Event description/notes from macOS Calendar
 }
 
 /** Structured result from calendar fetch — either events or an error message */
@@ -49,8 +50,8 @@ export interface AppSettings {
   launchAtLogin: boolean;
   /** Whether to show tomorrow's meetings in the popover */
   showTomorrowMeetings: boolean;
-  /** Whether to show a full-screen alert when a meeting starts */
-  fullScreenAlert: boolean;
+  /** Whether to show a window alert when a meeting starts */
+  windowAlert: boolean;
 }
 
 /** Default settings values */
@@ -59,7 +60,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
-  fullScreenAlert: false,
+  windowAlert: false,
 };
 
 /** Valid range for openBeforeMinutes */

@@ -173,6 +173,7 @@ export function parseEvents(raw: string): MeetingEvent[] {
         calendarName,
         allDayStr,
         emailField,
+        notesField,
       ] = parts as [
         string,
         string,
@@ -181,6 +182,7 @@ export function parseEvents(raw: string): MeetingEvent[] {
         string,
         string,
         string,
+        string | undefined,
         string | undefined,
       ];
 
@@ -208,6 +210,7 @@ export function parseEvents(raw: string): MeetingEvent[] {
           calendarName: calendarName.trim(),
           isAllDay: allDayStr.trim() === "true",
           ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
+          ...(notesField?.trim() ? { description: notesField.trim() } : {}),
         },
       ];
     })
