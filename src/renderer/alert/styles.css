@@ -79,22 +79,55 @@ body {
   overflow: hidden;
 }
 
+.alert-description-wrapper {
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: 140px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  /* Custom scrollbar — WebKit only (Electron) */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.alert-description-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.alert-description-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.alert-description-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.alert-description-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .alert-description {
   margin: 0;
   color: var(--alert-text-secondary);
   font-size: 14px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .alert-metadata {
   margin-top: 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .alert-metadata-row {
@@ -118,11 +151,13 @@ body {
 .alert-actions {
   margin-top: auto;
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .alert-btn {
-  height: 36px;
+  flex: 1;
+  height: 38px;
   padding: 0 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -131,9 +166,14 @@ body {
   line-height: 1;
   cursor: pointer;
   transition:
-    opacity 0.18s ease,
-    background-color 0.18s ease,
-    border-color 0.18s ease;
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.alert-btn:active {
+  transform: scale(0.97);
 }
 
 .alert-btn-join {

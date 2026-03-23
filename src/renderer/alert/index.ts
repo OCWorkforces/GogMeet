@@ -70,7 +70,7 @@ function render(data: AlertPayload): void {
 
         ${
           escapedDescription
-            ? `<p class="alert-description">${escapedDescription}</p>`
+            ? `<div class="alert-description-wrapper"><p class="alert-description">${escapedDescription}</p></div>`
             : ""
         }
 

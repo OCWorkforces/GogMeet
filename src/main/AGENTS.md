@@ -18,7 +18,6 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 | `shortcuts.ts`            | Global keyboard shortcut (Cmd+Shift+M → join next meeting)            |
 | `auto-updater.ts`         | Electron auto-updater (packaged builds only)                         |
 | `notification.ts`          | macOS notification permission check                                        |
-| `logger.ts`               | Structured logging utility (unused — dead code)                           |
 | `googlemeet-events.swift` | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)           |
 | `utils/`                  | Main process utilities                                                     |
 | `utils/meet-url.ts`       | Appends `?authuser=email` to Meet URL                                     |
