@@ -17,7 +17,7 @@ export function showAlert(event: MeetingEvent): void {
 
   alertWindow = new BrowserWindow({
     width: 500,
-    height: 420,
+    height: event.description?.trim() ? 480 : 320,
     resizable: false,
     minimizable: false,
     maximizable: false,
