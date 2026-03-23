@@ -1,12 +1,12 @@
 # GogMeet — Project Knowledge Base
 
 **Generated:** 2026-03-22
-**Commit:** e2ac056
+**Commit:** fb362b3
 **Branch:** develop
 
 ## OVERVIEW
 
-macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI. Supports full-screen meeting alerts and auto-updates.
+macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI. Supports full-screen meeting alerts (1 min before browser open) and auto-updates.
 
 | Layer     | Tech                                      |
 | --------- | ----------------------------------------- |
@@ -14,7 +14,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Framework | Electron 41                               |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-| Test      | Vitest 4 (workspace, 119 tests)           |
+Test      | Vitest 4 (workspace, 121 tests)           
 
 ## STRUCTURE
 
@@ -103,15 +103,15 @@ src/
 | `parseEvents`                 | fn    | src/main/calendar.ts:145           | Parses tab-delimited Swift output                                                                                   |
 | `requestCalendarPermission`   | fn    | src/main/calendar.ts:239           | macOS EventKit permission prompt                                                                                    |
 | `getCalendarPermissionStatus` | fn    | src/main/calendar.ts:253           | Read current calendar permission                                                                                    |
-| `startScheduler`              | fn    | src/main/scheduler.ts:668          | Start poll loop                                                                                                     |
-| `stopScheduler`               | fn    | src/main/scheduler.ts:680          | Clear all timers                                                                                                    |
-| `restartScheduler`            | fn    | src/main/scheduler.ts:687          | Restart on settings change                                                                                          |
-| `scheduleEvents`              | fn    | src/main/scheduler.ts:358          | Per-event setTimeout timers                                                                                         |
-| `poll`                        | fn    | src/main/scheduler.ts:631          | Calendar poll with error handling                                                                                   |
+`startScheduler`              | fn    | src/main/scheduler.ts:718          | Start poll loop                                                                                                     
+`stopScheduler`               | fn    | src/main/scheduler.ts:730          | Clear all timers                                                                                                    
+`restartScheduler`            | fn    | src/main/scheduler.ts:737          | Restart on settings change                                                                                           
+`scheduleEvents`              | fn    | src/main/scheduler.ts:372          | Per-event setTimeout timers (uses `alertTimers` map for alert window)                                                                                         
+`poll`                        | fn    | src/main/scheduler.ts:681          | Calendar poll with error handling                                                                                   
 | `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7       | Appends `?authuser=email`                                                                                           |
 | `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts   | Validates against MEET_URL_ALLOWLIST                                                                                |
 | `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts:2 | Google domains for shell.openExternal                                                                               |
-| `loadSettings`                | fn    | src/main/settings.ts:32            | Load from userData/settings.json                                                                                    |
+`getSettings`                | fn    | src/main/settings.ts:80            | Load settings (returns merged defaults)                                                                              
 | `updateSettings`              | fn    | src/main/settings.ts:84            | Persist partial settings                                                                                            |
 | `createSettingsWindow`        | fn    | src/main/settings-window.ts:15     | Singleton settings window                                                                                           |
 | `getAutoLaunchStatus`         | fn    | src/main/auto-launch.ts:7          | Read macOS login item status                                                                                        |
@@ -139,7 +139,7 @@ src/
 - **macOS only**: Swift EventKit, dock hiding, entitlements — no cross-platform
 - **Settings persistence**: JSON file in Electron userData directory; configurable open-before timing (1-5 min), launch at login toggle
 - **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
-- **Alert window**: Full-screen overlay, singleton, Escape to dismiss, `windowAlert` setting toggle
+- **Alert window**: Full-screen overlay, singleton, Escape to dismiss, `windowAlert` setting toggle; fires 1 min before browser open (alertDelay = openBeforeMinutes + 1 min before meeting)
 - **No barrel files**: All imports use direct paths (e.g., `../shared/types.js`)
 - **Renderer logging**: Raw `console.*` calls (no structured logger)
 - **Main process logging**: `electron-log` for shortcuts and auto-updater; `console.*` for auto-launch/notification
@@ -213,12 +213,12 @@ Two GitHub Actions workflows in `.github/workflows/`:
 - **Swift binary cache**: Compiled to `/tmp/googlemeet/googlemeet-events` on first run; `rm -rf /tmp/googlemeet` to recompile after Swift changes
 - **Auto-open**: Browser opens configurable 1-5 min before each non-all-day meeting; `?authuser=email` from event attendee data
 - **Full-screen alert**: When `windowAlert` setting is true, shows full-screen overlay instead of just opening browser
+- **Alert window timing**: `windowAlert` shows full-screen overlay at `openBeforeMinutes + 1` min before meeting. Browser auto-open suppressed when alert was already shown.
 - **Global shortcut**: Cmd+Shift+M joins the next upcoming meeting with a URL
 - **Launch at login**: Uses `app.setLoginItemSettings()` to enable/disable auto-start on macOS login
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **Dead code**: `src/main/logger.ts` (`createLogger` never imported); `closeSettingsWindow()` exported but never called
-- **Tests**: 119 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
+- **Tests**: 121 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
 
 ## TESTS
 

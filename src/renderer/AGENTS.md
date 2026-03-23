@@ -108,9 +108,10 @@ Separate renderer entry at `settings/`. Key differences from main UI:
 
 ## ALERT WINDOW
 
-Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process when a meeting is about to start.
+Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process 1 minute before the browser auto-open timing (at `openBeforeMinutes + 1` min before meeting start).
 
 - Receives `{ title, meetUrl }` via `ALERT_SHOW` push channel
+- Alert fires at `openBeforeMinutes + 1` minutes before meeting (e.g. if browser opens at 2 min, alert shows at 3 min)
 - Full-screen, frameless, `alwaysOnTop`, dark background (`#1d1d1f`)
 - Dismissed by Escape key, "Dismiss" button, or `window.close()`
 - "Join Meeting" button calls `window.api.app.openExternal(url)`

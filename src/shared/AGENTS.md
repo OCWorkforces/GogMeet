@@ -47,6 +47,7 @@ export interface MeetingEvent {
   calendarName: string;
   isAllDay: boolean;
   userEmail?: string; // Current user's Google email from EventKit attendee list
+  description?: string; // Event description/notes from macOS Calendar
 }
 ```
 
