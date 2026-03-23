@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "../shared/types.js";
-import type { IpcRequest, IpcResponse, AppSettings } from "../shared/types.js";
+import type { IpcRequest, IpcResponse, AppSettings, MeetingEvent } from "../shared/types.js";
 
 const api = {
   calendar: {
@@ -63,7 +63,7 @@ const api = {
     },
   },
   alert: {
-    onShowAlert: (callback: (data: { title: string; meetUrl: string }) => void) =>
+    onShowAlert: (callback: (data: MeetingEvent) => void) =>
       ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data)),
   },
 };
