@@ -18,6 +18,7 @@ interface ScheduledEventSnapshot {
 
 export interface SchedulerState {
   timers: Map<string, ReturnType<typeof setTimeout>>;
+  alertTimers: Map<string, ReturnType<typeof setTimeout>>;
   titleTimers: Map<string, ReturnType<typeof setTimeout>>;
   countdownIntervals: Map<string, ReturnType<typeof setInterval>>;
   clearTimers: Map<string, ReturnType<typeof setTimeout>>;
@@ -25,6 +26,7 @@ export interface SchedulerState {
   inMeetingEndTimers: Map<string, ReturnType<typeof setTimeout>>;
   scheduledEventData: Map<string, ScheduledEventSnapshot>;
   firedEvents: Set<string>;
+  alertFiredEvents: Set<string>;
   activeTitleEventId: string | null;
   activeInMeetingEventId: string | null;
   consecutiveErrors: number;
@@ -35,6 +37,7 @@ export interface SchedulerState {
 export function createSchedulerState(): SchedulerState {
   return {
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
+    alertTimers: new Map<string, ReturnType<typeof setTimeout>>(),
     titleTimers: new Map<string, ReturnType<typeof setTimeout>>(),
     countdownIntervals: new Map<string, ReturnType<typeof setInterval>>(),
     clearTimers: new Map<string, ReturnType<typeof setTimeout>>(),
@@ -42,6 +45,7 @@ export function createSchedulerState(): SchedulerState {
     inMeetingEndTimers: new Map<string, ReturnType<typeof setTimeout>>(),
     scheduledEventData: new Map<string, ScheduledEventSnapshot>(),
     firedEvents: new Set<string>(),
+    alertFiredEvents: new Set<string>(),
     activeTitleEventId: null,
     activeInMeetingEventId: null,
     consecutiveErrors: 0,
@@ -112,6 +116,9 @@ function clearSchedulerResources(s: SchedulerState): void {
   for (const handle of s.timers.values()) clearTimeout(handle);
   s.timers.clear();
 
+  for (const handle of s.alertTimers.values()) clearTimeout(handle);
+  s.alertTimers.clear();
+
   for (const handle of s.titleTimers.values()) clearTimeout(handle);
   s.titleTimers.clear();
 
@@ -129,6 +136,7 @@ function clearSchedulerResources(s: SchedulerState): void {
 
   s.scheduledEventData.clear();
   s.firedEvents.clear();
+  s.alertFiredEvents.clear();
 }
 
 function replaceState(nextState: SchedulerState): void {
@@ -167,6 +175,9 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 /** Map of eventId → active open-browser timer handle */
 export const timers = createMapView(() => state.timers);
 
+/** Map of eventId → alert window timer handle (fires 1 min before browser timer) */
+export const alertTimers = createMapView(() => state.alertTimers);
+
 /** Map of eventId → setTimeout handle that fires when the 30-min window opens */
 export const titleTimers = createMapView(() => state.titleTimers);
 
@@ -187,6 +198,9 @@ export const scheduledEventData = createMapView(() => state.scheduledEventData);
 
 /** Set of eventIds that have already fired (prevents re-fire on refresh) */
 export const firedEvents = createSetView(() => state.firedEvents);
+
+/** Set of eventIds that have already shown an alert (prevents re-show on refresh) */
+export const alertFiredEvents = createSetView(() => state.alertFiredEvents);
 
 /** Which event currently owns the tray title display (null = no countdown active) */
 export let activeTitleEventId: string | null = state.activeTitleEventId;
@@ -412,12 +426,17 @@ export function scheduleEvents(events: MeetingEvent[]): void {
           });
 
           if (urlChanged) {
-            // Reschedule the browser-open timer with the new URL
             const existingTimer = state.timers.get(event.id);
             if (existingTimer) {
               clearTimeout(existingTimer);
             }
             state.timers.delete(event.id);
+            // Also clear alert timer if rescheduling
+            const existingAlertTimer = state.alertTimers.get(event.id);
+            if (existingAlertTimer) {
+              clearTimeout(existingAlertTimer);
+              state.alertTimers.delete(event.id);
+            }
             // fall through below to schedule new browser timer (same start time)
             console.log(
               `[scheduler] URL changed for "${event.title}" — rescheduling browser open`,
@@ -438,8 +457,15 @@ export function scheduleEvents(events: MeetingEvent[]): void {
             clearTimeout(existingTimer);
           }
           state.timers.delete(event.id);
+          // Also clear alert timer when start time changes
+          const existingAlertTimer = state.alertTimers.get(event.id);
+          if (existingAlertTimer) {
+            clearTimeout(existingAlertTimer);
+            state.alertTimers.delete(event.id);
+          }
           state.scheduledEventData.delete(event.id);
           state.firedEvents.delete(event.id); // allow re-fire at new time
+          state.alertFiredEvents.delete(event.id); // allow re-alert at new time
           console.log(
             `[scheduler] Rescheduled "${event.title}" — start time changed`,
           );
@@ -450,6 +476,33 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     const effectiveDelay = Math.max(0, delayMs);
 
+    // --- Separate alert timer (fires 1 minute before browser timer) ---
+    // Only schedule if windowAlert is enabled and not already fired
+    const alertSettings = getSettings();
+    if (alertSettings.windowAlert && !state.alertFiredEvents.has(event.id)) {
+      // Cancel any existing alert timer for this event
+      const existingAlertTimer = state.alertTimers.get(event.id);
+      if (existingAlertTimer) {
+        clearTimeout(existingAlertTimer);
+        state.alertTimers.delete(event.id);
+      }
+
+      // Alert fires 1 minute before the browser open
+      const ALERT_OFFSET_MS = 60 * 1000;
+      const alertDelayMs = Math.max(0, effectiveDelay - ALERT_OFFSET_MS);
+      const alertHandle = setTimeout(() => {
+        state.alertTimers.delete(event.id);
+        state.alertFiredEvents.add(event.id);
+        try {
+          showAlert(event);
+        } catch {
+          // Non-critical — alert is optional UX
+        }
+        console.log(`[scheduler] Alert shown for "${event.title}" (${Math.round(alertDelayMs / 1000)}s before meeting)`);
+      }, alertDelayMs);
+      state.alertTimers.set(event.id, alertHandle);
+    }
+
     const handle = setTimeout(() => {
       state.timers.delete(event.id);
       state.scheduledEventData.delete(event.id);
@@ -459,27 +512,15 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         title: event.title,
         body: "Starting now",
       }).show();
-      // Show window alert if enabled — suppress auto-open when alert handles it
-      let alertShown = false;
-      try {
-        const settings = getSettings();
-        if (settings.windowAlert) {
-          showAlert(event);
-          alertShown = true;
-        }
-      } catch {
-        // Non-critical — alert is optional UX
-      }
-      // Only open browser for meetings with a URL
-      // Skip auto-open when window alert is shown (user joins via alert button)
+      // Open browser only if alert was NOT already shown (alert handles the join action)
       if (!event.meetUrl) {
         console.log(
           `[scheduler] Notification shown for "${event.title}" (no URL)`,
         );
         return;
       }
-      if (alertShown) {
-        console.log(`[scheduler] Alert shown for "${event.title}" — skipping auto-open`);
+      if (state.alertFiredEvents.has(event.id)) {
+        console.log(`[scheduler] Alert already shown for "${event.title}" — skipping auto-open`);
         return;
       }
       const url = buildMeetUrl(event);
@@ -597,6 +638,10 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     clearTimeout(h);
     console.log("[scheduler] Cancelled timer for removed event");
   });
+  cleanupStaleEntries(state.alertTimers, activeIds, (h) => {
+    clearTimeout(h);
+    console.log("[scheduler] Cancelled alert timer for removed event");
+  });
   cleanupStaleEntries(state.titleTimers, activeIds, (h) => clearTimeout(h));
   cleanupStaleEntries(state.countdownIntervals, activeIds, (h) =>
     clearInterval(h),
@@ -610,10 +655,15 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     clearTimeout(h),
   );
 
-  // Prune firedEvents and scheduledEventData for events no longer in the active list
+  // Prune firedEvents, alertFiredEvents and scheduledEventData for events no longer in the active list
   for (const id of state.firedEvents) {
     if (!activeIds.has(id)) {
       state.firedEvents.delete(id);
+    }
+  }
+  for (const id of state.alertFiredEvents) {
+    if (!activeIds.has(id)) {
+      state.alertFiredEvents.delete(id);
     }
   }
   for (const id of state.scheduledEventData.keys()) {
