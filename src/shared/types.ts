@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
-  windowAlert: false,
+  windowAlert: true,
 };
 
 /** Valid range for openBeforeMinutes */
