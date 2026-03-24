@@ -17,6 +17,7 @@
     "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "outDir": "./lib",
+    "rootDir": "./src",
     "pretty": true,
     "sourceMap": false,
     "skipLibCheck": true
