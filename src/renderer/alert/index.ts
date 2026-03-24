@@ -54,7 +54,6 @@ function render(data: AlertPayload): void {
   const title = escapeHtml(data.title);
   const calendarName = escapeHtml(data.calendarName ?? "Unknown calendar");
   const description = data.description?.trim() ?? "";
-  const escapedDescription = description ? escapeHtml(description) : "";
   const timeRange = formatTimeRange(
     data.startDate ?? "",
     data.endDate ?? "",
@@ -69,9 +68,9 @@ function render(data: AlertPayload): void {
         <h1 class="alert-title">${title}</h1>
 
         ${
-          escapedDescription
-            ? `<div class="alert-description-wrapper"><p class="alert-description">${escapedDescription}</p></div>`
-            : ""
+            description
+              ? `<div class="alert-description-wrapper"><div class="alert-description">${description}</div></div>`
+              : ""
         }
 
         <div class="alert-metadata" aria-label="Meeting details">

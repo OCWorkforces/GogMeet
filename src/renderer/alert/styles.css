@@ -69,14 +69,13 @@ body {
 .alert-title {
   margin: 0;
   color: var(--alert-text-primary);
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .alert-description-wrapper {
@@ -115,8 +114,43 @@ body {
   color: var(--alert-text-secondary);
   font-size: 14px;
   line-height: 1.55;
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.alert-description p,
+.alert-description ul,
+.alert-description ol,
+.alert-description h1,
+.alert-description h2,
+.alert-description h3,
+.alert-description h4,
+.alert-description blockquote {
+  margin: 0 0 8px;
+}
+
+.alert-description p:last-child,
+.alert-description ul:last-child,
+.alert-description ol:last-child,
+.alert-description h1:last-child,
+.alert-description h2:last-child,
+.alert-description h3:last-child,
+.alert-description h4:last-child,
+.alert-description blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.alert-description a {
+  color: #0a84ff;
+  text-decoration: none;
+}
+
+.alert-description a:hover {
+  text-decoration: underline;
+}
+
+.alert-description ul,
+.alert-description ol {
+  padding-left: 20px;
 }
 
 .alert-metadata {
