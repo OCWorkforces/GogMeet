@@ -7,7 +7,7 @@
  * using a fixed timeout, preventing race condition crashes.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
 
 const procs: ChildProcess[] = [];
@@ -106,6 +106,17 @@ async function waitForBuildOutputs(maxWaitMs: number): Promise<boolean> {
 }
 
 async function main() {
+  // Clean stale build outputs from previous runs to prevent race condition:
+  // waitForBuildOutputs only checks file existence, so old artifacts from a prior
+  // session would cause it to return immediately — launching Electron before the
+  // current rslib watch builds finish, leading to stale-code loading, renderer
+  // crashes, and infinite watcher rebuild loops.
+  for (const dir of ["lib/main", "lib/preload"]) {
+    if (existsSync(dir)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   console.log("[dev] Starting rslib watch for main process...");
   run("bun", ["x", "rslib", "build", "--watch", "-c", "rslib.config.ts"]);
 
