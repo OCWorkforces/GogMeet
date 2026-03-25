@@ -11,6 +11,9 @@ It's a macOS tray app for Google Meet calendar reminders. Fetches events from ma
 - **Settings UI** — Configure auto-open timing, login preferences, and display options via native macOS settings window
 - **Popover UI** — Click the tray icon to see upcoming meetings
 - **Tomorrow's Meetings** — Toggle to show or hide tomorrow's meetings in the popover
+- **Full-screen Alerts** — Shows full-screen overlay before meeting (configurable via windowAlert setting)
+- **Auto-updates** — Automatically updates the app when new versions are released
+- **Global Shortcut** — Press Cmd+Shift+M to join the next upcoming meeting
 
 ## Screenshots
 
@@ -21,7 +24,7 @@ _Configure how many minutes before a meeting to auto-open the browser (1-5 minut
 ## Requirements
 
 - macOS (Apple Silicon)
-- Bun 1.3.10+ or Node.js 24.14.0+
+- Bun 1.3.11+ or Node.js 20.0.0+
 
 ## Development
 
@@ -29,7 +32,7 @@ _Configure how many minutes before a meeting to auto-open the browser (1-5 minut
 bun install
 bun run dev          # Start dev server + Electron
 bun run build        # Build all processes
-bun run test         # Run test suite
+bun run test         # Run test suite (125 tests)
 bun run typecheck    # TypeScript check
 ```
 
@@ -58,8 +61,8 @@ The script will:
 
 Output examples:
 
-- With `--environment stable`: `dist/GogMeet-1.3.6-arm64-stable.dmg`
-- Without flag: `dist/GogMeet-1.3.6-arm64.dmg`
+- With `--environment stable`: `dist/GogMeet-1.6.1-arm64-stable.dmg`
+- Without flag: `dist/GogMeet-1.6.1-arm64.dmg`
 
 ### Install to Applications
 
@@ -125,8 +128,9 @@ If the app crashes or won't start:
 | Layer    | Tech            |
 | -------- | --------------- |
 | Runtime  | Electron 41     |
-| Language | TypeScript 5.9  |
+| Language | TypeScript 6.0  |
 | Build    | Rslib + Rsbuild |
+| Package  | Bun             |
 | Calendar | Swift EventKit  |
 | Test     | Vitest 4        |
 
