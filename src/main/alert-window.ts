@@ -17,7 +17,7 @@ export function showAlert(event: MeetingEvent): void {
 
   alertWindow = new BrowserWindow({
     width: 500,
-    height: event.description?.trim() ? 480 : 320,
+    height: 480,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -46,6 +46,24 @@ export function showAlert(event: MeetingEvent): void {
   alertWindow.once("ready-to-show", () => {
     alertWindow!.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
     alertWindow!.show();
+    // After the renderer paints, measure actual content height and shrink to fit
+    setTimeout(() => {
+      if (!alertWindow || alertWindow.isDestroyed()) return;
+      alertWindow.webContents
+        .executeJavaScript(
+          "document.getElementById('app')?.scrollHeight ?? 0",
+        )
+        .then((contentHeight: number) => {
+          if (!alertWindow || alertWindow.isDestroyed()) return;
+          if (typeof contentHeight === "number" && contentHeight > 0) {
+            const MIN_HEIGHT = 280;
+            const MAX_HEIGHT = 480;
+            const clamped = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(contentHeight)));
+            alertWindow.setSize(500, clamped, true);
+          }
+        })
+        .catch(() => {});
+    }, 150);
   });
 
   alertWindow.on("closed", () => {
