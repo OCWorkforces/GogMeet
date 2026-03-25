@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseEvents } from "../../src/main/calendar.js";
+import { parseEvents, cleanDescription } from "../../src/main/calendar.js";
 import type { MeetingEvent } from "../../src/shared/types.js";
 
 // Helper to create tab-delimited Swift output
@@ -401,5 +401,53 @@ describe("parseEvents", () => {
     const events = parseEvents(input);
     expect(events).toHaveLength(1);
     expect(events[0].description).toBeUndefined();
+  });
+});
+
+describe("cleanDescription", () => {
+  it("strips Outlook text-border artifacts (-::~:~::~:...)"
+    , () => {
+    const input =
+      "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-";
+    expect(cleanDescription(input)).toBe("");
+  });
+
+  it("strips long underscore separator lines", () => {
+    const input = "Hello\n________________________________\nWorld";
+    expect(cleanDescription(input)).toBe("Hello\nWorld");
+  });
+
+  it("strips long dash separator lines", () => {
+    const input = "Agenda\n--------------------------------\n1. Item";
+    expect(cleanDescription(input)).toBe("Agenda\n1. Item");
+  });
+
+  it("strips Outlook bordered separators (* ___ *)", () => {
+    const input = "Notes\n* _______________________________ *\nMore notes";
+    expect(cleanDescription(input)).toBe("Notes\nMore notes");
+  });
+
+  it("returns empty string when description is only artifacts", () => {
+    const input =
+      "-::~:~::~:~:~:~:~::~:~::-\n________________________________\n-::~:~::~:~::-";
+    expect(cleanDescription(input)).toBe("");
+  });
+
+  it("preserves real content mixed with artifacts", () => {
+    const input =
+      "-::~:~::~:~::~:~::-\nPlease join the meeting\n-::~:~::~:~::~:~::-\nAgenda:\n1. Review Q4 results\n________________________________";
+    expect(cleanDescription(input)).toBe(
+      "Please join the meeting\nAgenda:\n1. Review Q4 results", 
+);
+  });
+
+  it("preserves normal descriptions unchanged", () => {
+    const input = "Quarterly review meeting.\nPlease prepare your updates.";
+    expect(cleanDescription(input)).toBe(input);
+  });
+
+  it("does not strip short dashes or meaningful content", () => {
+    const input = "Key points:\n- Item 1\n- Item 2";
+    expect(cleanDescription(input)).toBe(input);
   });
 });
