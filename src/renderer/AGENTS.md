@@ -75,7 +75,15 @@ window.api.alert.onShowAlert(callback); // → void (listen for alert data)
 | `.meeting-time.soon` | Orange "In X min"                        |
 | `.meeting-time.now`  | Red "Starting now!"                      |
 | `.badge-auto`        | Auto-open indicator (⚡ blue badge)         |
-| `.hiding`            | Fade-out animation on close              |
+| `.alert-card`           | Alert window main container (animated)           |
+| `.alert-card.alert-dismissing` | Fade+zoom-out animation on dismiss      |
+| `.alert-badge`          | "Meeting Starting" badge label             |
+| `.alert-title`          | Meeting title heading                       |
+| `.alert-metadata`       | Meeting details container                  |
+| `.alert-actions`        | Alert button row                           |
+| `.alert-btn-join`       | Join Meeting button                         |
+| `.alert-btn-dismiss`    | Dismiss button (red)                       |
+| `.hiding`              | Fade-out animation on close                |
 
 ## SECURITY
 
@@ -113,6 +121,7 @@ Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main p
 - Receives `{ title, meetUrl }` via `ALERT_SHOW` push channel
 - Alert fires at `openBeforeMinutes + 1` minutes before meeting (e.g. if browser opens at 2 min, alert shows at 3 min)
 - Full-screen, frameless, `alwaysOnTop`, dark background (`#1d1d1f`)
-- Dismissed by Escape key, "Dismiss" button, or `window.close()`
+- Dismissed by Escape key, "Dismiss" button, or "Join Meeting" button — all trigger fade+zoom-out animation via `dismissAlert()` before `window.close()`
 - "Join Meeting" button calls `window.api.app.openExternal(url)`
 - Singleton — `showAlert()` closes any existing alert before showing new one
+- Fade+zoom-in on appear (300ms ease-out), fade+zoom-out on dismiss (250ms ease-in); respects `prefers-reduced-motion`

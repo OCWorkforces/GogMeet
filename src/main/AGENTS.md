@@ -107,38 +107,38 @@ BH|- **Browser auto-open suppressed**: When alert was already shown (user joins 
 
 | Symbol                        | Location               | Role                                          |
 | ------------------------- | ---------------------- | --------------------------------------------- |
-JN|| `startScheduler`          | `scheduler.ts:718`     | Start poll loop + initial poll                
-MW|| `stopScheduler`           | `scheduler.ts:730`     | Clear all timers on quit                      
-XH|| `restartScheduler`        | `scheduler.ts:737`     | Restart on settings change                    
+| `startScheduler`          | `scheduler.ts:755`     | Start poll loop + initial poll                |
+| `stopScheduler`           | `scheduler.ts:767`     | Clear all timers on quit                       |
+| `restartScheduler`        | `scheduler.ts:774`     | Restart on settings change                    |
 TY|| `scheduleEvents`          | `scheduler.ts:372`     | Set/clear per-event `setTimeout` timers       
 MB|| `poll`                    | `scheduler.ts:681`     | Calendar poll with error handling             
 VX|| `alertTimers`            | `scheduler.ts:179`     | Map of eventId → alert timer (fires 1 min before browser)
 QT|| `alertFiredEvents`        | `scheduler.ts:203`     | Set of eventIds that already showed alert     
-| `getCalendarEventsResult` | `calendar.ts:217`      | Swift EventKit fetch (returns CalendarResult) |
-| `parseEvents`             | `calendar.ts:145`      | Parse 8-field tab-delimited Swift output      |
+| `getCalendarEventsResult` | `calendar.ts:224`      | Swift EventKit fetch (returns CalendarResult) |
+| `parseEvents`             | `calendar.ts:149`      | Parse 8-field tab-delimited Swift output      |
 | `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |
 | `registerIpcHandlers`     | `ipc.ts:74`            | IPC registration (validateSender pattern)     |
 | `typedHandle`             | `ipc.ts:62`            | Type-safe IPC wrapper                         |
 | `validateSender`          | `ipc.ts:36`            | Origin validation against `ALLOWED_ORIGINS`   |
 | `setupTray`               | `tray.ts:60`           | System tray init                              |
-| `createWindow`            | `index.ts:44`          | BrowserWindow factory (tray popover)          |
-| `showAlert`               | `alert-window.ts:16`   | Full-screen alert BrowserWindow singleton      |
+| `createWindow`            | `index.ts:49`          | BrowserWindow factory (tray popover)          |
+| `showAlert`               | `alert-window.ts:11`   | Full-screen alert BrowserWindow singleton      |
 | `createSettingsWindow`    | `settings-window.ts:15`| Settings BrowserWindow singleton              |
 | `registerShortcuts`       | `shortcuts.ts:8`       | Global shortcut Cmd+Shift+M                   |
 | `initAutoUpdater`         | `auto-updater.ts:10`   | electron-updater setup (packaged only)        |
 | `loadSettings`            | `settings.ts:32`       | Load from userData/settings.json              |
-| `updateSettings`          | `settings.ts:84`       | Persist partial settings with clamping        |
+| `updateSettings`          | `settings.ts:93`       | Persist partial settings with clamping        |
 | `getAutoLaunchStatus`     | `auto-launch.ts:7`     | Read macOS login item status                  |
 | `setAutoLaunch`           | `auto-launch.ts:21`    | Set macOS login item                          |
 | `syncAutoLaunch`          | `auto-launch.ts:40`    | Sync if state differs                         |
-| `buildMeetUrl`            | `utils/meet-url.ts:7`  | Append `?authuser=email` to Meet URL          |
-| `isAllowedMeetUrl`        | `utils/url-validation.ts` | Validates URL against MEET_URL_ALLOWLIST      |
+| `buildMeetUrl`            | `utils/meet-url.ts:9`  | Append `?authuser=email` to Meet URL          |
+| `isAllowedMeetUrl`        | `utils/url-validation.ts:9` | Validates URL against MEET_URL_ALLOWLIST      |
 | `MEET_URL_ALLOWLIST`      | `utils/url-validation.ts` | Google domains for `shell.openExternal`       |
-| `getPackageInfo`          | `utils/packageInfo.ts`   | Read package.json at runtime                   |
+| `getPackageInfo`          | `utils/packageInfo.ts:37` | Read package.json at runtime                   |
 | `formatRemainingTime`     | `tray.ts:212`          | Format countdown for tray title               |
 | `updateTrayTitle`         | `tray.ts:227`          | Set tray title with countdown                 |
 | `checkNotificationPermission` | `notification.ts:26`  | macOS notification permission prompt           |
-| `getSettings`             | `settings.ts:80`       | Get cached settings (used in tray for showTomorrowMeetings) |
+| `getSettings`             | `settings.ts:89`       | Get cached settings (used in tray for showTomorrowMeetings) |
 
 
 ## ANTI-PATTERNS
