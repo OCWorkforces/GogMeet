@@ -38,31 +38,47 @@ export function showAlert(event: MeetingEvent): void {
   if (devUrl) {
     alertWindow.loadURL(`${devUrl}/alert.html`);
   } else {
-    alertWindow.loadFile(
-      path.join(__dirname, "..", "renderer", "alert.html"),
-    );
+    alertWindow.loadFile(path.join(__dirname, "..", "renderer", "alert.html"));
   }
 
   alertWindow.once("ready-to-show", () => {
     alertWindow!.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
-    alertWindow!.show();
-    // After the renderer paints, measure actual content height and shrink to fit
+    // Measure rendered content height before showing to avoid a visible resize flash
     setTimeout(() => {
       if (!alertWindow || alertWindow.isDestroyed()) return;
       alertWindow.webContents
         .executeJavaScript(
-          "document.getElementById('app')?.scrollHeight ?? 0",
+          `(() => {
+            const app = document.getElementById("app");
+            const card = document.querySelector(".alert-card");
+
+            if (!app || !card) {
+              return 0;
+            }
+
+            const appStyles = window.getComputedStyle(app);
+            const paddingTop = Number.parseFloat(appStyles.paddingTop) || 0;
+            const paddingBottom = Number.parseFloat(appStyles.paddingBottom) || 0;
+
+            return Math.ceil(card.getBoundingClientRect().height + paddingTop + paddingBottom);
+          })()`,
         )
         .then((contentHeight: number) => {
           if (!alertWindow || alertWindow.isDestroyed()) return;
           if (typeof contentHeight === "number" && contentHeight > 0) {
             const MIN_HEIGHT = 280;
             const MAX_HEIGHT = 480;
-            const clamped = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(contentHeight)));
-            alertWindow.setSize(500, clamped, true);
+            const clamped = Math.max(
+              MIN_HEIGHT,
+              Math.min(MAX_HEIGHT, Math.ceil(contentHeight)),
+            );
+            alertWindow.setSize(500, clamped, false);
           }
+          alertWindow!.show();
         })
-        .catch(() => {});
+        .catch(() => {
+          alertWindow?.show();
+        });
     }, 150);
   });
 
