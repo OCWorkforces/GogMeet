@@ -26,7 +26,7 @@ vi.mock("../../src/main/tray.js", () => ({
 }));
 
 const schedulerModule = await import("../../src/main/scheduler.js");
-const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, poll } = schedulerModule;
+const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, poll, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers } = schedulerModule;
 
 const { updateTrayTitle } = await import("../../src/main/tray.js");
 
@@ -243,6 +243,109 @@ describe("scheduleEvents", () => {
     // scheduledEventData should reflect the new URL
     expect(scheduledEventData.get("b9")?.meetUrl).toBe("https://meet.google.com/new-url");
   });
+
+  it("B10: start time changed to past (in-progress) cleans up orphaned future timers", () => {
+    const event = makeEvent({
+      id: "b10",
+      startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([event]);
+    expect(timers.has("b10")).toBe(true);
+    expect(schedulerModule.alertTimers.has("b10")).toBe(true);
+    // Store the old timer handles
+    const oldBrowserHandle = timers.get("b10");
+    const oldAlertHandle = schedulerModule.alertTimers.get("b10");
+    // Advance 6 min — timers haven't fired yet (alert at 9min, browser at 10min with openBefore=1)
+    vi.advanceTimersByTime(6 * 60_000);
+    // Now reschedule the same event but with start time in the past (in-progress)
+    const inProgressEvent = makeEvent({
+      id: "b10",
+      startDate: new Date(Date.now() - 3 * 60 * 1000).toISOString(), // 3 min ago
+      endDate: new Date(Date.now() + 27 * 60 * 1000).toISOString(), // ends in 27 min
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([inProgressEvent]);
+    // Old timers should be cleaned up
+    expect(timers.has("b10")).toBe(false);
+    expect(schedulerModule.alertTimers.has("b10")).toBe(false);
+    expect(schedulerModule.titleTimers.has("b10")).toBe(false);
+    expect(schedulerModule.countdownIntervals.has("b10")).toBe(false);
+    expect(schedulerModule.clearTimers.has("b10")).toBe(false);
+    // In-meeting countdown should have started
+    expect(inMeetingIntervals.has("b10")).toBe(true);
+    // fired flag should be cleared
+    expect(firedEvents.has("b10")).toBe(false);
+  });
+
+  it("B11: start time changed after browser-open fired reschedules new timer", () => {
+    const event = makeEvent({
+      id: "b11",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([event]);
+    // Advance past the timer fire time (openBefore=1min, so fires at 4min)
+    vi.advanceTimersByTime(5 * 60_000 + 100);
+    expect(firedEvents.has("b11")).toBe(true);
+    // Reschedule with new start time 15 min from now
+    const rescheduled = makeEvent({
+      id: "b11",
+      startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([rescheduled]);
+    // Should have a new timer and fired flag should be cleared
+    expect(timers.has("b11")).toBe(true);
+    expect(firedEvents.has("b11")).toBe(false);
+    const newStartMs = new Date(Date.now() + 15 * 60_000).getTime();
+    expect(scheduledEventData.get("b11")?.startMs).toBeCloseTo(newStartMs, -2);
+  });
+
+  it("B12: start time changed while alert pending reschedules both timers", () => {
+    const event = makeEvent({
+      id: "b12",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([event]);
+    // Store old timer handles
+    const oldBrowserHandle = timers.get("b12");
+    const oldAlertHandle = schedulerModule.alertTimers.get("b12");
+    expect(oldBrowserHandle).toBeDefined();
+    expect(oldAlertHandle).toBeDefined();
+    // Reschedule to 20 min from now
+    const rescheduled = makeEvent({
+      id: "b12",
+      startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([rescheduled]);
+    // Both timers should be rescheduled with new handles
+    expect(timers.get("b12")).not.toBe(oldBrowserHandle);
+    expect(schedulerModule.alertTimers.get("b12")).not.toBe(oldAlertHandle);
+    const newStartMs = new Date(Date.now() + 20 * 60_000).getTime();
+    expect(scheduledEventData.get("b12")?.startMs).toBeCloseTo(newStartMs, -2);
+  });
+
+  it("B13: fired event with unchanged start time is still skipped (regression guard)", () => {
+    const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const event = makeEvent({
+      id: "b13",
+      startDate,
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([event]);
+    // Advance past the timer fire time
+    vi.advanceTimersByTime(5 * 60_000 + 100);
+    expect(firedEvents.has("b13")).toBe(true);
+    // Call scheduleEvents with the SAME event (unchanged)
+    scheduleEvents([event]);
+    // No new timer should be created
+    expect(timers.has("b13")).toBe(false);
+    expect(firedEvents.has("b13")).toBe(true);
+  });
+
 
   // ─── Group A continued: Rescheduled-time edge cases ───────────────────────
 
