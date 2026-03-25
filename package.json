@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
@@ -8,7 +8,7 @@
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^10.0.1",
     "@rsbuild/core": "^1.7.3",
-    "@rslib/core": "^0.20.0",
+    "@rslib/core": "^0.20.1",
     "@rspack/core": "^1.7.10",
     "@tsconfig/node24": "^24.0.4",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
