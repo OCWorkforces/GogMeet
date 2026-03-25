@@ -145,6 +145,29 @@ async function runSwiftHelper(): Promise<string> {
   }
 }
 
+/** Strip Outlook/Exchange HTML-to-plaintext border artifacts from event notes. */
+export function cleanDescription(notes: string): string {
+  return notes
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return true;
+
+      // Outlook text-border: -::~:~::~:~:...:~::-
+      if (/^[-~:]+$/.test(trimmed) && trimmed.length > 10) return false;
+
+      // Long separator lines (underscores, dashes, asterisks)
+      if (/^[_\-\*]{5,}$/.test(trimmed)) return false;
+
+      // Outlook bordered separators: * ___ * or similar
+      if (/^[\*_][\s_\-\*]+[\*_]$/.test(trimmed)) return false;
+
+      return true;
+    })
+    .join("\n")
+    .trim();
+}
 /** Parse pipe-delimited output from Swift helper into MeetingEvent[] */
 export function parseEvents(raw: string): MeetingEvent[] {
   if (!raw) return [];
@@ -210,7 +233,7 @@ export function parseEvents(raw: string): MeetingEvent[] {
           calendarName: calendarName.trim(),
           isAllDay: allDayStr.trim() === "true",
           ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
-          ...(notesField?.trim() ? { description: notesField.trim() } : {}),
+          ...(notesField?.trim() ? { description: cleanDescription(notesField) } : {}),
         },
       ];
     })
