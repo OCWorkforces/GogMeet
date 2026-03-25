@@ -17,6 +17,46 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   day: "numeric",
 };
 
+let isDismissing = false;
+
+function dismissAlert(): void {
+  if (isDismissing) {
+    return;
+  }
+
+  isDismissing = true;
+
+  const card = document.querySelector<HTMLElement>(".alert-card");
+  if (!card) {
+    window.close();
+    return;
+  }
+
+  let isClosed = false;
+  const closeWindow = (): void => {
+    if (isClosed) {
+      return;
+    }
+    isClosed = true;
+    window.close();
+  };
+
+  const fallbackTimer = window.setTimeout(() => {
+    closeWindow();
+  }, 300);
+
+  card.addEventListener(
+    "animationend",
+    () => {
+      window.clearTimeout(fallbackTimer);
+      closeWindow();
+    },
+    { once: true },
+  );
+
+  card.classList.add("alert-dismissing");
+}
+
 function formatTimeRange(
   startISO: string,
   endISO: string,
@@ -54,7 +94,6 @@ function render(data: AlertPayload): void {
   const title = escapeHtml(data.title);
   const calendarName = escapeHtml(data.calendarName ?? "Unknown calendar");
   const description = data.description?.trim() ?? "";
-  const escapedDescription = description ? escapeHtml(description) : "";
   const timeRange = formatTimeRange(
     data.startDate ?? "",
     data.endDate ?? "",
@@ -69,8 +108,8 @@ function render(data: AlertPayload): void {
         <h1 class="alert-title">${title}</h1>
 
         ${
-          escapedDescription
-            ? `<div class="alert-description-wrapper"><p class="alert-description">${escapedDescription}</p></div>`
+          description
+            ? `<div class="alert-description-wrapper"><div class="alert-description">${description}</div></div>`
             : ""
         }
 
@@ -118,12 +157,12 @@ function setupDelegatedEvents(): void {
       if (url) {
         window.api.app.openExternal(url);
       }
-      window.close();
+      dismissAlert();
       return;
     }
 
     if (action === "dismiss") {
-      window.close();
+      dismissAlert();
     }
   });
 }
@@ -131,7 +170,7 @@ function setupDelegatedEvents(): void {
 function setupKeyboardDismiss(): void {
   document.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      window.close();
+      dismissAlert();
     }
   });
 }

@@ -15,6 +15,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const isDev = !app.isPackaged;
 
+// Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
+// These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
+// Setting log-level to 3 (ERROR) filters out WARNING-level Chromium messages.
+app.commandLine.appendSwitch('log-level', '3');
+
 // === Process-level error handlers ===
 process.on("uncaughtException", (error: Error) => {
   console.error("[main] Uncaught exception:", error);

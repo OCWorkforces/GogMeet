@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-03-22
-**Commit:** fb362b3
+**Generated:** 2026-03-25
+**Commit:** 8e430e5
 **Branch:** develop
 
 ## OVERVIEW
@@ -14,7 +14,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Framework | Electron 41                               |
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
-Test      | Vitest 4 (workspace, 121 tests)           
+Test      | Vitest 4 (workspace, 125 tests)           
 
 ## STRUCTURE
 
@@ -33,7 +33,6 @@ src/
 │   ├── shortcuts.ts      # Global keyboard shortcut (Cmd+Shift+M)
 │   ├── auto-updater.ts   # Electron auto-updater (packaged builds)
 │   ├── notification.ts   # Notification permission check
-│   ├── logger.ts         # Structured logging utility (unused)
 │   ├── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
 │   └── utils/        # Main process utilities
 │       ├── meet-url.ts       # buildMeetUrl with ?authuser=email
@@ -91,28 +90,28 @@ src/
 
 | Symbol                        | Type  | Location                           | Role                                                                                                                |
 | ----------------------------- | ----- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `createWindow`                | fn    | src/main/index.ts:44               | BrowserWindow factory                                                                                               |
+| `createWindow`                | fn    | src/main/index.ts:49               | BrowserWindow factory                                                                                               |
 | `setupTray`                   | fn    | src/main/tray.ts:60                | System tray init                                                                                                    |
-| `showAlert`                   | fn    | src/main/alert-window.ts:16        | Full-screen alert BrowserWindow                                                                                     |
+| `showAlert`                   | fn    | src/main/alert-window.ts:11        | Full-screen alert BrowserWindow                                                                                     |
 | `registerShortcuts`           | fn    | src/main/shortcuts.ts:8            | Global shortcut Cmd+Shift+M                                                                                         |
 | `initAutoUpdater`             | fn    | src/main/auto-updater.ts:10        | electron-updater setup (packaged only)                                                                              |
 | `registerIpcHandlers`         | fn    | src/main/ipc.ts:74                 | IPC registration                                                                                                    |
 | `typedHandle`                 | fn    | src/main/ipc.ts:62                 | Type-safe IPC wrapper                                                                                               |
 | `validateSender`              | fn    | src/main/ipc.ts:36                 | Origin validation against ALLOWED_ORIGINS                                                                           |
-| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:217           | Swift EventKit fetch                                                                                                |
-| `parseEvents`                 | fn    | src/main/calendar.ts:145           | Parses tab-delimited Swift output                                                                                   |
-| `requestCalendarPermission`   | fn    | src/main/calendar.ts:239           | macOS EventKit permission prompt                                                                                    |
-| `getCalendarPermissionStatus` | fn    | src/main/calendar.ts:253           | Read current calendar permission                                                                                    |
-`startScheduler`              | fn    | src/main/scheduler.ts:718          | Start poll loop                                                                                                     
-`stopScheduler`               | fn    | src/main/scheduler.ts:730          | Clear all timers                                                                                                    
-`restartScheduler`            | fn    | src/main/scheduler.ts:737          | Restart on settings change                                                                                           
+| `getCalendarEventsResult`     | fn    | src/main/calendar.ts:224           | Swift EventKit fetch                                                                                                |
+| `parseEvents`                 | fn    | src/main/calendar.ts:149           | Parses tab-delimited Swift output                                                                                   |
+| `requestCalendarPermission`   | fn    | src/main/calendar.ts:246           | macOS EventKit permission prompt                                                                                    |
+| `getCalendarPermissionStatus` | fn    | src/main/calendar.ts:260           | Read current calendar permission                                                                                    |
+`startScheduler`              | fn    | src/main/scheduler.ts:755          | Start poll loop                                                                                                      |
+`stopScheduler`               | fn    | src/main/scheduler.ts:767          | Clear all timers                                                                                                    |
+`restartScheduler`            | fn    | src/main/scheduler.ts:774          | Restart on settings change                                                                                            |
 `scheduleEvents`              | fn    | src/main/scheduler.ts:372          | Per-event setTimeout timers (uses `alertTimers` map for alert window)                                                                                         
-`poll`                        | fn    | src/main/scheduler.ts:681          | Calendar poll with error handling                                                                                   
-| `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:7       | Appends `?authuser=email`                                                                                           |
-| `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts   | Validates against MEET_URL_ALLOWLIST                                                                                |
+`poll`                        | fn    | src/main/scheduler.ts:718          | Calendar poll with error handling                                                                                    |
+| `buildMeetUrl`                | fn    | src/main/utils/meet-url.ts:9       | Appends `?authuser=email`                                                                                           |
+| `isAllowedMeetUrl`            | fn    | src/main/utils/url-validation.ts:9 | Validates against MEET_URL_ALLOWLIST                                                                                |
 | `MEET_URL_ALLOWLIST`          | const | src/main/utils/url-validation.ts:2 | Google domains for shell.openExternal                                                                               |
-`getSettings`                | fn    | src/main/settings.ts:80            | Load settings (returns merged defaults)                                                                              
-| `updateSettings`              | fn    | src/main/settings.ts:84            | Persist partial settings                                                                                            |
+`getSettings`                | fn    | src/main/settings.ts:89            | Load settings (returns merged defaults)                                                                              |
+| `updateSettings`              | fn    | src/main/settings.ts:93            | Persist partial settings                                                                                            |
 | `createSettingsWindow`        | fn    | src/main/settings-window.ts:15     | Singleton settings window                                                                                           |
 | `getAutoLaunchStatus`         | fn    | src/main/auto-launch.ts:7          | Read macOS login item status                                                                                        |
 | `setAutoLaunch`               | fn    | src/main/auto-launch.ts:21         | Set macOS login item                                                                                                |
@@ -120,12 +119,12 @@ src/
 | `formatRemainingTime`         | fn    | src/main/tray.ts:212               | Format countdown for tray title                                                                                     |
 | `updateTrayTitle`             | fn    | src/main/tray.ts:227               | Set tray title with countdown                                                                                       |
 | `checkNotificationPermission` | fn    | src/main/notification.ts:26        | macOS notification permission prompt                                                                                |
-| `getPackageInfo`              | fn    | src/main/utils/packageInfo.ts      | Read package.json at runtime                                                                                        |
+| `getPackageInfo`              | fn    | src/main/utils/packageInfo.ts:37      | Read package.json at runtime                                                                                |
 | `IPC_CHANNELS`                | const | src/shared/types.ts:2              | 11 channel names                                                                                                    |
 | `IpcChannelMap`               | type  | src/shared/types.ts:17             | Request/response type map                                                                                           |
 | `MeetingEvent`                | iface | src/shared/types.ts:25             | Event data model                                                                                                    |
-|| `AppSettings`                 | iface | `src/shared/types.ts:43`             | { schemaVersion, openBeforeMinutes, launchAtLogin, showTomorrowMeetings, windowAlert }                          
-|| `DEFAULT_SETTINGS`            | const | `src/shared/types.ts:57`             | { schemaVersion: 1, openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true }
+|| `AppSettings`                 | iface | `src/shared/types.ts:44`             | { schemaVersion, openBeforeMinutes, launchAtLogin, showTomorrowMeetings, windowAlert }
+|| `DEFAULT_SETTINGS`            | const | `src/shared/types.ts:58`             | { schemaVersion: 1, openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true }
 | `AppState`                    | type  | src/renderer/index.ts:5            | UI state union                                                                                                      |
 | `api`                         | const | src/preload/index.ts:5             | Context bridge API                                                                                                  |
 
@@ -144,6 +143,7 @@ src/
 - **Renderer logging**: Raw `console.*` calls (no structured logger)
 - **Main process logging**: `electron-log` for shortcuts and auto-updater; `console.*` for auto-launch/notification
 - **Dev env var**: `VITE_DEV_SERVER_URL` (legacy name from Vite migration, functional)
+- **Alert animations**: Fade+zoom in/out via CSS keyframes; `dismissAlert()` in alert renderer handles animation-then-close
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -218,7 +218,7 @@ Two GitHub Actions workflows in `.github/workflows/`:
 - **Launch at login**: Uses `app.setLoginItemSettings()` to enable/disable auto-start on macOS login
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **Tests**: 121 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
+- **Tests**: 125 tests covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
 
 ## TESTS
 

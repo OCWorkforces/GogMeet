@@ -387,6 +387,39 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       if (endMs > now) {
         // Meeting in progress — start in-meeting countdown
         activeIds.add(event.id);
+
+        // --- Clean up any pending future timers (e.g., event rescheduled to past) ---
+        const pendingTimer = state.timers.get(event.id);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          state.timers.delete(event.id);
+        }
+        const pendingAlert = state.alertTimers.get(event.id);
+        if (pendingAlert) {
+          clearTimeout(pendingAlert);
+          state.alertTimers.delete(event.id);
+        }
+        const pendingTitle = state.titleTimers.get(event.id);
+        if (pendingTitle) {
+          clearTimeout(pendingTitle);
+          state.titleTimers.delete(event.id);
+        }
+        const pendingCountdown = state.countdownIntervals.get(event.id);
+        if (pendingCountdown) {
+          clearInterval(pendingCountdown);
+          state.countdownIntervals.delete(event.id);
+        }
+        const pendingClear = state.clearTimers.get(event.id);
+        if (pendingClear) {
+          clearTimeout(pendingClear);
+          state.clearTimers.delete(event.id);
+        }
+        // Only clear fired flags if event hasn't fired yet - preserve if already fired
+        if (!state.firedEvents.has(event.id)) {
+          state.firedEvents.delete(event.id);
+          state.alertFiredEvents.delete(event.id);
+        }
+
         if (!state.inMeetingIntervals.has(event.id)) {
           state.scheduledEventData.set(event.id, {
             title: event.title,
@@ -403,8 +436,17 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     activeIds.add(event.id);
 
-    // Already fired — skip
-    if (state.firedEvents.has(event.id)) continue;
+    // Already fired — check if time changed
+    if (state.firedEvents.has(event.id)) {
+      const prevData = state.scheduledEventData.get(event.id);
+      if (prevData && prevData.startMs !== startMs) {
+        // Start time changed after browser already opened — allow reschedule
+        state.firedEvents.delete(event.id);
+        state.alertFiredEvents.delete(event.id);
+      } else {
+        continue; // already fired, no change
+      }
+    }
 
     // Already scheduled — check what changed
     if (state.timers.has(event.id)) {
@@ -505,7 +547,6 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     const handle = setTimeout(() => {
       state.timers.delete(event.id);
-      state.scheduledEventData.delete(event.id);
       state.firedEvents.add(event.id);
       // Always show notification for all meetings
       new Notification({
