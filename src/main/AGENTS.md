@@ -110,10 +110,10 @@ BH|- **Browser auto-open suppressed**: When alert was already shown (user joins 
 | `startScheduler`          | `scheduler.ts:755`     | Start poll loop + initial poll                |
 | `stopScheduler`           | `scheduler.ts:767`     | Clear all timers on quit                       |
 | `restartScheduler`        | `scheduler.ts:774`     | Restart on settings change                    |
-TY|| `scheduleEvents`          | `scheduler.ts:372`     | Set/clear per-event `setTimeout` timers       
-MB|| `poll`                    | `scheduler.ts:681`     | Calendar poll with error handling             
+| `scheduleEvents`          | `scheduler.ts:372`     | Set/clear per-event `setTimeout` timers
+| `poll`                    | `scheduler.ts:718`     | Calendar poll with error handling             |
 VX|| `alertTimers`            | `scheduler.ts:179`     | Map of eventId → alert timer (fires 1 min before browser)
-QT|| `alertFiredEvents`        | `scheduler.ts:203`     | Set of eventIds that already showed alert     
+QT|| `alertFiredEvents`        | `scheduler.ts:203`     | Set of eventIds that already showed alert
 | `getCalendarEventsResult` | `calendar.ts:224`      | Swift EventKit fetch (returns CalendarResult) |
 | `parseEvents`             | `calendar.ts:149`      | Parse 8-field tab-delimited Swift output      |
 | `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |

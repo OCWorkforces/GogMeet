@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
 **Generated:** 2026-03-25
-**Commit:** 8e430e5
+**Commit:** 91b3a35
 **Branch:** develop
 
 ## OVERVIEW
@@ -190,7 +190,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 
 ## PACKAGING
 
-- `electron-builder` for macOS arm64 only
+- `electron-builder` for macOS arm64 + x64 (separate builds, no universal)
 - Hardened runtime disabled, Gatekeeper disabled (dev/unsigned build mode)
 - Notarization via `build/notarize.cjs` afterSign hook (requires `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 - Entitlements in `build/entitlements.mac*.plist` (JIT, unsigned memory, calendar, Apple Events)
@@ -205,7 +205,7 @@ Dev orchestration: `scripts/dev.ts` spawns 3 processes (2x rslib watch + rsbuild
 Two GitHub Actions workflows in `.github/workflows/`:
 
 - **`pr-check.yml`**: Runs on PR/push to `develop`/`main` — `bun install --frozen-lockfile`, `typecheck`, `test`, `test:coverage`
-- **`release.yml`**: Runs on version tags (`v*`) — `build`, `package` (requires `GH_TOKEN`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
+- **`release.yml`**: Runs on push to `main` (creates version tag) + `v*` tags — `build`, `package` (requires `GH_TOKEN`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`)
 
 ## NOTES
 

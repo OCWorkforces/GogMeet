@@ -7,8 +7,8 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 ```
 tests/
 ├── main/
-│   ├── scheduler.test.ts  # 537 lines — scheduler state machine (26 tests)
-│   ├── calendar.test.ts   # 360 lines — Swift output parsing (16 tests)
+│   ├── scheduler.test.ts  # 640 lines — scheduler state machine (26 tests)
+│   ├── calendar.test.ts   # 405 lines — Swift output parsing (16 tests)
 │   ├── meet-url.test.ts   # 140 lines — URL building + allowlist (17 tests)
 │   ├── ipc.test.ts        # 102 lines — security validation (15 tests)
 │   ├── settings.test.ts   # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
@@ -51,9 +51,9 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 ```
 
 | File              | Lines | Tests | Focus                                  |
-| scheduler.test.ts | 537   | 26    | State machine, race conditions, timers |
+| scheduler.test.ts | 640   | 26    | State machine, race conditions, timers |
 | meet-url.test.ts  | 140   | 17    | URL building with authuser + allowlist |
-| calendar.test.ts  | 360   | 16    | parseEvents, dedup, date filtering     |
+| calendar.test.ts  | 405   | 16    | parseEvents, dedup, date filtering     |
 | ipc.test.ts       | 102   | 15    | validateSender, isAllowedMeetUrl       |
 | settings.test.ts  | 204   | 11    | File I/O, clamping, defaults, launchAtLogin |
 | tray.test.ts      | 167   | 9     | Tray title, time formatting            |
@@ -65,7 +65,7 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 | Group   | Focus                     |
 | ------- | ------------------------- |
 | A1-A7   | Event deletion/reschedule |
-| B8-B9   | Title/URL changes         |
+| B8-B13  | Title/URL/startTime changes           |
 | C10-C13 | Race conditions           |
 | D14-D15 | Concurrent countdowns     |
 | E16-E18 | Error handling            |
