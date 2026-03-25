@@ -99,7 +99,6 @@ function render(data: AlertPayload): void {
     data.endDate ?? "",
     data.isAllDay ?? false,
   );
-  const escapedUrl = data.meetUrl ? escapeHtml(data.meetUrl) : "";
 
   app.innerHTML = `
     <section class="alert-window" role="dialog" aria-live="polite" aria-label="Meeting starting alert">
@@ -125,11 +124,6 @@ function render(data: AlertPayload): void {
         </div>
 
         <div class="alert-actions">
-          ${
-            data.meetUrl
-              ? `<button class="alert-btn alert-btn-join" data-action="join" data-url="${escapedUrl}">Join Meeting</button>`
-              : ""
-          }
           <button class="alert-btn alert-btn-dismiss" data-action="dismiss">Dismiss</button>
         </div>
       </article>
@@ -152,14 +146,6 @@ function setupDelegatedEvents(): void {
 
     const action = target.dataset["action"];
 
-    if (action === "join") {
-      const url = target.dataset["url"];
-      if (url) {
-        window.api.app.openExternal(url);
-      }
-      dismissAlert();
-      return;
-    }
 
     if (action === "dismiss") {
       dismissAlert();

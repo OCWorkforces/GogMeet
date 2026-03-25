@@ -12,7 +12,6 @@
   --alert-card-bg: rgba(30, 30, 30, 0.8);
   --alert-card-border: rgba(255, 255, 255, 0.16);
   --alert-card-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
-  --alert-join-bg: rgba(10, 132, 255, 0.3);
   --alert-dismiss-text: #ff453a;
   --alert-dismiss-bg: rgba(255, 69, 58, 0.2);
   --alert-dismiss-border: rgba(255, 69, 58, 0.35);
@@ -40,6 +39,7 @@ body {
 
 .alert-window {
   width: 100%;
+  -webkit-app-region: drag;
 }
 
 @keyframes alert-fade-zoom-in {
@@ -237,17 +237,6 @@ body {
   transform: scale(0.97);
 }
 
-.alert-btn-join {
-  border: none;
-  background: var(--alert-join-bg);
-  color: #ffffff;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
-.alert-btn-join:hover {
-  background: rgba(10, 132, 255, 0.45);
-}
 
 .alert-btn-dismiss {
   border: 1px solid var(--alert-dismiss-border);
@@ -265,6 +254,12 @@ body {
 .alert-btn:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.8);
   outline-offset: 2px;
+}
+
+/* Interactive elements must not trigger window drag */
+.alert-actions,
+.alert-description-wrapper {
+  -webkit-app-region: no-drag;
 }
 
 @media (prefers-reduced-motion: reduce) {
