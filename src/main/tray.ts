@@ -109,7 +109,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
     const upcoming = events.filter((e) => {
       if (e.isAllDay) return false;
-      return new Date(e.startDate) > now;
+      return new Date(e.endDate) > now;
     });
 
     if (upcoming.length === 0) {
@@ -137,8 +137,12 @@ export function setupTray(mainWindow: BrowserWindow): void {
       items.push({ label: "Today", enabled: false });
       for (const event of todayEvents) {
         const hasUrl = !!event.meetUrl;
+        const isInProgress = new Date(event.startDate) <= now;
+        const timeLabel = isInProgress
+          ? `${formatMeetingTime(event.startDate)} – In progress`
+          : formatMeetingTime(event.startDate);
         items.push({
-          label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
+          label: `${event.title}  –  ${timeLabel}`,
           enabled: hasUrl,
           ...(hasUrl && {
             click: () => {

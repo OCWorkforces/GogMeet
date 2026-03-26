@@ -23,18 +23,23 @@ let settings: AppSettings = {
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
 
-function formatRelativeTime(isoDate: string): { label: string; cls: string } {
+function formatRelativeTime(startDate: string, endDate: string): { label: string; cls: string } {
   const now = Date.now();
-  const start = new Date(isoDate).getTime();
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
   const diffMs = start - now;
   const diffMin = Math.round(diffMs / 60000);
 
-  if (diffMs < 0 && Math.abs(diffMs) < 30 * 60000) {
+  // Meeting is in progress (started but not ended)
+  if (start <= now && now < end) {
     return { label: "In progress", cls: "now" };
   }
-  if (diffMin <= 0) {
+
+  // Meeting has ended
+  if (now >= end) {
     return { label: "Ended", cls: "" };
   }
+
   if (diffMin < 1) {
     return { label: "Starting now!", cls: "now" };
   }
@@ -42,7 +47,7 @@ function formatRelativeTime(isoDate: string): { label: string; cls: string } {
     return { label: `In ${diffMin} min`, cls: "soon" };
   }
 
-  const startTime = new Date(isoDate);
+  const startTime = new Date(startDate);
   const hours = startTime.getHours().toString().padStart(2, "0");
   const minutes = startTime.getMinutes().toString().padStart(2, "0");
   return { label: `${hours}:${minutes}`, cls: "" };
@@ -141,7 +146,7 @@ function renderBody(s: AppState): string {
       if (upcoming.length > 0) {
         html += `<p class="section-header">${sectionHeader}</p>`;
         upcoming.forEach((event, i) => {
-          const rel = formatRelativeTime(event.startDate);
+          const rel = formatRelativeTime(event.startDate, event.endDate);
           const autoJoin = !event.isAllDay && !!event.meetUrl;
           html += `
             <div class="meeting-item">
