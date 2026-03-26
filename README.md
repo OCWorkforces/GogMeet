@@ -21,6 +21,10 @@ It's a macOS tray app for Google Meet calendar reminders. Fetches events from ma
 
 _Configure how many minutes before a meeting to auto-open the browser (1-5 minutes)_
 
+## Download
+
+Download the latest release from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
+
 ## Requirements
 
 - macOS (Apple Silicon)
