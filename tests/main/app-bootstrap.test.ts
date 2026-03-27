@@ -36,10 +36,20 @@ describe("main/index.ts", () => {
       "utf-8",
     );
 
+    // index.ts delegates to lifecycle.ts for subsystem initialization
+    expect(content).toContain('from "./lifecycle.js"');
+    expect(content).toContain('from "./utils/packageInfo.js"');
+  });
+
+  it("lifecycle.ts imports from all subsystem modules", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/lifecycle.ts"),
+      "utf-8",
+    );
+
     expect(content).toContain('from "./tray.js"');
     expect(content).toContain('from "./ipc.js"');
     expect(content).toContain('from "./scheduler.js"');
-    expect(content).toContain('from "./utils/packageInfo.js"');
     expect(content).toContain('from "./settings.js"');
     expect(content).toContain('from "./auto-launch.js"');
     expect(content).toContain('from "./notification.js"');
