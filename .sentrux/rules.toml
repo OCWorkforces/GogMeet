@@ -31,3 +31,67 @@ name = "no-source-to-test-import"
 from = "src"
 to = "tests"
 type = "forbidden"
+
+# Shared must be self-contained — no reverse dependencies
+# (shared defines types used by all processes; it must not depend on them)
+[[rules]]
+name = "shared-no-main-import"
+from = "src/shared"
+to = "src/main"
+type = "forbidden"
+
+[[rules]]
+name = "shared-no-renderer-import"
+from = "src/shared"
+to = "src/renderer"
+type = "forbidden"
+
+[[rules]]
+name = "shared-no-preload-import"
+from = "src/shared"
+to = "src/preload"
+type = "forbidden"
+
+# Preload must ONLY import from shared (types/channels)
+# (already partially covered, but also forbid renderer imports)
+[[rules]]
+name = "no-preload-to-renderer-import"
+from = "src/preload"
+to = "src/renderer"
+type = "forbidden"
+
+# Main utilities must stay isolated — no business logic dependencies
+# (utils are pure helpers; they should not depend on scheduler, tray, etc.)
+[[rules]]
+name = "utils-no-scheduler-import"
+from = "src/main/utils"
+to = "src/main/scheduler"
+type = "forbidden"
+
+[[rules]]
+name = "utils-no-tray-import"
+from = "src/main/utils"
+to = "src/main/tray"
+type = "forbidden"
+
+[[rules]]
+name = "utils-no-settings-import"
+from = "src/main/utils"
+to = "src/main/settings"
+type = "forbidden"
+
+# IPC handlers must not create circular dependencies
+# (calendar handler should not depend on scheduler — use events instead)
+[[rules]]
+name = "ipc-calendar-no-scheduler"
+from = "src/main/ipc-handlers/calendar"
+to = "src/main/scheduler"
+type = "forbidden"
+
+# Renderer must not import from preload directly
+# (communication goes through context bridge API)
+[[rules]]
+name = "no-renderer-to-preload-import"
+from = "src/renderer"
+to = "src/preload"
+type = "forbidden"
