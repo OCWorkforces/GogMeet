@@ -10,6 +10,7 @@ app: {
     showAboutPanel: vi.fn(),
     getPath: vi.fn().mockReturnValue("/tmp/test-user-data"),
   },
+  commandLine: { appendSwitch: vi.fn() },
   ipcMain: {
     handle: vi.fn(),
     on: vi.fn(),
