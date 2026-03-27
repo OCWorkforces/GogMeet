@@ -11,7 +11,7 @@ import type {
   MeetingEvent,
   CalendarPermission,
   CalendarResult,
-} from "../shared/types.js";
+} from "../shared/models.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = join(fileURLToPath(import.meta.url), "..");

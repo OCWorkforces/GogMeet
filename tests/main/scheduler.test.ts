@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { MeetingEvent } from "../../src/shared/types.js";
+import type { MeetingEvent } from "../../src/shared/models.js";
 
 // Mock electron before importing scheduler
 vi.mock("electron", () => {
@@ -25,10 +25,16 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: vi.fn(),
 }));
 
+const mockUpdateTrayTitle = vi.fn();
+
 const schedulerModule = await import("../../src/main/scheduler.js");
-const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, poll, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers } = schedulerModule;
+const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, setTrayTitleCallback, poll, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers } = schedulerModule;
+
+// Inject mock tray callback into scheduler
+setTrayTitleCallback(mockUpdateTrayTitle);
 
 const { updateTrayTitle } = await import("../../src/main/tray.js");
+
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   return {
@@ -52,7 +58,7 @@ describe("scheduleEvents", () => {
     scheduledEventData.clear();
     schedulerModule.countdownIntervals.clear();
     schedulerModule._resetConsecutiveErrors();
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -61,7 +67,7 @@ describe("scheduleEvents", () => {
     scheduledEventData.clear();
     schedulerModule.countdownIntervals.clear();
     schedulerModule._resetConsecutiveErrors();
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
   });
   it("rescheduled event gets a new timer at the new start time", () => {
     const originalStart = new Date(Date.now() + 5 * 60 * 1000);
@@ -124,25 +130,25 @@ describe("scheduleEvents", () => {
       startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
     scheduleEvents([event]);
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith("Test Meeting", expect.any(Number));
-    vi.mocked(updateTrayTitle).mockClear();
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith("Test Meeting", expect.any(Number));
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Next poll — event deleted
     scheduleEvents([]);
 
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith(null);
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith(null);
   });
 
   it("A5: second event is promoted when the earliest countdown event is deleted", () => {
     const first = makeEvent({ id: "first", title: "First Meeting", startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString() });
     const second = makeEvent({ id: "second", title: "Second Meeting", startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString() });
     scheduleEvents([first, second]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Delete the first (earliest) — second should take over
     scheduleEvents([second]);
 
-    const calls = vi.mocked(updateTrayTitle).mock.calls;
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls;
     const lastCall = calls[calls.length - 1];
     expect(lastCall?.[0]).toBe("Second Meeting");
   });
@@ -151,12 +157,12 @@ describe("scheduleEvents", () => {
     const first = makeEvent({ id: "first", title: "First Meeting", startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString() });
     const second = makeEvent({ id: "second", title: "Second Meeting", startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString() });
     scheduleEvents([first, second]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Delete second (non-owning) — first should still be shown
     scheduleEvents([first]);
 
-    const calls = vi.mocked(updateTrayTitle).mock.calls;
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls;
     const calledWithNull = calls.some((c) => c[0] === null);
     expect(calledWithNull).toBe(false);
     const lastCall = calls[calls.length - 1];
@@ -167,11 +173,11 @@ describe("scheduleEvents", () => {
     const e1 = makeEvent({ id: "e1", title: "Meeting 1", startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
     const e2 = makeEvent({ id: "e2", title: "Meeting 2", startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString() });
     scheduleEvents([e1, e2]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     scheduleEvents([]); // all gone
 
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith(null);
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith(null);
   });
 
   // ─── Group D: Multiple concurrent countdowns ─────────────────────────────
@@ -184,7 +190,7 @@ describe("scheduleEvents", () => {
     // Advance 1 min to trigger per-minute ticks on both countdowns
     vi.advanceTimersByTime(60_000);
 
-    const nonNullCalls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] !== null);
+    const nonNullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] !== null);
     const lastContentCall = nonNullCalls[nonNullCalls.length - 1];
     expect(lastContentCall?.[0]).toBe("Early Meeting");
     const laterCalls = nonNullCalls.filter((c) => c[0] === "Late Meeting");
@@ -194,13 +200,13 @@ describe("scheduleEvents", () => {
   it("D15: a new closer event entering the window takes tray ownership", () => {
     const far = makeEvent({ id: "far", title: "Far Meeting", startDate: new Date(Date.now() + 25 * 60 * 1000).toISOString() });
     scheduleEvents([far]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Second poll: closer event enters window alongside far
     const close = makeEvent({ id: "close", title: "Close Meeting", startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
     scheduleEvents([far, close]);
 
-    const calls = vi.mocked(updateTrayTitle).mock.calls;
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls;
     const lastCall = calls[calls.length - 1];
     expect(lastCall?.[0]).toBe("Close Meeting");
   });
@@ -212,14 +218,14 @@ describe("scheduleEvents", () => {
     const event = makeEvent({ id: "b8", title: "Old Title", startDate });
     scheduleEvents([event]);
     const timerHandleBefore = timers.get("b8");
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Next poll — same event, same time, only title changed
     const renamed = makeEvent({ id: "b8", title: "New Title", startDate });
     scheduleEvents([renamed]);
 
     // Tray should update with new title
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith("New Title", expect.any(Number));
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith("New Title", expect.any(Number));
     // Browser-open timer must NOT have been rescheduled
     expect(timers.get("b8")).toBe(timerHandleBefore);
     // scheduledEventData should reflect the new title
@@ -231,7 +237,7 @@ describe("scheduleEvents", () => {
     const event = makeEvent({ id: "b9", title: "Meeting", meetUrl: "https://meet.google.com/old-url", startDate });
     scheduleEvents([event]);
     const timerHandleBefore = timers.get("b9");
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Next poll — same event, same time, only URL changed
     const urlChanged = makeEvent({ id: "b9", title: "Meeting", meetUrl: "https://meet.google.com/new-url", startDate });
@@ -353,15 +359,15 @@ describe("scheduleEvents", () => {
     const inWindowStart = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "a2", startDate: inWindowStart });
     scheduleEvents([event]);
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith("Test Meeting", expect.any(Number));
-    vi.mocked(updateTrayTitle).mockClear();
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith("Test Meeting", expect.any(Number));
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Rescheduled to 45 min away (outside 30-min window)
     const rescheduled = makeEvent({ id: "a2", startDate: new Date(Date.now() + 45 * 60 * 1000).toISOString() });
     scheduleEvents([rescheduled]);
 
     // Tray must clear (no more active countdown)
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith(null);
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith(null);
     // A future title timer must be set
     expect(timers.has("a2")).toBe(true); // browser open timer rescheduled
   });
@@ -370,7 +376,7 @@ describe("scheduleEvents", () => {
     const originalStart = new Date(Date.now() + 25 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "a3", startDate: originalStart });
     scheduleEvents([event]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Rescheduled to 10 min away (still in window, but closer)
     const newStart = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -378,7 +384,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([rescheduled]);
 
     // Countdown must show ~10 mins remaining, not ~25
-    const calls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] !== null);
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] !== null);
     const lastCall = calls[calls.length - 1];
     expect(lastCall?.[1]).toBeLessThanOrEqual(10);
     expect(lastCall?.[1]).toBeGreaterThan(0);
@@ -388,7 +394,7 @@ describe("scheduleEvents", () => {
     const inWindowStart = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "a4", startDate: inWindowStart });
     scheduleEvents([event]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Rescheduled to 23 hours away
     const tomorrow = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
@@ -396,7 +402,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([rescheduled]);
 
     // Tray must clear
-    expect(vi.mocked(updateTrayTitle)).toHaveBeenCalledWith(null);
+    expect(vi.mocked(mockUpdateTrayTitle)).toHaveBeenCalledWith(null);
     // Browser timer rescheduled for 23h out
     expect(timers.has("a4")).toBe(true);
     // scheduledEventData must reflect new start
@@ -413,7 +419,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([event]);
     // titleTimer is set but countdown not yet started
     expect(timers.has("c10")).toBe(true);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Event is deleted before the titleTimer fires
     scheduleEvents([]);
@@ -422,7 +428,7 @@ describe("scheduleEvents", () => {
     vi.advanceTimersByTime(6 * 60 * 1000);
 
     // startCountdown should have bailed — no countdown interval, no tray update with a title
-    const calls = vi.mocked(updateTrayTitle).mock.calls;
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls;
     const titleCalls = calls.filter((c) => c[0] !== null);
     expect(titleCalls).toHaveLength(0);
   });
@@ -431,7 +437,7 @@ describe("scheduleEvents", () => {
     const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "c11", startDate });
     scheduleEvents([event]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Advance to meeting start — clearTimer fires, clearing the tray
     vi.advanceTimersByTime(5 * 60 * 1000 + 100);
@@ -440,7 +446,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([]);
 
     // updateTrayTitle(null) may be called multiple times but must not throw
-    const nullCalls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] === null);
+    const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -474,13 +480,13 @@ describe("scheduleEvents", () => {
 
     // Both in countdown window
     scheduleEvents([far, close]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Advance 1 minute — both per-minute ticks fire
     vi.advanceTimersByTime(60_000);
 
     // Only Close Meeting's title should appear; Far Meeting's tick must be suppressed
-    const calls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] !== null);
+    const calls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] !== null);
     const farCalls = calls.filter((c) => c[0] === "Far Meeting");
     expect(farCalls).toHaveLength(0);
     const closeCalls = calls.filter((c) => c[0] === "Close Meeting");
@@ -492,7 +498,7 @@ describe("scheduleEvents", () => {
     const event = makeEvent({ id: "e16", startDate });
     scheduleEvents([event]);
     expect(schedulerModule.countdownIntervals.size).toBe(1);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
@@ -507,7 +513,7 @@ describe("scheduleEvents", () => {
     await schedulerModule.poll();
     expect(schedulerModule.consecutiveErrors).toBe(3);
     expect(schedulerModule.countdownIntervals.size).toBe(0);
-    const nullCalls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] === null);
+    const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
 
     // Reset mock
@@ -518,7 +524,7 @@ describe("scheduleEvents", () => {
     const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "e16b", startDate });
     scheduleEvents([event]);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
@@ -541,12 +547,12 @@ describe("scheduleEvents", () => {
     const event = makeEvent({ id: "e18", startDate });
     scheduleEvents([event]);
     expect(schedulerModule.countdownIntervals.size).toBe(1);
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     scheduleEvents([]);
 
     expect(schedulerModule.countdownIntervals.size).toBe(0);
-    const nullCalls = vi.mocked(updateTrayTitle).mock.calls.filter((c) => c[0] === null);
+    const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -562,7 +568,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     scheduledEventData.clear();
     schedulerModule.countdownIntervals.clear();
     schedulerModule._resetConsecutiveErrors();
-    vi.mocked(updateTrayTitle).mockClear();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Create mock window with webContents.send
     mockWebContentsSend = vi.fn();

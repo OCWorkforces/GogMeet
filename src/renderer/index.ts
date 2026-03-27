@@ -1,5 +1,6 @@
 import "./styles/main.css";
-import type { MeetingEvent, AppSettings } from "../shared/types.js";
+import type { MeetingEvent } from "../shared/models.js";
+import type { AppSettings } from "../shared/settings.js";
 import { escapeHtml } from "../shared/utils/escape-html.js";
 
 type AppState =

@@ -15,7 +15,7 @@ import { getCalendarEventsResult } from "./calendar.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
-import type { MeetingEvent } from "../shared/types.js";
+import type { MeetingEvent } from "../shared/models.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildMeetUrl } from "../../src/main/utils/meet-url.js";
-import type { MeetingEvent } from "../../src/shared/types.js";
+import type { MeetingEvent } from "../../src/shared/models.js";
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   return {

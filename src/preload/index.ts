@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS } from "../shared/types.js";
-import type { IpcRequest, IpcResponse, AppSettings, MeetingEvent } from "../shared/types.js";
+import { IPC_CHANNELS } from "../shared/ipc-channels.js";
+import type { IpcRequest, IpcResponse } from "../shared/ipc-types.js";
+import type { MeetingEvent } from "../shared/models.js";
+import type { AppSettings } from "../shared/settings.js";
+
+export type { IpcResponse } from "../shared/ipc-types.js";
+export type { AppSettings } from "../shared/settings.js";
+export type { MeetingEvent } from "../shared/models.js";
 
 const api = {
   calendar: {

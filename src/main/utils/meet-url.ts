@@ -1,4 +1,4 @@
-import type { MeetingEvent } from "../../shared/types.js";
+import type { MeetingEvent } from "../../shared/models.js";
 import { isAllowedMeetUrl } from "./url-validation.js";
 
 /**

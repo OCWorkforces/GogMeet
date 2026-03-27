@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseEvents, cleanDescription } from "../../src/main/calendar.js";
-import type { MeetingEvent } from "../../src/shared/types.js";
+import type { MeetingEvent } from "../../src/shared/models.js";
 
 // Helper to create tab-delimited Swift output
 function makeSwiftLine(

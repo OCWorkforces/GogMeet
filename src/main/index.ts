@@ -4,7 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setupTray } from "./tray.js";
 import { registerIpcHandlers } from "./ipc.js";
-import { startScheduler, stopScheduler, setSchedulerWindow } from "./scheduler.js";
+import { startScheduler, stopScheduler, setSchedulerWindow, setTrayTitleCallback } from "./scheduler.js";
+import { updateTrayTitle } from "./tray.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
 import { getSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
@@ -107,6 +108,7 @@ app.whenReady().then(() => {
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
   setupTray(mainWindow);
+  setTrayTitleCallback(updateTrayTitle);
   setSchedulerWindow(mainWindow);
   startScheduler();
   registerShortcuts();
