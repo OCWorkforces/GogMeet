@@ -1,4 +1,5 @@
-import type { AppSettings, CalendarPermission, CalendarResult } from "../shared/types.js";
+import type { AppSettings } from "../shared/settings.js";
+import type { CalendarPermission, CalendarResult } from "../shared/models.js";
 
 declare global {
   interface Window {

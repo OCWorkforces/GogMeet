@@ -4,9 +4,8 @@ import { showAlert } from "./alert-window.js";
 
 import { getCalendarEventsResult } from "./calendar.js";
 import type { BrowserWindow } from "electron";
-import type { MeetingEvent } from "../shared/types.js";
-import { IPC_CHANNELS } from "../shared/types.js";
-import { updateTrayTitle } from "./tray.js";
+import type { MeetingEvent } from "../shared/models.js";
+import { IPC_CHANNELS } from "../shared/ipc-channels.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
 
 interface ScheduledEventSnapshot {
@@ -32,6 +31,7 @@ export interface SchedulerState {
   consecutiveErrors: number;
   pollInterval: ReturnType<typeof setInterval> | null;
   win: BrowserWindow | null;
+  onTrayTitleUpdate?: ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void) | null;
 }
 
 export function createSchedulerState(): SchedulerState {
@@ -51,6 +51,7 @@ export function createSchedulerState(): SchedulerState {
     consecutiveErrors: 0,
     pollInterval: null,
     win: null,
+    onTrayTitleUpdate: null,
   };
 }
 
@@ -147,11 +148,13 @@ function replaceState(nextState: SchedulerState): void {
 function resetState(options?: { preserveWindow?: boolean }): void {
   const preserveWindow = options?.preserveWindow ?? false;
   const previousWindow = preserveWindow ? state.win : null;
+  const previousCallback = state.onTrayTitleUpdate;
 
   clearSchedulerResources(state);
 
   const nextState = createSchedulerState();
   nextState.win = previousWindow;
+  nextState.onTrayTitleUpdate = previousCallback ?? null;
   replaceState(nextState);
 }
 
@@ -213,6 +216,13 @@ export let consecutiveErrors = state.consecutiveErrors;
 
 export function setSchedulerWindow(w: BrowserWindow): void {
   state.win = w;
+}
+
+/** Set the tray title update callback — called from main/index.ts to decouple scheduler from tray */
+export function setTrayTitleCallback(
+  fn: (title: string | null, minsRemaining?: number, inMeeting?: boolean) => void,
+): void {
+  state.onTrayTitleUpdate = fn;
 }
 
 /**
@@ -279,11 +289,11 @@ export function resolveActiveTitleEvent(): void {
     if (data) {
       const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
       if (remaining > 0) {
-        updateTrayTitle(data.title, remaining);
+        state.onTrayTitleUpdate?.(data.title, remaining);
       }
     }
   } else {
-    updateTrayTitle(null);
+    state.onTrayTitleUpdate?.(null);
   }
 }
 
@@ -310,7 +320,7 @@ export function resolveActiveInMeetingEvent(): void {
     if (data) {
       const remaining = Math.ceil((data.endMs - Date.now()) / 60_000);
       if (remaining > 0) {
-        updateTrayTitle(data.title, remaining, true);
+        state.onTrayTitleUpdate?.(data.title, remaining, true);
       }
     }
   } else {
@@ -333,7 +343,7 @@ function startInMeetingCountdown(
     if (!currentData) return;
     const remaining = Math.ceil((currentData.endMs - Date.now()) / 60_000);
     if (remaining > 0) {
-      updateTrayTitle(currentData.title, remaining, true);
+      state.onTrayTitleUpdate?.(currentData.title, remaining, true);
     }
   }
 
@@ -487,7 +497,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
             // Title-only change — update tray immediately if this event owns the title
             if (state.activeTitleEventId === event.id) {
               const remaining = Math.ceil((startMs - Date.now()) / 60_000);
-              if (remaining > 0) updateTrayTitle(event.title, remaining);
+              if (remaining > 0) state.onTrayTitleUpdate?.(event.title, remaining);
             }
             console.log(`[scheduler] Title updated for "${event.title}"`);
             continue; // no timer changes needed
@@ -604,7 +614,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       if (!data) return;
       const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
       if (remaining > 0) {
-        updateTrayTitle(data.title, remaining);
+        state.onTrayTitleUpdate?.(data.title, remaining);
       }
     }
 
@@ -766,7 +776,7 @@ export function startScheduler(): void {
 /** Stop the scheduler and clear all pending timers — call on before-quit */
 export function stopScheduler(): void {
   resetState({ preserveWindow: true });
-  updateTrayTitle(null);
+  state.onTrayTitleUpdate?.(null);
   console.log("[scheduler] Stopped");
 }
 

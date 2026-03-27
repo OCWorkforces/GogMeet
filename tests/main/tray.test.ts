@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { MeetingEvent } from "../../src/shared/types.js";
+import type { MeetingEvent } from "../../src/shared/models.js";
 
 vi.mock("electron", () => ({
   Tray: vi.fn().mockImplementation(function (this: {

@@ -5,8 +5,8 @@ import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-} from "../shared/types.js";
-import type { AppSettings } from "../shared/types.js";
+} from "../shared/settings.js";
+import type { AppSettings } from "../shared/settings.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
 

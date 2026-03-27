@@ -1,9 +1,9 @@
 import "./styles.css";
-import type { AppSettings } from "../../shared/types.js";
+import type { AppSettings } from "../../shared/settings.js";
 import {
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-} from "../../shared/types.js";
+} from "../../shared/settings.js";
 
 let settings: AppSettings = {
   schemaVersion: 1,

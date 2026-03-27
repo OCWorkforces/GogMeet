@@ -1,0 +1,33 @@
+# GogMeet Architectural Constraints
+# Enforces Electron 3-process separation and module boundaries.
+
+# Renderer must NEVER import from main process
+# (communication goes through IPC via preload bridge)
+[[rules]]
+name = "no-renderer-to-main-import"
+from = "src/renderer"
+to = "src/main"
+type = "forbidden"
+
+# Main must NEVER import from renderer
+# (main communicates via win.webContents.send)
+[[rules]]
+name = "no-main-to-renderer-import"
+from = "src/main"
+to = "src/renderer"
+type = "forbidden"
+
+# Preload must ONLY import from shared (types/channels)
+# (preload is the bridge — it should not import main process logic)
+[[rules]]
+name = "no-preload-to-main-import"
+from = "src/preload"
+to = "src/main"
+type = "forbidden"
+
+# Tests must not be imported by source code
+[[rules]]
+name = "no-source-to-test-import"
+from = "src"
+to = "tests"
+type = "forbidden"

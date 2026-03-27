@@ -1,5 +1,5 @@
 import "./styles.css";
-import type { MeetingEvent } from "../../shared/types.js";
+import type { MeetingEvent } from "../../shared/models.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
 
 type AlertPayload = Pick<MeetingEvent, "title"> &

@@ -1,5 +1,5 @@
-import { IPC_CHANNELS } from "../shared/types.js";
-import type { MeetingEvent } from "../shared/types.js";
+import { IPC_CHANNELS } from "../shared/ipc-channels.js";
+import type { MeetingEvent } from "../shared/models.js";
 import { BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
