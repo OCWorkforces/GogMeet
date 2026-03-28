@@ -2,15 +2,8 @@ import { app, BrowserWindow, dialog } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { setupTray } from "./tray.js";
-import { registerIpcHandlers } from "./ipc.js";
-import { startScheduler, stopScheduler, setSchedulerWindow, setTrayTitleCallback } from "./scheduler.js";
-import { updateTrayTitle } from "./tray.js";
+import { initializeApp, shutdownApp } from "./lifecycle.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
-import { getSettings } from "./settings.js";
-import { syncAutoLaunch } from "./auto-launch.js";
-import { checkNotificationPermission } from "./notification.js";
-import { registerShortcuts } from "./shortcuts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -106,19 +99,7 @@ app.whenReady().then(() => {
   app.dock?.hide();
 
   mainWindow = createWindow();
-  registerIpcHandlers(mainWindow);
-  setupTray(mainWindow);
-  setTrayTitleCallback(updateTrayTitle);
-  setSchedulerWindow(mainWindow);
-  startScheduler();
-  registerShortcuts();
-
-  // Check notification permission on first run
-  void checkNotificationPermission();
-  
-  // Sync auto-launch setting on startup
-  const settings = getSettings();
-  syncAutoLaunch(settings.launchAtLogin);
+  initializeApp(mainWindow);
 });
 
 app.on("window-all-closed", () => {
@@ -128,7 +109,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   // Allow quit from tray menu
-  stopScheduler();
+  shutdownApp();
   if (mainWindow) {
     mainWindow.destroy();
   }
