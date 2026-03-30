@@ -27,7 +27,7 @@ vi.mock("../../src/main/tray.js", () => ({
 
 const mockUpdateTrayTitle = vi.fn();
 
-const schedulerModule = await import("../../src/main/scheduler.js");
+const schedulerModule = await import("../../src/main/scheduler/index.js");
 const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, setTrayTitleCallback, poll, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers } = schedulerModule;
 
 // Inject mock tray callback into scheduler
