@@ -1,10 +1,11 @@
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
 import type { MeetingEvent } from "../shared/models.js";
 import { BrowserWindow } from "electron";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import {
+  SECURE_WEB_PREFERENCES,
+  getPreloadPath,
+  loadWindowContent,
+} from "./utils/browser-window.js";
 
 let alertWindow: BrowserWindow | null = null;
 
@@ -26,20 +27,12 @@ export function showAlert(event: MeetingEvent): void {
     titleBarStyle: "hiddenInset",
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "..", "preload", "index.cjs"),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
+      preload: getPreloadPath(),
+      ...SECURE_WEB_PREFERENCES,
     },
   });
 
-  // Dev mode: load from dev server
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) {
-    alertWindow.loadURL(`${devUrl}/alert.html`);
-  } else {
-    alertWindow.loadFile(path.join(__dirname, "..", "renderer", "alert.html"));
-  }
+  loadWindowContent(alertWindow, "alert");
 
   alertWindow.once("ready-to-show", () => {
     alertWindow!.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
