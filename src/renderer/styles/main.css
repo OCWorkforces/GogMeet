@@ -1,41 +1,4 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --bg: rgba(246, 246, 246, 0.92);
-  --surface: rgba(255, 255, 255, 0.8);
-  --border: rgba(0, 0, 0, 0.08);
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #aeaeb2;
-  --accent: #007aff;
-  --accent-hover: #0051d3;
-  --danger: #ff3b30;
-  --soon: #ff9500;
-  --radius: 10px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.18);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: rgba(30, 30, 30, 0.92);
-    --surface: rgba(45, 45, 45, 0.8);
-    --border: rgba(255, 255, 255, 0.08);
-    --text-primary: #f5f5f7;
-    --text-secondary: #98989d;
-    --text-tertiary: #636366;
-    --accent: #0a84ff;
-    --accent-hover: #409cff;
-    --danger: #ff453a;
-    --soon: #ff9f0a;
-  }
-}
+@import "./reset.css";
 
 html, body {
   width: 360px;

@@ -1,8 +1,4 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+@import "../styles/reset.css";
 
 :root {
   --alert-text-primary: rgba(255, 255, 255, 0.95);
@@ -260,13 +256,4 @@ body {
 .alert-actions,
 .alert-description-wrapper {
   -webkit-app-region: no-drag;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none;
-    transition: none;
-  }
 }
