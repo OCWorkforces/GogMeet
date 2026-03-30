@@ -24,31 +24,6 @@ import {
   clearAllDisplayTimers,
 } from "./countdown.js";
 
-// Re-export everything external consumers need from state.ts
-export type { SchedulerState, ScheduledEventSnapshot } from "./state.js";
-export {
-  createSchedulerState,
-  timers,
-  alertTimers,
-  titleTimers,
-  countdownIntervals,
-  clearTimers,
-  inMeetingIntervals,
-  inMeetingEndTimers,
-  scheduledEventData,
-  firedEvents,
-  alertFiredEvents,
-  activeTitleEventId,
-  activeInMeetingEventId,
-  consecutiveErrors,
-} from "./state.js";
-
-// Re-export everything external consumers need from countdown.ts
-export {
-  resolveActiveTitleEvent,
-  resolveActiveInMeetingEvent,
-} from "./countdown.js";
-
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(): number {
   return getSettings().openBeforeMinutes * 60 * 1000;

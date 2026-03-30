@@ -26,7 +26,8 @@ vi.mock("../../src/main/ipc-handlers/window.js", () => ({
   registerWindowHandlers: mockRegisterWindowHandlers,
 }));
 
-import { registerIpcHandlers, validateSender } from "../../src/main/ipc.js";
+import { registerIpcHandlers } from "../../src/main/ipc.js";
+import { validateSender } from "../../src/main/ipc-handlers/shared.js";
 
 describe("registerIpcHandlers", () => {
   it("calls all handler registration functions", () => {
@@ -40,8 +41,8 @@ describe("registerIpcHandlers", () => {
   });
 });
 
-describe("validateSender (re-export)", () => {
-  it("is re-exported from shared", () => {
+describe("validateSender", () => {
+  it("is imported from shared", () => {
     expect(typeof validateSender).toBe("function");
   });
 });
