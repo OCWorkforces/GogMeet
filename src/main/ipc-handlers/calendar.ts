@@ -1,5 +1,4 @@
-import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import type { IpcResponse } from "../../shared/ipc-types.js";
+import { IPC_CHANNELS, type IpcResponse } from "../../shared/ipc-channels.js";
 import {
   getCalendarEventsResult,
   requestCalendarPermission,
