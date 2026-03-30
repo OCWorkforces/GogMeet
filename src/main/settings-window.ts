@@ -1,9 +1,9 @@
 import { app, BrowserWindow } from "electron";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isDev = !app.isPackaged;
+import {
+  SECURE_WEB_PREFERENCES,
+  getPreloadPath,
+  loadWindowContent,
+} from "./utils/browser-window.js";
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -33,21 +33,12 @@ export function createSettingsWindow(): BrowserWindow {
     visualEffectState: "active",
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "..", "preload", "index.cjs"),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
+      preload: getPreloadPath(),
+      ...SECURE_WEB_PREFERENCES,
     },
   });
 
-  // Load settings page
-  if (isDev) {
-    const devUrl =
-      process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
-    win.loadURL(`${devUrl}/settings.html`);
-  } else {
-    win.loadFile(path.join(__dirname, "..", "renderer", "settings.html"));
-  }
+  loadWindowContent(win, "settings");
 
   // Show window when ready
   win.once("ready-to-show", () => {

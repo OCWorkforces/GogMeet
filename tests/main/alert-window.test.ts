@@ -31,11 +31,12 @@ vi.mock("electron", () => {
 
   return {
     BrowserWindow: vi.fn(MockBrowserWindow),
+    app: { isPackaged: false },
   };
 });
 
 import { showAlert } from "../../src/main/alert-window.js";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, app } from "electron";
 
 describe("alert-window", () => {
   beforeEach(() => {
@@ -124,6 +125,7 @@ describe("alert-window", () => {
     });
 
     it("loads from file in production (no env var)", () => {
+      (app as unknown as Record<string, unknown>).isPackaged = true;
       showAlert({
         id: "test-6",
         title: "Prod Test",
@@ -132,6 +134,7 @@ describe("alert-window", () => {
         calendarName: "Work",
         isAllDay: false,
       });
+      (app as unknown as Record<string, unknown>).isPackaged = false;
 
       const mockWin = vi.mocked(BrowserWindow).mock.results[0].value as {
         loadFile: ReturnType<typeof vi.fn>;

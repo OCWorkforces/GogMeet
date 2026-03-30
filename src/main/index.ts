@@ -1,13 +1,12 @@
 import { app, BrowserWindow, dialog } from "electron";
 import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { initializeApp, shutdownApp } from "./lifecycle.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const isDev = !app.isPackaged;
+import {
+  SECURE_WEB_PREFERENCES,
+  getPreloadPath,
+  loadWindowContent,
+} from "./utils/browser-window.js";
 
 // Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
 // These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
@@ -17,7 +16,7 @@ app.commandLine.appendSwitch('log-level', '3');
 // === Process-level error handlers ===
 process.on("uncaughtException", (error: Error) => {
   console.error("[main] Uncaught exception:", error);
-  if (!isDev) {
+  if (app.isPackaged) {
     dialog.showErrorBox("Unexpected Error", error.message || "An unexpected error occurred.");
     app.exit(1);
   }
@@ -56,20 +55,12 @@ function createWindow(): BrowserWindow {
     transparent: true,
     hasShadow: true,
     webPreferences: {
-      preload: path.join(__dirname, "..", "preload", "index.cjs"),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
+      preload: getPreloadPath(),
+      ...SECURE_WEB_PREFERENCES,
     },
   });
 
-  if (isDev) {
-    const devUrl =
-      process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
-    win.loadURL(devUrl);
-  } else {
-    win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
-  }
+  loadWindowContent(win, "index");
 
   // Intercept close/minimize → hide to tray
   win.on("close", (event) => {
@@ -85,7 +76,7 @@ function createWindow(): BrowserWindow {
 
   // Hide when focus lost (popover behavior)
   win.on("blur", () => {
-    if (!isDev) {
+    if (app.isPackaged) {
       win.hide();
       app.dock?.hide();
     }
