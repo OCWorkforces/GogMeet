@@ -75,4 +75,4 @@ if (req === "electron" || req.startsWith("electron/")) {
 
 ## CHANNEL IMPORT
 
-Channels imported from `../shared/types.js` (single source of truth).
+Channels imported from `../shared/ipc-channels.js`, `../shared/models.js`, `../shared/settings.js` (single sources of truth).

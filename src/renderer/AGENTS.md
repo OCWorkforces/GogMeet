@@ -1,28 +1,30 @@
 # Renderer Process — UI Layer
 
-Electron renderer (web context). Vanilla TypeScript UI with native macOS popover aesthetic. No framework.
+Electron renderer (web context). Vanilla TypeScript UI with native macOS popover aesthetic. No framework. Three separate entry points built by Rsbuild.
 
 ## FILES
 
 | File              | Role                                         |
 | ----------------- | -------------------------------------------- |
-| `index.ts`        | Main UI logic, state machine, event handlers |
+| `index.ts`        | Main popover UI, state machine, event handlers |
 | `index.html`      | CSP-protected HTML template                  |
 | `env.d.ts`        | TypeScript declarations                      |
-| `styles/main.css` | Native macOS styling, dark mode support      |
+| `css.d.ts`        | CSS module declarations                      |
+| `styles/reset.css`| Shared CSS reset, variables, dark mode, font stack |
+| `styles/main.css` | Popover-specific styles                      |
 | `settings/`       | Settings window UI (separate entry)          |
 | `settings/index.ts` | Settings form logic, save indicator        |
 | `settings/index.html` | Settings HTML template                    |
 | `settings/styles.css` | Settings-specific styles (iOS-style toggles) |
-| `alert/`                 | Full-screen meeting alert (separate entry)                           |
-| `alert/index.ts`         | Alert overlay logic (Escape dismisses)                              |
-| `alert/index.html`       | Alert HTML template                                                 |
-| `alert/styles.css`       | Dark full-screen styles                                             |
+| `alert/`          | Full-screen meeting alert (separate entry)   |
+| `alert/index.ts`  | Alert overlay logic (Escape dismisses)       |
+| `alert/index.html`| Alert HTML template                          |
+| `alert/styles.css`| Dark full-screen styles with animations      |
 
-## STATE MACHINE
+## STATE MACHINE (main popover)
 
 ```typescript
-// index.ts:5-10
+// index.ts:6
 type AppState =
   | { type: "loading" }
   | { type: "no-permission"; retrying: boolean }
@@ -33,9 +35,17 @@ type AppState =
 
 ## RENDERING PATTERN
 
-- No virtual DOM — direct `innerHTML` assignment
+- No virtual DOM — direct `innerHTML` assignment to `#app`
 - Template literal functions: `render()`, `renderBody()`, `renderFooter()`
-- Event binding: single delegated listener on `document`, set up once at init
+- Event binding: delegated listener on `#app` container via `data-action` attributes
+- All 3 entries use same pattern: `#app` container + `innerHTML` + `DOMContentLoaded` init
+
+## EVENT DELEGATION (main + alert)
+
+Main popover and alert use `data-action` attributes:
+- Main: `data-action="refresh"`, `data-action="grant-access"`, `data-action="join-meeting"`, `data-action="retry"`
+- Alert: `data-action="dismiss"`
+- Settings uses direct per-element listeners instead (no delegation)
 
 ## AUTO-REFRESH
 
@@ -45,24 +55,24 @@ type AppState =
 ## API ACCESS
 
 ```typescript
-window.api.calendar.getEvents(); // → MeetingEvent[]
-window.api.calendar.requestPermission(); // → CalendarPermission
+window.api.calendar.getEvents();           // → CalendarResult
+window.api.calendar.requestPermission();    // → CalendarPermission
 window.api.calendar.getPermissionStatus(); // → CalendarPermission
-window.api.window.setHeight(height); // → void
-window.api.app.openExternal(url); // → void
-window.api.app.getVersion(); // → string
-window.api.settings.get(); // → AppSettings
-window.api.settings.set(partial); // → AppSettings
-window.api.settings.onChanged(callback); // → void (listen for changes)
-window.api.alert.onShowAlert(callback); // → void (listen for alert data)
+window.api.window.setHeight(height);       // → void
+window.api.app.openExternal(url);          // → void
+window.api.app.getVersion();               // → string
+window.api.settings.get();                 // → AppSettings
+window.api.settings.set(partial);          // → AppSettings
+window.api.settings.onChanged(cb);         // → void (push listener)
+window.api.alert.onShowAlert(cb);          // → void (push listener)
 ```
 
 ## CSS CONVENTIONS
 
-- CSS variables in `:root` for theming
-- Dark mode: `@media (prefers-color-scheme: dark)`
-- Native fonts: `-apple-system, BlinkMacSystemFont, 'SF Pro Text'`
-- Backdrop blur: `blur(20px) saturate(180%)`
+- **Shared reset**: `styles/reset.css` defines CSS variables (`--bg`, `--surface`, `--border`, `--text-primary`, etc.), dark mode via `@media (prefers-color-scheme: dark)`, native font stack (`-apple-system, BlinkMacSystemFont, 'SF Pro Text'`)
+- **Backdrop blur**: `blur(20px) saturate(180%)` for native macOS aesthetic
+- **Dark mode**: Handled via CSS variables override in `reset.css` media query
+- **Alert always dark**: `alert/styles.css` overrides variables with hardcoded dark palette
 
 ## KEY CLASSES
 
@@ -74,40 +84,20 @@ window.api.alert.onShowAlert(callback); // → void (listen for alert data)
 | `.btn-join`          | Join button (accent color)               |
 | `.meeting-time.soon` | Orange "In X min"                        |
 | `.meeting-time.now`  | Red "Starting now!"                      |
-| `.badge-auto`        | Auto-open indicator (⚡ blue badge)         |
-| `.alert-card`           | Alert window main container (animated)           |
-| `.alert-card.alert-dismissing` | Fade+zoom-out animation on dismiss      |
-| `.alert-badge`          | "Meeting Starting" badge label             |
-| `.alert-title`          | Meeting title heading                       |
-| `.alert-metadata`       | Meeting details container                  |
-| `.alert-actions`        | Alert button row                           |
-| `.alert-btn-join`       | Join Meeting button                         |
-| `.alert-btn-dismiss`    | Dismiss button (red)                       |
-| `.hiding`              | Fade-out animation on close                |
+| `.badge-auto`        | Auto-open indicator (⚡ blue badge)       |
+| `.alert-card`        | Alert window main container (animated)   |
+| `.alert-card.alert-dismissing` | Fade+zoom-out animation on dismiss |
+| `.hiding`            | Fade-out animation on close              |
 
 ## SECURITY
 
-- CSP in `index.html` + `settings/index.html`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`
-- HTML escaping via `escapeHtml()` for user content
-- `escapeHtml()` imported from `src/shared/utils/escape-html.ts`
-
-## TESTS
-
-**Location**: `tests/renderer/*.test.ts` (148 lines)
-
-**Delegation tests** (`delegation.test.ts`):
-- `[data-action="refresh"]` click handling
-- `[data-action="join-meeting"]` URL extraction
-- Click outside action elements (no trigger)
-- Single listener survives multiple renders
-
-**XSS tests** (`escape-html.test.ts`):
-- HTML special chars escaped (`<`, `>`, `&`, `"`, `'`)
-- User content safe for innerHTML insertion
+- CSP in all `index.html`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`
+- HTML escaping via `escapeHtml()` for user content (imported from `src/shared/utils/escape-html.ts`)
+- Used in main popover and alert renderer (settings doesn't render user text)
 
 ## SETTINGS WINDOW
 
-Separate renderer entry at `settings/`. Key differences from main UI:
+Separate renderer entry at `settings/`. Key differences:
 - Uses native window chrome (`titleBarStyle: "hiddenInset"`)
 - Shows in Dock when open (tray-only app otherwise)
 - Singleton BrowserWindow (focus if already open)
@@ -116,12 +106,23 @@ Separate renderer entry at `settings/`. Key differences from main UI:
 
 ## ALERT WINDOW
 
-Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process 1 minute before the browser auto-open timing (at `openBeforeMinutes + 1` min before meeting start).
+Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process at `openBeforeMinutes + 1` min before meeting.
 
 - Receives `{ title, meetUrl }` via `ALERT_SHOW` push channel
-- Alert fires at `openBeforeMinutes + 1` minutes before meeting (e.g. if browser opens at 2 min, alert shows at 3 min)
 - Full-screen, frameless, `alwaysOnTop`, dark background (`#1d1d1f`)
-- Dismissed by Escape key, "Dismiss" button, or "Join Meeting" button — all trigger fade+zoom-out animation via `dismissAlert()` before `window.close()`
-- "Join Meeting" button calls `window.api.app.openExternal(url)`
-- Singleton — `showAlert()` closes any existing alert before showing new one
-- Fade+zoom-in on appear (300ms ease-out), fade+zoom-out on dismiss (250ms ease-in); respects `prefers-reduced-motion`
+- Dismissed by Escape key, "Dismiss" button, or "Join Meeting" button — all trigger `dismissAlert()` with fade+zoom-out animation before `window.close()`
+- "Join Meeting" calls `window.api.app.openExternal(url)`
+- Singleton — `showAlert()` closes existing alert before showing new one
+- Animations: fade+zoom-in (300ms ease-out), fade+zoom-out (250ms ease-in); respects `prefers-reduced-motion`
+
+## TESTS
+
+**Location**: `tests/renderer/*.test.ts` (6 test files)
+
+| File                 | Focus                    |
+| -------------------- | ------------------------ |
+| `delegation.test.ts`  | Event delegation on #app |
+| `escape-html.test.ts` | XSS protection           |
+| `main-ui.test.ts`     | Main UI state machine    |
+| `alert.test.ts`       | Alert overlay behavior   |
+| `settings.test.ts`    | Settings form logic      |
