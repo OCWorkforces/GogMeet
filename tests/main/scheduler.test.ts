@@ -26,9 +26,12 @@ vi.mock("../../src/main/tray.js", () => ({
 }));
 
 const mockUpdateTrayTitle = vi.fn();
+// Import directly from actual export locations (not re-exports)
+const schedulerModule = await import("../../src/main/scheduler/index.js");
+const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback, poll, _resetConsecutiveErrors } = schedulerModule;
 
-const schedulerModule = await import("../../src/main/scheduler.js");
-const { scheduleEvents, firedEvents, scheduledEventData, timers, setSchedulerWindow, setTrayTitleCallback, poll, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers } = schedulerModule;
+const stateModule = await import("../../src/main/scheduler/state.js");
+const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents } = stateModule;
 
 // Inject mock tray callback into scheduler
 setTrayTitleCallback(mockUpdateTrayTitle);
@@ -56,8 +59,8 @@ describe("scheduleEvents", () => {
     timers.clear();
     firedEvents.clear();
     scheduledEventData.clear();
-    schedulerModule.countdownIntervals.clear();
-    schedulerModule._resetConsecutiveErrors();
+    countdownIntervals.clear();
+    _resetConsecutiveErrors();
     vi.mocked(mockUpdateTrayTitle).mockClear();
   });
   afterEach(() => {
@@ -65,8 +68,8 @@ describe("scheduleEvents", () => {
     timers.clear();
     firedEvents.clear();
     scheduledEventData.clear();
-    schedulerModule.countdownIntervals.clear();
-    schedulerModule._resetConsecutiveErrors();
+    countdownIntervals.clear();
+    _resetConsecutiveErrors();
     vi.mocked(mockUpdateTrayTitle).mockClear();
   });
   it("rescheduled event gets a new timer at the new start time", () => {
@@ -258,10 +261,10 @@ describe("scheduleEvents", () => {
     });
     scheduleEvents([event]);
     expect(timers.has("b10")).toBe(true);
-    expect(schedulerModule.alertTimers.has("b10")).toBe(true);
+    expect(alertTimers.has("b10")).toBe(true);
     // Store the old timer handles
     const oldBrowserHandle = timers.get("b10");
-    const oldAlertHandle = schedulerModule.alertTimers.get("b10");
+    const oldAlertHandle = alertTimers.get("b10");
     // Advance 6 min — timers haven't fired yet (alert at 9min, browser at 10min with openBefore=1)
     vi.advanceTimersByTime(6 * 60_000);
     // Now reschedule the same event but with start time in the past (in-progress)
@@ -274,10 +277,10 @@ describe("scheduleEvents", () => {
     scheduleEvents([inProgressEvent]);
     // Old timers should be cleaned up
     expect(timers.has("b10")).toBe(false);
-    expect(schedulerModule.alertTimers.has("b10")).toBe(false);
-    expect(schedulerModule.titleTimers.has("b10")).toBe(false);
-    expect(schedulerModule.countdownIntervals.has("b10")).toBe(false);
-    expect(schedulerModule.clearTimers.has("b10")).toBe(false);
+    expect(alertTimers.has("b10")).toBe(false);
+    expect(titleTimers.has("b10")).toBe(false);
+    expect(countdownIntervals.has("b10")).toBe(false);
+    expect(clearTimers.has("b10")).toBe(false);
     // In-meeting countdown should have started
     expect(inMeetingIntervals.has("b10")).toBe(true);
     // fired flag should be cleared
@@ -317,7 +320,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([event]);
     // Store old timer handles
     const oldBrowserHandle = timers.get("b12");
-    const oldAlertHandle = schedulerModule.alertTimers.get("b12");
+    const oldAlertHandle = alertTimers.get("b12");
     expect(oldBrowserHandle).toBeDefined();
     expect(oldAlertHandle).toBeDefined();
     // Reschedule to 20 min from now
@@ -329,7 +332,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([rescheduled]);
     // Both timers should be rescheduled with new handles
     expect(timers.get("b12")).not.toBe(oldBrowserHandle);
-    expect(schedulerModule.alertTimers.get("b12")).not.toBe(oldAlertHandle);
+    expect(alertTimers.get("b12")).not.toBe(oldAlertHandle);
     const newStartMs = new Date(Date.now() + 20 * 60_000).getTime();
     expect(scheduledEventData.get("b12")?.startMs).toBeCloseTo(newStartMs, -2);
   });
@@ -497,22 +500,22 @@ describe("scheduleEvents", () => {
     const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "e16", startDate });
     scheduleEvents([event]);
-    expect(schedulerModule.countdownIntervals.size).toBe(1);
+    expect(countdownIntervals.size).toBe(1);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
 
     // 2 errors — tray must still be showing
-    await schedulerModule.poll();
-    await schedulerModule.poll();
-    expect(schedulerModule.consecutiveErrors).toBe(2);
-    expect(schedulerModule.countdownIntervals.size).toBe(1); // countdown still alive
+    await poll();
+    await poll();
+    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(countdownIntervals.size).toBe(1); // countdown still alive
 
     // 3rd error — tray must clear
-    await schedulerModule.poll();
-    expect(schedulerModule.consecutiveErrors).toBe(3);
-    expect(schedulerModule.countdownIntervals.size).toBe(0);
+    await poll();
+    expect(stateModule.consecutiveErrors).toBe(3);
+    expect(countdownIntervals.size).toBe(0);
     const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
 
@@ -529,15 +532,15 @@ describe("scheduleEvents", () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
 
-    await schedulerModule.poll();
-    await schedulerModule.poll();
-    expect(schedulerModule.consecutiveErrors).toBe(2);
+    await poll();
+    await poll();
+    expect(stateModule.consecutiveErrors).toBe(2);
 
     // Success — errors reset, tray preserved
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [event] });
-    await schedulerModule.poll();
-    expect(schedulerModule.consecutiveErrors).toBe(0);
-    expect(schedulerModule.countdownIntervals.size).toBe(1);
+    await poll();
+    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(countdownIntervals.size).toBe(1);
 
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
   });
@@ -546,12 +549,12 @@ describe("scheduleEvents", () => {
     const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const event = makeEvent({ id: "e18", startDate });
     scheduleEvents([event]);
-    expect(schedulerModule.countdownIntervals.size).toBe(1);
+    expect(countdownIntervals.size).toBe(1);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     scheduleEvents([]);
 
-    expect(schedulerModule.countdownIntervals.size).toBe(0);
+    expect(countdownIntervals.size).toBe(0);
     const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
   });
@@ -566,8 +569,8 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     timers.clear();
     firedEvents.clear();
     scheduledEventData.clear();
-    schedulerModule.countdownIntervals.clear();
-    schedulerModule._resetConsecutiveErrors();
+    countdownIntervals.clear();
+    _resetConsecutiveErrors();
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Create mock window with webContents.send
@@ -585,8 +588,8 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     timers.clear();
     firedEvents.clear();
     scheduledEventData.clear();
-    schedulerModule.countdownIntervals.clear();
-    schedulerModule._resetConsecutiveErrors();
+    countdownIntervals.clear();
+    _resetConsecutiveErrors();
   });
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
@@ -629,7 +632,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     await poll();
 
     expect(mockWebContentsSend).not.toHaveBeenCalled();
-    expect(schedulerModule.consecutiveErrors).toBe(1);
+    expect(stateModule.consecutiveErrors).toBe(1);
   });
 
   it("F5: poll sends IPC after successful fetch with events", async () => {
@@ -640,7 +643,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     setSchedulerWindow(mockWindow as never);
     await poll();
 
-    expect(schedulerModule.consecutiveErrors).toBe(0);
-    expect(schedulerModule.consecutiveErrors).toBe(0);
+    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.consecutiveErrors).toBe(0);
   });
 });

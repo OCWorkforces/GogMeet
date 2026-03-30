@@ -17,7 +17,7 @@ vi.mock("../../src/main/settings.js", () => ({
   getSettings: mockGetSettings,
   updateSettings: mockUpdateSettings,
 }));
-vi.mock("../../src/main/scheduler.js", () => ({
+vi.mock("../../src/main/scheduler/index.js", () => ({
   restartScheduler: mockRestartScheduler,
 }));
 vi.mock("../../src/main/auto-launch.js", () => ({

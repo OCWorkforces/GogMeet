@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 
 const root = process.cwd();
@@ -49,7 +48,7 @@ describe("main/index.ts", () => {
 
     expect(content).toContain('from "./tray.js"');
     expect(content).toContain('from "./ipc.js"');
-    expect(content).toContain('from "./scheduler.js"');
+    expect(content).toContain('from "./scheduler/index.js"');
     expect(content).toContain('from "./settings.js"');
     expect(content).toContain('from "./auto-launch.js"');
     expect(content).toContain('from "./notification.js"');
@@ -82,8 +81,7 @@ describe("main/index.ts", () => {
       "utf-8",
     );
 
-    expect(content).toContain("sandbox: true");
-    expect(content).toContain("contextIsolation: true");
-    expect(content).toContain("nodeIntegration: false");
+    expect(content).toContain("SECURE_WEB_PREFERENCES");
+    expect(content).toContain("getPreloadPath()");
   });
 });

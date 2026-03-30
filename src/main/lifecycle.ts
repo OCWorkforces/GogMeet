@@ -6,7 +6,7 @@ import {
   stopScheduler,
   setSchedulerWindow,
   setTrayTitleCallback,
-} from "./scheduler.js";
+} from "./scheduler/index.js";
 import { updateTrayTitle } from "./tray.js";
 import { getSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";

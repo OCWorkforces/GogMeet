@@ -1,43 +1,61 @@
 # Main Process — Electron Main
 
-Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then macOS Calendar via Swift EventKit.
+Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS Calendar via Swift EventKit. Subsystem init orchestrated by `lifecycle.ts`.
 
 ## FILES
 
 | File                      | Role                                                                         |
 | ------------------------- | ---------------------------------------------------------------------------- |
 | `index.ts`                | App bootstrap, BrowserWindow factory, lifecycle events                       |
+| `lifecycle.ts`            | Subsystem init/shutdown (`initializeApp` / `shutdownApp`)                    |
 | `calendar.ts`             | Swift EventKit calendar queries (compiles/caches `googlemeet-events` binary) |
-| `scheduler.ts`            | Auto-opens browser; 2-min poll loop, configurable open-before timing         |
 | `tray.ts`                 | System tray icon, context menu, window positioning                           |
-| `ipc.ts`                  | IPC handlers (calendar, window, app, settings)                               |
+| `ipc.ts`                  | IPC registration (delegates to `ipc-handlers/`)                              |
 | `settings.ts`             | Persistent app settings (JSON in userData)                                   |
 | `auto-launch.ts`          | macOS login items (launch at login)                                          |
 | `settings-window.ts`      | Settings BrowserWindow singleton (shows in Dock when open)                   |
-| `alert-window.ts`         | Full-screen meeting alert BrowserWindow (singleton)                    |
-| `shortcuts.ts`            | Global keyboard shortcut (Cmd+Shift+M → join next meeting)            |
-| `auto-updater.ts`         | Electron auto-updater (packaged builds only)                         |
-| `notification.ts`          | macOS notification permission check                                        |
+| `alert-window.ts`         | Full-screen meeting alert BrowserWindow (singleton)                          |
+| `shortcuts.ts`            | Global keyboard shortcut (Cmd+Shift+M → join next meeting)                   |
+| `auto-updater.ts`         | Electron auto-updater (packaged builds only)                                 |
+| `notification.ts`         | macOS notification permission check                                          |
 | `googlemeet-events.swift` | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)           |
-| `utils/`                  | Main process utilities                                                     |
-| `utils/meet-url.ts`       | Appends `?authuser=email` to Meet URL                                     |
-| `utils/url-validation.ts` | URL allowlist validation for `shell.openExternal`                           |
-| `utils/packageInfo.ts`    | Reads package.json at runtime                                              |
+| `scheduler/`              | Auto-launch browser before meetings (see `scheduler/AGENTS.md`)              |
+| `ipc-handlers/`           | IPC handler implementations (see below)                                      |
+| `utils/`                  | Main process utilities (see below)                                           |
 
 ## ENTRY POINT
 
 `index.ts:14` — `createWindow()` called on `app.whenReady()`
 
+## LIFECYCLE
+
+`lifecycle.ts` orchestrates all subsystem init and shutdown:
+
+```
+initializeApp(win):
+  registerIpcHandlers(win)  → ipc-handlers/ modules
+  setupTray(win)            → tray.ts
+  setTrayTitleCallback      → decouples scheduler from tray
+  setSchedulerWindow(win)   → scheduler/index.ts
+  startScheduler()          → scheduler/index.ts
+  registerShortcuts()       → shortcuts.ts
+  checkNotificationPermission()
+  syncAutoLaunch()          → auto-launch.ts
+
+shutdownApp():
+  stopScheduler()           → scheduler/index.ts
+```
+
 ## WINDOW CONFIG
 
 ```typescript
-// index.ts:24-45
+// index.ts:42-59 — shared config in utils/browser-window.ts
 {
   width: 360, height: 480,
   show: false, frame: false, resizable: false, movable: false,
   alwaysOnTop: true, skipTaskbar: true,
   vibrancy: "popover", transparent: true, hasShadow: true,
-  webPreferences: { sandbox: true, contextIsolation: true }
+  webPreferences: SECURE_WEB_PREFERENCES  // sandbox + contextIsolation
 }
 ```
 
@@ -47,28 +65,37 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, then m
 - **Hash check**: `computeSwiftSourceHash()` + `HASH_PATH` — recompiles only when source changes
 - **Compile time**: <1s (`swiftc` invoked at runtime, cached)
 - **Query time**: ~0.7s (EventKit indexed queries, no network waits)
-- **Output format**: Tab-delimited `id\ttitle\tstartISO\tendISO\turl\tcalendar\tallDay\temail` (8 fields)
+- **Output format**: 9 tab-delimited fields: `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`
+- **Filtering**: Skips cancelled events, declined invitations; only Google Meet URLs via regex
 
-## IPC HANDLERS
+## IPC HANDLERS (`ipc-handlers/`)
 
-| Channel                       | Handler                         |
-| ----------------------------- | ------------------------------- |
-| `calendar:get-events`         | `getCalendarEventsResult()`     |
-| `calendar:request-permission` | `requestCalendarPermission()`   |
-| `calendar:permission-status`  | `getCalendarPermissionStatus()` |
-| `window:set-height`           | `win.setSize(360, height)`      |
-| `app:open-external`           | `shell.openExternal(url)`       |
-| `app:get-version`             | `app.getVersion()`              |
-| `settings:get`                | `getSettings()`                 |
-| `settings:set`                | `updateSettings()`              |
+Each domain has its own file. All exports `register*Handlers(win?)` called from `ipc.ts`.
+
+| File          | Channels                                                      | Notes                          |
+| ------------- | ------------------------------------------------------------- | ------------------------------ |
+| `shared.ts`   | —                                                             | `typedHandle()`, `validateSender()`, height constants |
+| `calendar.ts` | `calendar:get-events`, `calendar:request-permission`, `calendar:permission-status` | 3 invoke channels |
+| `settings.ts` | `settings:get`, `settings:set`                                | + pushes `settings:changed`    |
+| `app.ts`      | `app:open-external`, `app:get-version`                        | 2 invoke channels              |
+| `window.ts`   | `window:set-height`                                           | Fire-and-forget (`ipcMain.on`) |
 
 **Push channels** (main → renderer via `win.webContents.send()`):
 
-| Channel                    | Trigger                    |
-| -------------------------- | -------------------------- |
-| `settings:changed`          | After `updateSettings()`     |
-| `calendar:events-updated`   | After successful `poll()`   |
-TJ|| `alert:show`              | `showAlert()` sends title + meetUrl to alert window; alert fires 1 min before browser timer                
+| Channel                   | Trigger                         |
+| ------------------------- | ------------------------------- |
+| `settings:changed`        | After `updateSettings()`        |
+| `calendar:events-updated` | After successful `poll()`       |
+| `alert:show`              | `showAlert()` 1 min before browser |
+
+## UTILITIES (`utils/`)
+
+| File                | Export(s)                     | Role                                 | Consumers                       |
+| ------------------- | ----------------------------- | ------------------------------------ | ------------------------------- |
+| `browser-window.ts` | `SECURE_WEB_PREFERENCES`, `getPreloadPath`, `loadWindowContent` | All BrowserWindow creation | index, settings-window, alert-window |
+| `meet-url.ts`       | `buildMeetUrl`                | Appends `?authuser=email`            | tray, shortcuts, scheduler      |
+| `url-validation.ts` | `isAllowedMeetUrl`, `MEET_URL_ALLOWLIST` | URL allowlist for `shell.openExternal` | meet-url, ipc-handlers/app |
+| `packageInfo.ts`    | `getPackageInfo`              | Read package.json at runtime (frozen) | index                           |
 
 ## TRAY BEHAVIOR
 
@@ -77,24 +104,19 @@ TJ|| `alert:show`              | `showAlert()` sends title + meetUrl to alert wi
 | Window positioned below tray icon, clamped to screen bounds
 | Countdown shown in tray title via `updateTrayTitle()`
 
-## LIFECYCLE
+## SCHEDULER (`scheduler/`)
 
-- `close` event → `preventDefault()` + hide (never actually closes)
-- `blur` event → hide (dev mode exempt)
-- `before-quit` → `stopScheduler()` + destroy window, allow exit
-
-## SCHEDULER
+See `scheduler/AGENTS.md` for full details. Key points:
 
 - **Poll interval**: Every 2 min (`POLL_INTERVAL_MS`)
 - **Open-before**: Configurable 1-5 min via settings (default 1 min)
-- **Title notification**: `TITLE_BEFORE_MS` (30 min before)
+- **Alert offset**: 1 min before browser open (`ALERT_OFFSET_MS`)
+- **Title notification**: 30 min before (`TITLE_BEFORE_MS`)
 - **Max schedule-ahead**: 24 h (`MAX_SCHEDULE_AHEAD_MS`)
-JK|- **State maps**: `timers`, `alertTimers`, `titleTimers`, `countdownIntervals`, `clearTimers`, `inMeetingIntervals`, `inMeetingEndTimers`, `scheduledEventData`
-QB|- **`firedEvents` Set**: Prevents browser-open re-fire on refresh
-QT|- **`alertFiredEvents` Set**: Prevents alert re-fire on refresh
-QF|- **Alert offset**: `ALERT_OFFSET_MS = 60 * 1000` — alert fires 1 min before browser timer
-BH|- **Browser auto-open suppressed**: When alert was already shown (user joins via alert button)
-- **URL**: `buildMeetUrl()` appends `?authuser=email`
+- **8 timer maps**: timers, alertTimers, titleTimers, countdownIntervals, clearTimers, inMeetingIntervals, inMeetingEndTimers, scheduledEventData
+- **2 fired-event Sets**: firedEvents, alertFiredEvents
+- **Proxy view pattern**: state.ts exports Proxy views over Maps/Sets for transparent state access
+- **Callback decoupling**: `setTrayTitleCallback` breaks scheduler→tray dependency
 
 ## AUTO-LAUNCH
 
@@ -105,41 +127,34 @@ BH|- **Browser auto-open suppressed**: When alert was already shown (user joins 
 
 ## CODE MAP
 
-| Symbol                        | Location               | Role                                          |
-| ------------------------- | ---------------------- | --------------------------------------------- |
-| `startScheduler`          | `scheduler.ts:755`     | Start poll loop + initial poll                |
-| `stopScheduler`           | `scheduler.ts:767`     | Clear all timers on quit                       |
-| `restartScheduler`        | `scheduler.ts:774`     | Restart on settings change                    |
-| `scheduleEvents`          | `scheduler.ts:372`     | Set/clear per-event `setTimeout` timers
-| `poll`                    | `scheduler.ts:718`     | Calendar poll with error handling             |
-VX|| `alertTimers`            | `scheduler.ts:179`     | Map of eventId → alert timer (fires 1 min before browser)
-QT|| `alertFiredEvents`        | `scheduler.ts:203`     | Set of eventIds that already showed alert
-| `getCalendarEventsResult` | `calendar.ts:224`      | Swift EventKit fetch (returns CalendarResult) |
-| `parseEvents`             | `calendar.ts:149`      | Parse 8-field tab-delimited Swift output      |
-| `ensureBinary`            | `calendar.ts`          | Compile/cache Swift binary with hash check    |
-| `registerIpcHandlers`     | `ipc.ts:74`            | IPC registration (validateSender pattern)     |
-| `typedHandle`             | `ipc.ts:62`            | Type-safe IPC wrapper                         |
-| `validateSender`          | `ipc.ts:36`            | Origin validation against `ALLOWED_ORIGINS`   |
-| `setupTray`               | `tray.ts:60`           | System tray init                              |
-| `createWindow`            | `index.ts:49`          | BrowserWindow factory (tray popover)          |
-| `showAlert`               | `alert-window.ts:11`   | Full-screen alert BrowserWindow singleton      |
-| `createSettingsWindow`    | `settings-window.ts:15`| Settings BrowserWindow singleton              |
-| `registerShortcuts`       | `shortcuts.ts:8`       | Global shortcut Cmd+Shift+M                   |
-| `initAutoUpdater`         | `auto-updater.ts:10`   | electron-updater setup (packaged only)        |
-| `loadSettings`            | `settings.ts:32`       | Load from userData/settings.json              |
-| `updateSettings`          | `settings.ts:93`       | Persist partial settings with clamping        |
-| `getAutoLaunchStatus`     | `auto-launch.ts:7`     | Read macOS login item status                  |
-| `setAutoLaunch`           | `auto-launch.ts:21`    | Set macOS login item                          |
-| `syncAutoLaunch`          | `auto-launch.ts:40`    | Sync if state differs                         |
-| `buildMeetUrl`            | `utils/meet-url.ts:9`  | Append `?authuser=email` to Meet URL          |
-| `isAllowedMeetUrl`        | `utils/url-validation.ts:9` | Validates URL against MEET_URL_ALLOWLIST      |
-| `MEET_URL_ALLOWLIST`      | `utils/url-validation.ts` | Google domains for `shell.openExternal`       |
-| `getPackageInfo`          | `utils/packageInfo.ts:37` | Read package.json at runtime                   |
-| `formatRemainingTime`     | `tray.ts:212`          | Format countdown for tray title               |
-| `updateTrayTitle`         | `tray.ts:227`          | Set tray title with countdown                 |
-| `checkNotificationPermission` | `notification.ts:26`  | macOS notification permission prompt           |
-| `getSettings`             | `settings.ts:89`       | Get cached settings (used in tray for showTomorrowMeetings) |
-
+| Symbol                        | Location                          | Role                                          |
+| ------------------------- | --------------------------------- | --------------------------------------------- |
+| `initializeApp`           | `lifecycle.ts:20`                 | Subsystem init orchestration                  |
+| `shutdownApp`             | `lifecycle.ts:40`                 | Stop scheduler on quit                        |
+| `startScheduler`          | `scheduler/index.ts:466`          | Start poll loop + initial poll                |
+| `stopScheduler`           | `scheduler/index.ts:478`          | Clear all timers on quit                      |
+| `restartScheduler`        | `scheduler/index.ts:485`          | Restart on settings change                    |
+| `scheduleEvents`          | `scheduler/index.ts:80`           | Set/clear per-event `setTimeout` timers       |
+| `poll`                    | `scheduler/index.ts:429`          | Calendar poll with error handling             |
+| `registerIpcHandlers`     | `ipc.ts:11`                       | IPC registration (delegates to ipc-handlers/) |
+| `typedHandle`             | `ipc-handlers/shared.ts:42`       | Type-safe IPC wrapper                         |
+| `validateSender`          | `ipc-handlers/shared.ts:15`       | Origin validation against `ALLOWED_ORIGINS`   |
+| `getCalendarEventsResult` | `calendar.ts:247`                 | Swift EventKit fetch (returns CalendarResult) |
+| `parseEvents`             | `calendar.ts:172`                 | Parse 9-field tab-delimited Swift output      |
+| `ensureBinary`            | `calendar.ts:44`                  | Compile/cache Swift binary with hash check    |
+| `setupTray`               | `tray.ts:60`                      | System tray init                              |
+| `createWindow`            | `index.ts:42`                     | BrowserWindow factory (tray popover)          |
+| `showAlert`               | `alert-window.ts:11`              | Full-screen alert BrowserWindow singleton     |
+| `createSettingsWindow`    | `settings-window.ts:15`           | Settings BrowserWindow singleton              |
+| `registerShortcuts`       | `shortcuts.ts:8`                  | Global shortcut Cmd+Shift+M                   |
+| `initAutoUpdater`         | `auto-updater.ts:10`              | electron-updater setup (packaged only)        |
+| `getSettings`             | `settings.ts:89`                  | Load settings (returns merged defaults)       |
+| `updateSettings`          | `settings.ts:93`                  | Persist partial settings with clamping        |
+| `buildMeetUrl`            | `utils/meet-url.ts:9`             | Append `?authuser=email` to Meet URL          |
+| `isAllowedMeetUrl`        | `utils/url-validation.ts:9`       | Validates URL against MEET_URL_ALLOWLIST      |
+| `formatRemainingTime`     | `tray.ts:216`                     | Format countdown for tray title               |
+| `updateTrayTitle`         | `tray.ts:231`                     | Set tray title with countdown                 |
+| `checkNotificationPermission` | `notification.ts:26`           | macOS notification permission prompt           |
 
 ## ANTI-PATTERNS
 

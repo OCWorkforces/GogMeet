@@ -1,6 +1,5 @@
 import { shell, app } from "electron";
-import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import type { IpcRequest, IpcResponse } from "../../shared/ipc-types.js";
+import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
 import { isAllowedMeetUrl } from "../utils/url-validation.js";
 import { validateSender, typedHandle } from "./shared.js";
 

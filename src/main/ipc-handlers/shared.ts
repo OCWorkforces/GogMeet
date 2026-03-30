@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import type { IpcChannelMap } from "../../shared/ipc-types.js";
+import type { IpcChannelMap } from "../../shared/ipc-channels.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
 const ALLOWED_ORIGINS = new Set([

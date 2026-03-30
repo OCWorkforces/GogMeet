@@ -1,162 +1,28 @@
 import { Notification, shell } from "electron";
-import { getSettings } from "./settings.js";
-import { showAlert } from "./alert-window.js";
+import { getSettings } from "../settings.js";
+import { showAlert } from "../alert-window.js";
 
-import { getCalendarEventsResult } from "./calendar.js";
+import { getCalendarEventsResult } from "../calendar.js";
 import type { BrowserWindow } from "electron";
-import type { MeetingEvent } from "../shared/models.js";
-import { IPC_CHANNELS } from "../shared/ipc-channels.js";
-import { buildMeetUrl } from "./utils/meet-url.js";
+import type { MeetingEvent } from "../../shared/models.js";
+import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
+import { buildMeetUrl } from "../utils/meet-url.js";
 
-interface ScheduledEventSnapshot {
-  title: string;
-  meetUrl: string | undefined;
-  startMs: number;
-  endMs: number;
-}
+import {
+  state,
+  resetState,
+  setActiveTitleEventId,
+  setConsecutiveErrors,
+  setActiveInMeetingEventId,
+  incrementConsecutiveErrors,
+} from "./state.js";
 
-export interface SchedulerState {
-  timers: Map<string, ReturnType<typeof setTimeout>>;
-  alertTimers: Map<string, ReturnType<typeof setTimeout>>;
-  titleTimers: Map<string, ReturnType<typeof setTimeout>>;
-  countdownIntervals: Map<string, ReturnType<typeof setInterval>>;
-  clearTimers: Map<string, ReturnType<typeof setTimeout>>;
-  inMeetingIntervals: Map<string, ReturnType<typeof setInterval>>;
-  inMeetingEndTimers: Map<string, ReturnType<typeof setTimeout>>;
-  scheduledEventData: Map<string, ScheduledEventSnapshot>;
-  firedEvents: Set<string>;
-  alertFiredEvents: Set<string>;
-  activeTitleEventId: string | null;
-  activeInMeetingEventId: string | null;
-  consecutiveErrors: number;
-  pollInterval: ReturnType<typeof setInterval> | null;
-  win: BrowserWindow | null;
-  onTrayTitleUpdate?: ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void) | null;
-}
-
-export function createSchedulerState(): SchedulerState {
-  return {
-    timers: new Map<string, ReturnType<typeof setTimeout>>(),
-    alertTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    titleTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    countdownIntervals: new Map<string, ReturnType<typeof setInterval>>(),
-    clearTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    inMeetingIntervals: new Map<string, ReturnType<typeof setInterval>>(),
-    inMeetingEndTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    scheduledEventData: new Map<string, ScheduledEventSnapshot>(),
-    firedEvents: new Set<string>(),
-    alertFiredEvents: new Set<string>(),
-    activeTitleEventId: null,
-    activeInMeetingEventId: null,
-    consecutiveErrors: 0,
-    pollInterval: null,
-    win: null,
-    onTrayTitleUpdate: null,
-  };
-}
-
-let state = createSchedulerState();
-
-function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
-  return new Proxy({} as Map<K, V>, {
-    get(_target, prop) {
-      const map = getMap() as unknown as Record<PropertyKey, unknown>;
-      const value = map[prop];
-      if (typeof value === "function") {
-        return (value as (...args: unknown[]) => unknown).bind(getMap());
-      }
-      return value;
-    },
-  });
-}
-
-function createSetView<T>(getSet: () => Set<T>): Set<T> {
-  return new Proxy({} as Set<T>, {
-    get(_target, prop) {
-      const set = getSet() as unknown as Record<PropertyKey, unknown>;
-      const value = set[prop];
-      if (typeof value === "function") {
-        return (value as (...args: unknown[]) => unknown).bind(getSet());
-      }
-      return value;
-    },
-  });
-}
-
-function setActiveTitleEventId(eventId: string | null): void {
-  state.activeTitleEventId = eventId;
-  activeTitleEventId = eventId;
-}
-
-function setActiveInMeetingEventId(eventId: string | null): void {
-  state.activeInMeetingEventId = eventId;
-  activeInMeetingEventId = eventId;
-}
-
-function setConsecutiveErrors(value: number): void {
-  state.consecutiveErrors = value;
-  consecutiveErrors = value;
-}
-
-function incrementConsecutiveErrors(): void {
-  setConsecutiveErrors(state.consecutiveErrors + 1);
-}
-
-function syncExportedScalars(): void {
-  activeTitleEventId = state.activeTitleEventId;
-  activeInMeetingEventId = state.activeInMeetingEventId;
-  consecutiveErrors = state.consecutiveErrors;
-}
-
-function clearSchedulerResources(s: SchedulerState): void {
-  if (s.pollInterval) {
-    clearInterval(s.pollInterval);
-    s.pollInterval = null;
-  }
-
-  for (const handle of s.timers.values()) clearTimeout(handle);
-  s.timers.clear();
-
-  for (const handle of s.alertTimers.values()) clearTimeout(handle);
-  s.alertTimers.clear();
-
-  for (const handle of s.titleTimers.values()) clearTimeout(handle);
-  s.titleTimers.clear();
-
-  for (const handle of s.countdownIntervals.values()) clearInterval(handle);
-  s.countdownIntervals.clear();
-
-  for (const handle of s.clearTimers.values()) clearTimeout(handle);
-  s.clearTimers.clear();
-
-  for (const handle of s.inMeetingIntervals.values()) clearInterval(handle);
-  s.inMeetingIntervals.clear();
-
-  for (const handle of s.inMeetingEndTimers.values()) clearTimeout(handle);
-  s.inMeetingEndTimers.clear();
-
-  s.scheduledEventData.clear();
-  s.firedEvents.clear();
-  s.alertFiredEvents.clear();
-}
-
-function replaceState(nextState: SchedulerState): void {
-  state = nextState;
-  syncExportedScalars();
-}
-
-function resetState(options?: { preserveWindow?: boolean }): void {
-  const preserveWindow = options?.preserveWindow ?? false;
-  const previousWindow = preserveWindow ? state.win : null;
-  const previousCallback = state.onTrayTitleUpdate;
-
-  clearSchedulerResources(state);
-
-  const nextState = createSchedulerState();
-  nextState.win = previousWindow;
-  nextState.onTrayTitleUpdate = previousCallback ?? null;
-  replaceState(nextState);
-}
+import {
+  resolveActiveTitleEvent,
+  resolveActiveInMeetingEvent,
+  startInMeetingCountdown,
+  clearAllDisplayTimers,
+} from "./countdown.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(): number {
@@ -175,69 +41,19 @@ const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
-/** Map of eventId → active open-browser timer handle */
-export const timers = createMapView(() => state.timers);
-
-/** Map of eventId → alert window timer handle (fires 1 min before browser timer) */
-export const alertTimers = createMapView(() => state.alertTimers);
-
-/** Map of eventId → setTimeout handle that fires when the 30-min window opens */
-export const titleTimers = createMapView(() => state.titleTimers);
-
-/** Map of eventId → setInterval handle for the per-minute countdown tick */
-export const countdownIntervals = createMapView(() => state.countdownIntervals);
-
-/** Map of eventId → setTimeout handle that fires at meeting start to clear title */
-export const clearTimers = createMapView(() => state.clearTimers);
-
-/** Map of eventId → setInterval handle for per-minute in-meeting countdown */
-export const inMeetingIntervals = createMapView(() => state.inMeetingIntervals);
-
-/** Map of eventId → setTimeout handle that fires at meeting END */
-export const inMeetingEndTimers = createMapView(() => state.inMeetingEndTimers);
-
-/** Map of eventId → stored event snapshot for change detection */
-export const scheduledEventData = createMapView(() => state.scheduledEventData);
-
-/** Set of eventIds that have already fired (prevents re-fire on refresh) */
-export const firedEvents = createSetView(() => state.firedEvents);
-
-/** Set of eventIds that have already shown an alert (prevents re-show on refresh) */
-export const alertFiredEvents = createSetView(() => state.alertFiredEvents);
-
-/** Which event currently owns the tray title display (null = no countdown active) */
-export let activeTitleEventId: string | null = state.activeTitleEventId;
-
-/** Which event currently owns the in-meeting tray title */
-export let activeInMeetingEventId: string | null = state.activeInMeetingEventId;
-
-/** Counter of consecutive calendar fetch errors — reset to 0 on success */
-export let consecutiveErrors = state.consecutiveErrors;
-
 export function setSchedulerWindow(w: BrowserWindow): void {
   state.win = w;
 }
 
 /** Set the tray title update callback — called from main/index.ts to decouple scheduler from tray */
 export function setTrayTitleCallback(
-  fn: (title: string | null, minsRemaining?: number, inMeeting?: boolean) => void,
+  fn: (
+    title: string | null,
+    minsRemaining?: number,
+    inMeeting?: boolean,
+  ) => void,
 ): void {
   state.onTrayTitleUpdate = fn;
-}
-
-/**
- * Clear all display-related timers (countdown and in-meeting).
- * Used when clearing tray title after consecutive errors.
- */
-function clearAllDisplayTimers(): void {
-  for (const handle of state.countdownIntervals.values()) clearInterval(handle);
-  state.countdownIntervals.clear();
-  for (const handle of state.clearTimers.values()) clearTimeout(handle);
-  state.clearTimers.clear();
-  for (const handle of state.inMeetingIntervals.values()) clearInterval(handle);
-  state.inMeetingIntervals.clear();
-  for (const handle of state.inMeetingEndTimers.values()) clearTimeout(handle);
-  state.inMeetingEndTimers.clear();
 }
 
 /**
@@ -255,124 +71,6 @@ function cleanupStaleEntries<K, V>(
       map.delete(id);
     }
   }
-}
-
-/**
- * Determine which event should own the tray title.
- * Policy: earliest startMs among events with an active countdownInterval wins.
- * Updates the tray immediately if ownership changes.
- */
-export function resolveActiveTitleEvent(): void {
-  // In-meeting events take priority — don't overwrite
-  if (
-    state.activeInMeetingEventId &&
-    state.inMeetingIntervals.has(state.activeInMeetingEventId)
-  ) {
-    return;
-  }
-
-  let bestId: string | null = null;
-  let bestStartMs = Infinity;
-
-  for (const id of state.countdownIntervals.keys()) {
-    const data = state.scheduledEventData.get(id);
-    if (data && data.startMs < bestStartMs) {
-      bestStartMs = data.startMs;
-      bestId = id;
-    }
-  }
-
-  setActiveTitleEventId(bestId);
-
-  if (bestId) {
-    const data = state.scheduledEventData.get(bestId);
-    if (data) {
-      const remaining = Math.ceil((data.startMs - Date.now()) / 60_000);
-      if (remaining > 0) {
-        state.onTrayTitleUpdate?.(data.title, remaining);
-      }
-    }
-  } else {
-    state.onTrayTitleUpdate?.(null);
-  }
-}
-
-/**
- * Determine which in-meeting event should own the tray title.
- * Policy: event ending soonest wins.
- */
-export function resolveActiveInMeetingEvent(): void {
-  let bestId: string | null = null;
-  let bestEndMs = Infinity;
-
-  for (const id of state.inMeetingIntervals.keys()) {
-    const data = state.scheduledEventData.get(id);
-    if (data && data.endMs < bestEndMs) {
-      bestEndMs = data.endMs;
-      bestId = id;
-    }
-  }
-
-  setActiveInMeetingEventId(bestId);
-
-  if (bestId) {
-    const data = state.scheduledEventData.get(bestId);
-    if (data) {
-      const remaining = Math.ceil((data.endMs - Date.now()) / 60_000);
-      if (remaining > 0) {
-        state.onTrayTitleUpdate?.(data.title, remaining, true);
-      }
-    }
-  } else {
-    // No in-meeting event — fall back to pre-meeting
-    resolveActiveTitleEvent();
-  }
-}
-
-/** Start per-minute countdown showing remaining time until meeting ends */
-function startInMeetingCountdown(
-  eventId: string,
-  data: { title: string; endMs: number },
-): void {
-  const now = Date.now();
-  if (data.endMs <= now) return; // already ended
-
-  function tickInMeeting(): void {
-    if (eventId !== state.activeInMeetingEventId) return;
-    const currentData = state.scheduledEventData.get(eventId);
-    if (!currentData) return;
-    const remaining = Math.ceil((currentData.endMs - Date.now()) / 60_000);
-    if (remaining > 0) {
-      state.onTrayTitleUpdate?.(currentData.title, remaining, true);
-    }
-  }
-
-  // Immediate tick + per-minute interval
-  const intervalHandle = setInterval(tickInMeeting, 60_000);
-  state.inMeetingIntervals.set(eventId, intervalHandle);
-
-  // Resolve ownership, then do first tick
-  resolveActiveInMeetingEvent();
-
-  console.log(`[scheduler] In-meeting countdown started for "${data.title}"`);
-
-  // Set timer to clear at meeting end
-  const endHandle = setTimeout(() => {
-    const interval = state.inMeetingIntervals.get(eventId);
-    if (interval) {
-      clearInterval(interval);
-    }
-    state.inMeetingIntervals.delete(eventId);
-    state.inMeetingEndTimers.delete(eventId);
-    state.scheduledEventData.delete(eventId);
-    if (state.activeInMeetingEventId === eventId) {
-      setActiveInMeetingEventId(null);
-    }
-    resolveActiveInMeetingEvent();
-    console.log(`[scheduler] Meeting ended: "${data.title}"`);
-  }, data.endMs - now);
-
-  state.inMeetingEndTimers.set(eventId, endHandle);
 }
 
 /**
@@ -497,7 +195,8 @@ export function scheduleEvents(events: MeetingEvent[]): void {
             // Title-only change — update tray immediately if this event owns the title
             if (state.activeTitleEventId === event.id) {
               const remaining = Math.ceil((startMs - Date.now()) / 60_000);
-              if (remaining > 0) state.onTrayTitleUpdate?.(event.title, remaining);
+              if (remaining > 0)
+                state.onTrayTitleUpdate?.(event.title, remaining);
             }
             console.log(`[scheduler] Title updated for "${event.title}"`);
             continue; // no timer changes needed
@@ -550,7 +249,9 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         } catch {
           // Non-critical — alert is optional UX
         }
-        console.log(`[scheduler] Alert shown for "${event.title}" (${Math.round(alertDelayMs / 1000)}s before meeting)`);
+        console.log(
+          `[scheduler] Alert shown for "${event.title}" (${Math.round(alertDelayMs / 1000)}s before meeting)`,
+        );
       }, alertDelayMs);
       state.alertTimers.set(event.id, alertHandle);
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateSender } from "../../src/main/ipc.js";
+import { validateSender } from "../../src/main/ipc-handlers/shared.js";
 import { isAllowedMeetUrl } from "../../src/main/utils/url-validation.js";
 import type { IpcMainInvokeEvent } from "electron";
 

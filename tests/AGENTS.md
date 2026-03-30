@@ -6,19 +6,40 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 
 ```
 tests/
+├── setup.main.ts           # Full Electron mock (app, BrowserWindow, Tray, ipcMain, shell, etc.)
 ├── main/
-│   ├── scheduler.test.ts  # 640 lines — scheduler state machine (26 tests)
-│   ├── calendar.test.ts   # 405 lines — Swift output parsing (16 tests)
-│   ├── meet-url.test.ts   # 140 lines — URL building + allowlist (17 tests)
-│   ├── ipc.test.ts        # 102 lines — security validation (15 tests)
-│   ├── settings.test.ts   # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
+│   ├── scheduler.test.ts   # 649 lines — scheduler state machine (26 tests, A-F groups)
+│   ├── calendar.test.ts    # 405 lines — Swift output parsing (16 tests)
+│   ├── meet-url.test.ts    # 140 lines — URL building + allowlist (17 tests)
+│   ├── ipc.test.ts         # 102 lines — security validation (15 tests)
+│   ├── settings.test.ts    # 204 lines — file I/O, clamping, launchAtLogin (11 tests)
+│   ├── tray.test.ts        # 167 lines — tray title, time formatting (9 tests)
 │   ├── notification.test.ts # 100 lines — notification permission (4 tests)
-│   ├── auto-launch.test.ts  # 98 lines — login item status/set/sync (6 tests)
-│   └── .gitkeep
+│   ├── auto-launch.test.ts # 98 lines — login item status/set/sync (6 tests)
+│   ├── lifecycle.test.ts   # lifecycle init/shutdown orchestration
+│   ├── app-bootstrap.test.ts # main/index.ts bootstrap
+│   ├── alert-window.test.ts # alert window singleton
+│   ├── settings-window.test.ts # settings window singleton
+│   ├── shortcuts.test.ts   # global shortcut registration
+│   ├── auto-updater.test.ts # electron-updater setup
+│   ├── preload.test.ts     # preload bridge tests
+│   ├── settings-defaults.test.ts # settings default values
+│   ├── ipc-channels.test.ts # IPC channel definitions
+│   ├── ipc-types.test.ts   # IPC type utilities
+│   ├── ipc-registrar.test.ts # IPC registration
+│   ├── ipc-handlers-app.test.ts # app IPC handler tests
+│   ├── ipc-handlers-calendar.test.ts # calendar IPC handler tests
+│   ├── ipc-handlers-settings.test.ts # settings IPC handler tests
+│   ├── ipc-handlers-shared.test.ts # typedHandle + validateSender tests
+│   ├── ipc-handlers-window.test.ts # window IPC handler tests
+│   ├── package-info.test.ts # package.json reader
+│   └── url-validation.test.ts # URL allowlist validation
 └── renderer/
-    ├── delegation.test.ts # 77 lines — event delegation (4 tests)
+    ├── delegation.test.ts  # 77 lines — event delegation (4 tests)
     ├── escape-html.test.ts # 71 lines — XSS protection (11 tests)
-    └── .gitkeep
+    ├── main-ui.test.ts    # Main UI state machine
+    ├── alert.test.ts      # Alert overlay behavior
+    └── settings.test.ts   # Settings form logic
 ```
 
 ## CONFIGURATION
@@ -40,7 +61,7 @@ projects: [
 ];
 ```
 
-## MAIN PROCESS TESTS (110 tests total)
+## MAIN PROCESS TESTS
 
 **Mock Pattern**:
 
@@ -50,50 +71,30 @@ vi.mock("../../src/main/calendar.js", () => ({ getCalendarEventsResult: vi.fn() 
 vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 ```
 
-| File              | Lines | Tests | Focus                                  |
-| scheduler.test.ts | 640   | 26    | State machine, race conditions, timers |
-| meet-url.test.ts  | 140   | 17    | URL building with authuser + allowlist |
-| calendar.test.ts  | 405   | 16    | parseEvents, dedup, date filtering     |
-| ipc.test.ts       | 102   | 15    | validateSender, isAllowedMeetUrl       |
-| settings.test.ts  | 204   | 11    | File I/O, clamping, defaults, launchAtLogin |
-| tray.test.ts      | 167   | 9     | Tray title, time formatting            |
-| notification.test.ts| 100  | 4     | macOS notification permission          |
-| auto-launch.test.ts | 98   | 6     | macOS login item status/set/sync       |
-
 **Scheduler Test Groups** (A-F labeled):
 
 | Group   | Focus                     |
 | ------- | ------------------------- |
 | A1-A7   | Event deletion/reschedule |
-| B8-B13  | Title/URL/startTime changes           |
+| B8-B13  | Title/URL/startTime changes |
 | C10-C13 | Race conditions           |
 | D14-D15 | Concurrent countdowns     |
 | E16-E18 | Error handling            |
-| F1-F5   | Poll IPC notification      |
+| F1-F5   | Poll IPC notification     |
 
 - `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
 - All state maps cleared in `beforeEach`: `timers`, `alertTimers`, `firedEvents`, `alertFiredEvents`, `scheduledEventData`, `countdownIntervals`, `consecutiveErrors`
-- `updateTrayTitle` mock for tray behavior assertions
 - `vi.resetModules()` + dynamic import for fresh module state
 
-## RENDERER TESTS (15 tests total)
+## RENDERER TESTS
 
-| File                | Lines | Tests | Focus                    |
-| ------------------- | ----- | ----- | ------------------------ |
-| delegation.test.ts  | 77    | 4     | Event delegation on #app |
-| escape-html.test.ts | 71    | 11    | XSS protection           |
-
-**Delegation tests**:
-
-- `data-action="refresh"` — trigger refresh
-- `data-action="join-meeting"` — extract `data-url` and navigate
-- Click outside action elements — no handler fired
-- Single listener survives multiple `innerHTML` replacements
-
-**XSS tests**:
-
-- HTML special chars escaped (`<`, `>`, `&`, `"`, `'`)
-- User content safe for innerHTML insertion
+| File                | Focus                    |
+| ------------------- | ------------------------ |
+| `delegation.test.ts`  | Event delegation on #app |
+| `escape-html.test.ts` | XSS protection           |
+| `main-ui.test.ts`     | Main UI state machine    |
+| `alert.test.ts`       | Alert overlay behavior   |
+| `settings.test.ts`    | Settings form logic      |
 
 ## COMMANDS
 
@@ -103,8 +104,9 @@ bun run test:watch    # Watch mode
 bun run test:coverage # Tests with coverage report
 ```
 
-## SETUP FILE
+## SETUP FILE (`setup.main.ts`)
 
+Mocks full Electron API:
 - `app`: getVersion, quit, dock, isPackaged, whenReady, on, getPath
 - `BrowserWindow`: loadURL, show, hide, destroy, getBounds, setPosition, webContents
 - `ipcMain`: handle, on, off

@@ -1,6 +1,5 @@
 import type { BrowserWindow } from "electron";
-import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import type { IpcRequest } from "../../shared/ipc-types.js";
+import { IPC_CHANNELS, type IpcRequest } from "../../shared/ipc-channels.js";
 import {
   validateOnSender,
   MIN_WINDOW_HEIGHT,
