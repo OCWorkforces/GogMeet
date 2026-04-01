@@ -1,5 +1,19 @@
 # GogMeet Architectural Constraints
 # Enforces Electron 3-process separation and module boundaries.
+#
+# Structure:
+#   1. Cross-process boundaries (renderer ↔ main, preload bridge)
+#   2. Shared self-containment (shared must not depend on processes)
+#   3. Source ↔ test isolation
+#   4. Utils isolation (pure helpers — no business logic deps)
+#   5. IPC handler boundaries (thin wrappers, no window creation)
+#   6. Cycle prevention — scheduler (scheduler ↔ tray ↔ ipc-handlers)
+#   7. Cycle prevention — shortcuts (leaf module isolation)
+#   8. Renderer entry independence (separate HTML entry points)
+
+# ────────────────────────────────────────────────────────────────
+# 1. CROSS-PROCESS BOUNDARIES
+# ────────────────────────────────────────────────────────────────
 
 # Renderer must NEVER import from main process
 # (communication goes through IPC via preload bridge)
@@ -25,12 +39,25 @@ from = "src/preload"
 to = "src/main"
 type = "forbidden"
 
-# Tests must not be imported by source code
+# Preload must not import renderer code
+# (preload exposes API; renderer consumes it, never the reverse)
 [[rules]]
-name = "no-source-to-test-import"
-from = "src"
-to = "tests"
+name = "no-preload-to-renderer-import"
+from = "src/preload"
+to = "src/renderer"
 type = "forbidden"
+
+# Renderer must not import from preload directly
+# (communication goes through context bridge API)
+[[rules]]
+name = "no-renderer-to-preload-import"
+from = "src/renderer"
+to = "src/preload"
+type = "forbidden"
+
+# ────────────────────────────────────────────────────────────────
+# 2. SHARED SELF-CONTAINMENT
+# ────────────────────────────────────────────────────────────────
 
 # Shared must be self-contained — no reverse dependencies
 # (shared defines types used by all processes; it must not depend on them)
@@ -52,16 +79,23 @@ from = "src/shared"
 to = "src/preload"
 type = "forbidden"
 
-# Preload must ONLY import from shared (types/channels)
-# (already partially covered, but also forbid renderer imports)
+# ────────────────────────────────────────────────────────────────
+# 3. SOURCE ↔ TEST ISOLATION
+# ────────────────────────────────────────────────────────────────
+
+# Tests must not be imported by source code
 [[rules]]
-name = "no-preload-to-renderer-import"
-from = "src/preload"
-to = "src/renderer"
+name = "no-source-to-test-import"
+from = "src"
+to = "tests"
 type = "forbidden"
 
-# Main utilities must stay isolated — no business logic dependencies
-# (utils are pure helpers; they should not depend on scheduler, tray, etc.)
+# ────────────────────────────────────────────────────────────────
+# 4. UTILS ISOLATION
+# (utils are pure helpers — no business logic, no side effects)
+# ────────────────────────────────────────────────────────────────
+
+# Utils must stay isolated — no business logic dependencies
 [[rules]]
 name = "utils-no-scheduler-import"
 from = "src/main/utils"
@@ -80,18 +114,131 @@ from = "src/main/utils"
 to = "src/main/settings"
 type = "forbidden"
 
-# IPC handlers must not create circular dependencies
-# (calendar handler should not depend on scheduler — use events instead)
+# Utils must not import calendar (Swift EventKit business logic)
+[[rules]]
+name = "utils-no-calendar-import"
+from = "src/main/utils"
+to = "src/main/calendar"
+type = "forbidden"
+
+# Utils must not import IPC handlers (utils are lower-level)
+[[rules]]
+name = "utils-no-ipc-handlers-import"
+from = "src/main/utils"
+to = "src/main/ipc-handlers"
+type = "forbidden"
+
+# ────────────────────────────────────────────────────────────────
+# 5. IPC HANDLER BOUNDARIES
+# (IPC handlers are thin wrappers; window creation is managed elsewhere)
+# ────────────────────────────────────────────────────────────────
+
+# Calendar IPC handler must not depend on scheduler
+# (calendar handler serves data; scheduler consumes it — no reverse)
 [[rules]]
 name = "ipc-calendar-no-scheduler"
 from = "src/main/ipc-handlers/calendar"
 to = "src/main/scheduler"
 type = "forbidden"
 
-# Renderer must not import from preload directly
-# (communication goes through context bridge API)
+# App IPC handler must not import scheduler
+# (app handler handles open-external and get-version; no scheduling concern)
 [[rules]]
-name = "no-renderer-to-preload-import"
-from = "src/renderer"
-to = "src/preload"
+name = "ipc-app-no-scheduler"
+from = "src/main/ipc-handlers/app"
+to = "src/main/scheduler"
+type = "forbidden"
+
+# Window IPC handler must not import scheduler
+# (window handler manages popover height; no scheduling concern)
+[[rules]]
+name = "ipc-window-no-scheduler"
+from = "src/main/ipc-handlers/window"
+to = "src/main/scheduler"
+type = "forbidden"
+
+# IPC handlers must not import alert-window
+# (alert lifecycle is managed by scheduler, not IPC layer)
+[[rules]]
+name = "ipc-handlers-no-alert-window"
+from = "src/main/ipc-handlers"
+to = "src/main/alert-window"
+type = "forbidden"
+
+# IPC handlers must not import settings-window
+# (settings window lifecycle is managed by tray, not IPC layer)
+[[rules]]
+name = "ipc-handlers-no-settings-window"
+from = "src/main/ipc-handlers"
+to = "src/main/settings-window"
+type = "forbidden"
+
+# ────────────────────────────────────────────────────────────────
+# 6. CYCLE PREVENTION — SCHEDULER
+# (scheduler → tray would create cycles; ipc-handlers → scheduler
+#  is allowed only for settings handler's restartScheduler)
+# ────────────────────────────────────────────────────────────────
+
+# Scheduler must NEVER import tray (prevents scheduler ↔ tray cycle)
+# (scheduler depends on calendar, settings, alert-window;
+#  tray depends on calendar, settings, settings-window)
+[[rules]]
+name = "scheduler-no-tray"
+from = "src/main/scheduler"
+to = "src/main/tray"
+type = "forbidden"
+
+# Tray must NEVER import scheduler (prevents tray ↔ scheduler cycle)
+[[rules]]
+name = "tray-no-scheduler"
+from = "src/main/tray"
+to = "src/main/scheduler"
+type = "forbidden"
+
+# Scheduler must NEVER import IPC handlers (prevents cycle)
+# (ipc-handlers/settings imports scheduler for restartScheduler;
+#  reverse must be forbidden)
+[[rules]]
+name = "scheduler-no-ipc-handlers"
+from = "src/main/scheduler"
+to = "src/main/ipc-handlers"
+type = "forbidden"
+
+# ────────────────────────────────────────────────────────────────
+# 7. CYCLE PREVENTION — SHORTCUTS
+# (shortcuts is a leaf module: registers Cmd+Shift+M, joins next meeting)
+# ────────────────────────────────────────────────────────────────
+
+# Shortcuts must not import scheduler (shortcuts is a leaf action)
+[[rules]]
+name = "shortcuts-no-scheduler"
+from = "src/main/shortcuts"
+to = "src/main/scheduler"
+type = "forbidden"
+
+# Shortcuts must not import tray (shortcuts is a leaf action)
+[[rules]]
+name = "shortcuts-no-tray"
+from = "src/main/shortcuts"
+to = "src/main/tray"
+type = "forbidden"
+
+# ────────────────────────────────────────────────────────────────
+# 8. RENDERER ENTRY INDEPENDENCE
+# (3 separate HTML entries: popover, settings, alert — fully independent)
+# ────────────────────────────────────────────────────────────────
+
+# Settings renderer must not import alert renderer
+# (separate BrowserWindow entries with no shared runtime)
+[[rules]]
+name = "renderer-settings-no-alert"
+from = "src/renderer/settings"
+to = "src/renderer/alert"
+type = "forbidden"
+
+# Alert renderer must not import settings renderer
+[[rules]]
+name = "renderer-alert-no-settings"
+from = "src/renderer/alert"
+to = "src/renderer/settings"
 type = "forbidden"

@@ -25,13 +25,23 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: vi.fn(),
 }));
 
+// Mock power module so scheduler uses a fixed poll interval
+vi.mock("../../src/main/power.js", () => ({
+  getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+  preventSleep: vi.fn(),
+  allowSleep: vi.fn(),
+}));
+
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
 const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback, poll, _resetConsecutiveErrors } = schedulerModule;
 
 const stateModule = await import("../../src/main/scheduler/state.js");
-const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents } = stateModule;
+const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents, markTitleDirty } = stateModule;
+const countdownModule = await import("../../src/main/scheduler/countdown.js");
+const { resolveActiveTitleEvent, resolveActiveInMeetingEvent } = countdownModule;
+
 
 // Inject mock tray callback into scheduler
 setTrayTitleCallback(mockUpdateTrayTitle);
@@ -645,5 +655,114 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
     expect(stateModule.consecutiveErrors).toBe(0);
     expect(stateModule.consecutiveErrors).toBe(0);
+  });
+});
+
+
+describe("Wave 2: Dirty flag for title resolution", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetConsecutiveErrors();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetConsecutiveErrors();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+  });
+
+  it("resolveActiveTitleEvent returns cached value when !titleDirty", () => {
+    // Schedule an event so countdown starts and activeTitleEventId is set
+    const event = makeEvent({ id: "dirty-t1", startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+    scheduleEvents([event]);
+
+    // After scheduleEvents, titleDirty was set and resolved, so now titleDirty is false
+    expect(stateModule.state.titleDirty).toBe(false);
+    expect(stateModule.state.activeTitleEventId).toBe("dirty-t1");
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+
+    // Call resolveActiveTitleEvent again — should early-return (not dirty, has cached value)
+    resolveActiveTitleEvent();
+
+    // Title callback should NOT have been called (early-returned)
+    expect(mockUpdateTrayTitle).not.toHaveBeenCalled();
+  });
+
+  it("resolveActiveTitleEvent re-resolves after markTitleDirty()", () => {
+    const event = makeEvent({ id: "dirty-t2", startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+    scheduleEvents([event]);
+
+    expect(stateModule.state.activeTitleEventId).toBe("dirty-t2");
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+
+    // Mark dirty and call resolve — should re-resolve and call tray update
+    markTitleDirty();
+    expect(stateModule.state.titleDirty).toBe(true);
+
+    resolveActiveTitleEvent();
+
+    // Should have re-resolved and updated tray
+    expect(mockUpdateTrayTitle).toHaveBeenCalledWith("Test Meeting", expect.any(Number));
+    expect(stateModule.state.titleDirty).toBe(false);
+  });
+
+  it("resolveActiveInMeetingEvent returns cached value when !inMeetingDirty", () => {
+    // Create an in-progress meeting to trigger in-meeting countdown
+    const event = makeEvent({
+      id: "dirty-im1",
+      startDate: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // started 5 min ago
+      endDate: new Date(Date.now() + 25 * 60 * 1000).toISOString(),  // ends in 25 min
+    });
+    scheduleEvents([event]);
+
+    expect(stateModule.state.activeInMeetingEventId).toBe("dirty-im1");
+    expect(stateModule.state.inMeetingDirty).toBe(false);
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+
+    // Call resolveActiveInMeetingEvent — should early-return (not dirty, has cached value)
+    resolveActiveInMeetingEvent();
+
+    // Should NOT have called tray update (early-returned)
+    expect(mockUpdateTrayTitle).not.toHaveBeenCalled();
+  });
+
+  it("scheduleEvents marks titleDirty when countdown starts", () => {
+    const event = makeEvent({
+      id: "dirty-s1",
+      startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
+    // Before scheduling, dirty flag is false (fresh state)
+    expect(stateModule.state.titleDirty).toBe(false);
+
+    scheduleEvents([event]);
+
+    // After scheduling, resolveActiveTitleEvent was called which resets the flag
+    // But the flag was set before resolve ran
+    expect(stateModule.state.activeTitleEventId).toBe("dirty-s1");
+    // After resolution, dirty is reset
+    expect(stateModule.state.titleDirty).toBe(false);
+
+    // Now delete the event — cleanup marks dirty and re-resolves
+    scheduleEvents([]);
+    expect(stateModule.state.activeTitleEventId).toBeNull();
+  });
+
+  it("scheduleEvents marks inMeetingDirty when in-meeting countdown starts/stops", () => {
+    // In-progress event triggers in-meeting countdown
+    const event = makeEvent({
+      id: "dirty-s2",
+      startDate: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 28 * 60 * 1000).toISOString(),
+    });
+
+    scheduleEvents([event]);
+
+    // In-meeting countdown started → dirty was set and resolved
+    expect(stateModule.state.activeInMeetingEventId).toBe("dirty-s2");
+    expect(stateModule.state.inMeetingDirty).toBe(false); // resolved resets it
+
+    // Remove the event — cleanup marks dirty and re-resolves
+    scheduleEvents([]);
+    expect(stateModule.state.activeInMeetingEventId).toBeNull();
   });
 });

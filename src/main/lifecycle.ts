@@ -4,9 +4,14 @@ import { registerIpcHandlers } from "./ipc.js";
 import {
   startScheduler,
   stopScheduler,
+  restartScheduler,
   setSchedulerWindow,
   setTrayTitleCallback,
 } from "./scheduler/index.js";
+import {
+  initPowerManagement,
+  cleanupPowerManagement,
+} from "./power.js";
 import { updateTrayTitle } from "./tray.js";
 import { getSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
@@ -23,6 +28,7 @@ export function initializeApp(mainWindow: BrowserWindow): void {
   setTrayTitleCallback(updateTrayTitle);
   setSchedulerWindow(mainWindow);
   startScheduler();
+  initPowerManagement(() => restartScheduler());
   registerShortcuts();
 
   // Check notification permission on first run
@@ -38,5 +44,6 @@ export function initializeApp(mainWindow: BrowserWindow): void {
  * Called from app.on("before-quit") in index.ts.
  */
 export function shutdownApp(): void {
+  cleanupPowerManagement();
   stopScheduler();
 }

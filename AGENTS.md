@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-03-30
-**Commit:** 95de189
+**Generated:** 2026-04-01
+**Commit:** 3e6a1ab
 **Branch:** develop
 
 ## OVERVIEW
@@ -33,6 +33,7 @@ src/
 │   ├── shortcuts.ts      # Global keyboard shortcut (Cmd+Shift+M)
 │   ├── auto-updater.ts   # Electron auto-updater (packaged builds)
 │   ├── notification.ts   # Notification permission check
+│   ├── power.ts         # Power management (battery-aware polling, sleep prevention)
 │   ├── googlemeet-events.swift  # Native EventKit helper (compiled at runtime)
 │   ├── scheduler/     # Auto-launch browser before meetings
 │   │   ├── index.ts   # Core scheduling engine, timer orchestration
@@ -74,7 +75,7 @@ src/
 └── tests/            # Vitest tests (main/renderer workspaces)
     ├── setup.main.ts # Electron mock for main process
     ├── main/         # 27 test files
-    └── renderer/     # 6 test files
+    │   └── renderer/     # 5 test files
 ```
 
 ## WHERE TO LOOK
@@ -101,6 +102,7 @@ src/
 | UI state              | `src/renderer/index.ts`                | `AppState` type union                                         |
 | Tray behavior         | `src/main/tray.ts`                     | Menu, positioning                                             |
 | URL validation        | `src/main/utils/url-validation.ts`     | `MEET_URL_ALLOWLIST` for `shell.openExternal`                 |
+| Power management       | `src/main/power.ts`                    | Battery-aware polling, ref-counted sleep prevention            |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts` | Separate for each process                                     |
 
 ## CODE MAP
@@ -141,6 +143,11 @@ src/
 | `formatRemainingTime`        | fn    | src/main/tray.ts:216               | Format countdown for tray title                                                                                     |
 | `updateTrayTitle`            | fn    | src/main/tray.ts:231               | Set tray title with countdown                                                                                       |
 | `checkNotificationPermission`| fn    | src/main/notification.ts:26        | macOS notification permission prompt                                                                                |
+| `initPowerManagement`   | fn    | src/main/power.ts:13             | Register battery/AC change listeners                             |
+| `cleanupPowerManagement`| fn    | src/main/power.ts:18             | Remove power listeners                                            |
+| `preventSleep`          | fn    | src/main/power.ts:26             | Ref-counted display-sleep blocker                                 |
+| `allowSleep`            | fn    | src/main/power.ts:33             | Release display-sleep blocker                                     |
+| `isSleepPrevented`      | fn    | src/main/power.ts:42             | Check if sleep blocker active                                     |
 | `getPackageInfo`             | fn    | src/main/utils/packageInfo.ts      | Read package.json at runtime, returns frozen object                                                                 |
 | `IPC_CHANNELS`               | const | src/shared/ipc-channels.ts:5       | 11 channel names                                                                                                    |
 | `IpcChannelMap`              | type  | src/shared/ipc-channels.ts:24      | Request/response type map                                                                                           |
@@ -247,7 +254,7 @@ Two GitHub Actions workflows in `.github/workflows/`:
 - **Scheduler polling**: Polls every 2 min (independent of renderer's 5-min UI refresh)
 - **Scheduler state**: Proxy views over Maps/Sets in `scheduler/state.ts` — 8 timer maps, 2 fired-event sets, 3 scalars
 - **Window hide on blur**: Popover behavior — hides when focus lost (dev mode exempt)
-- **Tests**: 125+ tests across 33 test files covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, event delegation, and XSS protection
+- **Tests**: 125+ tests across 32 test files covering scheduler, calendar, IPC, settings, auto-launch, tray, meet-url, notification, power, event delegation, and XSS protection
 
 ## TESTS
 

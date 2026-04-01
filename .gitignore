@@ -143,3 +143,4 @@ lib/
 dist/
 opencode.json
 .opencode/
+.sisyphus/

@@ -7,18 +7,22 @@ const {
   mockUpdateTrayTitle,
   mockStartScheduler,
   mockStopScheduler,
+  mockRestartScheduler,
   mockSetSchedulerWindow,
   mockSetTrayTitleCallback,
   mockGetSettings,
   mockSyncAutoLaunch,
   mockCheckNotificationPermission,
   mockRegisterShortcuts,
+  mockInitPowerManagement,
+  mockCleanupPowerManagement,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
   mockUpdateTrayTitle: vi.fn(),
   mockStartScheduler: vi.fn(),
   mockStopScheduler: vi.fn(),
+  mockRestartScheduler: vi.fn(),
   mockSetSchedulerWindow: vi.fn(),
   mockSetTrayTitleCallback: vi.fn(),
   mockGetSettings: vi.fn().mockReturnValue({
@@ -31,6 +35,8 @@ const {
   mockSyncAutoLaunch: vi.fn(),
   mockCheckNotificationPermission: vi.fn().mockResolvedValue(undefined),
   mockRegisterShortcuts: vi.fn(),
+  mockInitPowerManagement: vi.fn(),
+  mockCleanupPowerManagement: vi.fn(),
 }));
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -46,6 +52,7 @@ vi.mock("../../src/main/tray.js", () => ({
 vi.mock("../../src/main/scheduler/index.js", () => ({
   startScheduler: mockStartScheduler,
   stopScheduler: mockStopScheduler,
+  restartScheduler: mockRestartScheduler,
   setSchedulerWindow: mockSetSchedulerWindow,
   setTrayTitleCallback: mockSetTrayTitleCallback,
 }));
@@ -64,6 +71,11 @@ vi.mock("../../src/main/notification.js", () => ({
 
 vi.mock("../../src/main/shortcuts.js", () => ({
   registerShortcuts: mockRegisterShortcuts,
+}));
+
+vi.mock("../../src/main/power.js", () => ({
+  initPowerManagement: mockInitPowerManagement,
+  cleanupPowerManagement: mockCleanupPowerManagement,
 }));
 
 import { initializeApp, shutdownApp } from "../../src/main/lifecycle.js";
@@ -94,6 +106,10 @@ describe("lifecycle", () => {
       // Scheduler started
       expect(mockStartScheduler).toHaveBeenCalledOnce();
 
+      // Power management initialized with restartScheduler callback
+      expect(mockInitPowerManagement).toHaveBeenCalledOnce();
+      expect(mockInitPowerManagement).toHaveBeenCalledWith(expect.any(Function));
+
       // Shortcuts registered
       expect(mockRegisterShortcuts).toHaveBeenCalledOnce();
 
@@ -120,10 +136,21 @@ describe("lifecycle", () => {
   });
 
   describe("shutdownApp", () => {
-    it("calls stopScheduler", () => {
+    it("calls cleanupPowerManagement and stopScheduler", () => {
       shutdownApp();
 
+      expect(mockCleanupPowerManagement).toHaveBeenCalledOnce();
       expect(mockStopScheduler).toHaveBeenCalledOnce();
+    });
+
+    it("calls cleanupPowerManagement before stopScheduler", () => {
+      const callOrder: string[] = [];
+      mockCleanupPowerManagement.mockImplementation(() => callOrder.push("cleanup"));
+      mockStopScheduler.mockImplementation(() => callOrder.push("stop"));
+
+      shutdownApp();
+
+      expect(callOrder).toEqual(["cleanup", "stop"]);
     });
   });
 });
