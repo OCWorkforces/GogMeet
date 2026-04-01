@@ -2,6 +2,7 @@ import {
   state,
   setActiveTitleEventId,
   setActiveInMeetingEventId,
+  markInMeetingDirty,
 } from "./state.js";
 
 /**
@@ -18,6 +19,10 @@ export function resolveActiveTitleEvent(): void {
     return;
   }
 
+  // Skip resolution when nothing changed — cached activeTitleEventId is still valid
+  if (!state.titleDirty && state.activeTitleEventId !== null) return;
+
+
   let bestId: string | null = null;
   let bestStartMs = Infinity;
 
@@ -29,6 +34,7 @@ export function resolveActiveTitleEvent(): void {
     }
   }
 
+  state.titleDirty = false;
   setActiveTitleEventId(bestId);
 
   if (bestId) {
@@ -49,6 +55,9 @@ export function resolveActiveTitleEvent(): void {
  * Policy: event ending soonest wins.
  */
 export function resolveActiveInMeetingEvent(): void {
+  // Skip resolution when nothing changed — cached activeInMeetingEventId is still valid
+  if (!state.inMeetingDirty && state.activeInMeetingEventId !== null) return;
+
   let bestId: string | null = null;
   let bestEndMs = Infinity;
 
@@ -60,6 +69,7 @@ export function resolveActiveInMeetingEvent(): void {
     }
   }
 
+  state.inMeetingDirty = false;
   setActiveInMeetingEventId(bestId);
 
   if (bestId) {
@@ -99,6 +109,7 @@ export function startInMeetingCountdown(
   state.inMeetingIntervals.set(eventId, intervalHandle);
 
   // Resolve ownership, then do first tick
+  markInMeetingDirty();
   resolveActiveInMeetingEvent();
 
   console.log(`[scheduler] In-meeting countdown started for "${data.title}"`);
@@ -115,6 +126,7 @@ export function startInMeetingCountdown(
     if (state.activeInMeetingEventId === eventId) {
       setActiveInMeetingEventId(null);
     }
+    markInMeetingDirty();
     resolveActiveInMeetingEvent();
     console.log(`[scheduler] Meeting ended: "${data.title}"`);
   }, data.endMs - now);

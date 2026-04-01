@@ -20,8 +20,10 @@ export interface SchedulerState {
   alertFiredEvents: Set<string>;
   activeTitleEventId: string | null;
   activeInMeetingEventId: string | null;
+  titleDirty: boolean;
+  inMeetingDirty: boolean;
   consecutiveErrors: number;
-  pollInterval: ReturnType<typeof setInterval> | null;
+  pollTimeout: ReturnType<typeof setTimeout> | null;
   win: BrowserWindow | null;
   onTrayTitleUpdate?:
     | ((
@@ -46,8 +48,10 @@ export function createSchedulerState(): SchedulerState {
     alertFiredEvents: new Set<string>(),
     activeTitleEventId: null,
     activeInMeetingEventId: null,
+    titleDirty: false,
+    inMeetingDirty: false,
     consecutiveErrors: 0,
-    pollInterval: null,
+    pollTimeout: null,
     win: null,
     onTrayTitleUpdate: null,
   };
@@ -96,6 +100,16 @@ export function setConsecutiveErrors(value: number): void {
   consecutiveErrors = value;
 }
 
+export function markTitleDirty(): void {
+  state.titleDirty = true;
+  titleDirty = true;
+}
+
+export function markInMeetingDirty(): void {
+  state.inMeetingDirty = true;
+  inMeetingDirty = true;
+}
+
 export function incrementConsecutiveErrors(): void {
   setConsecutiveErrors(state.consecutiveErrors + 1);
 }
@@ -104,12 +118,14 @@ export function syncExportedScalars(): void {
   activeTitleEventId = state.activeTitleEventId;
   activeInMeetingEventId = state.activeInMeetingEventId;
   consecutiveErrors = state.consecutiveErrors;
+  titleDirty = state.titleDirty;
+  inMeetingDirty = state.inMeetingDirty;
 }
 
 export function clearSchedulerResources(s: SchedulerState): void {
-  if (s.pollInterval) {
-    clearInterval(s.pollInterval);
-    s.pollInterval = null;
+  if (s.pollTimeout !== null) {
+    clearTimeout(s.pollTimeout);
+    s.pollTimeout = null;
   }
 
   for (const handle of s.timers.values()) clearTimeout(handle);
@@ -194,3 +210,9 @@ export let activeInMeetingEventId: string | null = state.activeInMeetingEventId;
 
 /** Counter of consecutive calendar fetch errors — reset to 0 on success */
 export let consecutiveErrors = state.consecutiveErrors;
+
+/** Whether the title resolution needs to re-resolve (countdown set changed) */
+export let titleDirty = state.titleDirty;
+
+/** Whether the in-meeting resolution needs to re-resolve (in-meeting set changed) */
+export let inMeetingDirty = state.inMeetingDirty;

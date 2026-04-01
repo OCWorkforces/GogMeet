@@ -1,5 +1,6 @@
 import "./styles/main.css";
 import type { MeetingEvent } from "../shared/models.js";
+import type { CalendarPermission } from "../shared/models.js";
 import type { AppSettings } from "../shared/settings.js";
 import { escapeHtml } from "../shared/utils/escape-html.js";
 
@@ -23,6 +24,11 @@ let settings: AppSettings = {
 };
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
+let cachedSettings: AppSettings | null = null;
+let cachedPermission: CalendarPermission | null = null;
+let lastHeight = 0;
+let lastEventsKey = "";
+let lastPollTime = 0;
 
 function formatRelativeTime(startDate: string, endDate: string): { label: string; cls: string } {
   const now = Date.now();
@@ -200,7 +206,10 @@ function render() {
   const bodyEl = app.querySelector<HTMLElement>(".body");
   const bodyH = bodyEl ? bodyEl.scrollHeight : 0;
   const targetH = Math.min(MAX_H, Math.max(MIN_H, bodyH + FOOTER_H));
-  window.api.window.setHeight(targetH);
+  if (targetH !== lastHeight) {
+    window.api.window.setHeight(targetH);
+    lastHeight = targetH;
+  }
 }
 
 function setupDelegatedEvents(): void {
@@ -236,6 +245,7 @@ async function grantAccess() {
   render();
 
   const status = await window.api.calendar.requestPermission();
+  cachedPermission = status;
   if (status === "granted") {
     await loadEvents();
   } else {
@@ -245,14 +255,17 @@ async function grantAccess() {
 }
 
 async function loadEvents() {
+  const prevStateType = state.type;
   state = { type: "loading" };
   render();
 
   try {
     // Fetch settings first
-    settings = await window.api.settings.get();
+    settings = cachedSettings ?? await window.api.settings.get();
+    cachedSettings = settings;
 
-    const permission = await window.api.calendar.getPermissionStatus();
+    const permission = cachedPermission ?? await window.api.calendar.getPermissionStatus();
+    cachedPermission = permission;
 
     if (permission === "denied" || permission === "not-determined") {
       state = { type: "no-permission", retrying: false };
@@ -274,6 +287,12 @@ async function loadEvents() {
       if (events.length === 0) {
         state = { type: "no-events" };
       } else {
+        const key = events.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
+        if (key === lastEventsKey && prevStateType === "has-events") {
+          lastUpdatedAt = Date.now();
+          return;
+        }
+        lastEventsKey = key;
         state = { type: "has-events", events };
       }
     }
@@ -293,7 +312,10 @@ async function init() {
   // Listen for calendar updates pushed from main process
   window.api.calendar.onEventsUpdated(() => void loadEvents());
   // Listen for settings changes from the settings window
-  window.api.settings.onChanged(() => void loadEvents());
+  window.api.settings.onChanged((updated: AppSettings) => {
+    cachedSettings = updated;
+    void loadEvents();
+  });
   version = await window.api.app.getVersion();
 
   // Initial load
@@ -311,8 +333,12 @@ async function init() {
         refreshTimer = null;
       }
     } else {
-      // Resumed — reload immediately then restart interval
-      void loadEvents();
+      // Resumed — debounce rapid show/hide cycles (5s minimum)
+      const now = Date.now();
+      if (now - lastPollTime >= 5000) {
+        lastPollTime = now;
+        void loadEvents();
+      }
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
     }

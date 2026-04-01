@@ -7,6 +7,7 @@ import type { BrowserWindow } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { buildMeetUrl } from "../utils/meet-url.js";
+import { getPollInterval, preventSleep, allowSleep } from "../power.js";
 
 import {
   state,
@@ -15,6 +16,8 @@ import {
   setConsecutiveErrors,
   setActiveInMeetingEventId,
   incrementConsecutiveErrors,
+  markTitleDirty,
+  markInMeetingDirty,
 } from "./state.js";
 
 import {
@@ -31,10 +34,6 @@ function getOpenBeforeMs(): number {
 
 /** How long before meeting start to show the tray title (ms) */
 const TITLE_BEFORE_MS = 30 * 60 * 1000; // 30 minutes
-
-/** How often to re-poll calendar events (ms) */
-const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-
 /** Don't schedule events that start more than this far in the future */
 const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -57,29 +56,24 @@ export function setTrayTitleCallback(
 }
 
 /**
- * Generic helper to cleanup stale entries from a map.
- * Removes entries not in the active set, calling clearFn on each removed value.
- */
-function cleanupStaleEntries<K, V>(
-  map: Map<K, V>,
-  activeIds: Set<K>,
-  clearFn: (v: V) => void,
-): void {
-  for (const [id, handle] of map) {
-    if (!activeIds.has(id)) {
-      clearFn(handle);
-      map.delete(id);
-    }
-  }
-}
-
-/**
  * Schedule or re-schedule browser-open timers for the given events.
  * Safe to call multiple times — clears stale timers for removed events.
  */
 export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
   const activeIds = new Set<string>();
+
+  // Cache Proxy views into locals — avoids repeated Proxy property lookups
+  const stateTimers = state.timers;
+  const stateAlertTimers = state.alertTimers;
+  const stateTitleTimers = state.titleTimers;
+  const stateCountdownIntervals = state.countdownIntervals;
+  const stateClearTimers = state.clearTimers;
+  const stateInMeetingIntervals = state.inMeetingIntervals;
+  const stateInMeetingEndTimers = state.inMeetingEndTimers;
+  const stateFiredEvents = state.firedEvents;
+  const stateAlertFiredEvents = state.alertFiredEvents;
+  const stateScheduledEventData = state.scheduledEventData;
 
   for (const event of events) {
     if (event.isAllDay) continue;
@@ -97,39 +91,41 @@ export function scheduleEvents(events: MeetingEvent[]): void {
         activeIds.add(event.id);
 
         // --- Clean up any pending future timers (e.g., event rescheduled to past) ---
-        const pendingTimer = state.timers.get(event.id);
+        const pendingTimer = stateTimers.get(event.id);
         if (pendingTimer) {
           clearTimeout(pendingTimer);
-          state.timers.delete(event.id);
+          stateTimers.delete(event.id);
         }
-        const pendingAlert = state.alertTimers.get(event.id);
+        const pendingAlert = stateAlertTimers.get(event.id);
         if (pendingAlert) {
           clearTimeout(pendingAlert);
-          state.alertTimers.delete(event.id);
+          stateAlertTimers.delete(event.id);
         }
-        const pendingTitle = state.titleTimers.get(event.id);
+        const pendingTitle = stateTitleTimers.get(event.id);
         if (pendingTitle) {
           clearTimeout(pendingTitle);
-          state.titleTimers.delete(event.id);
+          stateTitleTimers.delete(event.id);
         }
-        const pendingCountdown = state.countdownIntervals.get(event.id);
+        const pendingCountdown = stateCountdownIntervals.get(event.id);
         if (pendingCountdown) {
           clearInterval(pendingCountdown);
-          state.countdownIntervals.delete(event.id);
+          markTitleDirty();
+          allowSleep();
+          stateCountdownIntervals.delete(event.id);
         }
-        const pendingClear = state.clearTimers.get(event.id);
+        const pendingClear = stateClearTimers.get(event.id);
         if (pendingClear) {
           clearTimeout(pendingClear);
-          state.clearTimers.delete(event.id);
+          stateClearTimers.delete(event.id);
         }
         // Only clear fired flags if event hasn't fired yet - preserve if already fired
-        if (!state.firedEvents.has(event.id)) {
-          state.firedEvents.delete(event.id);
-          state.alertFiredEvents.delete(event.id);
+        if (!stateFiredEvents.has(event.id)) {
+          stateFiredEvents.delete(event.id);
+          stateAlertFiredEvents.delete(event.id);
         }
 
-        if (!state.inMeetingIntervals.has(event.id)) {
-          state.scheduledEventData.set(event.id, {
+        if (!stateInMeetingIntervals.has(event.id)) {
+          stateScheduledEventData.set(event.id, {
             title: event.title,
             meetUrl: event.meetUrl,
             startMs,
@@ -145,20 +141,20 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     activeIds.add(event.id);
 
     // Already fired — check if time changed
-    if (state.firedEvents.has(event.id)) {
-      const prevData = state.scheduledEventData.get(event.id);
+    if (stateFiredEvents.has(event.id)) {
+      const prevData = stateScheduledEventData.get(event.id);
       if (prevData && prevData.startMs !== startMs) {
         // Start time changed after browser already opened — allow reschedule
-        state.firedEvents.delete(event.id);
-        state.alertFiredEvents.delete(event.id);
+        stateFiredEvents.delete(event.id);
+        stateAlertFiredEvents.delete(event.id);
       } else {
         continue; // already fired, no change
       }
     }
 
     // Already scheduled — check what changed
-    if (state.timers.has(event.id)) {
-      const prevData = state.scheduledEventData.get(event.id);
+    if (stateTimers.has(event.id)) {
+      const prevData = stateScheduledEventData.get(event.id);
       if (prevData) {
         const timeChanged = prevData.startMs !== startMs;
         const titleChanged = prevData.title !== event.title;
@@ -168,7 +164,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
         if (!timeChanged) {
           // Only metadata changed — update snapshot and refresh in-place (no timer reschedule)
-          state.scheduledEventData.set(event.id, {
+          stateScheduledEventData.set(event.id, {
             title: event.title,
             meetUrl: event.meetUrl,
             startMs,
@@ -176,16 +172,16 @@ export function scheduleEvents(events: MeetingEvent[]): void {
           });
 
           if (urlChanged) {
-            const existingTimer = state.timers.get(event.id);
+            const existingTimer = stateTimers.get(event.id);
             if (existingTimer) {
               clearTimeout(existingTimer);
             }
-            state.timers.delete(event.id);
+            stateTimers.delete(event.id);
             // Also clear alert timer if rescheduling
-            const existingAlertTimer = state.alertTimers.get(event.id);
+            const existingAlertTimer = stateAlertTimers.get(event.id);
             if (existingAlertTimer) {
               clearTimeout(existingAlertTimer);
-              state.alertTimers.delete(event.id);
+              stateAlertTimers.delete(event.id);
             }
             // fall through below to schedule new browser timer (same start time)
             console.log(
@@ -203,20 +199,20 @@ export function scheduleEvents(events: MeetingEvent[]): void {
           }
         } else {
           // Start time changed — cancel all timers and fully reschedule
-          const existingTimer = state.timers.get(event.id);
+          const existingTimer = stateTimers.get(event.id);
           if (existingTimer) {
             clearTimeout(existingTimer);
           }
-          state.timers.delete(event.id);
+          stateTimers.delete(event.id);
           // Also clear alert timer when start time changes
-          const existingAlertTimer = state.alertTimers.get(event.id);
+          const existingAlertTimer = stateAlertTimers.get(event.id);
           if (existingAlertTimer) {
             clearTimeout(existingAlertTimer);
-            state.alertTimers.delete(event.id);
+            stateAlertTimers.delete(event.id);
           }
-          state.scheduledEventData.delete(event.id);
-          state.firedEvents.delete(event.id); // allow re-fire at new time
-          state.alertFiredEvents.delete(event.id); // allow re-alert at new time
+          stateScheduledEventData.delete(event.id);
+          stateFiredEvents.delete(event.id); // allow re-fire at new time
+          stateAlertFiredEvents.delete(event.id); // allow re-alert at new time
           console.log(
             `[scheduler] Rescheduled "${event.title}" — start time changed`,
           );
@@ -230,20 +226,20 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     // --- Separate alert timer (fires 1 minute before browser timer) ---
     // Only schedule if windowAlert is enabled and not already fired
     const alertSettings = getSettings();
-    if (alertSettings.windowAlert && !state.alertFiredEvents.has(event.id)) {
+    if (alertSettings.windowAlert && !stateAlertFiredEvents.has(event.id)) {
       // Cancel any existing alert timer for this event
-      const existingAlertTimer = state.alertTimers.get(event.id);
+      const existingAlertTimer = stateAlertTimers.get(event.id);
       if (existingAlertTimer) {
         clearTimeout(existingAlertTimer);
-        state.alertTimers.delete(event.id);
+        stateAlertTimers.delete(event.id);
       }
 
       // Alert fires 1 minute before the browser open
       const ALERT_OFFSET_MS = 60 * 1000;
       const alertDelayMs = Math.max(0, effectiveDelay - ALERT_OFFSET_MS);
       const alertHandle = setTimeout(() => {
-        state.alertTimers.delete(event.id);
-        state.alertFiredEvents.add(event.id);
+        stateAlertTimers.delete(event.id);
+        stateAlertFiredEvents.add(event.id);
         try {
           showAlert(event);
         } catch {
@@ -253,12 +249,12 @@ export function scheduleEvents(events: MeetingEvent[]): void {
           `[scheduler] Alert shown for "${event.title}" (${Math.round(alertDelayMs / 1000)}s before meeting)`,
         );
       }, alertDelayMs);
-      state.alertTimers.set(event.id, alertHandle);
+      stateAlertTimers.set(event.id, alertHandle);
     }
 
     const handle = setTimeout(() => {
-      state.timers.delete(event.id);
-      state.firedEvents.add(event.id);
+      stateTimers.delete(event.id);
+      stateFiredEvents.add(event.id);
       // Always show notification for all meetings
       new Notification({
         title: event.title,
@@ -278,8 +274,8 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       console.log(`[scheduler] Opened browser for "${event.title}" → ${url}`);
     }, effectiveDelay);
 
-    state.timers.set(event.id, handle);
-    state.scheduledEventData.set(event.id, {
+    stateTimers.set(event.id, handle);
+    stateScheduledEventData.set(event.id, {
       title: event.title,
       meetUrl: event.meetUrl,
       startMs,
@@ -291,20 +287,21 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     // --- 30-min tray title countdown ---
     // Cancel any existing title/countdown/clear timers before (re-)scheduling
-    const existingTitleTimer = state.titleTimers.get(event.id);
+    const existingTitleTimer = stateTitleTimers.get(event.id);
     if (existingTitleTimer) {
       clearTimeout(existingTitleTimer);
-      state.titleTimers.delete(event.id);
+      stateTitleTimers.delete(event.id);
     }
-    const existingCountdown = state.countdownIntervals.get(event.id);
+    const existingCountdown = stateCountdownIntervals.get(event.id);
     if (existingCountdown) {
       clearInterval(existingCountdown);
-      state.countdownIntervals.delete(event.id);
+      allowSleep();
+      stateCountdownIntervals.delete(event.id);
     }
-    const existingClearTimer = state.clearTimers.get(event.id);
+    const existingClearTimer = stateClearTimers.get(event.id);
     if (existingClearTimer) {
       clearTimeout(existingClearTimer);
-      state.clearTimers.delete(event.id);
+      stateClearTimers.delete(event.id);
     }
 
     /** Compute whole minutes remaining until startMs and update tray */
@@ -324,11 +321,13 @@ export function scheduleEvents(events: MeetingEvent[]): void {
       // Guard: bail if event was deleted between titleTimer fire and now
       if (!state.scheduledEventData.has(event.id)) return;
 
+      preventSleep();
       tickCountdown(); // immediate tick so title appears right away — sets ownership via resolveActiveTitleEvent below
       const intervalHandle = setInterval(() => {
         tickCountdown();
       }, 60_000);
       state.countdownIntervals.set(event.id, intervalHandle);
+      markTitleDirty();
       console.log(`[scheduler] Countdown started for "${event.title}"`);
 
       // Resolve ownership so tray title reflects earliest-starting meeting
@@ -342,6 +341,8 @@ export function scheduleEvents(events: MeetingEvent[]): void {
             clearInterval(countdown);
           }
           state.countdownIntervals.delete(event.id);
+          markTitleDirty();
+          allowSleep();
           state.clearTimers.delete(event.id);
           if (state.activeTitleEventId === event.id) {
             setActiveTitleEventId(null);
@@ -368,10 +369,10 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     if (titleDelayMs > 0) {
       // Title starts in the future — schedule the countdown to begin then
       const titleHandle = setTimeout(() => {
-        state.titleTimers.delete(event.id);
+        stateTitleTimers.delete(event.id);
         startCountdown();
       }, titleDelayMs);
-      state.titleTimers.set(event.id, titleHandle);
+      stateTitleTimers.set(event.id, titleHandle);
       console.log(
         `[scheduler] Title timer set for "${event.title}" in ${Math.round(titleDelayMs / 1000)}s`,
       );
@@ -381,42 +382,70 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     }
   }
 
+  markTitleDirty();
+  markInMeetingDirty();
   // Cancel timers for events that are no longer in the list (e.g. cancelled meetings)
-  cleanupStaleEntries(state.timers, activeIds, (h) => {
-    clearTimeout(h);
-    console.log("[scheduler] Cancelled timer for removed event");
-  });
-  cleanupStaleEntries(state.alertTimers, activeIds, (h) => {
-    clearTimeout(h);
-    console.log("[scheduler] Cancelled alert timer for removed event");
-  });
-  cleanupStaleEntries(state.titleTimers, activeIds, (h) => clearTimeout(h));
-  cleanupStaleEntries(state.countdownIntervals, activeIds, (h) =>
-    clearInterval(h),
-  );
-  cleanupStaleEntries(state.clearTimers, activeIds, (h) => clearTimeout(h));
-  // Cleanup stale in-meeting timers
-  cleanupStaleEntries(state.inMeetingIntervals, activeIds, (h) =>
-    clearInterval(h),
-  );
-  cleanupStaleEntries(state.inMeetingEndTimers, activeIds, (h) =>
-    clearTimeout(h),
-  );
+  // Batch cleanup: remove stale entries from all timer maps in individual passes
+  for (const [id, handle] of stateTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      stateTimers.delete(id);
+      console.log("[scheduler] Cancelled timer for removed event");
+    }
+  }
+  for (const [id, handle] of stateAlertTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      stateAlertTimers.delete(id);
+      console.log("[scheduler] Cancelled alert timer for removed event");
+    }
+  }
+  for (const [id, handle] of stateTitleTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      stateTitleTimers.delete(id);
+    }
+  }
+  for (const [id, handle] of stateCountdownIntervals) {
+    if (!activeIds.has(id)) {
+      clearInterval(handle);
+      allowSleep();
+      stateCountdownIntervals.delete(id);
+    }
+  }
+  for (const [id, handle] of stateClearTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      stateClearTimers.delete(id);
+    }
+  }
+  for (const [id, handle] of stateInMeetingIntervals) {
+    if (!activeIds.has(id)) {
+      clearInterval(handle);
+      stateInMeetingIntervals.delete(id);
+    }
+  }
+  for (const [id, handle] of stateInMeetingEndTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      stateInMeetingEndTimers.delete(id);
+    }
+  }
 
   // Prune firedEvents, alertFiredEvents and scheduledEventData for events no longer in the active list
-  for (const id of state.firedEvents) {
+  for (const id of stateFiredEvents) {
     if (!activeIds.has(id)) {
-      state.firedEvents.delete(id);
+      stateFiredEvents.delete(id);
     }
   }
-  for (const id of state.alertFiredEvents) {
+  for (const id of stateAlertFiredEvents) {
     if (!activeIds.has(id)) {
-      state.alertFiredEvents.delete(id);
+      stateAlertFiredEvents.delete(id);
     }
   }
-  for (const id of state.scheduledEventData.keys()) {
+  for (const id of stateScheduledEventData.keys()) {
     if (!activeIds.has(id)) {
-      state.scheduledEventData.delete(id);
+      stateScheduledEventData.delete(id);
     }
   }
 
@@ -440,6 +469,8 @@ export async function poll(): Promise<void> {
       console.error("[scheduler] Calendar error:", result.error);
       incrementConsecutiveErrors();
       if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        markTitleDirty();
+        markInMeetingDirty();
         clearAllDisplayTimers();
         setActiveInMeetingEventId(null);
         resolveActiveTitleEvent();
@@ -452,6 +483,8 @@ export async function poll(): Promise<void> {
     console.error("[scheduler] Poll error:", err);
     incrementConsecutiveErrors();
     if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      markTitleDirty();
+      markInMeetingDirty();
       clearAllDisplayTimers();
       setActiveInMeetingEventId(null);
       resolveActiveTitleEvent();
@@ -464,14 +497,21 @@ export async function poll(): Promise<void> {
 
 /** Start the scheduler — call once from app.whenReady() */
 export function startScheduler(): void {
-  if (state.pollInterval) return; // already running
+  if (state.pollTimeout !== null) return; // already running
 
   // Initial poll immediately
   void poll();
 
-  // Then poll every 2 minutes
-  state.pollInterval = setInterval(() => void poll(), POLL_INTERVAL_MS);
-  console.log("[scheduler] Started");
+  // Then poll with recursive setTimeout (prevents drift/overlap)
+  function scheduleNextPoll(): void {
+    state.pollTimeout = setTimeout(async () => {
+      await poll();
+      if (state.pollTimeout !== null) {
+        scheduleNextPoll();
+      }
+    }, getPollInterval());
+  }
+  scheduleNextPoll();
 }
 
 /** Stop the scheduler and clear all pending timers — call on before-quit */
