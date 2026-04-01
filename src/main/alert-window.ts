@@ -16,7 +16,7 @@ export function showAlert(event: MeetingEvent): void {
     alertWindow = null;
   }
 
-  alertWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 500,
     height: 480,
     resizable: false,
@@ -31,15 +31,17 @@ export function showAlert(event: MeetingEvent): void {
       ...SECURE_WEB_PREFERENCES,
     },
   });
+  alertWindow = win;
 
-  loadWindowContent(alertWindow, "alert");
+  loadWindowContent(win, "alert");
 
-  alertWindow.once("ready-to-show", () => {
-    alertWindow!.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
+  win.once("ready-to-show", () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
     // Measure rendered content height before showing to avoid a visible resize flash
     setTimeout(() => {
-      if (!alertWindow || alertWindow.isDestroyed()) return;
-      alertWindow.webContents
+      if (win.isDestroyed()) return;
+      win.webContents
         .executeJavaScript(
           `(() => {
             const app = document.getElementById("app");
@@ -57,7 +59,7 @@ export function showAlert(event: MeetingEvent): void {
           })()`,
         )
         .then((contentHeight: number) => {
-          if (!alertWindow || alertWindow.isDestroyed()) return;
+          if (win.isDestroyed()) return;
           if (typeof contentHeight === "number" && contentHeight > 0) {
             const MIN_HEIGHT = 280;
             const MAX_HEIGHT = 480;
@@ -65,17 +67,19 @@ export function showAlert(event: MeetingEvent): void {
               MIN_HEIGHT,
               Math.min(MAX_HEIGHT, Math.ceil(contentHeight)),
             );
-            alertWindow.setSize(500, clamped, false);
+            win.setSize(500, clamped, false);
           }
-          alertWindow!.show();
+          win.show();
         })
         .catch(() => {
-          alertWindow?.show();
+          if (!win.isDestroyed()) win.show();
         });
     }, 150);
   });
 
-  alertWindow.on("closed", () => {
-    alertWindow = null;
+  win.on("closed", () => {
+    if (alertWindow === win) {
+      alertWindow = null;
+    }
   });
 }
