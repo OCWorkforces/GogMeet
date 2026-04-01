@@ -67,6 +67,16 @@ app: {
       workArea: { x: 0, y: 0, width: 1440, height: 900 },
     }),
   },
+  powerMonitor: {
+    onBatteryPower: false,
+    on: vi.fn(),
+    removeAllListeners: vi.fn(),
+  },
+  powerSaveBlocker: {
+    start: vi.fn().mockReturnValue(1),
+    stop: vi.fn(),
+    isStarted: vi.fn().mockReturnValue(false),
+  },
   nativeImage: {
     createFromPath: vi
       .fn()

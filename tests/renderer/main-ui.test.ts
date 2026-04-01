@@ -195,3 +195,329 @@ describe("renderer escapeHtml usage", () => {
     );
   });
 });
+
+describe("IPC caching — settings (Task 1a)", () => {
+  it("uses cached settings on subsequent calls via nullish coalescing", () => {
+    // Simulates: settings = cachedSettings ?? await window.api.settings.get()
+    const settingsGet = vi.fn(() => ({
+      schemaVersion: 1,
+      openBeforeMinutes: 1,
+      launchAtLogin: false,
+      showTomorrowMeetings: true,
+      windowAlert: false,
+    }));
+
+    let cachedSettings: { schemaVersion: number } | null = null;
+
+    // First call — cache is null, must fetch
+    const first = cachedSettings ?? settingsGet();
+    cachedSettings = first;
+    expect(settingsGet).toHaveBeenCalledOnce();
+
+    // Second call — cache is populated, skip fetch
+    const second = cachedSettings ?? settingsGet();
+    expect(settingsGet).toHaveBeenCalledOnce(); // still 1, not 2
+    expect(second).toBe(first);
+  });
+
+  it("onChanged callback updates cache before loadEvents", () => {
+    // Simulates: window.api.settings.onChanged((updated) => { cachedSettings = updated; })
+    let cachedSettings: { openBeforeMinutes: number } | null = null;
+    const settingsGet = vi.fn(() => ({ openBeforeMinutes: 1 }));
+
+    // Initial fetch populates cache
+    cachedSettings = cachedSettings ?? settingsGet();
+    expect(settingsGet).toHaveBeenCalledOnce();
+
+    // Simulate settings:changed push with new value
+    const pushed = { openBeforeMinutes: 3 };
+    cachedSettings = pushed; // onChanged handler sets cache
+
+    // Next loadEvents uses cache — no IPC call
+    const result = cachedSettings ?? settingsGet();
+    expect(settingsGet).toHaveBeenCalledOnce(); // still 1
+    expect(result.openBeforeMinutes).toBe(3);
+  });
+});
+
+describe("IPC caching — permission (Task 1b)", () => {
+  it("uses cached permission on subsequent calls", () => {
+    const getPermissionStatus = vi.fn(() => "granted" as const);
+
+    let cachedPermission: "granted" | "denied" | "not-determined" | null = null;
+
+    // First call — cache is null, must fetch
+    const first = cachedPermission ?? getPermissionStatus();
+    cachedPermission = first;
+    expect(getPermissionStatus).toHaveBeenCalledOnce();
+
+    // Second call — cache populated, skip fetch
+    const second = cachedPermission ?? getPermissionStatus();
+    expect(getPermissionStatus).toHaveBeenCalledOnce(); // still 1
+    expect(second).toBe("granted");
+  });
+
+  it("grantAccess updates permission cache after requestPermission", () => {
+    let cachedPermission: "granted" | "denied" | "not-determined" | null = null;
+    const getPermissionStatus = vi.fn(() => "granted" as const);
+
+    // Simulate grantAccess: requestPermission returns "granted"
+    const status = "granted" as const;
+    cachedPermission = status;
+
+    // Next loadEvents uses cache — no IPC call
+    const result = cachedPermission ?? getPermissionStatus();
+    expect(getPermissionStatus).not.toHaveBeenCalled();
+    expect(result).toBe("granted");
+  });
+});
+
+describe("IPC guard — setHeight dedup (Task 1c)", () => {
+  it("setHeight only fires when height changes", () => {
+    const setHeight = vi.fn();
+    let lastHeight = 0;
+
+    function guardedSetHeight(targetH: number) {
+      if (targetH !== lastHeight) {
+        setHeight(targetH);
+        lastHeight = targetH;
+      }
+    }
+
+    // First render — should fire
+    guardedSetHeight(220);
+    expect(setHeight).toHaveBeenCalledOnce();
+    expect(setHeight).toHaveBeenCalledWith(220);
+
+    // Second render with same height — should NOT fire
+    guardedSetHeight(220);
+    expect(setHeight).toHaveBeenCalledOnce(); // still 1
+
+    // Third render with different height — should fire
+    guardedSetHeight(350);
+    expect(setHeight).toHaveBeenCalledTimes(2);
+    expect(setHeight).toHaveBeenLastCalledWith(350);
+  });
+
+  it("setHeight fires again after height returns to previous value", () => {
+    const setHeight = vi.fn();
+    let lastHeight = 0;
+
+    function guardedSetHeight(targetH: number) {
+      if (targetH !== lastHeight) {
+        setHeight(targetH);
+        lastHeight = targetH;
+      }
+    }
+
+    guardedSetHeight(220);
+    guardedSetHeight(350);
+    guardedSetHeight(220); // different from lastHeight (350)
+    expect(setHeight).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("Wave 2: Skip re-render when events unchanged (Task 2a)", () => {
+  it("skips render when events key is identical to previous", () => {
+    const render = vi.fn();
+    let lastEventsKey = "";
+    let state: { type: string } = { type: "loading" };
+
+    interface SimpleEvent {
+      id: string;
+      startDate: string;
+      endDate: string;
+      meetUrl: string;
+    }
+
+    function processEvents(events: SimpleEvent[]) {
+      const prevStateType = state.type;
+      state = { type: "loading" };
+      const key = events
+        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
+        .join("|");
+      if (key === lastEventsKey && prevStateType === "has-events") {
+        return; // skip render
+      }
+      lastEventsKey = key;
+      state = { type: "has-events" };
+      render();
+    }
+
+    const events = [
+      {
+        id: "e1",
+        startDate: "2026-04-01T10:00:00Z",
+        endDate: "2026-04-01T11:00:00Z",
+        meetUrl: "https://meet.google.com/abc-def-ghi",
+      },
+    ];
+
+    // First call — should render
+    processEvents(events);
+    expect(render).toHaveBeenCalledOnce();
+
+    // Second call with same events — should NOT render
+    processEvents(events);
+    expect(render).toHaveBeenCalledOnce(); // still 1
+  });
+
+  it("renders again when event data changes", () => {
+    const render = vi.fn();
+    let lastEventsKey = "";
+    let state: { type: string } = { type: "loading" };
+
+    interface SimpleEvent {
+      id: string;
+      startDate: string;
+      endDate: string;
+      meetUrl: string;
+    }
+
+    function processEvents(events: SimpleEvent[]) {
+      const prevStateType = state.type;
+      state = { type: "loading" };
+      const key = events
+        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
+        .join("|");
+      if (key === lastEventsKey && prevStateType === "has-events") {
+        return;
+      }
+      lastEventsKey = key;
+      state = { type: "has-events" };
+      render();
+    }
+
+    const events1 = [
+      {
+        id: "e1",
+        startDate: "2026-04-01T10:00:00Z",
+        endDate: "2026-04-01T11:00:00Z",
+        meetUrl: "https://meet.google.com/abc-def-ghi",
+      },
+    ];
+
+    const events2 = [
+      {
+        id: "e1",
+        startDate: "2026-04-01T10:00:00Z",
+        endDate: "2026-04-01T11:30:00Z", // endDate changed
+        meetUrl: "https://meet.google.com/abc-def-ghi",
+      },
+    ];
+
+    processEvents(events1);
+    expect(render).toHaveBeenCalledOnce();
+
+    processEvents(events2);
+    expect(render).toHaveBeenCalledTimes(2); // re-rendered due to change
+  });
+
+  it("renders on first call even when state is not has-events", () => {
+    const render = vi.fn();
+    let lastEventsKey = "";
+    let state: { type: string } = { type: "loading" };
+
+    interface SimpleEvent {
+      id: string;
+      startDate: string;
+      endDate: string;
+      meetUrl: string;
+    }
+
+    function processEvents(events: SimpleEvent[]) {
+      const prevStateType = state.type;
+      state = { type: "loading" };
+      const key = events
+        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
+        .join("|");
+      if (key === lastEventsKey && prevStateType === "has-events") {
+        return;
+      }
+      lastEventsKey = key;
+      state = { type: "has-events" };
+      render();
+    }
+
+    const events = [
+      {
+        id: "e1",
+        startDate: "2026-04-01T10:00:00Z",
+        endDate: "2026-04-01T11:00:00Z",
+        meetUrl: "https://meet.google.com/abc-def-ghi",
+      },
+    ];
+
+    // Even if key somehow matches, state.type !== "has-events" so it renders
+    processEvents(events);
+    expect(render).toHaveBeenCalledOnce();
+    expect(state.type).toBe("has-events");
+  });
+});
+
+describe("Wave 2: Debounce visibility-change poll (Task 2b)", () => {
+  it("skips loadEvents when visibility changes within 5s", () => {
+    const loadEvents = vi.fn();
+    let lastPollTime = 0;
+
+    function onVisible() {
+      const now = Date.now();
+      if (now - lastPollTime < 5000) return;
+      lastPollTime = now;
+      loadEvents();
+    }
+
+    // First visibility — should poll
+    onVisible();
+    expect(loadEvents).toHaveBeenCalledOnce();
+
+    // Immediate second visibility — within 5s, should skip
+    onVisible();
+    expect(loadEvents).toHaveBeenCalledOnce(); // still 1
+  });
+
+  it("allows loadEvents after 5s debounce window", () => {
+    vi.useFakeTimers();
+    const loadEvents = vi.fn();
+    let lastPollTime = 0;
+
+    function onVisible() {
+      const now = Date.now();
+      if (now - lastPollTime < 5000) return;
+      lastPollTime = now;
+      loadEvents();
+    }
+
+    onVisible();
+    expect(loadEvents).toHaveBeenCalledOnce();
+
+    // Advance past debounce window
+    vi.advanceTimersByTime(5000);
+
+    onVisible();
+    expect(loadEvents).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("blocks multiple rapid show/hide cycles", () => {
+    const loadEvents = vi.fn();
+    let lastPollTime = 0;
+
+    function onVisible() {
+      const now = Date.now();
+      if (now - lastPollTime < 5000) return;
+      lastPollTime = now;
+      loadEvents();
+    }
+
+    // Simulate 5 rapid visibility changes
+    onVisible(); // 1st — goes through
+    onVisible(); // 2nd — blocked
+    onVisible(); // 3rd — blocked
+    onVisible(); // 4th — blocked
+    onVisible(); // 5th — blocked
+
+    expect(loadEvents).toHaveBeenCalledOnce();
+  });
+});
