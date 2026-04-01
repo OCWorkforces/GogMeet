@@ -6,15 +6,15 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 
 | File           | Lines | Role                                                   |
 | -------------- | ----- | ------------------------------------------------------ |
-| `index.ts`     | 498   | Core scheduling engine, timer orchestration, lifecycle |
-| `state.ts`     | 196   | Singleton state with Proxy views over Maps/Sets        |
-| `countdown.ts` | 138   | Tray title ownership resolution, in-meeting countdown  |
+| `index.ts`     | 553   | Core scheduling engine, timer orchestration, lifecycle |
+| `state.ts`     | 220   | Singleton state with Proxy views over Maps/Sets        |
+| `countdown.ts` | 150   | Tray title ownership resolution, in-meeting countdown  |
 
 ## PUBLIC API
 
 | Function               | Signature                          | Role                                          |
 | ---------------------- | ---------------------------------- | --------------------------------------------- |
-| `startScheduler`       | `() => void`                       | Starts 2-min poll loop + first poll           |
+| `startScheduler`       | `() => void`                       | Starts poll loop (AC: 2min, battery: 4min) + first poll |
 | `stopScheduler`        | `(preserveWindow?) => void`        | Clears all timers, resets state               |
 | `restartScheduler`     | `() => void`                       | stop + start (settings changes)               |
 | `scheduleEvents`       | `(events: MeetingEvent[]) => void` | Central hub: sets/resets per-event timers     |
@@ -27,8 +27,9 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | Constant                 | Value   | Purpose                               |
 | ------------------------ | ------- | ------------------------------------- |
 | `getOpenBeforeMs()`      | 1-5 min | Configurable via settings             |
+| `getPollInterval()`      | 2/4 min | 2 min AC, 4 min battery (from power.ts) |
 | `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window          |
-| `POLL_INTERVAL_MS`       | 2 min   | Calendar re-fetch interval            |
+| `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window          |
 | `MAX_SCHEDULE_AHEAD_MS`  | 24 h    | Skip events beyond this               |
 | `MAX_CONSECUTIVE_ERRORS` | 3       | ~6 min of errors before clearing tray |
 | `ALERT_OFFSET_MS`        | 60 s    | Alert fires 1 min before browser      |
@@ -67,6 +68,8 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 
 **Dual scalar export**: Each scalar (`activeTitleEventId`, `activeInMeetingEventId`, `consecutiveErrors`) exists both as a property on `state` AND as a module-level `let`. `syncExportedScalars()` keeps them in sync after `replaceState()`.
 
+**Dirty flags**: `titleDirty` and `inMeetingDirty` track when title resolution needs re-run. `markTitleDirty(id)` / `markInMeetingDirty(id)` set flags; resolvers clear them after processing.
+
 **State primitives**: `setActiveTitleEventId()`, `setActiveInMeetingEventId()`, `setConsecutiveErrors()`, `incrementConsecutiveErrors()` — mutators that sync scalars.
 
 **Reset**: `resetState({ preserveWindow? })` clears all resources, replaces with fresh state. `replaceState()` swaps entire state (testing).
@@ -83,16 +86,18 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 - **Callback decoupling**: `setTrayTitleCallback` breaks scheduler→tray dependency; scheduler never imports tray
 - **Idempotent scheduling**: `scheduleEvents` safe to call repeatedly; cleans stale entries and compares snapshots
 - **Change detection**: `scheduledEventData` Map stores title/url/startMs/endMs per event; reschedules only on actual change
+- **Dirty flag resolution**: `titleDirty`/`inMeetingDirty` flags avoid redundant resolver runs when nothing changed
 - **Alert pre-fire suppression**: `alertFiredEvents` Set prevents re-showing alert on scheduler refresh
 
 ## INTERNAL DEPENDENCIES
 
 ```
 index.ts
-  ├── state.ts        (state maps, scalars, reset primitives)
-  ├── countdown.ts    (title/in-meeting resolution)
+  ├── state.ts        (state maps, scalars, dirty flags, reset primitives)
+  ├── countdown.ts    (title/in-meeting resolution, dirty flag consumers)
   ├── ../calendar.ts  (getCalendarEventsResult)
   ├── ../alert-window.ts (showAlert)
+  ├── ../power.ts     (getPollInterval, preventSleep, allowSleep)
   ├── ../settings.ts  (getSettings)
   ├── ../utils/meet-url.ts (buildMeetUrl)
   └── ../../shared/ipc-channels.ts (IPC_CHANNELS)

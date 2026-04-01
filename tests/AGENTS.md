@@ -34,6 +34,7 @@ tests/
 │   ├── ipc-handlers-window.test.ts # window IPC handler tests
 │   ├── package-info.test.ts # package.json reader
 │   └── url-validation.test.ts # URL allowlist validation
+│   ├── power.test.ts     # Power management (battery polling, sleep prevention)
 └── renderer/
     ├── delegation.test.ts  # 77 lines — event delegation (4 tests)
     ├── escape-html.test.ts # 71 lines — XSS protection (11 tests)
@@ -81,9 +82,10 @@ vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
 | D14-D15 | Concurrent countdowns     |
 | E16-E18 | Error handling            |
 | F1-F5   | Poll IPC notification     |
+| Wave 2  | Dirty flag for title resolution |
 
 - `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
-- All state maps cleared in `beforeEach`: `timers`, `alertTimers`, `firedEvents`, `alertFiredEvents`, `scheduledEventData`, `countdownIntervals`, `consecutiveErrors`
+- All state maps cleared in `beforeEach`: `timers`, `alertTimers`, `firedEvents`, `alertFiredEvents`, `scheduledEventData`, `countdownIntervals`, `titleDirty`, `inMeetingDirty`, `consecutiveErrors`
 - `vi.resetModules()` + dynamic import for fresh module state
 
 ## RENDERER TESTS
@@ -112,3 +114,5 @@ Mocks full Electron API:
 - `ipcMain`: handle, on, off
 - `Tray`: setToolTip, setTitle, on, getBounds, popUpContextMenu
 - `Menu`, `Notification`, `screen`, `nativeImage`
+- `powerMonitor`: onBatteryPower, on event listeners
+- `powerSaveBlocker`: start, stop

@@ -18,7 +18,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 | `shortcuts.ts`            | Global keyboard shortcut (Cmd+Shift+M → join next meeting)                   |
 | `auto-updater.ts`         | Electron auto-updater (packaged builds only)                                 |
 | `notification.ts`         | macOS notification permission check                                          |
-| `googlemeet-events.swift` | Native EventKit helper (compiled to `/tmp/googlemeet/` at runtime)           |
+| `power.ts`                | Power management (battery-aware polling, ref-counted sleep prevention)      |
 | `scheduler/`              | Auto-launch browser before meetings (see `scheduler/AGENTS.md`)              |
 | `ipc-handlers/`           | IPC handler implementations (see below)                                      |
 | `utils/`                  | Main process utilities (see below)                                           |
@@ -38,13 +38,12 @@ initializeApp(win):
   setTrayTitleCallback      → decouples scheduler from tray
   setSchedulerWindow(win)   → scheduler/index.ts
   startScheduler()          → scheduler/index.ts
+  initPowerManagement(() => restartScheduler())  → power.ts
   registerShortcuts()       → shortcuts.ts
-  checkNotificationPermission()
-  syncAutoLaunch()          → auto-launch.ts
 
 shutdownApp():
+  cleanupPowerManagement()  → power.ts
   stopScheduler()           → scheduler/index.ts
-```
 
 ## WINDOW CONFIG
 
@@ -108,7 +107,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 
 See `scheduler/AGENTS.md` for full details. Key points:
 
-- **Poll interval**: Every 2 min (`POLL_INTERVAL_MS`)
+- **Poll interval**: Every 2 min on AC, 4 min on battery (`getPollInterval()` in power.ts)
 - **Open-before**: Configurable 1-5 min via settings (default 1 min)
 - **Alert offset**: 1 min before browser open (`ALERT_OFFSET_MS`)
 - **Title notification**: 30 min before (`TITLE_BEFORE_MS`)
@@ -129,13 +128,13 @@ See `scheduler/AGENTS.md` for full details. Key points:
 
 | Symbol                        | Location                          | Role                                          |
 | ------------------------- | --------------------------------- | --------------------------------------------- |
-| `initializeApp`           | `lifecycle.ts:20`                 | Subsystem init orchestration                  |
-| `shutdownApp`             | `lifecycle.ts:40`                 | Stop scheduler on quit                        |
-| `startScheduler`          | `scheduler/index.ts:466`          | Start poll loop + initial poll                |
-| `stopScheduler`           | `scheduler/index.ts:478`          | Clear all timers on quit                      |
-| `restartScheduler`        | `scheduler/index.ts:485`          | Restart on settings change                    |
-| `scheduleEvents`          | `scheduler/index.ts:80`           | Set/clear per-event `setTimeout` timers       |
-| `poll`                    | `scheduler/index.ts:429`          | Calendar poll with error handling             |
+| `initializeApp`           | `lifecycle.ts:25`                 | Subsystem init orchestration                  |
+| `shutdownApp`             | `lifecycle.ts:46`                 | Stop scheduler, cleanup power mgmt            |
+| `startScheduler`          | `scheduler/index.ts:499`          | Start poll loop + initial poll                |
+| `stopScheduler`           | `scheduler/index.ts:518`          | Clear all timers on quit                      |
+| `restartScheduler`        | `scheduler/index.ts:525`          | Restart on settings/power change              |
+| `scheduleEvents`          | `scheduler/index.ts:62`           | Set/clear per-event `setTimeout` timers       |
+| `poll`                    | `scheduler/index.ts:458`          | Calendar poll with error handling             |
 | `registerIpcHandlers`     | `ipc.ts:11`                       | IPC registration (delegates to ipc-handlers/) |
 | `typedHandle`             | `ipc-handlers/shared.ts:42`       | Type-safe IPC wrapper                         |
 | `validateSender`          | `ipc-handlers/shared.ts:15`       | Origin validation against `ALLOWED_ORIGINS`   |
@@ -155,6 +154,11 @@ See `scheduler/AGENTS.md` for full details. Key points:
 | `formatRemainingTime`     | `tray.ts:216`                     | Format countdown for tray title               |
 | `updateTrayTitle`         | `tray.ts:231`                     | Set tray title with countdown                 |
 | `checkNotificationPermission` | `notification.ts:26`           | macOS notification permission prompt           |
+| `initPowerManagement`   | `power.ts:13`                    | Register battery/AC change listeners            |
+| `cleanupPowerManagement`| `power.ts:18`                    | Remove power listeners                           |
+| `preventSleep`          | `power.ts:26`                    | Ref-counted display-sleep blocker                |
+| `allowSleep`            | `power.ts:33`                    | Release display-sleep blocker                    |
+| `isSleepPrevented`      | `power.ts:42`                    | Check if sleep blocker active                    |
 
 ## ANTI-PATTERNS
 
