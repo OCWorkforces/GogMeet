@@ -11,10 +11,13 @@ import { fileURLToPath } from "node:url";
 const execFileAsync = promisify(execFile);
 const __dirname = join(fileURLToPath(import.meta.url), "..");
 
-/** Path to bundled Swift source file */
+/* Path to Swift source file in dev mode.
+ * __dirname resolves to the parent of the *built* file (lib/main/), so we go
+ * up two levels to reach the project root, then into src/main/.
+ * (The original source at src/main/swift/ had 3 levels up, but after bundling
+ * into lib/main/index.cjs, only 2 are needed.) */
 const SWIFT_SRC_DEV = join(
   __dirname,
-  "..",
   "..",
   "..",
   "src",
