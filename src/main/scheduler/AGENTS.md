@@ -4,35 +4,38 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 
 ## FILES
 
-| File           | Lines | Role                                                   |
-| -------------- | ----- | ------------------------------------------------------ |
-| `index.ts`     | 553   | Core scheduling engine, timer orchestration, lifecycle |
-| `state.ts`     | 220   | Singleton state with Proxy views over Maps/Sets        |
-| `countdown.ts` | 150   | Tray title ownership resolution, in-meeting countdown  |
+| File                 | Role                                                                       |
+| -------------------- | -------------------------------------------------------------------------- |
+| `index.ts`           | Central hub: `scheduleEvents()` sets/resets per-event timers               |
+| `state.ts`           | Singleton state with Proxy views over Maps/Sets, dirty flags               |
+| `countdown.ts`       | In-meeting countdown, title resolution                                     |
+| `poll.ts`            | Calendar polling loop, `startScheduler`/`stopScheduler`/`restartScheduler` |
+| `alert-timer.ts`     | `scheduleAlertTimer()` — fires 60s before browser open                     |
+| `browser-timer.ts`   | `scheduleBrowserTimer()` — browser open + Notification                     |
+| `title-countdown.ts` | `scheduleTitleCountdown()` — 30-min window title timer                     |
 
 ## PUBLIC API
 
-| Function               | Signature                          | Role                                          |
-| ---------------------- | ---------------------------------- | --------------------------------------------- |
+| Function               | Signature                          | Role                                                    |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------- |
 | `startScheduler`       | `() => void`                       | Starts poll loop (AC: 2min, battery: 4min) + first poll |
-| `stopScheduler`        | `(preserveWindow?) => void`        | Clears all timers, resets state               |
-| `restartScheduler`     | `() => void`                       | stop + start (settings changes)               |
-| `scheduleEvents`       | `(events: MeetingEvent[]) => void` | Central hub: sets/resets per-event timers     |
-| `poll`                 | `() => Promise<void>`              | Fetches calendar, delegates to scheduleEvents |
-| `setSchedulerWindow`   | `(w: BrowserWindow) => void`       | Injects renderer window for IPC push          |
-| `setTrayTitleCallback` | `(fn) => void`                     | Decouples scheduler from tray                 |
+| `stopScheduler`        | `(preserveWindow?) => void`        | Clears all timers, resets state                         |
+| `restartScheduler`     | `() => void`                       | stop + start (settings changes)                         |
+| `scheduleEvents`       | `(events: MeetingEvent[]) => void` | Central hub: sets/resets per-event timers               |
+| `poll`                 | `() => Promise<void>`              | Fetches calendar, delegates to scheduleEvents           |
+| `setSchedulerWindow`   | `(w: BrowserWindow) => void`       | Injects renderer window for IPC push                    |
+| `setTrayTitleCallback` | `(fn) => void`                     | Decouples scheduler from tray                           |
 
 ## CONSTANTS
 
-| Constant                 | Value   | Purpose                               |
-| ------------------------ | ------- | ------------------------------------- |
-| `getOpenBeforeMs()`      | 1-5 min | Configurable via settings             |
+| Constant                 | Value   | Purpose                                 |
+| ------------------------ | ------- | --------------------------------------- |
+| `getOpenBeforeMs()`      | 1-5 min | Configurable via settings               |
 | `getPollInterval()`      | 2/4 min | 2 min AC, 4 min battery (from power.ts) |
-| `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window          |
-| `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window          |
-| `MAX_SCHEDULE_AHEAD_MS`  | 24 h    | Skip events beyond this               |
-| `MAX_CONSECUTIVE_ERRORS` | 3       | ~6 min of errors before clearing tray |
-| `ALERT_OFFSET_MS`        | 60 s    | Alert fires 1 min before browser      |
+| `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window            |
+| `MAX_SCHEDULE_AHEAD_MS`  | 24 h    | Skip events beyond this                 |
+| `MAX_CONSECUTIVE_ERRORS` | 3       | ~6 min of errors before clearing tray   |
+| `ALERT_OFFSET_MS`        | 60 s    | Alert fires 1 min before browser        |
 
 ## TIMER TYPES (8 Maps)
 
@@ -74,13 +77,6 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 
 **Reset**: `resetState({ preserveWindow? })` clears all resources, replaces with fresh state. `replaceState()` swaps entire state (testing).
 
-## COUNTDOWN LOGIC (countdown.ts)
-
-- `resolveActiveTitleEvent()`: Picks earliest-starting event from `countdownIntervals` to own tray title
-- `resolveActiveInMeetingEvent()`: Picks soonest-ending in-meeting event to own tray title
-- `startInMeetingCountdown()`: Per-minute tick + end-of-meeting clear timer
-- `clearAllDisplayTimers()`: Wipes all countdown/clear/inMeeting timers (on consecutive errors)
-
 ## DESIGN DECISIONS
 
 - **Callback decoupling**: `setTrayTitleCallback` breaks scheduler→tray dependency; scheduler never imports tray
@@ -88,17 +84,16 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 - **Change detection**: `scheduledEventData` Map stores title/url/startMs/endMs per event; reschedules only on actual change
 - **Dirty flag resolution**: `titleDirty`/`inMeetingDirty` flags avoid redundant resolver runs when nothing changed
 - **Alert pre-fire suppression**: `alertFiredEvents` Set prevents re-showing alert on scheduler refresh
+- **Module extraction**: Timer logic split into focused files (poll, alert-timer, browser-timer, title-countdown) from monolithic index.ts
 
 ## INTERNAL DEPENDENCIES
 
 ```
 index.ts
-  ├── state.ts        (state maps, scalars, dirty flags, reset primitives)
-  ├── countdown.ts    (title/in-meeting resolution, dirty flag consumers)
-  ├── ../calendar.ts  (getCalendarEventsResult)
-  ├── ../alert-window.ts (showAlert)
-  ├── ../power.ts     (getPollInterval, preventSleep, allowSleep)
-  ├── ../settings.ts  (getSettings)
-  ├── ../utils/meet-url.ts (buildMeetUrl)
-  └── ../../shared/ipc-channels.ts (IPC_CHANNELS)
+  ├── state.ts          (state maps, scalars, dirty flags, reset primitives)
+  ├── countdown.ts      (in-meeting resolution, dirty flag consumers)
+  ├── alert-timer.ts    (→ alert-window.ts showAlert)
+  ├── browser-timer.ts  (→ utils/meet-url.ts buildMeetUrl)
+  ├── title-countdown.ts (→ countdown.ts, state.ts, power.ts)
+  └── poll.ts           (→ calendar.ts, state.ts, countdown.ts, index.ts)
 ```

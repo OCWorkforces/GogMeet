@@ -4,27 +4,31 @@ Electron renderer (web context). Vanilla TypeScript UI with native macOS popover
 
 ## FILES
 
-| File              | Role                                         |
-| ----------------- | -------------------------------------------- |
-| `index.ts`        | Main popover UI, state machine, event handlers |
-| `index.html`      | CSP-protected HTML template                  |
-| `env.d.ts`        | TypeScript declarations                      |
-| `css.d.ts`        | CSS module declarations                      |
-| `styles/reset.css`| Shared CSS reset, variables, dark mode, font stack |
-| `styles/main.css` | Popover-specific styles                      |
-| `settings/`       | Settings window UI (separate entry)          |
-| `settings/index.ts` | Settings form logic, save indicator        |
-| `settings/index.html` | Settings HTML template                    |
-| `settings/styles.css` | Settings-specific styles (iOS-style toggles) |
-| `alert/`          | Full-screen meeting alert (separate entry)   |
-| `alert/index.ts`  | Alert overlay logic (Escape dismisses)       |
-| `alert/index.html`| Alert HTML template                          |
-| `alert/styles.css`| Dark full-screen styles with animations      |
+| File                   | Role                                                  |
+| ---------------------- | ----------------------------------------------------- |
+| `index.ts`             | Main popover UI, state machine, event handlers        |
+| `index.html`           | CSP-protected HTML template                           |
+| `env.d.ts`             | TypeScript declarations                               |
+| `css.d.ts`             | CSS module declarations                               |
+| `events/`              | Event handling (extracted)                            |
+| `events/delegation.ts` | `setupDelegatedEvents()` via `data-action` attributes |
+| `rendering/`           | UI rendering (extracted)                              |
+| `rendering/body.ts`    | `renderBody()` for all states, `formatRelativeTime()` |
+| `styles/reset.css`     | Shared CSS reset, variables, dark mode, font stack    |
+| `styles/main.css`      | Popover-specific styles                               |
+| `settings/`            | Settings window UI (separate entry)                   |
+| `settings/index.ts`    | Settings form logic, save indicator                   |
+| `settings/index.html`  | Settings HTML template                                |
+| `settings/styles.css`  | iOS-style toggles                                     |
+| `alert/`               | Full-screen meeting alert (separate entry)            |
+| `alert/index.ts`       | Alert overlay logic (Escape dismisses)                |
+| `alert/index.html`     | Alert HTML template                                   |
+| `alert/styles.css`     | Dark full-screen styles with animations               |
 
 ## STATE MACHINE (main popover)
 
 ```typescript
-// index.ts:6
+// index.ts:10
 type AppState =
   | { type: "loading" }
   | { type: "no-permission"; retrying: boolean }
@@ -36,13 +40,14 @@ type AppState =
 ## RENDERING PATTERN
 
 - No virtual DOM — direct `innerHTML` assignment to `#app`
-- Template literal functions: `render()`, `renderBody()`, `renderFooter()`
-- Event binding: delegated listener on `#app` container via `data-action` attributes
+- Template literal functions: `render()` (index.ts), `renderBody()` (rendering/body.ts), `renderFooter()` (index.ts)
+- Event binding: delegated listener on `#app` container via `data-action` attributes (events/delegation.ts)
 - All 3 entries use same pattern: `#app` container + `innerHTML` + `DOMContentLoaded` init
 
 ## EVENT DELEGATION (main + alert)
 
 Main popover and alert use `data-action` attributes:
+
 - Main: `data-action="refresh"`, `data-action="grant-access"`, `data-action="join-meeting"`, `data-action="retry"`
 - Alert: `data-action="dismiss"`
 - Settings uses direct per-element listeners instead (no delegation)
@@ -51,20 +56,21 @@ Main popover and alert use `data-action` attributes:
 
 - Interval: 5 minutes (`REFRESH_INTERVAL_MS`)
 - Timer stored in `refreshTimer`, cleared on re-init
+- Pauses when window hidden, resumes on visibility change
 
 ## API ACCESS
 
 ```typescript
-window.api.calendar.getEvents();           // → CalendarResult
-window.api.calendar.requestPermission();    // → CalendarPermission
+window.api.calendar.getEvents(); // → CalendarResult
+window.api.calendar.requestPermission(); // → CalendarPermission
 window.api.calendar.getPermissionStatus(); // → CalendarPermission
-window.api.window.setHeight(height);       // → void
-window.api.app.openExternal(url);          // → void
-window.api.app.getVersion();               // → string
-window.api.settings.get();                 // → AppSettings
-window.api.settings.set(partial);          // → AppSettings
-window.api.settings.onChanged(cb);         // → void (push listener)
-window.api.alert.onShowAlert(cb);          // → void (push listener)
+window.api.window.setHeight(height); // → void
+window.api.app.openExternal(url); // → void
+window.api.app.getVersion(); // → string
+window.api.settings.get(); // → AppSettings
+window.api.settings.set(partial); // → AppSettings
+window.api.settings.onChanged(cb); // → void (push listener)
+window.api.alert.onShowAlert(cb); // → void (push listener)
 ```
 
 ## CSS CONVENTIONS
@@ -73,21 +79,7 @@ window.api.alert.onShowAlert(cb);          // → void (push listener)
 - **Backdrop blur**: `blur(20px) saturate(180%)` for native macOS aesthetic
 - **Dark mode**: Handled via CSS variables override in `reset.css` media query
 - **Alert always dark**: `alert/styles.css` overrides variables with hardcoded dark palette
-
-## KEY CLASSES
-
-| Class                | Use                                      |
-| -------------------- | ---------------------------------------- |
-| `.state-screen`      | Loading/empty/error states               |
-| `.meeting-item`      | Meeting list row                         |
-| `.meeting-meta`      | Flex wrapper for time + badge + cal name |
-| `.btn-join`          | Join button (accent color)               |
-| `.meeting-time.soon` | Orange "In X min"                        |
-| `.meeting-time.now`  | Red "Starting now!"                      |
-| `.badge-auto`        | Auto-open indicator (⚡ blue badge)       |
-| `.alert-card`        | Alert window main container (animated)   |
-| `.alert-card.alert-dismissing` | Fade+zoom-out animation on dismiss |
-| `.hiding`            | Fade-out animation on close              |
+- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` disables all animations
 
 ## SECURITY
 
@@ -98,6 +90,7 @@ window.api.alert.onShowAlert(cb);          // → void (push listener)
 ## SETTINGS WINDOW
 
 Separate renderer entry at `settings/`. Key differences:
+
 - Uses native window chrome (`titleBarStyle: "hiddenInset"`)
 - Shows in Dock when open (tray-only app otherwise)
 - Singleton BrowserWindow (focus if already open)
@@ -117,10 +110,10 @@ Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main p
 
 ## TESTS
 
-**Location**: `tests/renderer/*.test.ts` (6 test files)
+**Location**: `tests/renderer/*.test.ts` (5 test files)
 
-| File                 | Focus                    |
-| -------------------- | ------------------------ |
+| File                  | Focus                    |
+| --------------------- | ------------------------ |
 | `delegation.test.ts`  | Event delegation on #app |
 | `escape-html.test.ts` | XSS protection           |
 | `main-ui.test.ts`     | Main UI state machine    |
