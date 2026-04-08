@@ -1,3 +1,35 @@
+# ════════════════════════════════════════════════════════════════
+# GLOBAL CONSTRAINTS
+# ════════════════════════════════════════════════════════════════
+
+[constraints]
+max_cycles = 0            # Zero circular dependencies allowed
+max_cc = 25               # Max cyclomatic complexity per function
+no_god_files = true       # No file >500 lines or fan-out >15
+
+# ════════════════════════════════════════════════════════════════
+# LAYER DEFINITIONS (ordered by dependency level)
+# ════════════════════════════════════════════════════════════════
+
+[[layers]]
+name = "shared"
+order = 2
+paths = ["src/shared/**"]
+
+[[layers]]
+name = "main"
+order = 1
+paths = ["src/main/**", "src/preload/**"]
+
+[[layers]]
+name = "renderer"
+order = 0
+paths = ["src/renderer/**"]
+
+# ════════════════════════════════════════════════════════════════
+# BOUNDARY RULES (forbidden cross-process imports)
+# ════════════════════════════════════════════════════════════════
+
 # GogMeet Architectural Constraints
 # Enforces Electron 3-process separation and module boundaries.
 #

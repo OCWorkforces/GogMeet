@@ -16,16 +16,10 @@ import { buildMeetUrl } from "./utils/meet-url.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
 import type { MeetingEvent } from "../shared/models.js";
+import { formatMeetingTime, formatRemainingTime } from "../shared/utils/time.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Format ISO date string to locale time like "10:00 AM" */
-function formatMeetingTime(isoDate: string): string {
-  return new Date(isoDate).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 let tray: Tray | null = null;
 
@@ -212,15 +206,8 @@ export function setupTray(mainWindow: BrowserWindow): void {
 /** Max characters to show for the event title portion of the tray label */
 const TRAY_TITLE_MAX_CHARS = 12;
 
-/** Format minutes remaining as "Xh Ym" or "Xm" for in-meeting display */
-export function formatRemainingTime(totalMins: number): string {
-  if (totalMins <= 0) return "0m";
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}m`;
-}
+/** Re-export for consumers that import from tray (e.g. tests) */
+export { formatRemainingTime } from "../shared/utils/time.js";
 
 /**
  * Update the tray status bar title next to the icon.

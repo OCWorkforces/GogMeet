@@ -3,6 +3,8 @@ import type { MeetingEvent } from "../shared/models.js";
 import type { CalendarPermission } from "../shared/models.js";
 import type { AppSettings } from "../shared/settings.js";
 import { escapeHtml } from "../shared/utils/escape-html.js";
+import { DEFAULT_SETTINGS } from "../shared/settings.js";
+import { isTomorrow } from "../shared/utils/time.js";
 
 type AppState =
   | { type: "loading" }
@@ -15,13 +17,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let state: AppState = { type: "loading" };
 let version = "";
-let settings: AppSettings = {
-  schemaVersion: 1,
-  openBeforeMinutes: 1,
-  launchAtLogin: false,
-  showTomorrowMeetings: true,
-  windowAlert: false,
-};
+let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
 let cachedSettings: AppSettings | null = null;
@@ -68,17 +64,6 @@ function formatLastUpdated(ts: number): string {
   return `Updated ${diffMin} min ago`;
 }
 
-/** Check if a date is tomorrow (local time) */
-function isTomorrow(isoDate: string): boolean {
-  const date = new Date(isoDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfter = new Date(tomorrow);
-  dayAfter.setDate(dayAfter.getDate() + 1);
-  return date >= tomorrow && date < dayAfter;
-}
 
 function renderFooter(): string {
   const isLoading = lastUpdatedAt === null;
