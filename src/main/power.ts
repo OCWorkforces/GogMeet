@@ -26,7 +26,13 @@ let refCount = 0;
 export function preventSleep(): void {
   refCount++;
   if (refCount === 1) {
-    blockerId = powerSaveBlocker.start("prevent-display-sleep");
+    try {
+      blockerId = powerSaveBlocker.start("prevent-display-sleep");
+    } catch (err) {
+      console.error("[power] preventSleep error:", err);
+      refCount--;
+      blockerId = null;
+    }
   }
 }
 
@@ -34,7 +40,11 @@ export function allowSleep(): void {
   if (refCount <= 0) return;
   refCount--;
   if (refCount === 0 && blockerId !== null) {
-    powerSaveBlocker.stop(blockerId);
+    try {
+      powerSaveBlocker.stop(blockerId);
+    } catch (err) {
+      console.error("[power] allowSleep error:", err);
+    }
     blockerId = null;
   }
 }
@@ -46,7 +56,11 @@ export function isSleepPrevented(): boolean {
 /** Reset sleep blocker state for tests — not for production use */
 export function _resetSleepBlocker(): void {
   if (blockerId !== null) {
-    powerSaveBlocker.stop(blockerId);
+    try {
+      powerSaveBlocker.stop(blockerId);
+    } catch (err) {
+      console.error("[power] _resetSleepBlocker error:", err);
+    }
   }
   blockerId = null;
   refCount = 0;
