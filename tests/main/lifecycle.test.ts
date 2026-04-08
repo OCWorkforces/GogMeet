@@ -16,6 +16,8 @@ const {
   mockRegisterShortcuts,
   mockInitPowerManagement,
   mockCleanupPowerManagement,
+  mockGetCalendarPermissionStatus,
+  mockRequestCalendarPermission,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -37,7 +39,9 @@ const {
   mockRegisterShortcuts: vi.fn(),
   mockInitPowerManagement: vi.fn(),
   mockCleanupPowerManagement: vi.fn(),
-}));
+  mockGetCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
+  mockRequestCalendarPermission: vi.fn().mockResolvedValue("granted"),
+}))
 
 // Mock all subsystem modules that lifecycle.ts imports
 vi.mock("../../src/main/ipc.js", () => ({
@@ -78,6 +82,11 @@ vi.mock("../../src/main/power.js", () => ({
   cleanupPowerManagement: mockCleanupPowerManagement,
 }));
 
+vi.mock("../../src/main/calendar.js", () => ({
+  getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
+  requestCalendarPermission: mockRequestCalendarPermission,
+}))
+
 import { initializeApp, shutdownApp } from "../../src/main/lifecycle.js";
 
 const mockWindow = {} as unknown as import("electron").BrowserWindow;
@@ -88,8 +97,8 @@ describe("lifecycle", () => {
   });
 
   describe("initializeApp", () => {
-    it("calls all subsystem init functions", () => {
-      initializeApp(mockWindow);
+    it("calls all subsystem init functions", async () => {
+      await initializeApp(mockWindow);
 
       // IPC handlers registered with main window
       expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow);
@@ -102,6 +111,9 @@ describe("lifecycle", () => {
         mockUpdateTrayTitle,
       );
       expect(mockSetSchedulerWindow).toHaveBeenCalledWith(mockWindow);
+
+      // Calendar permission checked before scheduler starts
+      expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
 
       // Scheduler started
       expect(mockStartScheduler).toHaveBeenCalledOnce();
@@ -120,7 +132,36 @@ describe("lifecycle", () => {
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(false);
     });
 
-    it("syncs auto-launch with launchAtLogin from settings", () => {
+    it("requests calendar permission when not determined", async () => {
+      mockGetCalendarPermissionStatus.mockResolvedValueOnce("not-determined");
+
+      await initializeApp(mockWindow);
+
+      expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
+      expect(mockRequestCalendarPermission).toHaveBeenCalledOnce();
+      // Scheduler should still start after permission request
+      expect(mockStartScheduler).toHaveBeenCalledOnce();
+    });
+
+    it("skips permission request when already granted", async () => {
+      mockGetCalendarPermissionStatus.mockResolvedValueOnce("granted");
+
+      await initializeApp(mockWindow);
+
+      expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
+      expect(mockRequestCalendarPermission).not.toHaveBeenCalled();
+    });
+
+    it("skips permission request when denied", async () => {
+      mockGetCalendarPermissionStatus.mockResolvedValueOnce("denied");
+
+      await initializeApp(mockWindow);
+
+      expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
+      expect(mockRequestCalendarPermission).not.toHaveBeenCalled();
+    });
+
+    it("syncs auto-launch with launchAtLogin from settings", async () => {
       mockGetSettings.mockReturnValue({
         schemaVersion: 1,
         openBeforeMinutes: 1,
@@ -129,11 +170,11 @@ describe("lifecycle", () => {
         windowAlert: true,
       });
 
-      initializeApp(mockWindow);
+      await initializeApp(mockWindow);
 
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(true);
     });
-  });
+  })
 
   describe("shutdownApp", () => {
     it("calls cleanupPowerManagement and stopScheduler", () => {

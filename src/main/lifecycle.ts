@@ -9,6 +9,10 @@ import {
   setTrayTitleCallback,
 } from "./scheduler/index.js";
 import {
+  getCalendarPermissionStatus,
+  requestCalendarPermission,
+} from "./calendar.js";
+import {
   initPowerManagement,
   cleanupPowerManagement,
 } from "./power.js";
@@ -22,11 +26,20 @@ import { registerShortcuts } from "./shortcuts.js";
  * Initialize all app subsystems after Electron is ready.
  * Called once from app.whenReady() in index.ts.
  */
-export function initializeApp(mainWindow: BrowserWindow): void {
+export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   registerIpcHandlers(mainWindow);
   setupTray(mainWindow);
   setTrayTitleCallback(updateTrayTitle);
   setSchedulerWindow(mainWindow);
+
+  // Check calendar permission before starting the scheduler
+  // If permission hasn't been determined yet, request it (triggers macOS dialog)
+  const calendarPerm = await getCalendarPermissionStatus();
+  if (calendarPerm === "not-determined") {
+    console.log("[lifecycle] Calendar permission not determined — requesting...");
+    await requestCalendarPermission();
+  }
+
   startScheduler();
   initPowerManagement(() => restartScheduler());
   registerShortcuts();
