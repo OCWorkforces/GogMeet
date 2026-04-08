@@ -4,12 +4,13 @@ Type definitions and utilities shared across main, preload, and renderer process
 
 ## FILES
 
-| File                   | Role                                  |
-| ---------------------- | ------------------------------------- |
-| `ipc-channels.ts`      | IPC channel constants, IpcChannelMap, IpcRequest/IpcResponse type utilities |
-| `models.ts`            | MeetingEvent, CalendarResult, CalendarPermission |
-| `settings.ts`          | AppSettings, DEFAULT_SETTINGS, min/max constants |
-| `utils/escape-html.ts` | XSS protection utility (used by main popover + alert) |
+| File                   | Role                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `ipc-channels.ts`      | IPC channel constants, IpcChannelMap, IpcRequest/IpcResponse type utilities       |
+| `models.ts`            | MeetingEvent, CalendarResult, CalendarPermission                                  |
+| `settings.ts`          | AppSettings, DEFAULT_SETTINGS, min/max constants                                  |
+| `utils/escape-html.ts` | XSS protection utility (used by main popover + alert)                             |
+| `utils/time.ts`        | `isTomorrow`, `formatMeetingTime`, `formatRemainingTime` — shared time formatting |
 
 ## IPC CHANNELS (`ipc-channels.ts`)
 
@@ -23,9 +24,9 @@ export const IPC_CHANNELS = {
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
   SETTINGS_SET: "settings:set",
-  SETTINGS_CHANGED: "settings:changed",       // push: main → renderer
+  SETTINGS_CHANGED: "settings:changed", // push: main → renderer
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated", // push: main → renderer
-  ALERT_SHOW: "alert:show",                     // push: main → renderer
+  ALERT_SHOW: "alert:show", // push: main → renderer
 } as const;
 ```
 
@@ -42,12 +43,12 @@ export interface MeetingEvent {
   id: string;
   title: string;
   startDate: string; // ISO 8601
-  endDate: string;   // ISO 8601
-  meetUrl?: string;  // meet.google.com/xxx-xxxx-xxx
+  endDate: string; // ISO 8601
+  meetUrl?: string; // meet.google.com/xxx-xxxx-xxx
   calendarName: string;
   isAllDay: boolean;
-  userEmail?: string;    // Google email from EventKit attendee
-  description?: string;  // Event notes from macOS Calendar
+  userEmail?: string; // Google email from EventKit attendee
+  description?: string; // Event notes from macOS Calendar
 }
 ```
 
@@ -67,20 +68,31 @@ export type CalendarPermission = "granted" | "denied" | "not-determined";
 
 ```typescript
 export interface AppSettings {
-  schemaVersion: number;      // Settings migration version
-  openBeforeMinutes: number;  // 1-5, default 1
-  launchAtLogin: boolean;     // macOS login item toggle
+  schemaVersion: number; // Settings migration version
+  openBeforeMinutes: number; // 1-5, default 1
+  launchAtLogin: boolean; // macOS login item toggle
   showTomorrowMeetings: boolean; // Show tomorrow in tray menu
-  windowAlert: boolean;       // Show full-screen overlay
+  windowAlert: boolean; // Show full-screen overlay
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  schemaVersion: 1, openBeforeMinutes: 1,
-  launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true,
+  schemaVersion: 1,
+  openBeforeMinutes: 1,
+  launchAtLogin: false,
+  showTomorrowMeetings: true,
+  windowAlert: true,
 };
 export const OPEN_BEFORE_MINUTES_MIN = 1;
 export const OPEN_BEFORE_MINUTES_MAX = 5;
 ```
+
+## TIME UTILITIES (`utils/time.ts`)
+
+| Function              | Signature                 | Role                                   |
+| --------------------- | ------------------------- | -------------------------------------- |
+| `isTomorrow`          | `(date: Date) => boolean` | Date comparison for tomorrow check     |
+| `formatMeetingTime`   | `(date: Date) => string`  | HH:MM formatting for meeting times     |
+| `formatRemainingTime` | `(ms: number) => string`  | "X min" / "Xh Ym" countdown formatting |
 
 ## TYPE UTILITIES (`ipc-channels.ts`)
 
@@ -98,10 +110,10 @@ export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
 
 ## IMPORT PATHS
 
-| Process  | Import Path                    |
-| -------- | ------------------------------ |
-| main     | `../shared/<file>.js`          |
-| preload  | `../shared/<file>.js`          |
-| renderer | `../shared/<file>.js`          |
+| Process  | Import Path           |
+| -------- | --------------------- |
+| main     | `../shared/<file>.js` |
+| preload  | `../shared/<file>.js` |
+| renderer | `../shared/<file>.js` |
 
 Note: `.js` extension required for ESM resolution even though source is `.ts`.

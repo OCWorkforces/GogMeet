@@ -21,25 +21,30 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
     ): IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET> => {
       if (!validateSender(event)) return getSettings();
-      const updated = updateSettings(partial);
-      restartScheduler(); // Apply new timing immediately
+      try {
+        const updated = updateSettings(partial);
+        restartScheduler(); // Apply new timing immediately
 
-      // Sync auto-launch if the setting changed
-      if (typeof partial.launchAtLogin === "boolean") {
-        syncAutoLaunch(partial.launchAtLogin);
+        // Sync auto-launch if the setting changed
+        if (typeof partial.launchAtLogin === "boolean") {
+          syncAutoLaunch(partial.launchAtLogin);
+        }
+
+        // Notify popover window to refresh if settings affect display
+        if (
+          partial.showTomorrowMeetings !== undefined ||
+          partial.launchAtLogin !== undefined ||
+          partial.openBeforeMinutes !== undefined ||
+          partial.windowAlert !== undefined
+        ) {
+          win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
+        }
+
+        return updated;
+      } catch (err) {
+        console.error("[ipc] SETTINGS_SET error:", err);
+        return getSettings();
       }
-
-      // Notify popover window to refresh if settings affect display
-      if (
-        partial.showTomorrowMeetings !== undefined ||
-        partial.launchAtLogin !== undefined ||
-        partial.openBeforeMinutes !== undefined ||
-        partial.windowAlert !== undefined
-      ) {
-        win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
-      }
-
-      return updated;
     },
   );
 }

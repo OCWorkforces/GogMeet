@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseEvents, cleanDescription } from "../../src/main/calendar.js";
+import { parseEvents, cleanDescription, requestCalendarPermission, getCalendarPermissionStatus } from "../../src/main/calendar.js";
 import type { MeetingEvent } from "../../src/shared/models.js";
+
+const { execFileAsyncMock } = vi.hoisted(() => ({
+  execFileAsyncMock: vi.fn(),
+}));
+vi.mock("node:child_process", async () => {
+  const { promisify } = await import("node:util");
+  const fn = Object.assign(vi.fn(), {
+    [promisify.custom]: execFileAsyncMock,
+  });
+  return { execFile: fn };
+});
 
 // Helper to create tab-delimited Swift output
 function makeSwiftLine(
@@ -449,5 +460,73 @@ describe("cleanDescription", () => {
   it("does not strip short dashes or meaningful content", () => {
     const input = "Key points:\n- Item 1\n- Item 2";
     expect(cleanDescription(input)).toBe(input);
+  });
+});
+
+describe("requestCalendarPermission", () => {
+  beforeEach(() => {
+    execFileAsyncMock.mockReset();
+  });
+
+  it('returns "granted" when AppleScript succeeds', async () => {
+    execFileAsyncMock.mockResolvedValueOnce({ stdout: "Calendar1\nCalendar2", stderr: "" });
+
+    const result = await requestCalendarPermission();
+    expect(result).toBe("granted");
+  });
+
+  it('returns "denied" when AppleScript throws', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("execution error"));
+
+    const result = await requestCalendarPermission();
+    expect(result).toBe("denied");
+  });
+});
+
+describe("getCalendarPermissionStatus", () => {
+  beforeEach(() => {
+    execFileAsyncMock.mockReset();
+  });
+
+  it('returns "granted" when AppleScript succeeds', async () => {
+    execFileAsyncMock.mockResolvedValueOnce({ stdout: "Work", stderr: "" });
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("granted");
+  });
+
+  it('returns "denied" when error contains "not authorized"', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("not authorized to access Calendar"));
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("denied");
+  });
+
+  it('returns "denied" when error contains "1743"', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("error 1743: permission denied"));
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("denied");
+  });
+
+  it('returns "not-determined" when error contains "2700"', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("error 2700: application not running"));
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("not-determined");
+  });
+
+  it('returns "not-determined" when error contains "not determined"', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("access not determined"));
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("not-determined");
+  });
+
+  it('returns "not-determined" for unknown errors (fallback)', async () => {
+    execFileAsyncMock.mockRejectedValueOnce(new Error("something completely unexpected"));
+
+    const result = await getCalendarPermissionStatus();
+    expect(result).toBe("not-determined");
   });
 });

@@ -9,6 +9,7 @@ import {
 import type { AppSettings } from "../shared/settings.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
+let settingsLoaded = false;
 
 function getSettingsPath(): string {
   const userDataPath = app.getPath("userData");
@@ -34,6 +35,7 @@ export function loadSettings(): AppSettings {
 
   if (!existsSync(settingsPath)) {
     settingsCache = { ...DEFAULT_SETTINGS };
+    settingsLoaded = true;
     return settingsCache;
   }
 
@@ -71,10 +73,12 @@ export function loadSettings(): AppSettings {
           ? ((parsed as Record<string, unknown>).windowAlert as boolean)
           : DEFAULT_SETTINGS.windowAlert,
     };
+    settingsLoaded = true;
     return settingsCache;
   } catch {
     // Corrupted JSON or other error - return defaults
     settingsCache = { ...DEFAULT_SETTINGS };
+    settingsLoaded = true;
     return settingsCache;
   }
 }
@@ -87,10 +91,16 @@ export function saveSettings(settings: AppSettings): void {
 }
 
 export function getSettings(): AppSettings {
+  if (!settingsLoaded) {
+    loadSettings();
+  }
   return { ...settingsCache };
 }
 
 export function updateSettings(partial: Partial<AppSettings>): AppSettings {
+  if (!settingsLoaded) {
+    loadSettings();
+  }
   // Merge with current cache
   const merged: AppSettings = {
     ...settingsCache,
@@ -122,5 +132,3 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
   return getSettings();
 }
 
-// Initialize on module load
-loadSettings();

@@ -2,7 +2,10 @@ import "./styles/main.css";
 import type { MeetingEvent } from "../shared/models.js";
 import type { CalendarPermission } from "../shared/models.js";
 import type { AppSettings } from "../shared/settings.js";
-import { escapeHtml } from "../shared/utils/escape-html.js";
+import { DEFAULT_SETTINGS } from "../shared/settings.js";
+import { isTomorrow } from "../shared/utils/time.js";
+import { renderBody } from "./rendering/body.js";
+import { setupDelegatedEvents } from "./events/delegation.js";
 
 type AppState =
   | { type: "loading" }
@@ -15,13 +18,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let state: AppState = { type: "loading" };
 let version = "";
-let settings: AppSettings = {
-  schemaVersion: 1,
-  openBeforeMinutes: 1,
-  launchAtLogin: false,
-  showTomorrowMeetings: true,
-  windowAlert: false,
-};
+let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastUpdatedAt: number | null = null;
 let cachedSettings: AppSettings | null = null;
@@ -30,54 +27,12 @@ let lastHeight = 0;
 let lastEventsKey = "";
 let lastPollTime = 0;
 
-function formatRelativeTime(startDate: string, endDate: string): { label: string; cls: string } {
-  const now = Date.now();
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  const diffMs = start - now;
-  const diffMin = Math.round(diffMs / 60000);
-
-  // Meeting is in progress (started but not ended)
-  if (start <= now && now < end) {
-    return { label: "In progress", cls: "now" };
-  }
-
-  // Meeting has ended
-  if (now >= end) {
-    return { label: "Ended", cls: "" };
-  }
-
-  if (diffMin < 1) {
-    return { label: "Starting now!", cls: "now" };
-  }
-  if (diffMin <= 15) {
-    return { label: `In ${diffMin} min`, cls: "soon" };
-  }
-
-  const startTime = new Date(startDate);
-  const hours = startTime.getHours().toString().padStart(2, "0");
-  const minutes = startTime.getMinutes().toString().padStart(2, "0");
-  return { label: `${hours}:${minutes}`, cls: "" };
-}
-
 function formatLastUpdated(ts: number): string {
   const diffMs = Date.now() - ts;
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return "Updated just now";
   if (diffMin === 1) return "Updated 1 min ago";
   return `Updated ${diffMin} min ago`;
-}
-
-/** Check if a date is tomorrow (local time) */
-function isTomorrow(isoDate: string): boolean {
-  const date = new Date(isoDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfter = new Date(tomorrow);
-  dayAfter.setDate(dayAfter.getDate() + 1);
-  return date >= tomorrow && date < dayAfter;
 }
 
 function renderFooter(): string {
@@ -97,105 +52,13 @@ function renderFooter(): string {
   `;
 }
 
-function renderBody(s: AppState): string {
-  switch (s.type) {
-    case "loading":
-      return `
-        <div class="state-screen">
-          <div class="spinner"></div>
-          <p class="state-desc">Loading your meetings...</p>
-        </div>
-      `;
-
-    case "no-permission":
-      return `
-        <div class="state-screen">
-          <div class="state-icon">📅</div>
-          <p class="state-title">Calendar Access Needed</p>
-          <p class="state-desc">GogMeet needs access to your calendar to show upcoming events.</p>
-          <button class="btn-primary" id="btn-grant" data-action="grant-access" ${s.retrying ? "disabled" : ""}>
-            ${s.retrying ? "Requesting..." : "Grant Access"}
-          </button>
-        </div>
-      `;
-
-    case "no-events":
-      return `
-        <div class="state-screen">
-          <div class="state-icon">☕</div>
-          <p class="state-title">No upcoming meetings</p>
-          <p class="state-desc">${settings.showTomorrowMeetings ? "No calendar events found for today or tomorrow." : "No calendar events found for today."}</p>
-        </div>
-      `;
-
-    case "error":
-      return `
-        <div class="state-screen">
-          <div class="state-icon">⚠️</div>
-          <p class="state-title">Something went wrong</p>
-          <p class="state-desc">${escapeHtml(s.message)}</p>
-          <button class="btn-primary" id="btn-retry" data-action="retry">Try Again</button>
-        </div>
-      `;
-
-    case "has-events": {
-      const now = Date.now();
-      const upcoming = s.events.filter(
-        (e) => new Date(e.endDate).getTime() > now,
-      );
-      const past = s.events.filter((e) => new Date(e.endDate).getTime() <= now);
-
-      // Check if any upcoming event is tomorrow
-      const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
-      const sectionHeader = hasTomorrowEvents ? "Today & Tomorrow" : "Today";
-
-      let html = "";
-      if (upcoming.length > 0) {
-        html += `<p class="section-header">${sectionHeader}</p>`;
-        upcoming.forEach((event, i) => {
-          const rel = formatRelativeTime(event.startDate, event.endDate);
-          const autoJoin = !event.isAllDay && !!event.meetUrl;
-          html += `
-            <div class="meeting-item">
-              <div class="meeting-item-row">
-                <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ""}
-              </div>
-              <div class="meeting-item-row">
-                <span class="meeting-time ${rel.cls}">${rel.label}</span>
-                <span class="meeting-meta">
-                  ${autoJoin ? `<span class="badge-auto" title="Browser will open automatically ${settings.openBeforeMinutes === 1 ? "1 min" : `${settings.openBeforeMinutes} mins`} before">⚡ Auto</span>` : ""}
-                  <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
-                </span>
-              </div>
-            </div>
-          `;
-          if (i < upcoming.length - 1)
-            html += `<div class="meeting-divider"></div>`;
-        });
-      }
-
-      if (past.length > 0 && upcoming.length === 0) {
-        html += `
-          <div class="state-screen">
-            <div class="state-icon">✅</div>
-            <p class="state-title">All done for today!</p>
-            <p class="state-desc">No more upcoming meetings.</p>
-          </div>
-        `;
-      }
-
-      return html;
-    }
-  }
-}
 
 function render() {
   const app = document.getElementById("app");
   if (!app) return;
 
   app.innerHTML = `<div role="dialog" aria-label="GogMeet meetings" aria-live="polite">
-      <div class="body">${renderBody(state)}</div>
+      <div class="body">${renderBody(state, settings)}</div>
       ${renderFooter()}
     </div>`;
 
@@ -210,34 +73,6 @@ function render() {
     window.api.window.setHeight(targetH);
     lastHeight = targetH;
   }
-}
-
-function setupDelegatedEvents(): void {
-  const container = document.getElementById("app");
-  if (!container) return;
-
-  container.addEventListener("click", (e: MouseEvent) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>(
-      "[data-action]",
-    );
-    if (!target) return;
-
-    const action = target.dataset["action"];
-    switch (action) {
-      case "refresh":
-      case "retry":
-        void loadEvents();
-        break;
-      case "grant-access":
-        void grantAccess();
-        break;
-      case "join-meeting": {
-        const url = target.dataset["url"];
-        if (url) window.api.app.openExternal(url);
-        break;
-      }
-    }
-  });
 }
 
 async function grantAccess() {
@@ -308,7 +143,11 @@ async function loadEvents() {
 }
 
 async function init() {
-  setupDelegatedEvents();
+  setupDelegatedEvents({
+    onLoadEvents: () => void loadEvents(),
+    onGrantAccess: () => void grantAccess(),
+    onOpenExternal: (url) => window.api.app.openExternal(url),
+  });
   // Listen for calendar updates pushed from main process
   window.api.calendar.onEventsUpdated(() => void loadEvents());
   // Listen for settings changes from the settings window

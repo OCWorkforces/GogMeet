@@ -5,27 +5,19 @@ import {
   nativeTheme,
   Menu,
   app,
-  shell,
   type MenuItemConstructorOptions,
 } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { getCalendarEventsResult } from "./calendar.js";
-import { buildMeetUrl } from "./utils/meet-url.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
-import type { MeetingEvent } from "../shared/models.js";
+import { formatRemainingTime } from "../shared/utils/time.js";
+import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Format ISO date string to locale time like "10:00 AM" */
-function formatMeetingTime(isoDate: string): string {
-  return new Date(isoDate).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 let tray: Tray | null = null;
 
@@ -91,105 +83,6 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
   // Listener is cleaned up on process exit (app.before-quit destroys the tray).
 
-  /**
-   * Build menu template with upcoming meetings grouped by day.
-   * Includes all non-all-day upcoming events. Items without a meetUrl are shown disabled.
-   */
-  function buildMeetingMenuTemplate(
-    events: MeetingEvent[],
-    showTomorrowMeetings: boolean,
-  ): MenuItemConstructorOptions[] {
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const tomorrowStart = new Date(todayStart);
-    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    const dayAfterStart = new Date(tomorrowStart);
-    dayAfterStart.setDate(dayAfterStart.getDate() + 1);
-
-    const upcoming = events.filter((e) => {
-      if (e.isAllDay) return false;
-      return new Date(e.endDate) > now;
-    });
-
-    if (upcoming.length === 0) {
-      return [
-        { label: "No upcoming meetings", enabled: false },
-        { type: "separator" },
-        { label: "Settings...", click: () => createSettingsWindow() },
-        { label: "About GogMeet", click: () => showAbout(mainWindow) },
-        { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
-      ];
-    }
-
-    const todayEvents = upcoming.filter((e) => {
-      const d = new Date(e.startDate);
-      return d >= todayStart && d < tomorrowStart;
-    });
-    const tomorrowEvents = upcoming.filter((e) => {
-      const d = new Date(e.startDate);
-      return d >= tomorrowStart && d < dayAfterStart;
-    });
-
-    const items: MenuItemConstructorOptions[] = [];
-
-    if (todayEvents.length > 0) {
-      items.push({ label: "Today", enabled: false });
-      for (const event of todayEvents) {
-        const hasUrl = !!event.meetUrl;
-        const isInProgress = new Date(event.startDate) <= now;
-        const timeLabel = isInProgress
-          ? `${formatMeetingTime(event.startDate)} – In progress`
-          : formatMeetingTime(event.startDate);
-        items.push({
-          label: `${event.title}  –  ${timeLabel}`,
-          enabled: hasUrl,
-          ...(hasUrl && {
-            click: () => {
-              const url = buildMeetUrl(event);
-              if (!url) return;
-              void shell.openExternal(url).catch((err) => {
-                console.error("[tray] Failed to open meeting URL:", err);
-              });
-            },
-          }),
-        });
-      }
-    }
-
-    if (showTomorrowMeetings && tomorrowEvents.length > 0) {
-      if (items.length > 0) items.push({ type: "separator" });
-      items.push({ label: "Tomorrow", enabled: false });
-      for (const event of tomorrowEvents) {
-        const hasUrl = !!event.meetUrl;
-        items.push({
-          label: `${event.title}  –  ${formatMeetingTime(event.startDate)}`,
-          enabled: hasUrl,
-          ...(hasUrl && {
-            click: () => {
-              const url = buildMeetUrl(event);
-              if (!url) return;
-              void shell.openExternal(url).catch((err) => {
-                console.error("[tray] Failed to open meeting URL:", err);
-              });
-            },
-          }),
-        });
-      }
-    }
-
-    items.push({ type: "separator" });
-    items.push({ label: "Settings...", click: () => createSettingsWindow() });
-    items.push({ label: "About GogMeet", click: () => showAbout(mainWindow) });
-    items.push({
-      label: "Quit",
-      accelerator: "Cmd+Q",
-      click: () => app.quit(),
-    });
-
-    return items;
-  }
-
   // Left-click → dynamic meeting menu
   tray.on("click", async () => {
     const result = await getCalendarEventsResult();
@@ -203,7 +96,9 @@ export function setupTray(mainWindow: BrowserWindow): void {
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
     } else {
-      template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings);
+      template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
+        onAbout: () => showAbout(mainWindow),
+      });
     }
     tray!.popUpContextMenu(Menu.buildFromTemplate(template));
   });
@@ -212,15 +107,8 @@ export function setupTray(mainWindow: BrowserWindow): void {
 /** Max characters to show for the event title portion of the tray label */
 const TRAY_TITLE_MAX_CHARS = 12;
 
-/** Format minutes remaining as "Xh Ym" or "Xm" for in-meeting display */
-export function formatRemainingTime(totalMins: number): string {
-  if (totalMins <= 0) return "0m";
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}m`;
-}
+/** Re-export for consumers that import from tray (e.g. tests) */
+export { formatRemainingTime } from "../shared/utils/time.js";
 
 /**
  * Update the tray status bar title next to the icon.

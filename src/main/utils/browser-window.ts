@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, session } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,4 +38,25 @@ export function loadWindowContent(win: BrowserWindow, page: string): void {
   } else {
     win.loadFile(path.join(__dirname, "..", "renderer", `${page}.html`));
   }
+}
+
+const CSP_BASE = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";
+
+/**
+ * Enforce Content-Security-Policy via HTTP response headers for all windows.
+ * In dev mode, adds `connect-src` for HMR WebSocket connections.
+ */
+export function setupCspHeaders(): void {
+  const csp = app.isPackaged
+    ? CSP_BASE
+    : `${CSP_BASE}; connect-src 'self' ws://localhost:*`;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [csp],
+      },
+    });
+  });
 }

@@ -90,7 +90,7 @@ app.whenReady().then(() => {
   app.dock?.hide();
 
   mainWindow = createWindow();
-  initializeApp(mainWindow);
+  void initializeApp(mainWindow);
 });
 
 app.on("window-all-closed", () => {
