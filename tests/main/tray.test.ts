@@ -25,8 +25,8 @@ vi.mock("electron", () => ({
   nativeImage: {
     createFromPath: vi
       .fn()
-      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)) }),
-    createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn() }),
+      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)), isEmpty: vi.fn().mockReturnValue(false) }),
+    createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
   },
   nativeTheme: { shouldUseDarkColors: false, on: vi.fn() },
   BrowserWindow: vi.fn().mockImplementation(function (this: {

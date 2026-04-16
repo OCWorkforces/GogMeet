@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Mock electron before importing alert-window — must use function keyword for constructor
 vi.mock("electron", () => {
   const mockSend = vi.fn();
-  const mockLoadURL = vi.fn();
-  const mockLoadFile = vi.fn();
+  const mockLoadURL = vi.fn().mockResolvedValue(undefined);
+  const mockLoadFile = vi.fn().mockResolvedValue(undefined);
   const mockSetSize = vi.fn();
   const mockShow = vi.fn();
   const mockClose = vi.fn();

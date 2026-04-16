@@ -32,6 +32,13 @@ export interface SchedulerState {
         inMeeting?: boolean,
       ) => void)
     | null;
+  powerCallbacks?: PowerCallbacks | null;
+}
+
+export interface PowerCallbacks {
+  getPollInterval: () => number;
+  preventSleep: () => void;
+  allowSleep: () => void;
 }
 
 export function createSchedulerState(): SchedulerState {
@@ -54,6 +61,7 @@ export function createSchedulerState(): SchedulerState {
     pollTimeout: null,
     win: null,
     onTrayTitleUpdate: null,
+    powerCallbacks: null,
   };
 }
 
@@ -122,6 +130,10 @@ export function syncExportedScalars(): void {
   inMeetingDirty = state.inMeetingDirty;
 }
 
+export function initPowerCallbacks(callbacks: PowerCallbacks): void {
+  state.powerCallbacks = callbacks;
+}
+
 export function clearSchedulerResources(s: SchedulerState): void {
   if (s.pollTimeout !== null) {
     clearTimeout(s.pollTimeout);
@@ -154,6 +166,100 @@ export function clearSchedulerResources(s: SchedulerState): void {
   s.alertFiredEvents.clear();
 }
 
+/**
+ * Cancel and remove entries from all timer Maps/Sets that are NOT in activeIds.
+ * This consolidates the per-map cleanup loops from scheduleEvents().
+ * @param onCountdownCancelled - optional callback invoked when a countdownInterval is cancelled
+ *                                (e.g. to allow the system to resume sleep)
+ */
+export function cancelStaleEntries(
+  s: SchedulerState,
+  activeIds: Set<string>,
+  callbacks?: {
+    onBrowserCancel?: (id: string, timers: Map<string, ReturnType<typeof setTimeout>>) => void;
+    onAlertCancel?: (id: string, alertTimers: Map<string, ReturnType<typeof setTimeout>>) => void;
+    onCountdownIntervalCancel?: () => void;
+  },
+): void {
+  // Browser timers
+  for (const id of s.timers.keys()) {
+    if (!activeIds.has(id)) {
+      if (callbacks?.onBrowserCancel) {
+        callbacks.onBrowserCancel(id, s.timers);
+      } else {
+        clearTimeout(s.timers.get(id)!);
+        s.timers.delete(id);
+      }
+      console.log("[scheduler] Cancelled timer for removed event");
+    }
+  }
+  // Alert timers
+  for (const [id] of s.alertTimers) {
+    if (!activeIds.has(id)) {
+      if (callbacks?.onAlertCancel) {
+        callbacks.onAlertCancel(id, s.alertTimers);
+      } else {
+        clearTimeout(s.alertTimers.get(id)!);
+        s.alertTimers.delete(id);
+      }
+      console.log("[scheduler] Cancelled alert timer for removed event");
+    }
+  }
+  // Title timers
+  for (const [id, handle] of s.titleTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      s.titleTimers.delete(id);
+    }
+  }
+  // Countdown intervals
+  for (const [id, handle] of s.countdownIntervals) {
+    if (!activeIds.has(id)) {
+      clearInterval(handle);
+      callbacks?.onCountdownIntervalCancel?.();
+      s.countdownIntervals.delete(id);
+    }
+  }
+  // Clear timers
+  for (const [id, handle] of s.clearTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      s.clearTimers.delete(id);
+    }
+  }
+  // In-meeting intervals
+  for (const [id, handle] of s.inMeetingIntervals) {
+    if (!activeIds.has(id)) {
+      clearInterval(handle);
+      s.inMeetingIntervals.delete(id);
+    }
+  }
+  // In-meeting end timers
+  for (const [id, handle] of s.inMeetingEndTimers) {
+    if (!activeIds.has(id)) {
+      clearTimeout(handle);
+      s.inMeetingEndTimers.delete(id);
+    }
+  }
+  // Prune Sets
+  for (const id of s.firedEvents) {
+    if (!activeIds.has(id)) {
+      s.firedEvents.delete(id);
+    }
+  }
+  for (const id of s.alertFiredEvents) {
+    if (!activeIds.has(id)) {
+      s.alertFiredEvents.delete(id);
+    }
+  }
+  // Prune event data
+  for (const id of s.scheduledEventData.keys()) {
+    if (!activeIds.has(id)) {
+      s.scheduledEventData.delete(id);
+    }
+  }
+}
+
 export function replaceState(nextState: SchedulerState): void {
   state = nextState;
   syncExportedScalars();
@@ -163,12 +269,14 @@ export function resetState(options?: { preserveWindow?: boolean }): void {
   const preserveWindow = options?.preserveWindow ?? false;
   const previousWindow = preserveWindow ? state.win : null;
   const previousCallback = state.onTrayTitleUpdate;
+  const previousPowerCallbacks = state.powerCallbacks;
 
   clearSchedulerResources(state);
 
   const nextState = createSchedulerState();
   nextState.win = previousWindow;
   nextState.onTrayTitleUpdate = previousCallback ?? null;
+  nextState.powerCallbacks = previousPowerCallbacks ?? null;
   replaceState(nextState);
 }
 

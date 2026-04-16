@@ -1,0 +1,16 @@
+// scheduler/facade.ts — single entry point for external consumers
+export {
+  poll,
+  startScheduler,
+  stopScheduler,
+  restartScheduler,
+  _resetForTest,
+} from "./poll.js";
+
+export {
+  scheduleEvents,
+  setSchedulerWindow,
+  setTrayTitleCallback,
+} from "./index.js";
+
+export { initPowerCallbacks } from "./state.js";

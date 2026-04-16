@@ -94,5 +94,78 @@ describe("auto-launch", () => {
         openAsHidden: false,
       });
     });
+
+  describe("setAutoLaunch", () => {
+    it("calls setLoginItemSettings with openAtLogin: true when enabling", async () => {
+      const { app } = await import("electron");
+
+      setAutoLaunch(true);
+
+      expect(app.setLoginItemSettings).toHaveBeenCalledWith({
+        openAtLogin: true,
+        openAsHidden: false,
+      });
+    });
+
+    it("calls setLoginItemSettings with openAtLogin: false when disabling", async () => {
+      const { app } = await import("electron");
+
+      setAutoLaunch(false);
+
+      expect(app.setLoginItemSettings).toHaveBeenCalledWith({
+        openAtLogin: false,
+        openAsHidden: false,
+      });
+    });
+
+    it("does not throw when setLoginItemSettings throws", async () => {
+      const { app } = await import("electron");
+      vi.mocked(app.setLoginItemSettings).mockImplementation(() => {
+        throw new Error("System error");
+      });
+
+      expect(() => setAutoLaunch(true)).not.toThrow();
+    });
+  });
+
+  describe("syncAutoLaunch — edge cases", () => {
+    it("does not call setAutoLaunch when disabling and already disabled", async () => {
+      const { app } = await import("electron");
+      vi.mocked(app.getLoginItemSettings).mockReturnValue({
+        openAtLogin: false,
+      } as never);
+
+      syncAutoLaunch(false);
+
+      expect(app.setLoginItemSettings).not.toHaveBeenCalled();
+    });
+
+    it("still calls setAutoLaunch when getAutoLaunchStatus throws (returns false) and enabling", async () => {
+      const { app } = await import("electron");
+      vi.mocked(app.getLoginItemSettings).mockImplementation(() => {
+        throw new Error("Platform not supported");
+      });
+
+      // getAutoLaunchStatus returns false on error, so sync(true) should try to enable
+      syncAutoLaunch(true);
+
+      expect(app.setLoginItemSettings).toHaveBeenCalledWith({
+        openAtLogin: true,
+        openAsHidden: false,
+      });
+    });
+
+    it("is a no-op when getAutoLaunchStatus throws (returns false) and disabling", async () => {
+      const { app } = await import("electron");
+      vi.mocked(app.getLoginItemSettings).mockImplementation(() => {
+        throw new Error("Platform not supported");
+      });
+
+      // getAutoLaunchStatus returns false on error, and we want false — no-op
+      syncAutoLaunch(false);
+
+      expect(app.setLoginItemSettings).not.toHaveBeenCalled();
+    });
+  });
   });
 });

@@ -31,13 +31,17 @@ export function getPreloadPath(): string {
  * @param page - The page name without extension (e.g. "index", "settings", "alert")
  */
 export function loadWindowContent(win: BrowserWindow, page: string): void {
-  if (!app.isPackaged) {
-    const devUrl =
-      process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
-    win.loadURL(`${devUrl}/${page}.html`);
-  } else {
-    win.loadFile(path.join(__dirname, "..", "renderer", `${page}.html`));
-  }
+  const load = !app.isPackaged
+    ? () => {
+        const devUrl =
+          process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
+        return win.loadURL(`${devUrl}/${page}.html`);
+      }
+    : () => win.loadFile(path.join(__dirname, "..", "renderer", `${page}.html`));
+
+  load().catch((error: unknown) => {
+    console.error('[browser-window] Failed to load content:', error);
+  });
 }
 
 const CSP_BASE = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";

@@ -8,8 +8,8 @@ vi.mock("electron", () => ({
     dock: { show: vi.fn(), hide: vi.fn() },
   },
   BrowserWindow: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
-    this.loadURL = vi.fn();
-    this.loadFile = vi.fn();
+    this.loadURL = vi.fn().mockResolvedValue(undefined);
+    this.loadFile = vi.fn().mockResolvedValue(undefined);
     this.show = vi.fn();
     this.focus = vi.fn();
     this.isDestroyed = () => false;

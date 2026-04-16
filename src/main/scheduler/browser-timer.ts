@@ -1,7 +1,7 @@
-import { Notification, shell } from "electron";
+import { Notification } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
 import type { ScheduledEventSnapshot } from "./state.js";
-import { buildMeetUrl } from "../utils/meet-url.js";
+import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 
 /**
  * Schedule a browser-open timer for a meeting event.
@@ -32,9 +32,7 @@ export function scheduleBrowserTimer(
       return;
     }
     const url = buildMeetUrl(event);
-    shell.openExternal(url).catch((err) => {
-      console.error(`[scheduler] Failed to open ${url}:`, err);
-    });
+    void openMeetingUrl(url);
     console.log(`[scheduler] Opened browser for "${event.title}" → ${url}`);
   }, effectiveDelay);
 

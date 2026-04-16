@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
 import type { MeetingEvent } from "../../src/shared/models.js";
 
-vi.mock("../../src/main/settings-window.js", () => ({
-  createSettingsWindow: vi.fn(),
-}));
 
 vi.mock("../../src/main/utils/meet-url.js", () => ({
   buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl ?? ""),
+  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Fixed "now" for deterministic tests: 2026-04-08 at 14:00 local time
@@ -60,10 +58,11 @@ function findItemContaining(
 
 describe("buildMeetingMenuTemplate", () => {
   let buildMeetingMenuTemplate: typeof import("../../src/main/menu/meeting-menu.js").buildMeetingMenuTemplate;
-  let createSettingsWindow: ReturnType<typeof vi.fn>;
   let app: { quit: ReturnType<typeof vi.fn> };
   let shell: { openExternal: ReturnType<typeof vi.fn> };
+  let openMeetingUrl: ReturnType<typeof vi.fn>;
   const onAbout = vi.fn();
+  const onOpenSettings = vi.fn();
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -73,16 +72,16 @@ describe("buildMeetingMenuTemplate", () => {
     const mod = await import("../../src/main/menu/meeting-menu.js");
     buildMeetingMenuTemplate = mod.buildMeetingMenuTemplate;
 
-    const settingsWindowMod = await import("../../src/main/settings-window.js");
-    createSettingsWindow = settingsWindowMod.createSettingsWindow as ReturnType<
-      typeof vi.fn
-    >;
 
     const electron = await import("electron");
     app = electron.app as unknown as typeof app;
     shell = electron.shell as unknown as typeof shell;
 
+    const meetUrlMod = await import("../../src/main/utils/meet-url.js");
+    openMeetingUrl = meetUrlMod.openMeetingUrl as ReturnType<typeof vi.fn>;
+
     onAbout.mockClear();
+    onOpenSettings.mockClear();
   });
 
   afterEach(() => {
@@ -92,7 +91,7 @@ describe("buildMeetingMenuTemplate", () => {
   // ─── No upcoming meetings ────────────────────────────────────
   describe("no upcoming meetings", () => {
     it("shows disabled 'No upcoming meetings' label when events array is empty", () => {
-      const items = buildMeetingMenuTemplate([], true, { onAbout });
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
       expect(items[0]).toEqual({
         label: "No upcoming meetings",
@@ -101,7 +100,7 @@ describe("buildMeetingMenuTemplate", () => {
     });
 
     it("includes separator + Settings + About + Quit after no-meetings label", () => {
-      const items = buildMeetingMenuTemplate([], true, { onAbout });
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
       expect(items).toHaveLength(5);
       expect(items[1]).toEqual({ type: "separator" });
@@ -112,7 +111,7 @@ describe("buildMeetingMenuTemplate", () => {
 
     it("shows no-meetings when all events are all-day", () => {
       const allDay = makeEvent({ isAllDay: true });
-      const items = buildMeetingMenuTemplate([allDay], true, { onAbout });
+      const items = buildMeetingMenuTemplate([allDay], true, { onAbout, onOpenSettings });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
     });
@@ -122,7 +121,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(10, 0).toISOString(),
         endDate: todayAt(11, 0).toISOString(), // ended 3h ago
       });
-      const items = buildMeetingMenuTemplate([past], true, { onAbout });
+      const items = buildMeetingMenuTemplate([past], true, { onAbout, onOpenSettings });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
     });
@@ -136,7 +135,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 30).toISOString(),
         endDate: todayAt(16, 30).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Team Sync");
       expect(meetingItem).toBeDefined();
@@ -144,12 +143,12 @@ describe("buildMeetingMenuTemplate", () => {
       expect(meetingItem?.click).toBeTypeOf("function");
     });
 
-    it("click handler opens the meeting URL via shell.openExternal", () => {
+    it("click handler opens the meeting URL via openMeetingUrl", () => {
       const event = makeEvent({
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Standup");
       meetingItem?.click?.(
@@ -158,7 +157,7 @@ describe("buildMeetingMenuTemplate", () => {
         {} as Electron.KeyboardEvent,
       );
 
-      expect(shell.openExternal).toHaveBeenCalled();
+      expect(openMeetingUrl).toHaveBeenCalled();
     });
   });
 
@@ -170,7 +169,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Standup");
       expect(meetingItem).toBeDefined();
@@ -196,7 +195,7 @@ describe("buildMeetingMenuTemplate", () => {
           endDate: todayAt(18, 0).toISOString(),
         }),
       ];
-      const items = buildMeetingMenuTemplate(events, true, { onAbout });
+      const items = buildMeetingMenuTemplate(events, true, { onAbout, onOpenSettings });
 
       expect(items[0]).toEqual({ label: "Today", enabled: false });
       expect(findItemContaining(items, "Meeting A")).toBeDefined();
@@ -211,7 +210,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       expect(findItem(items, "Tomorrow")).toBeDefined();
       expect(findItem(items, "Tomorrow")?.enabled).toBe(false);
@@ -233,7 +232,7 @@ describe("buildMeetingMenuTemplate", () => {
       const items = buildMeetingMenuTemplate(
         [todayEvent, tomorrowEvent],
         true,
-        { onAbout },
+        { onAbout, onOpenSettings },
       );
 
       // Find the index of "Tomorrow" header
@@ -249,7 +248,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], false, { onAbout });
+      const items = buildMeetingMenuTemplate([event], false, { onAbout, onOpenSettings });
 
       // Tomorrow event passes upcoming filter but is hidden → footer only
       expect(findItem(items, "Tomorrow")).toBeUndefined();
@@ -275,7 +274,7 @@ describe("buildMeetingMenuTemplate", () => {
       const items = buildMeetingMenuTemplate(
         [todayEvent, tomorrowEvent],
         false,
-        { onAbout },
+        { onAbout, onOpenSettings },
       );
 
       expect(findItemContaining(items, "Today One")).toBeDefined();
@@ -292,7 +291,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(13, 0).toISOString(), // started 1h ago
         endDate: todayAt(15, 0).toISOString(), // ends in 1h
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Running Meeting");
       expect(meetingItem).toBeDefined();
@@ -308,7 +307,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(16, 0).toISOString(), // 2h from now
         endDate: todayAt(17, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Future Meeting");
       expect(meetingItem).toBeDefined();
@@ -362,8 +361,8 @@ describe("buildMeetingMenuTemplate", () => {
 
   // ─── Footer actions (Settings, About, Quit) ──────────────────
   describe("footer actions", () => {
-    it("Settings click calls createSettingsWindow()", () => {
-      const items = buildMeetingMenuTemplate([], true, { onAbout });
+    it("Settings click calls onOpenSettings callback", () => {
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
       const settingsItem = findItem(items, "Settings...");
       expect(settingsItem).toBeDefined();
@@ -373,11 +372,11 @@ describe("buildMeetingMenuTemplate", () => {
         {} as Electron.KeyboardEvent,
       );
 
-      expect(createSettingsWindow).toHaveBeenCalled();
+      expect(onOpenSettings).toHaveBeenCalled();
     });
 
     it("About click calls callbacks.onAbout()", () => {
-      const items = buildMeetingMenuTemplate([], true, { onAbout });
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
       const aboutItem = findItem(items, "About GogMeet");
       expect(aboutItem).toBeDefined();
@@ -391,7 +390,7 @@ describe("buildMeetingMenuTemplate", () => {
     });
 
     it("Quit click calls app.quit()", () => {
-      const items = buildMeetingMenuTemplate([], true, { onAbout });
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
       const quitItem = findItem(items, "Quit");
       expect(quitItem).toBeDefined();
@@ -410,7 +409,7 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { onAbout });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const settingsIdx = items.findIndex((i) => i.label === "Settings...");
       expect(settingsIdx).toBeGreaterThan(0);

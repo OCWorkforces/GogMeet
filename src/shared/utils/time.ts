@@ -27,3 +27,17 @@ export function formatRemainingTime(totalMins: number): string {
   if (hours > 0) return `${hours}h`;
   return `${mins}m`;
 }
+
+/** Return a new Date set to midnight (start) of the given date's day */
+export function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Return a new Date set to midnight of tomorrow (relative to now) */
+export function startOfTomorrow(): Date {
+  const d = startOfDay(new Date());
+  d.setDate(d.getDate() + 1);
+  return d;
+}

@@ -29,8 +29,8 @@ app: {
   },
   BrowserWindow: Object.assign(
     vi.fn().mockImplementation(() => ({
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
+      loadURL: vi.fn().mockResolvedValue(undefined),
+      loadFile: vi.fn().mockResolvedValue(undefined),
       show: vi.fn(),
       hide: vi.fn(),
       focus: vi.fn(),
@@ -80,10 +80,11 @@ app: {
   nativeImage: {
     createFromPath: vi
       .fn()
-      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)) }),
+      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)), isEmpty: vi.fn().mockReturnValue(false) }),
     createEmpty: vi.fn().mockReturnValue({
       addRepresentation: vi.fn(),
       setTemplateImage: vi.fn(),
+      isEmpty: vi.fn().mockReturnValue(true),
     }),
   },
 }));

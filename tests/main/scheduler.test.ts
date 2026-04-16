@@ -35,10 +35,10 @@ vi.mock("../../src/main/power.js", () => ({
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
-const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback, poll, _resetConsecutiveErrors } = schedulerModule;
+const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback, poll, _resetForTest } = schedulerModule;
 
 const stateModule = await import("../../src/main/scheduler/state.js");
-const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents, markTitleDirty } = stateModule;
+const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents, markTitleDirty, initPowerCallbacks } = stateModule;
 const countdownModule = await import("../../src/main/scheduler/countdown.js");
 const { resolveActiveTitleEvent, resolveActiveInMeetingEvent } = countdownModule;
 
@@ -70,8 +70,9 @@ describe("scheduleEvents", () => {
     firedEvents.clear();
     scheduledEventData.clear();
     countdownIntervals.clear();
-    _resetConsecutiveErrors();
+    _resetForTest();
     vi.mocked(mockUpdateTrayTitle).mockClear();
+    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -79,8 +80,9 @@ describe("scheduleEvents", () => {
     firedEvents.clear();
     scheduledEventData.clear();
     countdownIntervals.clear();
-    _resetConsecutiveErrors();
+    _resetForTest();
     vi.mocked(mockUpdateTrayTitle).mockClear();
+    stateModule.state.powerCallbacks = null;
   });
   it("rescheduled event gets a new timer at the new start time", () => {
     const originalStart = new Date(Date.now() + 5 * 60 * 1000);
@@ -580,8 +582,9 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     firedEvents.clear();
     scheduledEventData.clear();
     countdownIntervals.clear();
-    _resetConsecutiveErrors();
+    _resetForTest();
     vi.mocked(mockUpdateTrayTitle).mockClear();
+    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
 
     // Create mock window with webContents.send
     mockWebContentsSend = vi.fn();
@@ -599,7 +602,8 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     firedEvents.clear();
     scheduledEventData.clear();
     countdownIntervals.clear();
-    _resetConsecutiveErrors();
+    _resetForTest();
+    stateModule.state.powerCallbacks = null;
   });
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
@@ -662,12 +666,14 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 describe("Wave 2: Dirty flag for title resolution", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    _resetConsecutiveErrors();
+    _resetForTest();
     vi.mocked(mockUpdateTrayTitle).mockClear();
+    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
   });
   afterEach(() => {
     vi.useRealTimers();
-    _resetConsecutiveErrors();
+    _resetForTest();
+    stateModule.state.powerCallbacks = null;
     vi.mocked(mockUpdateTrayTitle).mockClear();
   });
 

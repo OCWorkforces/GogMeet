@@ -48,7 +48,7 @@ describe("main/index.ts", () => {
 
     expect(content).toContain('from "./tray.js"');
     expect(content).toContain('from "./ipc.js"');
-    expect(content).toContain('from "./scheduler/index.js"');
+    expect(content).toContain('from "./scheduler/facade.js"');
     expect(content).toContain('from "./settings.js"');
     expect(content).toContain('from "./auto-launch.js"');
     expect(content).toContain('from "./notification.js"');

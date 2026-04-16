@@ -5,12 +5,12 @@ import { scheduleTitleCountdown, cancelTitleCountdown } from "./title-countdown.
 
 import type { BrowserWindow } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
-import { allowSleep } from "../power.js";
 
 import {
   state,
   markTitleDirty,
   markInMeetingDirty,
+  cancelStaleEntries,
 } from "./state.js";
 
 import {
@@ -41,6 +41,169 @@ export function setTrayTitleCallback(
   state.onTrayTitleUpdate = fn;
 }
 
+/** Cached Proxy views over scheduler state Maps/Sets — avoids repeated Proxy property lookups. */
+interface StateLocals {
+  readonly timers: typeof state.timers;
+  readonly alertTimers: typeof state.alertTimers;
+  readonly titleTimers: typeof state.titleTimers;
+  readonly countdownIntervals: typeof state.countdownIntervals;
+  readonly clearTimers: typeof state.clearTimers;
+  readonly inMeetingIntervals: typeof state.inMeetingIntervals;
+  readonly firedEvents: typeof state.firedEvents;
+  readonly alertFiredEvents: typeof state.alertFiredEvents;
+  readonly scheduledEventData: typeof state.scheduledEventData;
+}
+
+/**
+ * Handle an event whose start time is in the past.
+ * If the meeting is still in progress, starts the in-meeting countdown
+ * and cleans up any pending future timers.
+ * Returns true if the event was handled (caller should `continue`).
+ */
+function handleInProgressEvent(
+  event: MeetingEvent,
+  startMs: number,
+  endMs: number,
+  now: number,
+  activeIds: Set<string>,
+  s: StateLocals,
+): boolean {
+  if (startMs > now) return false;
+
+  // Meeting already ended
+  if (endMs <= now) return true;
+
+  // Meeting in progress — start in-meeting countdown
+  activeIds.add(event.id);
+
+  // Clean up any pending future timers (e.g., event rescheduled to past)
+  cancelBrowserTimer(event.id, s.timers);
+  cancelAlertTimer(event.id, s.alertTimers);
+  cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
+
+  // Only clear fired flags if event hasn't fired yet — preserve if already fired
+  if (!s.firedEvents.has(event.id)) {
+    s.firedEvents.delete(event.id);
+    s.alertFiredEvents.delete(event.id);
+  }
+
+  if (!s.inMeetingIntervals.has(event.id)) {
+    s.scheduledEventData.set(event.id, {
+      title: event.title,
+      meetUrl: event.meetUrl,
+      startMs,
+      endMs,
+    });
+    startInMeetingCountdown(event.id, { title: event.title, endMs });
+  }
+
+  return true;
+}
+
+/**
+ * Check if a future event was already fired or scheduled, and apply change detection.
+ * Returns true if the event should be skipped (already handled, no changes).
+ * On detected changes, cancels stale timers so the caller can reschedule.
+ */
+function shouldSkipScheduledEvent(
+  event: MeetingEvent,
+  startMs: number,
+  endMs: number,
+  s: StateLocals,
+): boolean {
+  // Already fired — check if start time changed
+  if (s.firedEvents.has(event.id)) {
+    const prevData = s.scheduledEventData.get(event.id);
+    if (prevData && prevData.startMs !== startMs) {
+      // Start time changed after browser already opened — allow reschedule
+      s.firedEvents.delete(event.id);
+      s.alertFiredEvents.delete(event.id);
+    } else {
+      return true; // already fired, no change
+    }
+  }
+
+  // Not yet scheduled — nothing to compare
+  if (!s.timers.has(event.id)) return false;
+
+  const prevData = s.scheduledEventData.get(event.id);
+  if (!prevData) return false;
+
+  const timeChanged = prevData.startMs !== startMs;
+  const titleChanged = prevData.title !== event.title;
+  const urlChanged = prevData.meetUrl !== event.meetUrl;
+
+  if (!timeChanged && !titleChanged && !urlChanged) return true; // nothing changed
+
+  if (!timeChanged) {
+    // Only metadata changed — update snapshot in-place
+    s.scheduledEventData.set(event.id, {
+      title: event.title,
+      meetUrl: event.meetUrl,
+      startMs,
+      endMs,
+    });
+
+    if (urlChanged) {
+      cancelBrowserTimer(event.id, s.timers);
+      cancelAlertTimer(event.id, s.alertTimers);
+      console.log(
+        `[scheduler] URL changed for "${event.title}" — rescheduling browser open`,
+      );
+      // fall through — caller will schedule new timers
+      return false;
+    }
+
+    // Title-only change — update tray immediately if this event owns the title
+    if (state.activeTitleEventId === event.id) {
+      const remaining = Math.ceil((startMs - Date.now()) / 60_000);
+      if (remaining > 0)
+        state.onTrayTitleUpdate?.(event.title, remaining);
+    }
+    console.log(`[scheduler] Title updated for "${event.title}"`);
+    return true; // no timer changes needed
+  }
+
+  // Start time changed — cancel all timers and fully reschedule
+  cancelBrowserTimer(event.id, s.timers);
+  cancelAlertTimer(event.id, s.alertTimers);
+  s.scheduledEventData.delete(event.id);
+  s.firedEvents.delete(event.id); // allow re-fire at new time
+  s.alertFiredEvents.delete(event.id); // allow re-alert at new time
+  console.log(
+    `[scheduler] Rescheduled "${event.title}" — start time changed`,
+  );
+  return false; // fall through to schedule new timer
+}
+
+/** Schedule all timers (alert, browser, title countdown) for a future event. */
+function scheduleFutureTimers(
+  event: MeetingEvent,
+  delayMs: number,
+  startMs: number,
+  endMs: number,
+  now: number,
+  s: StateLocals,
+): void {
+  const effectiveDelay = Math.max(0, delayMs);
+
+  // Alert timer (fires 1 minute before browser timer)
+  const alertSettings = getSettings();
+  if (alertSettings.windowAlert && !s.alertFiredEvents.has(event.id)) {
+    scheduleAlertTimer(event, effectiveDelay, s.alertTimers, s.alertFiredEvents);
+  }
+
+  scheduleBrowserTimer(event, effectiveDelay, startMs, endMs, s.timers, s.firedEvents, s.scheduledEventData);
+
+  // 30-min tray title countdown
+  scheduleTitleCountdown(
+    { eventId: event.id, eventTitle: event.title, startMs, endMs, now },
+    s.titleTimers,
+    s.countdownIntervals,
+    s.clearTimers,
+  );
+}
+
 /**
  * Schedule or re-schedule browser-open timers for the given events.
  * Safe to call multiple times — clears stale timers for removed events.
@@ -49,17 +212,17 @@ export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
   const activeIds = new Set<string>();
 
-  // Cache Proxy views into locals — avoids repeated Proxy property lookups
-  const stateTimers = state.timers;
-  const stateAlertTimers = state.alertTimers;
-  const stateTitleTimers = state.titleTimers;
-  const stateCountdownIntervals = state.countdownIntervals;
-  const stateClearTimers = state.clearTimers;
-  const stateInMeetingIntervals = state.inMeetingIntervals;
-  const stateInMeetingEndTimers = state.inMeetingEndTimers;
-  const stateFiredEvents = state.firedEvents;
-  const stateAlertFiredEvents = state.alertFiredEvents;
-  const stateScheduledEventData = state.scheduledEventData;
+  const s: StateLocals = {
+    timers: state.timers,
+    alertTimers: state.alertTimers,
+    titleTimers: state.titleTimers,
+    countdownIntervals: state.countdownIntervals,
+    clearTimers: state.clearTimers,
+    inMeetingIntervals: state.inMeetingIntervals,
+    firedEvents: state.firedEvents,
+    alertFiredEvents: state.alertFiredEvents,
+    scheduledEventData: state.scheduledEventData,
+  };
 
   for (const event of events) {
     if (event.isAllDay) continue;
@@ -69,188 +232,26 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     const openAtMs = startMs - getOpenBeforeMs();
     const delayMs = openAtMs - now;
 
-    // Handle already-in-progress events
-    if (startMs <= now) {
-      // Check if meeting is currently in progress
-      if (endMs > now) {
-        // Meeting in progress — start in-meeting countdown
-        activeIds.add(event.id);
-
-        // --- Clean up any pending future timers (e.g., event rescheduled to past) ---
-        cancelBrowserTimer(event.id, stateTimers);
-        cancelAlertTimer(event.id, stateAlertTimers);
-        cancelTitleCountdown(event.id, stateTitleTimers, stateCountdownIntervals, stateClearTimers);
-        // Only clear fired flags if event hasn't fired yet - preserve if already fired
-        if (!stateFiredEvents.has(event.id)) {
-          stateFiredEvents.delete(event.id);
-          stateAlertFiredEvents.delete(event.id);
-        }
-
-        if (!stateInMeetingIntervals.has(event.id)) {
-          stateScheduledEventData.set(event.id, {
-            title: event.title,
-            meetUrl: event.meetUrl,
-            startMs,
-            endMs,
-          });
-          startInMeetingCountdown(event.id, { title: event.title, endMs });
-        }
-      }
-      continue;
-    }
+    if (handleInProgressEvent(event, startMs, endMs, now, activeIds, s)) continue;
     if (delayMs > MAX_SCHEDULE_AHEAD_MS) continue;
 
     activeIds.add(event.id);
 
-    // Already fired — check if time changed
-    if (stateFiredEvents.has(event.id)) {
-      const prevData = stateScheduledEventData.get(event.id);
-      if (prevData && prevData.startMs !== startMs) {
-        // Start time changed after browser already opened — allow reschedule
-        stateFiredEvents.delete(event.id);
-        stateAlertFiredEvents.delete(event.id);
-      } else {
-        continue; // already fired, no change
-      }
-    }
+    if (shouldSkipScheduledEvent(event, startMs, endMs, s)) continue;
 
-    // Already scheduled — check what changed
-    if (stateTimers.has(event.id)) {
-      const prevData = stateScheduledEventData.get(event.id);
-      if (prevData) {
-        const timeChanged = prevData.startMs !== startMs;
-        const titleChanged = prevData.title !== event.title;
-        const urlChanged = prevData.meetUrl !== event.meetUrl;
-
-        if (!timeChanged && !titleChanged && !urlChanged) continue; // nothing changed
-
-        if (!timeChanged) {
-          // Only metadata changed — update snapshot and refresh in-place (no timer reschedule)
-          stateScheduledEventData.set(event.id, {
-            title: event.title,
-            meetUrl: event.meetUrl,
-            startMs,
-            endMs,
-          });
-
-          if (urlChanged) {
-            cancelBrowserTimer(event.id, stateTimers);
-            // Also clear alert timer if rescheduling
-            cancelAlertTimer(event.id, stateAlertTimers);
-            // fall through below to schedule new browser timer (same start time)
-            console.log(
-              `[scheduler] URL changed for "${event.title}" — rescheduling browser open`,
-            );
-          } else {
-            // Title-only change — update tray immediately if this event owns the title
-            if (state.activeTitleEventId === event.id) {
-              const remaining = Math.ceil((startMs - Date.now()) / 60_000);
-              if (remaining > 0)
-                state.onTrayTitleUpdate?.(event.title, remaining);
-            }
-            console.log(`[scheduler] Title updated for "${event.title}"`);
-            continue; // no timer changes needed
-          }
-        } else {
-          // Start time changed — cancel all timers and fully reschedule
-          cancelBrowserTimer(event.id, stateTimers);
-          // Also clear alert timer when start time changes
-          cancelAlertTimer(event.id, stateAlertTimers);
-          stateScheduledEventData.delete(event.id);
-          stateFiredEvents.delete(event.id); // allow re-fire at new time
-          stateAlertFiredEvents.delete(event.id); // allow re-alert at new time
-          console.log(
-            `[scheduler] Rescheduled "${event.title}" — start time changed`,
-          );
-          // fall through to schedule new timer
-        }
-      }
-    }
-
-    const effectiveDelay = Math.max(0, delayMs);
-
-    // --- Separate alert timer (fires 1 minute before browser timer) ---
-    // Only schedule if windowAlert is enabled and not already fired
-    const alertSettings = getSettings();
-    if (alertSettings.windowAlert && !stateAlertFiredEvents.has(event.id)) {
-      scheduleAlertTimer(event, effectiveDelay, stateAlertTimers, stateAlertFiredEvents);
-    }
-
-    scheduleBrowserTimer(event, effectiveDelay, startMs, endMs, stateTimers, stateFiredEvents, stateScheduledEventData);
-
-    // --- 30-min tray title countdown ---
-    scheduleTitleCountdown(
-      { eventId: event.id, eventTitle: event.title, startMs, endMs, now },
-      stateTitleTimers,
-      stateCountdownIntervals,
-      stateClearTimers,
-    );
+    scheduleFutureTimers(event, delayMs, startMs, endMs, now, s);
   }
 
   markTitleDirty();
   markInMeetingDirty();
   // Cancel timers for events that are no longer in the list (e.g. cancelled meetings)
-  // Batch cleanup: remove stale entries from all timer maps in individual passes
-  for (const id of stateTimers.keys()) {
-    if (!activeIds.has(id)) {
-      cancelBrowserTimer(id, stateTimers);
-      console.log("[scheduler] Cancelled timer for removed event");
-    }
-  }
-  for (const [id] of stateAlertTimers) {
-    if (!activeIds.has(id)) {
-      cancelAlertTimer(id, stateAlertTimers);
-      console.log("[scheduler] Cancelled alert timer for removed event");
-    }
-  }
-  for (const [id, handle] of stateTitleTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      stateTitleTimers.delete(id);
-    }
-  }
-  for (const [id, handle] of stateCountdownIntervals) {
-    if (!activeIds.has(id)) {
-      clearInterval(handle);
-      allowSleep();
-      stateCountdownIntervals.delete(id);
-    }
-  }
-  for (const [id, handle] of stateClearTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      stateClearTimers.delete(id);
-    }
-  }
-  for (const [id, handle] of stateInMeetingIntervals) {
-    if (!activeIds.has(id)) {
-      clearInterval(handle);
-      stateInMeetingIntervals.delete(id);
-    }
-  }
-  for (const [id, handle] of stateInMeetingEndTimers) {
-    if (!activeIds.has(id)) {
-      clearTimeout(handle);
-      stateInMeetingEndTimers.delete(id);
-    }
-  }
-
-  // Prune firedEvents, alertFiredEvents and scheduledEventData for events no longer in the active list
-  for (const id of stateFiredEvents) {
-    if (!activeIds.has(id)) {
-      stateFiredEvents.delete(id);
-    }
-  }
-  for (const id of stateAlertFiredEvents) {
-    if (!activeIds.has(id)) {
-      stateAlertFiredEvents.delete(id);
-    }
-  }
-  for (const id of stateScheduledEventData.keys()) {
-    if (!activeIds.has(id)) {
-      stateScheduledEventData.delete(id);
-    }
-  }
+  cancelStaleEntries(state, activeIds, {
+    onBrowserCancel: cancelBrowserTimer,
+    onAlertCancel: cancelAlertTimer,
+    onCountdownIntervalCancel: () => {
+      state.powerCallbacks?.allowSleep?.();
+    },
+  });
 
   // After cleanup, re-resolve tray title ownership
   // (handles the case where the active countdown event was just removed)
@@ -263,5 +264,4 @@ export {
   stopScheduler,
   restartScheduler,
   _resetForTest,
-  _resetConsecutiveErrors,
 } from "./poll.js";
