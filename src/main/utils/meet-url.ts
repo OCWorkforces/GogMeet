@@ -1,3 +1,4 @@
+import { shell } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
 import { isAllowedMeetUrl } from "./url-validation.js";
 
@@ -21,4 +22,18 @@ export function buildMeetUrl(event: MeetingEvent): string {
     return `${base}?authuser=${encodeURIComponent(email)}`;
   }
   return base;
+}
+
+/**
+ * Validate and open a Google Meet URL in the default browser.
+ * Logs errors on failure.
+ */
+export async function openMeetingUrl(url: string): Promise<void> {
+  if (!isAllowedMeetUrl(url)) {
+    console.error("[meet-url] Blocked disallowed URL:", url);
+    return;
+  }
+  await shell.openExternal(url).catch((err) => {
+    console.error("[meet-url] Failed to open URL:", url, err);
+  });
 }
