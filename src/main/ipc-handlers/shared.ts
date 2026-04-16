@@ -51,4 +51,3 @@ export function typedHandle<K extends keyof IpcChannelMap>(
   );
 }
 
-export { ipcMain };

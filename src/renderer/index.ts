@@ -54,24 +54,28 @@ function renderFooter(): string {
 
 
 function render() {
-  const app = document.getElementById("app");
-  if (!app) return;
+  try {
+    const app = document.getElementById("app");
+    if (!app) return;
 
-  app.innerHTML = `<div role="dialog" aria-label="GogMeet meetings" aria-live="polite">
-      <div class="body">${renderBody(state, settings)}</div>
-      ${renderFooter()}
-    </div>`;
+    app.innerHTML = `<div role="dialog" aria-label="GogMeet meetings" aria-live="polite">
+        <div class="body">${renderBody(state, settings)}</div>
+        ${renderFooter()}
+      </div>`;
 
-  // Measure actual rendered height and resize the Electron BrowserWindow
-  const FOOTER_H = 32;
-  const MIN_H = 220;
-  const MAX_H = 480;
-  const bodyEl = app.querySelector<HTMLElement>(".body");
-  const bodyH = bodyEl ? bodyEl.scrollHeight : 0;
-  const targetH = Math.min(MAX_H, Math.max(MIN_H, bodyH + FOOTER_H));
-  if (targetH !== lastHeight) {
-    window.api.window.setHeight(targetH);
-    lastHeight = targetH;
+    // Measure actual rendered height and resize the Electron BrowserWindow
+    const FOOTER_H = 32;
+    const MIN_H = 220;
+    const MAX_H = 480;
+    const bodyEl = app.querySelector<HTMLElement>(".body");
+    const bodyH = bodyEl ? bodyEl.scrollHeight : 0;
+    const targetH = Math.min(MAX_H, Math.max(MIN_H, bodyH + FOOTER_H));
+    if (targetH !== lastHeight) {
+      window.api.window.setHeight(targetH);
+      lastHeight = targetH;
+    }
+  } catch (error) {
+    console.error('[renderer] Render error:', error);
   }
 }
 

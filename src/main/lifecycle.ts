@@ -7,14 +7,19 @@ import {
   restartScheduler,
   setSchedulerWindow,
   setTrayTitleCallback,
-} from "./scheduler/index.js";
+  initPowerCallbacks,
+} from "./scheduler/facade.js";
 import {
   getCalendarPermissionStatus,
   requestCalendarPermission,
+  getCalendarEventsResult,
 } from "./calendar.js";
 import {
   initPowerManagement,
   cleanupPowerManagement,
+  getPollInterval,
+  preventSleep,
+  allowSleep,
 } from "./power.js";
 import { updateTrayTitle } from "./tray.js";
 import { getSettings } from "./settings.js";
@@ -28,9 +33,10 @@ import { registerShortcuts } from "./shortcuts.js";
  */
 export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   registerIpcHandlers(mainWindow);
-  setupTray(mainWindow);
+  setupTray(mainWindow, getCalendarEventsResult);
   setTrayTitleCallback(updateTrayTitle);
   setSchedulerWindow(mainWindow);
+  initPowerCallbacks({ getPollInterval, preventSleep, allowSleep });
 
   // Check calendar permission before starting the scheduler
   // If permission hasn't been determined yet, request it (triggers macOS dialog)

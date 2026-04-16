@@ -1,11 +1,11 @@
-import { app, shell, type MenuItemConstructorOptions } from "electron";
-import { buildMeetUrl } from "../utils/meet-url.js";
-import { createSettingsWindow } from "../settings-window.js";
-import { formatMeetingTime } from "../../shared/utils/time.js";
+import { app, type MenuItemConstructorOptions } from "electron";
+import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
+import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/utils/time.js";
 import type { MeetingEvent } from "../../shared/models.js";
 
 interface MenuCallbacks {
   onAbout: () => void;
+  onOpenSettings: () => void;
 }
 
 /**
@@ -18,10 +18,8 @@ export function buildMeetingMenuTemplate(
   callbacks: MenuCallbacks,
 ): MenuItemConstructorOptions[] {
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const todayStart = startOfDay(now);
+  const tomorrowStart = startOfTomorrow();
   const dayAfterStart = new Date(tomorrowStart);
   dayAfterStart.setDate(dayAfterStart.getDate() + 1);
 
@@ -34,7 +32,7 @@ export function buildMeetingMenuTemplate(
     return [
       { label: "No upcoming meetings", enabled: false },
       { type: "separator" },
-      { label: "Settings...", click: () => createSettingsWindow() },
+      { label: "Settings...", click: () => callbacks.onOpenSettings() },
       { label: "About GogMeet", click: () => callbacks.onAbout() },
       { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
     ];
@@ -66,9 +64,7 @@ export function buildMeetingMenuTemplate(
           click: () => {
             const url = buildMeetUrl(event);
             if (!url) return;
-            void shell.openExternal(url).catch((err) => {
-              console.error("[tray] Failed to open meeting URL:", err);
-            });
+            void openMeetingUrl(url);
           },
         }),
       });
@@ -87,9 +83,7 @@ export function buildMeetingMenuTemplate(
           click: () => {
             const url = buildMeetUrl(event);
             if (!url) return;
-            void shell.openExternal(url).catch((err) => {
-              console.error("[tray] Failed to open meeting URL:", err);
-            });
+            void openMeetingUrl(url);
           },
         }),
       });
@@ -97,7 +91,7 @@ export function buildMeetingMenuTemplate(
   }
 
   items.push({ type: "separator" });
-  items.push({ label: "Settings...", click: () => createSettingsWindow() });
+  items.push({ label: "Settings...", click: () => callbacks.onOpenSettings() });
   items.push({ label: "About GogMeet", click: () => callbacks.onAbout() });
   items.push({
     label: "Quit",

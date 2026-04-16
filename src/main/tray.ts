@@ -10,7 +10,8 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getCalendarEventsResult } from "./calendar.js";
+import type { CalendarResult } from "../shared/models.js";
+import { getCalendarEventsResult as getCalendarEventsDefault } from "./calendar.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
@@ -49,7 +50,7 @@ function showAbout(mainWindow: BrowserWindow): void {
   });
 }
 
-export function setupTray(mainWindow: BrowserWindow): void {
+export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<CalendarResult>): void {
   // In dev:      __dirname = lib/main/   → ../../src/assets
   // In packaged: __dirname = app.asar/lib/main/ → ../../src/assets (inside asar)
   //
@@ -66,6 +67,10 @@ export function setupTray(mainWindow: BrowserWindow): void {
     const icon2x = nativeImage.createFromPath(
       path.join(assetsDir, `tray-icon-${suffix}@2x.png`),
     );
+    if (icon1x.isEmpty() || icon2x.isEmpty()) {
+      console.error('[tray] Failed to load tray icon images');
+      return nativeImage.createEmpty();
+    }
     const icon = nativeImage.createEmpty();
     icon.addRepresentation({ scaleFactor: 1.0, buffer: icon1x.toPNG() });
     icon.addRepresentation({ scaleFactor: 2.0, buffer: icon2x.toPNG() });
@@ -85,7 +90,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
   // Left-click → dynamic meeting menu
   tray.on("click", async () => {
-    const result = await getCalendarEventsResult();
+    const result = await (getEvents ?? getCalendarEventsDefault)();
     let template: MenuItemConstructorOptions[];
     if ("error" in result) {
       template = [
@@ -98,6 +103,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
     } else {
       template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
         onAbout: () => showAbout(mainWindow),
+        onOpenSettings: () => createSettingsWindow(),
       });
     }
     tray!.popUpContextMenu(Menu.buildFromTemplate(template));

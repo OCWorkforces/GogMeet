@@ -3,7 +3,6 @@ import {
   resolveActiveTitleEvent,
   startInMeetingCountdown,
 } from "./countdown.js";
-import { preventSleep, allowSleep } from "../power.js";
 
 /** How long before meeting start to show the tray title (ms) */
 const TITLE_BEFORE_MS = 30 * 60 * 1000; // 30 minutes
@@ -40,7 +39,7 @@ function startCountdown(
   // Guard: bail if event was deleted between titleTimer fire and now
   if (!state.scheduledEventData.has(params.eventId)) return;
 
-  preventSleep();
+  state.powerCallbacks?.preventSleep?.();
   tickCountdown(params); // immediate tick so title appears right away — sets ownership via resolveActiveTitleEvent below
   const intervalHandle = setInterval(() => {
     tickCountdown(params);
@@ -61,7 +60,7 @@ function startCountdown(
       }
       countdownIntervals.delete(params.eventId);
       markTitleDirty();
-      allowSleep();
+      state.powerCallbacks?.allowSleep?.();
       clearTimers.delete(params.eventId);
       if (state.activeTitleEventId === params.eventId) {
         setActiveTitleEventId(null);
@@ -136,7 +135,7 @@ export function cancelTitleCountdown(
   const existingCountdown = countdownIntervals.get(eventId);
   if (existingCountdown) {
     clearInterval(existingCountdown);
-    allowSleep();
+    state.powerCallbacks?.allowSleep?.();
     markTitleDirty();
     countdownIntervals.delete(eventId);
   }

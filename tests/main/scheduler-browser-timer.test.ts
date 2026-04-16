@@ -19,10 +19,11 @@ vi.mock("../../src/main/utils/meet-url.js", () => ({
     .mockReturnValue(
       "https://meet.google.com/abc-def-ghi?authuser=user@test.com",
     ),
+  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 const { Notification, shell } = await import("electron");
-const { buildMeetUrl } = await import("../../src/main/utils/meet-url.js");
+const { buildMeetUrl, openMeetingUrl } = await import("../../src/main/utils/meet-url.js");
 const { scheduleBrowserTimer, cancelBrowserTimer } =
   await import("../../src/main/scheduler/browser-timer.js");
 
@@ -55,6 +56,7 @@ describe("scheduleBrowserTimer", () => {
     scheduledEventData = new Map();
     vi.mocked(buildMeetUrl).mockClear();
     vi.mocked(shell.openExternal).mockClear();
+    vi.mocked(openMeetingUrl).mockClear();
     vi.mocked(Notification).mockClear();
   });
 
@@ -135,7 +137,7 @@ describe("scheduleBrowserTimer", () => {
     });
   });
 
-  it("with meetUrl: opens browser via shell.openExternal", () => {
+  it("with meetUrl: opens browser via openMeetingUrl", () => {
     const event = makeEvent();
     scheduleBrowserTimer(
       event,
@@ -148,7 +150,7 @@ describe("scheduleBrowserTimer", () => {
     );
 
     vi.advanceTimersByTime(60_000);
-    expect(shell.openExternal).toHaveBeenCalledWith(
+    expect(openMeetingUrl).toHaveBeenCalledWith(
       "https://meet.google.com/abc-def-ghi?authuser=user@test.com",
     );
   });
@@ -166,7 +168,7 @@ describe("scheduleBrowserTimer", () => {
     );
 
     vi.advanceTimersByTime(60_000);
-    expect(shell.openExternal).not.toHaveBeenCalled();
+    expect(openMeetingUrl).not.toHaveBeenCalled();
     expect(buildMeetUrl).not.toHaveBeenCalled();
   });
 
@@ -210,7 +212,7 @@ describe("cancelBrowserTimer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     timers = new Map();
-    vi.mocked(shell.openExternal).mockClear();
+    vi.mocked(openMeetingUrl).mockClear();
   });
 
   afterEach(() => {
@@ -239,7 +241,7 @@ describe("cancelBrowserTimer", () => {
 
     // Timer should not fire after cancellation
     vi.advanceTimersByTime(60_000);
-    expect(shell.openExternal).not.toHaveBeenCalled();
+    expect(openMeetingUrl).not.toHaveBeenCalled();
   });
 
   it("is safe to call with non-existent eventId (no-op)", () => {

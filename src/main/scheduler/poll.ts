@@ -1,6 +1,5 @@
 import { getCalendarEventsResult } from "../calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { getPollInterval } from "../power.js";
 
 import {
   state,
@@ -19,6 +18,18 @@ import { scheduleEvents } from "./index.js";
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+/** Clear tray state after too many consecutive poll failures */
+function handleMaxConsecutiveErrors(): void {
+  markTitleDirty();
+  markInMeetingDirty();
+  clearAllDisplayTimers();
+  setActiveInMeetingEventId(null);
+  resolveActiveTitleEvent();
+  console.error(
+    `[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`,
+  );
+}
+
 /** Poll calendar and refresh timers */
 export async function poll(): Promise<void> {
   try {
@@ -34,28 +45,14 @@ export async function poll(): Promise<void> {
       console.error("[scheduler] Calendar error:", result.error);
       incrementConsecutiveErrors();
       if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        markTitleDirty();
-        markInMeetingDirty();
-        clearAllDisplayTimers();
-        setActiveInMeetingEventId(null);
-        resolveActiveTitleEvent();
-        console.error(
-          `[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`,
-        );
+        handleMaxConsecutiveErrors();
       }
     }
   } catch (err) {
     console.error("[scheduler] Poll error:", err);
     incrementConsecutiveErrors();
     if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-      markTitleDirty();
-      markInMeetingDirty();
-      clearAllDisplayTimers();
-      setActiveInMeetingEventId(null);
-      resolveActiveTitleEvent();
-      console.error(
-        `[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`,
-      );
+      handleMaxConsecutiveErrors();
     }
   }
 }
@@ -74,7 +71,7 @@ export function startScheduler(): void {
       if (state.pollTimeout !== null) {
         scheduleNextPoll();
       }
-    }, getPollInterval());
+    }, state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000);
   }
   scheduleNextPoll();
 }
@@ -97,7 +94,3 @@ export function _resetForTest(): void {
   resetState();
 }
 
-/** Backward-compatible alias for existing tests */
-export function _resetConsecutiveErrors(): void {
-  _resetForTest();
-}

@@ -16,8 +16,13 @@ const {
   mockRegisterShortcuts,
   mockInitPowerManagement,
   mockCleanupPowerManagement,
+  mockGetPollInterval,
+  mockPreventSleep,
+  mockAllowSleep,
   mockGetCalendarPermissionStatus,
   mockRequestCalendarPermission,
+  mockGetCalendarEventsResult,
+  mockInitPowerCallbacks,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -39,8 +44,13 @@ const {
   mockRegisterShortcuts: vi.fn(),
   mockInitPowerManagement: vi.fn(),
   mockCleanupPowerManagement: vi.fn(),
+  mockGetPollInterval: vi.fn().mockReturnValue(120000),
+  mockPreventSleep: vi.fn(),
+  mockAllowSleep: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   mockRequestCalendarPermission: vi.fn().mockResolvedValue("granted"),
+  mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+  mockInitPowerCallbacks: vi.fn(),
 }))
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -54,11 +64,7 @@ vi.mock("../../src/main/tray.js", () => ({
 }));
 
 vi.mock("../../src/main/scheduler/index.js", () => ({
-  startScheduler: mockStartScheduler,
-  stopScheduler: mockStopScheduler,
-  restartScheduler: mockRestartScheduler,
-  setSchedulerWindow: mockSetSchedulerWindow,
-  setTrayTitleCallback: mockSetTrayTitleCallback,
+  scheduleEvents: vi.fn(),
 }));
 
 vi.mock("../../src/main/settings.js", () => ({
@@ -80,12 +86,25 @@ vi.mock("../../src/main/shortcuts.js", () => ({
 vi.mock("../../src/main/power.js", () => ({
   initPowerManagement: mockInitPowerManagement,
   cleanupPowerManagement: mockCleanupPowerManagement,
+  getPollInterval: mockGetPollInterval,
+  preventSleep: mockPreventSleep,
+  allowSleep: mockAllowSleep,
 }));
 
 vi.mock("../../src/main/calendar.js", () => ({
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   requestCalendarPermission: mockRequestCalendarPermission,
+  getCalendarEventsResult: mockGetCalendarEventsResult,
 }))
+
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  initPowerCallbacks: mockInitPowerCallbacks,
+  startScheduler: mockStartScheduler,
+  stopScheduler: mockStopScheduler,
+  restartScheduler: mockRestartScheduler,
+  setSchedulerWindow: mockSetSchedulerWindow,
+  setTrayTitleCallback: mockSetTrayTitleCallback,
+}));
 
 import { initializeApp, shutdownApp } from "../../src/main/lifecycle.js";
 
@@ -104,7 +123,7 @@ describe("lifecycle", () => {
       expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow);
 
       // Tray set up with main window
-      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow);
+      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow, mockGetCalendarEventsResult);
 
       // Scheduler receives tray callback and window reference
       expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(

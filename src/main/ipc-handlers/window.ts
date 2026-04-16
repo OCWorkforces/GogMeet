@@ -1,10 +1,9 @@
-import type { BrowserWindow } from "electron";
+import { ipcMain, type BrowserWindow } from "electron";
 import { IPC_CHANNELS, type IpcRequest } from "../../shared/ipc-channels.js";
 import {
   validateOnSender,
   MIN_WINDOW_HEIGHT,
   MAX_WINDOW_HEIGHT,
-  ipcMain,
 } from "./shared.js";
 
 export function registerWindowHandlers(win: BrowserWindow): void {
