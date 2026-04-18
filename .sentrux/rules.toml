@@ -236,6 +236,24 @@ from = "src/main/scheduler"
 to = "src/main/ipc-handlers"
 type = "forbidden"
 
+# IPC handlers must use scheduler facade, not direct index import
+# (prevents re-introduction of circular dependency through re-exports;
+#  ipc-handlers/settings.ts must import from scheduler/facade.js)
+[[rules]]
+name = "ipc-handlers-use-scheduler-facade"
+from = "src/main/ipc-handlers"
+to = "src/main/scheduler/index"
+type = "forbidden"
+
+# scheduler/index must not re-export from poll (prevents circular dep regression)
+# (poll.ts imports scheduleEvents from index.ts — reverse re-export creates cycle;
+#  use scheduler/facade.ts as the public API surface instead)
+[[rules]]
+name = "scheduler-index-no-poll-reexport"
+from = "src/main/scheduler/index"
+to = "src/main/scheduler/poll"
+type = "forbidden"
+
 # ────────────────────────────────────────────────────────────────
 # 7. CYCLE PREVENTION — SHORTCUTS
 # (shortcuts is a leaf module: registers Cmd+Shift+M, joins next meeting)
