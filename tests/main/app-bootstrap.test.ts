@@ -55,6 +55,17 @@ describe("main/index.ts", () => {
     expect(content).toContain('from "./shortcuts.js"');
   });
 
+  it("ipc-handlers/settings.ts imports scheduler from facade.js", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/ipc-handlers/settings.ts"),
+      "utf-8",
+    );
+
+    // settings.ts must use scheduler/facade.js — not scheduler/index.js — to avoid circular dep
+    expect(content).toContain('from "../scheduler/facade.js"');
+    expect(content).not.toContain('from "../scheduler/index.js"');
+  });
+
   it("exports createWindow function signature", async () => {
     const content = await fs.readFile(
       path.join(root, "src/main/index.ts"),

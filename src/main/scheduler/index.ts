@@ -258,10 +258,3 @@ export function scheduleEvents(events: MeetingEvent[]): void {
   resolveActiveInMeetingEvent();
 }
 
-export {
-  poll,
-  startScheduler,
-  stopScheduler,
-  restartScheduler,
-  _resetForTest,
-} from "./poll.js";

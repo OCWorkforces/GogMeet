@@ -35,7 +35,9 @@ vi.mock("../../src/main/power.js", () => ({
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
-const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback, poll, _resetForTest } = schedulerModule;
+const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback } = schedulerModule;
+const pollModule = await import("../../src/main/scheduler/poll.js");
+const { poll, _resetForTest } = pollModule;
 
 const stateModule = await import("../../src/main/scheduler/state.js");
 const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents, markTitleDirty, initPowerCallbacks } = stateModule;

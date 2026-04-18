@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "ccc": {
+      "source": "cocoindex-io/cocoindex-code",
+      "sourceType": "github",
+      "computedHash": "485211ec7ef033f784261d1dba56770fea20163aebdd482950e8d4878b74c6b2"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",

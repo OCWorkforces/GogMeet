@@ -1,7 +1,7 @@
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
 import { getSettings, updateSettings } from "../settings.js";
-import { restartScheduler } from "../scheduler/index.js";
+import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../auto-launch.js";
 import { validateSender, typedHandle } from "./shared.js";
 

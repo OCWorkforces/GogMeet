@@ -7,8 +7,9 @@ Two-project Vitest workspace for Electron app testing. Main process uses Node en
 ```
 tests/
 ├── setup.main.ts           # Full Electron mock (app, BrowserWindow, Tray, ipcMain, shell, etc.)
-├── main/                   # 31 test files
+├── main/                   # 35 test files
 │   ├── scheduler.test.ts   # 768 lines — scheduler state machine (A-F groups)
+│   ├── swift-binary-manager.test.ts # Swift binary cache, compile, retry (19 tests)
 │   ├── calendar.test.ts    # 532 lines — Swift output parsing (16 tests)
 │   ├── meet-url.test.ts    # URL building + allowlist (17 tests)
 │   ├── ipc.test.ts         # Security validation (15 tests)
@@ -89,6 +90,8 @@ vi.mock("node:child_process", async () => {
 });
 ```
 
+Note: `vi.hoisted()` + `promisify.custom` for `child_process` mocking; `vi.stubGlobal('process', ...)` for arch variation (used in `swift-binary-manager.test.ts`).
+
 **Scheduler Test Groups** (A-F labeled):
 
 | Group   | Focus                           |
@@ -119,7 +122,7 @@ vi.mock("node:child_process", async () => {
 ## COMMANDS
 
 ```bash
-bun run test          # Run all tests once (415 tests, 36 files)
+bun run test          # Run all tests once (518 tests, 40 files)
 bun run test:watch    # Watch mode
 bun run test:coverage # Tests with coverage report
 ```

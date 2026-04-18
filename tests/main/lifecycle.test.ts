@@ -63,10 +63,6 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: mockUpdateTrayTitle,
 }));
 
-vi.mock("../../src/main/scheduler/index.js", () => ({
-  scheduleEvents: vi.fn(),
-}));
-
 vi.mock("../../src/main/settings.js", () => ({
   getSettings: mockGetSettings,
 }));
