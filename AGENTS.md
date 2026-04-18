@@ -54,6 +54,7 @@ src/
 | Scheduler             | `src/main/scheduler/index.ts`                 | Central timer hub                       |
 | Scheduler lifecycle   | `src/main/scheduler/poll.ts`                  | Start/stop/restart                      |
 | Scheduler state       | `src/main/scheduler/state.ts`                 | Proxy views over Maps/Sets              |
+| Scheduler public API  | `src/main/scheduler/facade.ts`                | Single entry point for external consumers |
 | Tray title            | `src/main/tray.ts:119`                        | `updateTrayTitle()`                     |
 | Alert window          | `src/main/alert-window.ts`                    | Full-screen overlay                     |
 | Settings window       | `src/main/settings-window.ts`                 | Singleton, shows in Dock                |
@@ -71,6 +72,7 @@ src/
 - **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
 - **Alert window**: Full-screen overlay, singleton, Escape to dismiss
 - **macOS only**: Swift EventKit, dock hiding — no cross-platform
+- **Scheduler imports**: `scheduler/facade.ts` is the sole public interface; external consumers must import from `facade.js`, not `index.js`
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -107,7 +109,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (main + renderer workspaces)
+bun run test         # Run Vitest tests (518 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
@@ -123,3 +125,4 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh)
 - **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 3 scalars, 2 dirty flags (in `scheduler/state.ts`)
 - **Window hide on blur**: Popover hides when focus lost (dev mode exempt)
+- **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts` — all external imports go through `scheduler/facade.ts`

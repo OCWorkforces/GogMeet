@@ -13,6 +13,7 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `alert-timer.ts`     | `scheduleAlertTimer()` — fires 60s before browser open                     |
 | `browser-timer.ts`   | `scheduleBrowserTimer()` — browser open + Notification                     |
 | `title-countdown.ts` | `scheduleTitleCountdown()` — 30-min window title timer                     |
+| `facade.ts`          | Single public interface for external consumers (re-exports from poll.ts and index.ts) |
 
 ## PUBLIC API
 
@@ -25,6 +26,8 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `poll`                 | `() => Promise<void>`              | Fetches calendar, delegates to scheduleEvents           |
 | `setSchedulerWindow`   | `(w: BrowserWindow) => void`       | Injects renderer window for IPC push                    |
 | `setTrayTitleCallback` | `(fn) => void`                     | Decouples scheduler from tray                           |
+
+**Import point**: External consumers should import from `facade.js`, which re-exports the public API. Avoid importing from `index.js` directly.
 
 ## CONSTANTS
 
@@ -85,15 +88,26 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 - **Dirty flag resolution**: `titleDirty`/`inMeetingDirty` flags avoid redundant resolver runs when nothing changed
 - **Alert pre-fire suppression**: `alertFiredEvents` Set prevents re-showing alert on scheduler refresh
 - **Module extraction**: Timer logic split into focused files (poll, alert-timer, browser-timer, title-countdown) from monolithic index.ts
+- **Facade pattern**: `facade.ts` is the sole public interface for scheduler module. External consumers (`lifecycle.ts`, `ipc-handlers/settings.ts`) import from `facade.js`, never from `index.js` directly
 
 ## INTERNAL DEPENDENCIES
 
 ```
 index.ts
   ├── state.ts          (state maps, scalars, dirty flags, reset primitives)
-  ├── countdown.ts      (in-meeting resolution, dirty flag consumers)
   ├── alert-timer.ts    (→ alert-window.ts showAlert)
   ├── browser-timer.ts  (→ utils/meet-url.ts buildMeetUrl)
   ├── title-countdown.ts (→ countdown.ts, state.ts, power.ts)
-  └── poll.ts           (→ calendar.ts, state.ts, countdown.ts, index.ts)
+  ├── countdown.ts      (in-meeting resolution, dirty flag consumers)
+  └── settings.ts       (openBeforeMinutes, windowAlert)
+
+poll.ts
+  ├── index.ts          (scheduleEvents)
+  ├── calendar.ts       (event fetch)
+  └── state.ts          (consecutive errors, scheduled snapshot)
+
+facade.ts
+  ├── poll.ts           (re-exports startScheduler/stopScheduler/restartScheduler)
+  ├── index.ts          (re-exports scheduleEvents/setSchedulerWindow/setTrayTitleCallback)
+  └── state.ts          (re-exports state primitives as needed)
 ```
