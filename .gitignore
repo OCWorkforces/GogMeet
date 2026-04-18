@@ -144,3 +144,5 @@ dist/
 opencode.json
 .opencode/
 .sisyphus/
+# CocoIndex Code (ccc)
+/.cocoindex_code/
