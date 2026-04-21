@@ -1,121 +1,73 @@
-# Renderer Process — UI Layer
+# Renderer Layer
 
-Electron renderer (web context). Vanilla TypeScript UI with native macOS popover aesthetic. No framework. Three separate entry points built by Rsbuild.
+## OVERVIEW
 
-## FILES
+Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML string templates with `escapeHtml()` for XSS protection.
 
-| File                   | Role                                                  |
-| ---------------------- | ----------------------------------------------------- |
-| `index.ts`             | Main popover UI, state machine, event handlers        |
-| `index.html`           | CSP-protected HTML template                           |
-| `env.d.ts`             | TypeScript declarations                               |
-| `css.d.ts`             | CSS module declarations                               |
-| `events/`              | Event handling (extracted)                            |
-| `events/delegation.ts` | `setupDelegatedEvents()` via `data-action` attributes |
-| `rendering/`           | UI rendering (extracted)                              |
-| `rendering/body.ts`    | `renderBody()` for all states, `formatRelativeTime()` |
-| `styles/reset.css`     | Shared CSS reset, variables, dark mode, font stack    |
-| `styles/main.css`      | Popover-specific styles                               |
-| `settings/`            | Settings window UI (separate entry)                   |
-| `settings/index.ts`    | Settings form logic, save indicator                   |
-| `settings/index.html`  | Settings HTML template                                |
-| `settings/styles.css`  | iOS-style toggles                                     |
-| `alert/`               | Full-screen meeting alert (separate entry)            |
-| `alert/index.ts`       | Alert overlay logic (Escape dismisses)                |
-| `alert/index.html`     | Alert HTML template                                   |
-| `alert/styles.css`     | Dark full-screen styles with animations               |
+## ENTRY POINTS
 
-## STATE MACHINE (main popover)
+| Entry | HTML | Window | Role |
+|-------|------|--------|------|
+| `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, 5-min auto-refresh |
+| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | iOS toggles, auto-save with "✓ Saved" indicator |
+| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
 
-```typescript
-// index.ts:10
-type AppState =
-  | { type: "loading" }
-  | { type: "no-permission"; retrying: boolean }
-  | { type: "no-events" }
-  | { type: "has-events"; events: MeetingEvent[] }
-  | { type: "error"; message: string };
+## STRUCTURE
+
+```
+src/renderer/
+├── index.ts          # Main popover UI
+├── events/           # data-action event delegation
+├── rendering/        # body / header / footer renderers
+├── settings/         # Settings window entry
+├── alert/            # Full-screen alert entry
+└── styles/           # CSS reset + popover styles
 ```
 
-## RENDERING PATTERN
+## RENDERING
 
-- No virtual DOM — direct `innerHTML` assignment to `#app`
-- Template literal functions: `render()` (index.ts), `renderBody()` (rendering/body.ts), `renderFooter()` (index.ts)
-- Event binding: delegated listener on `#app` container via `data-action` attributes (events/delegation.ts)
-- All 3 entries use same pattern: `#app` container + `innerHTML` + `DOMContentLoaded` init
+- `rendering/body.ts`, meeting list, all user content via `escapeHtml()`
+- `rendering/header.ts`, header with calendar name
+- `rendering/footer.ts`, last-updated timestamp + refresh icon
+- Title, description, URL: always escaped before innerHTML
 
-## EVENT DELEGATION (main + alert)
+## EVENT HANDLING
 
-Main popover and alert use `data-action` attributes:
+- `events/delegate.ts`, `data-action` attribute delegation on `#app`
+- Actions: `join-meeting`, `grant-access`, `open-settings`
 
-- Main: `data-action="refresh"`, `data-action="grant-access"`, `data-action="join-meeting"`, `data-action="retry"`
-- Alert: `data-action="dismiss"`
-- Settings uses direct per-element listeners instead (no delegation)
+## STATE MACHINE (index.ts)
 
-## AUTO-REFRESH
+`AppState`: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
-- Interval: 5 minutes (`REFRESH_INTERVAL_MS`)
-- Timer stored in `refreshTimer`, cleared on re-init
-- Pauses when window hidden, resumes on visibility change
-
-## API ACCESS
-
-```typescript
-window.api.calendar.getEvents(); // → CalendarResult
-window.api.calendar.requestPermission(); // → CalendarPermission
-window.api.calendar.getPermissionStatus(); // → CalendarPermission
-window.api.window.setHeight(height); // → void
-window.api.app.openExternal(url); // → void
-window.api.app.getVersion(); // → string
-window.api.settings.get(); // → AppSettings
-window.api.settings.set(partial); // → AppSettings
-window.api.settings.onChanged(cb); // → void (push listener)
-window.api.alert.onShowAlert(cb); // → void (push listener)
-```
-
-## CSS CONVENTIONS
-
-- **Shared reset**: `styles/reset.css` defines CSS variables (`--bg`, `--surface`, `--border`, `--text-primary`, etc.), dark mode via `@media (prefers-color-scheme: dark)`, native font stack (`-apple-system, BlinkMacSystemFont, 'SF Pro Text'`)
-- **Backdrop blur**: `blur(20px) saturate(180%)` for native macOS aesthetic
-- **Dark mode**: Handled via CSS variables override in `reset.css` media query
-- **Alert always dark**: `alert/styles.css` overrides variables with hardcoded dark palette
-- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` disables all animations
-
-## SECURITY
-
-- CSP in all `index.html`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`
-- HTML escaping via `escapeHtml()` for user content (imported from `src/shared/utils/escape-html.ts`)
-- Used in main popover and alert renderer (settings doesn't render user text)
+- `loadEvents()` fetches via `window.api.calendar.getEvents()`
+- Visibility-aware: pauses refresh when hidden, resumes on show
+- `lastPollTime = Date.now()` prevents redundant fetch on first show
 
 ## SETTINGS WINDOW
 
-Separate renderer entry at `settings/`. Key differences:
-
-- Uses native window chrome (`titleBarStyle: "hiddenInset"`)
-- Shows in Dock when open (tray-only app otherwise)
-- Singleton BrowserWindow (focus if already open)
-- Auto-saves on dropdown change with "✓ Saved" indicator
-- iOS-style toggle switch for "Launch at Login" and "Show Tomorrow" options
+- Auto-save: toggle change → `window.api.settings.set()` → "✓ Saved" indicator
+- `setupToggleListener(key, checkbox, indicator, saveIndicatorTimers)` generic for all toggles
+- `saveIndicatorTimers` Map cleaned on re-render, prevents leaks
+- Save failure reverts toggle + shows error message
 
 ## ALERT WINDOW
 
-Full-screen overlay renderer at `alert/`. Triggered by `showAlert()` from main process at `openBeforeMinutes + 1` min before meeting.
+- Triggered by `window.api.alert.onShowAlert()` push channel
+- Shows meeting title, time, description (all escaped)
+- Keyboard: Escape or any key dismisses
+- Error boundary: try/catch around rendering with fallback DOM
 
-- Receives `{ title, meetUrl }` via `ALERT_SHOW` push channel
-- Full-screen, frameless, `alwaysOnTop`, dark background (`#1d1d1f`)
-- Dismissed by Escape key, "Dismiss" button, or "Join Meeting" button — all trigger `dismissAlert()` with fade+zoom-out animation before `window.close()`
-- "Join Meeting" calls `window.api.app.openExternal(url)`
-- Singleton — `showAlert()` closes existing alert before showing new one
-- Animations: fade+zoom-in (300ms ease-out), fade+zoom-out (250ms ease-in); respects `prefers-reduced-motion`
+## CONVENTIONS
 
-## TESTS
+- Never use innerHTML with user content without `escapeHtml()`
+- All UI is string template concatenation, no framework
+- `data-action` event delegation, no inline handlers
+- State changes trigger full re-render, no diffing
+- CSS lives in `styles/`, loaded via HTML link
 
-**Location**: `tests/renderer/*.test.ts` (5 test files)
+## ANTI-PATTERNS
 
-| File                  | Focus                    |
-| --------------------- | ------------------------ |
-| `delegation.test.ts`  | Event delegation on #app |
-| `escape-html.test.ts` | XSS protection           |
-| `main-ui.test.ts`     | Main UI state machine    |
-| `alert.test.ts`       | Alert overlay behavior   |
-| `settings.test.ts`    | Settings form logic      |
+- Never bypass `escapeHtml()` for any user-controlled string in innerHTML
+- Never store DOM references across renders, full re-render replaces innerHTML
+- Never use `onclick` inline handlers, use `data-action` delegation

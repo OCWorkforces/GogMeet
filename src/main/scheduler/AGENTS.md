@@ -51,9 +51,11 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `clearTimers`        | `setTimeout`  | At `startMs` → switch to in-meeting     |
 | `inMeetingIntervals` | `setInterval` | Every 60s during meeting                |
 | `inMeetingEndTimers` | `setTimeout`  | At `endMs` → cleanup                    |
-| `scheduledEventData` | Map           | Snapshot for change detection           |
+| `scheduledEventData` | Map           | Snapshot for change detection, event UID→{title,meetUrl,startMs,endMs} |
 
 Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (prevents alert re-show).
+
+Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callbacks).
 
 ## EVENT LIFECYCLE
 
@@ -70,7 +72,7 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 
 ## STATE ARCHITECTURE (state.ts)
 
-**Proxy view pattern**: Module exports Proxy-wrapped Maps/Sets over a singleton `SchedulerState` object. Callers like `timers.get(id)` always reflect current state.
+**Proxy view pattern**: Module exports Proxy-wrapped Maps/Sets over a singleton `SchedulerState` object. Callers like `timers.get(id)` always reflect current state. WeakMap-cached bound methods: Proxy `get` handler caches `.bind()` results per target, preventing re-binding on every property access.
 
 **Dual scalar export**: Each scalar (`activeTitleEventId`, `activeInMeetingEventId`, `consecutiveErrors`) exists both as a property on `state` AND as a module-level `let`. `syncExportedScalars()` keeps them in sync after `replaceState()`.
 
@@ -89,6 +91,8 @@ Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (preve
 - **Alert pre-fire suppression**: `alertFiredEvents` Set prevents re-showing alert on scheduler refresh
 - **Module extraction**: Timer logic split into focused files (poll, alert-timer, browser-timer, title-countdown) from monolithic index.ts
 - **Facade pattern**: `facade.ts` is the sole public interface for scheduler module. External consumers (`lifecycle.ts`, `ipc-handlers/settings.ts`) import from `facade.js`, never from `index.js` directly
+- **Poll epoch guard**: `pollEpoch` counter incremented on `restartScheduler()`. Stale callbacks from previous scheduler instances check epoch before executing, preventing overlapping poll chains (C3 fix)
+- **Cancelled events tracking**: `cancelledEvents` Set in `title-countdown.ts` prevents cleared timers from re-registering. Cleaned up on `startCountdown()`
 
 ## INTERNAL DEPENDENCIES
 
@@ -100,6 +104,9 @@ index.ts
   ├── title-countdown.ts (→ countdown.ts, state.ts, power.ts)
   ├── countdown.ts      (in-meeting resolution, dirty flag consumers)
   └── settings.ts       (openBeforeMinutes, windowAlert)
+
+countdown.ts
+  └── title-countdown.ts (clearHandle, tickCountdown, cancelledEvents)
 
 poll.ts
   ├── index.ts          (scheduleEvents)

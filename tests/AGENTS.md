@@ -1,88 +1,45 @@
-# Tests — Vitest Workspace
+# GogMeet Tests — Knowledge Base
 
-Two-project Vitest workspace for Electron app testing. Main process uses Node env with mocks; renderer uses jsdom for DOM tests.
+## OVERVIEW
+
+Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 516 tests across 40 files.
 
 ## STRUCTURE
 
 ```
 tests/
-├── setup.main.ts           # Full Electron mock (app, BrowserWindow, Tray, ipcMain, shell, etc.)
-├── main/                   # 35 test files
-│   ├── scheduler.test.ts   # 768 lines — scheduler state machine (A-F groups)
-│   ├── swift-binary-manager.test.ts # Swift binary cache, compile, retry (19 tests)
-│   ├── calendar.test.ts    # 532 lines — Swift output parsing (16 tests)
-│   ├── meet-url.test.ts    # URL building + allowlist (17 tests)
-│   ├── ipc.test.ts         # Security validation (15 tests)
-│   ├── settings.test.ts    # File I/O, clamping, launchAtLogin (11 tests)
-│   ├── tray.test.ts        # Tray title, time formatting (9 tests)
-│   ├── notification.test.ts # Notification permission (4 tests)
-│   ├── auto-launch.test.ts # Login item status/set/sync (6 tests)
-│   ├── power.test.ts       # Battery polling, sleep prevention (10 tests)
-│   ├── lifecycle.test.ts   # Lifecycle init/shutdown orchestration
-│   ├── app-bootstrap.test.ts # main/index.ts bootstrap
-│   ├── alert-window.test.ts # Alert window singleton
-│   ├── settings-window.test.ts # Settings window singleton
-│   ├── shortcuts.test.ts   # Global shortcut registration
-│   ├── auto-updater.test.ts # electron-updater setup
-│   ├── preload.test.ts     # Preload bridge tests
-│   ├── settings-defaults.test.ts # Settings default values
-│   ├── ipc-channels.test.ts # IPC channel definitions
-│   ├── ipc-types.test.ts   # IPC type utilities
-│   ├── ipc-registrar.test.ts # IPC registration
-│   ├── ipc-handlers-app.test.ts # App IPC handler tests
-│   ├── ipc-handlers-calendar.test.ts # Calendar IPC handler tests
-│   ├── ipc-handlers-settings.test.ts # Settings IPC handler tests
-│   ├── ipc-handlers-shared.test.ts # typedHandle + validateSender tests
-│   ├── ipc-handlers-window.test.ts # Window IPC handler tests
-│   ├── meeting-menu.test.ts # Tray meeting menu
-│   ├── package-info.test.ts # package.json reader
-│   ├── time-utils.test.ts  # Shared time utilities
-│   ├── url-validation.test.ts # URL allowlist validation
-│   ├── scheduler-alert-timer.test.ts # Alert timer scheduling
-│   └── scheduler-browser-timer.test.ts # Browser timer scheduling
-└── renderer/               # 5 test files
-    ├── delegation.test.ts  # Event delegation on #app
-    ├── escape-html.test.ts # XSS protection
-    ├── main-ui.test.ts     # Main UI state machine
-    ├── alert.test.ts       # Alert overlay behavior
-    └── settings.test.ts    # Settings form logic
+├── setup.main.ts         # Global Electron mock (auto-loaded for main tests)
+├── main/                 # ~511 tests, Node environment
+│   ├── scheduler.test.ts                  # 776 lines, state machine (A-F groups)
+│   ├── scheduler-poll.test.ts             # 466 lines, poll lifecycle
+│   ├── scheduler-countdown.test.ts        # 491 lines, countdown logic
+│   ├── scheduler-title-countdown.test.ts  # 500 lines, title timers
+│   ├── scheduler-browser-timer.test.ts    # 251 lines, browser auto-open
+│   ├── calendar.test.ts                   # 525 lines, Swift output parsing
+│   ├── swift-binary-manager.test.ts       # 447 lines, binary cache/compile
+│   ├── alert-window.test.ts               # 366 lines, alert queue/race tests
+│   ├── lifecycle.test.ts                  # 212 lines, init/shutdown
+│   ├── meeting-menu.test.ts               # 419 lines, tray context menu
+│   ├── shortcuts.test.ts                  # 304 lines, global shortcuts
+│   ├── settings.test.ts                   # 204 lines, persistent settings
+│   └── [module].test.ts                   # One per source module
+└── renderer/             # ~5 tests, jsdom environment
+    ├── main-ui.test.ts                    # 523 lines, popover state machine
+    ├── delegation.test.ts                 # Event delegation
+    ├── escape-html.test.ts                # XSS protection
+    ├── alert.test.ts                      # Alert overlay
+    └── settings.test.ts                   # Settings form
 ```
 
-## CONFIGURATION
+## MOCK PATTERNS
 
+**Electron API** (`setup.main.ts`, global): full mock of `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`.
+
+`BrowserWindow` shape: `Object.assign(vi.fn().mockImplementation(() => ({...})), { getAllWindows: vi.fn() })`. Access constructor options via `vi.mocked(BrowserWindow).mock.calls[0][0]`.
+
+**Swift binary** (`vi.hoisted` + `promisify.custom`):
 ```typescript
-// vitest.workspace.ts
-projects: [
-  {
-    name: "main",
-    environment: "node",
-    include: ["tests/main/**/*.test.ts"],
-    setupFiles: ["./tests/setup.main.ts"],
-  },
-  {
-    name: "renderer",
-    environment: "jsdom",
-    include: ["tests/renderer/**/*.test.ts"],
-  },
-];
-```
-
-## MAIN PROCESS TESTS
-
-**Mock Pattern**:
-
-```typescript
-vi.mock("electron", () => ({ shell, Notification, ... }));
-vi.mock("../../src/main/calendar.js", () => ({ getCalendarEventsResult: vi.fn() }));
-vi.mock("../../src/main/tray.js", () => ({ updateTrayTitle: vi.fn() }));
-```
-
-**child_process Mock** (for Swift binary):
-
-```typescript
-const { execFileAsyncMock } = vi.hoisted(() => ({
-  execFileAsyncMock: vi.fn(),
-}));
+const { execFileAsyncMock } = vi.hoisted(() => ({ execFileAsyncMock: vi.fn() }));
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const fn = Object.assign(vi.fn(), { [promisify.custom]: execFileAsyncMock });
@@ -90,51 +47,39 @@ vi.mock("node:child_process", async () => {
 });
 ```
 
-Note: `vi.hoisted()` + `promisify.custom` for `child_process` mocking; `vi.stubGlobal('process', ...)` for arch variation (used in `swift-binary-manager.test.ts`).
+**Internal modules** (relative paths, `.js` extension):
+```typescript
+vi.mock("../../src/main/calendar.js", () => ({ getCalendarEventsResult: vi.fn() }));
+vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnValue(120_000) }));
+```
 
-**Scheduler Test Groups** (A-F labeled):
+## TEST HELPERS
 
-| Group   | Focus                           |
-| ------- | ------------------------------- |
-| A1-A7   | Event deletion/reschedule       |
-| B8-B13  | Title/URL/startTime changes     |
-| C10-C13 | Race conditions                 |
-| D14-D15 | Concurrent countdowns           |
-| E16-E18 | Error handling                  |
-| F1-F5   | Poll IPC notification           |
-| Wave 2  | Dirty flag for title resolution |
+| Helper           | Signature                                                                       | Purpose                                  |
+| ---------------- | ------------------------------------------------------------------------------- | ---------------------------------------- |
+| `makeEvent()`    | `(overrides?) => MeetingEvent`                                                  | Factory with defaults (5 min from now)   |
+| `makeSwiftLine()`| `(id, title, start, end, url, cal, allDay, email?, notes?) => string`           | Tab-delimited 9-field line               |
+| `isoFromNow()`   | `(minutes) => string`                                                           | ISO timestamp relative to now            |
 
-- `vi.useFakeTimers()` + `vi.advanceTimersByTime()` for timer testing
-- All state maps cleared in `beforeEach`: `timers`, `alertTimers`, `firedEvents`, `alertFiredEvents`, `scheduledEventData`, `countdownIntervals`, `titleDirty`, `inMeetingDirty`, `consecutiveErrors`
-- `vi.resetModules()` + dynamic import for fresh module state
-- Factory helper: `makeEvent(overrides: Partial<MeetingEvent>)` creates test events
+## PATTERNS
 
-## RENDERER TESTS
+- **Timer faking**: `vi.useFakeTimers()` in `beforeEach`, `vi.useRealTimers()` in `afterEach`. Advance with `vi.advanceTimersByTimeAsync(ms)` or `vi.advanceTimersByTime(ms)`.
+- **Stateful modules**: clear Maps/Sets in `beforeEach` (`timers.clear()`, `firedEvents.clear()`). Call `_resetForTest()` for scheduler state.
+- **Module reload**: `vi.resetModules(); await import("../../src/main/module.js")` for dynamic import tests.
+- **IPC validation**: test `validateSender()` with `file://` (accept) vs `https://` (reject).
 
-| File                  | Focus                    |
-| --------------------- | ------------------------ |
-| `delegation.test.ts`  | Event delegation on #app |
-| `escape-html.test.ts` | XSS protection           |
-| `main-ui.test.ts`     | Main UI state machine    |
-| `alert.test.ts`       | Alert overlay behavior   |
-| `settings.test.ts`    | Settings form logic      |
+## CONVENTIONS
+
+- One test file per source module: `[module].test.ts`
+- No `*.spec.ts`, always `*.test.ts`
+- Module mocks use `.js` extension matching source import paths
+- Relative paths from test file to source (`../../src/main/...`)
+- `passWithNoTests: true` in workspace config
 
 ## COMMANDS
 
 ```bash
-bun run test          # Run all tests once (518 tests, 40 files)
-bun run test:watch    # Watch mode
-bun run test:coverage # Tests with coverage report
+bun run test           # Run all 516 tests
+bun run test:watch     # Watch mode
+bun run test:coverage  # With v8 coverage
 ```
-
-## SETUP FILE (`setup.main.ts`)
-
-Mocks full Electron API:
-
-- `app`: getVersion, quit, dock, isPackaged, whenReady, on, getPath
-- `BrowserWindow`: loadURL, show, hide, destroy, getBounds, setPosition, webContents
-- `ipcMain`: handle, on, off
-- `Tray`: setToolTip, setTitle, on, getBounds, popUpContextMenu
-- `Menu`, `Notification`, `screen`, `nativeImage`
-- `powerMonitor`: onBatteryPower, on event listeners
-- `powerSaveBlocker`: start, stop
