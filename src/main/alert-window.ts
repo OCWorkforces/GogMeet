@@ -8,9 +8,41 @@ import {
 } from "./utils/browser-window.js";
 
 let alertWindow: BrowserWindow | null = null;
+let isAlertShowing = false;
+const pendingAlerts: MeetingEvent[] = [];
+
+function processNextAlert(): void {
+  const next = pendingAlerts.shift();
+  if (!next) return;
+  // Defer to next tick so the just-closed window finishes teardown cleanly
+  setImmediate(() => showAlertInternal(next));
+}
 
 export function showAlert(event: MeetingEvent): void {
-  // Dismiss any existing alert
+  // Coalesce duplicates: skip if same uid is already queued or actively showing
+  if (
+    isAlertShowing &&
+    alertWindow &&
+    !alertWindow.isDestroyed() &&
+    alertWindow.__alertUid === event.id
+  ) {
+    return;
+  }
+  if (pendingAlerts.some((e) => e.id === event.id)) {
+    return;
+  }
+
+  if (isAlertShowing) {
+    pendingAlerts.push(event);
+    return;
+  }
+
+  isAlertShowing = true;
+  showAlertInternal(event);
+}
+
+function showAlertInternal(event: MeetingEvent): void {
+  // Dismiss any existing alert (defensive — should not happen given the queue)
   if (alertWindow && !alertWindow.isDestroyed()) {
     alertWindow.close();
     alertWindow = null;
@@ -32,18 +64,20 @@ export function showAlert(event: MeetingEvent): void {
     },
   });
   alertWindow = win;
+  // Tag the window with its uid so we can coalesce while it's actively showing
+  win.__alertUid = event.id;
 
   loadWindowContent(win, "alert");
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;
     win.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
-    // Measure rendered content height before showing to avoid a visible resize flash
-    setTimeout(() => {
-      if (win.isDestroyed()) return;
-      win.webContents
-        .executeJavaScript(
-          `(() => {
+    // Measure rendered content height before showing to avoid a visible resize flash.
+    // ready-to-show fires when first paint is ready, so the DOM is laid out and
+    // getBoundingClientRect() returns accurate values without an arbitrary timer.
+    win.webContents
+      .executeJavaScript(
+        `(() => {
             const app = document.getElementById("app");
             const card = document.querySelector(".alert-card");
 
@@ -57,29 +91,36 @@ export function showAlert(event: MeetingEvent): void {
 
             return Math.ceil(card.getBoundingClientRect().height + paddingTop + paddingBottom);
           })()`,
-        )
-        .then((contentHeight: number) => {
-          if (win.isDestroyed()) return;
-          if (typeof contentHeight === "number" && contentHeight > 0) {
-            const MIN_HEIGHT = 280;
-            const MAX_HEIGHT = 480;
-            const clamped = Math.max(
-              MIN_HEIGHT,
-              Math.min(MAX_HEIGHT, Math.ceil(contentHeight)),
-            );
-            win.setSize(500, clamped, false);
-          }
-          win.show();
-        })
-        .catch(() => {
-          if (!win.isDestroyed()) win.show();
-        });
-    }, 150);
+      )
+      .then((contentHeight: number) => {
+        if (win.isDestroyed()) return;
+        if (typeof contentHeight === "number" && contentHeight > 0) {
+          const MIN_HEIGHT = 280;
+          const MAX_HEIGHT = 480;
+          const clamped = Math.max(
+            MIN_HEIGHT,
+            Math.min(MAX_HEIGHT, Math.ceil(contentHeight)),
+          );
+          win.setSize(500, clamped, false);
+        }
+        win.show();
+      })
+      .catch(() => {
+        if (!win.isDestroyed()) win.show();
+      });
   });
 
   win.on("closed", () => {
     if (alertWindow === win) {
       alertWindow = null;
     }
+    isAlertShowing = false;
+    processNextAlert();
   });
+}
+
+declare module "electron" {
+  interface BrowserWindow {
+    __alertUid?: string;
+  }
 }

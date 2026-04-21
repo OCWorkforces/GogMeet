@@ -81,6 +81,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("BINARY_PATH constant", () => {
@@ -129,6 +130,7 @@ describe("ensureBinary", () => {
 
     expect(mkdirMock).toHaveBeenCalledWith(EXPECTED_BINARY_DIR, {
       recursive: true,
+      mode: 0o700,
     });
     expect(unlinkMock).not.toHaveBeenCalled();
     expect(execFileAsyncMock).not.toHaveBeenCalled();
@@ -248,16 +250,26 @@ describe("ensureBinary", () => {
   });
 
   it("propagates error if both swiftc attempts fail", async () => {
+    vi.useFakeTimers();
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
     accessMock.mockRejectedValueOnce(new Error("ENOENT"));
 
-    execFileAsyncMock
-      .mockRejectedValueOnce(new Error("first swiftc failed"))
-      .mockRejectedValueOnce(new Error("second swiftc failed"));
+    // 5 retry attempts × 2 swiftc calls (primary + SDK fallback) = 10 rejections
+    for (let i = 0; i < 9; i++) {
+      execFileAsyncMock.mockRejectedValueOnce(new Error(`swiftc fail ${i}`));
+    }
+    execFileAsyncMock.mockRejectedValueOnce(new Error("second swiftc failed"));
 
     const mod = await loadModule();
-    await expect(mod.ensureBinary()).rejects.toThrow("second swiftc failed");
+    const promise = mod.ensureBinary();
+    promise.catch(() => {}); // Suppress unhandled rejection
+    // Flush all pending timers (sleep delays between retries)
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    await expect(promise).rejects.toThrow("second swiftc failed");
     expect(writeFileMock).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("succeeds even if strip fails (stripping is optional)", async () => {
@@ -370,18 +382,42 @@ describe("runSwiftHelper", () => {
   });
 
   it("throws when the recompile itself fails during retry", async () => {
+    vi.useFakeTimers();
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValueOnce(undefined);
     accessMock.mockRejectedValueOnce(new Error("ENOENT"));
 
+    // Binary run fails once, then 5 compile attempts × 2 swiftc calls all fail
     execFileAsyncMock
       .mockRejectedValueOnce(new Error("first binary failure"))
-      .mockRejectedValueOnce(new Error("swiftc fail 1"))
+      .mockRejectedValueOnce(new Error("swiftc fail 1a"))
+      .mockRejectedValueOnce(new Error("swiftc fail 1b"))
+      .mockRejectedValueOnce(new Error("swiftc fail 2a"))
+      .mockRejectedValueOnce(new Error("swiftc fail 2b"))
+      .mockRejectedValueOnce(new Error("swiftc fail 3a"))
+      .mockRejectedValueOnce(new Error("swiftc fail 3b"))
+      .mockRejectedValueOnce(new Error("swiftc fail 4a"))
+      .mockRejectedValueOnce(new Error("swiftc fail 4b"))
+      .mockRejectedValueOnce(new Error("swiftc fail 5a"))
       .mockRejectedValueOnce(new Error("swiftc fail 2"));
 
     const mod = await loadModule();
-    await expect(mod.runSwiftHelper()).rejects.toThrow("swiftc fail 2");
+    // Capture rejection via try/catch rather than expect().rejects to avoid
+    // interaction issues between fake timers and async assertions
+    const thrownPromise = mod.runSwiftHelper().then(
+      () => ({ ok: true as const }),
+      (err: Error) => ({ ok: false as const, err }),
+    );
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    const result = await thrownPromise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.err.message).toContain("swiftc fail 2");
+    }
+    vi.useRealTimers();
   });
 });
 

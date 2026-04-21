@@ -88,19 +88,20 @@ function formatTimeRange(
 }
 
 function render(data: AlertPayload): void {
-  const app = document.getElementById("app");
-  if (!app) return;
+  try {
+    const app = document.getElementById("app");
+    if (!app) return;
 
-  const title = escapeHtml(data.title);
-  const calendarName = escapeHtml(data.calendarName ?? "Unknown calendar");
-  const description = data.description?.trim() ?? "";
-  const timeRange = formatTimeRange(
-    data.startDate ?? "",
-    data.endDate ?? "",
-    data.isAllDay ?? false,
-  );
+    const title = escapeHtml(data.title);
+    const calendarName = escapeHtml(data.calendarName ?? "Unknown calendar");
+    const description = escapeHtml(data.description?.trim() ?? "");
+    const timeRange = formatTimeRange(
+      data.startDate ?? "",
+      data.endDate ?? "",
+      data.isAllDay ?? false,
+    );
 
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="alert-window" role="dialog" aria-live="polite" aria-label="Meeting starting alert">
       <article class="alert-card">
         <p class="alert-badge">Meeting Starting</p>
@@ -129,6 +130,11 @@ function render(data: AlertPayload): void {
       </article>
     </section>
   `;
+  } catch (error) {
+    console.error("[alert] Render error:", error);
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#fff;background:#1d1d1f;padding:24px;text-align:center;">Unable to display meeting alert</div>';
+  }
 }
 
 function setupDelegatedEvents(): void {

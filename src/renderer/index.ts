@@ -25,7 +25,7 @@ let cachedSettings: AppSettings | null = null;
 let cachedPermission: CalendarPermission | null = null;
 let lastHeight = 0;
 let lastEventsKey = "";
-let lastPollTime = 0;
+let lastPollTime = Date.now();
 
 function formatLastUpdated(ts: number): string {
   const diffMs = Date.now() - ts;
@@ -157,6 +157,8 @@ async function init() {
   // Listen for settings changes from the settings window
   window.api.settings.onChanged((updated: AppSettings) => {
     cachedSettings = updated;
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
     void loadEvents();
   });
   version = await window.api.app.getVersion();

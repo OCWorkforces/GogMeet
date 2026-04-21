@@ -1,4 +1,4 @@
-import type { BrowserWindow } from "electron";
+import { app, dialog, type BrowserWindow } from "electron";
 import { setupTray } from "./tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import {
@@ -32,30 +32,70 @@ import { registerShortcuts } from "./shortcuts.js";
  * Called once from app.whenReady() in index.ts.
  */
 export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
-  registerIpcHandlers(mainWindow);
-  setupTray(mainWindow, getCalendarEventsResult);
-  setTrayTitleCallback(updateTrayTitle);
-  setSchedulerWindow(mainWindow);
-  initPowerCallbacks({ getPollInterval, preventSleep, allowSleep });
+  const errors: Error[] = [];
+  const tryRun = (label: string, fn: () => void): void => {
+    try {
+      fn();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error(`[lifecycle] ${label} failed:`, error);
+      errors.push(new Error(`${label}: ${error.message}`));
+    }
+  };
+  const tryRunAsync = async (label: string, fn: () => Promise<void>): Promise<void> => {
+    try {
+      await fn();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error(`[lifecycle] ${label} failed:`, error);
+      errors.push(new Error(`${label}: ${error.message}`));
+    }
+  };
 
-  // Check calendar permission before starting the scheduler
-  // If permission hasn't been determined yet, request it (triggers macOS dialog)
-  const calendarPerm = await getCalendarPermissionStatus();
-  if (calendarPerm === "not-determined") {
-    console.log("[lifecycle] Calendar permission not determined — requesting...");
-    await requestCalendarPermission();
+  try {
+    tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
+    tryRun("setupTray", () => setupTray(mainWindow, getCalendarEventsResult));
+    tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
+    tryRun("setSchedulerWindow", () => setSchedulerWindow(mainWindow));
+    tryRun("initPowerCallbacks", () =>
+      initPowerCallbacks({ getPollInterval, preventSleep, allowSleep }),
+    );
+
+    // Check calendar permission before starting the scheduler
+    // If permission hasn't been determined yet, request it (triggers macOS dialog)
+    await tryRunAsync("calendarPermission", async () => {
+      const calendarPerm = await getCalendarPermissionStatus();
+      if (calendarPerm === "not-determined") {
+        console.log("[lifecycle] Calendar permission not determined — requesting...");
+        await requestCalendarPermission();
+      }
+    });
+
+    tryRun("startScheduler", () => startScheduler());
+    tryRun("initPowerManagement", () => initPowerManagement(() => restartScheduler()));
+    tryRun("registerShortcuts", () => registerShortcuts());
+
+    // Check notification permission on first run
+    tryRun("checkNotificationPermission", () => {
+      void checkNotificationPermission();
+    });
+
+    // Sync auto-launch setting on startup
+    tryRun("syncAutoLaunch", () => {
+      const settings = getSettings();
+      syncAutoLaunch(settings.launchAtLogin);
+    });
+
+    if (errors.length > 0) {
+      const message = errors.map((e) => `• ${e.message}`).join("\n");
+      throw new Error(`One or more subsystems failed to initialize:\n${message}`);
+    }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("[lifecycle]", error);
+    dialog.showErrorBox("GogMeet Startup Error", error.message);
+    app.quit();
   }
-
-  startScheduler();
-  initPowerManagement(() => restartScheduler());
-  registerShortcuts();
-
-  // Check notification permission on first run
-  void checkNotificationPermission();
-
-  // Sync auto-launch setting on startup
-  const settings = getSettings();
-  syncAutoLaunch(settings.launchAtLogin);
 }
 
 /**

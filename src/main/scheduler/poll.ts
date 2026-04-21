@@ -61,6 +61,10 @@ export async function poll(): Promise<void> {
 export function startScheduler(): void {
   if (state.pollTimeout !== null) return; // already running
 
+  // Bump epoch so any stale timer callbacks from a previous run no-op
+  state.pollEpoch++;
+  const epoch = state.pollEpoch;
+
   // Initial poll immediately
   void poll();
 
@@ -68,7 +72,7 @@ export function startScheduler(): void {
   function scheduleNextPoll(): void {
     state.pollTimeout = setTimeout(async () => {
       await poll();
-      if (state.pollTimeout !== null) {
+      if (state.pollTimeout !== null && state.pollEpoch === epoch) {
         scheduleNextPoll();
       }
     }, state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000);

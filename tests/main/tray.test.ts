@@ -21,7 +21,7 @@ vi.mock("electron", () => ({
   }),
   Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
   shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
-  app: { quit: vi.fn(), showAboutPanel: vi.fn() },
+  app: { quit: vi.fn(), showAboutPanel: vi.fn(), once: vi.fn() },
   nativeImage: {
     createFromPath: vi
       .fn()

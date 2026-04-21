@@ -11,7 +11,7 @@ function getRegisteredHandler(channel: string) {
 }
 
 const authorizedEvent = {
-  senderFrame: { url: "file:///app/index.html" },
+  senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
 } as unknown as import("electron").IpcMainEvent;
 
 const unauthorizedEvent = {

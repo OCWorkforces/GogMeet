@@ -10,7 +10,7 @@ import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 describe("validateSender (invoke)", () => {
   it("accepts file:// origin", () => {
     const event = {
-      senderFrame: { url: "file:///path/to/app/index.html" },
+      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
     } as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });
@@ -54,7 +54,7 @@ describe("validateSender (invoke)", () => {
 describe("validateOnSender (fire-and-forget)", () => {
   it("accepts file:// origin", () => {
     const event = {
-      senderFrame: { url: "file:///app/index.html" },
+      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
     } as IpcMainEvent;
     expect(validateOnSender(event)).toBe(true);
   });
@@ -115,7 +115,7 @@ describe("typedHandle", () => {
 
     const handler = handleCall![1];
     const mockEvent = {
-      senderFrame: { url: "file:///app/index.html" },
+      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
     } as unknown as IpcMainInvokeEvent;
 
     await handler(mockEvent, { openBeforeMinutes: 2 });

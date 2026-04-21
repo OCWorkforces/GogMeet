@@ -15,8 +15,10 @@ export function scheduleBrowserTimer(
   timers: Map<string, ReturnType<typeof setTimeout>>,
   firedEvents: Set<string>,
   scheduledEventData: Map<string, ScheduledEventSnapshot>,
+  shouldAbort?: () => boolean,
 ): void {
   const handle = setTimeout(() => {
+    if (shouldAbort?.()) return;
     timers.delete(event.id);
     firedEvents.add(event.id);
     // Always show notification for all meetings
