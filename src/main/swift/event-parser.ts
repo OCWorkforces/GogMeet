@@ -1,4 +1,6 @@
 import type { MeetingEvent } from "../../shared/models.js";
+import { asEventId, asIsoUtc, asMeetUrl } from "../../shared/brand.js";
+import { isExecErrorLike, isStringTupleOfLength } from "./guards.js";
 
 /** Number of tab-delimited fields expected per Swift output line. */
 const EXPECTED_FIELD_COUNT = 9;
@@ -41,7 +43,10 @@ export class SwiftHelperError extends Error {
  * SwiftHelperError. Non-numeric `.code` (e.g. "ENOENT") falls through to
  * "unknown" — the caller should preserve the original error context. */
 export function classifySwiftError(err: unknown): SwiftHelperError {
-  const e = err as { code?: number | string; stderr?: unknown; message?: unknown };
+  if (!isExecErrorLike(err)) {
+    return new SwiftHelperError("unknown", "Swift helper failed", undefined, undefined);
+  }
+  const e = err;
   const stderr =
     typeof e?.stderr === "string"
       ? e.stderr.trim() || undefined
@@ -124,14 +129,40 @@ function parseIsoUtc(raw: string): Date {
   return new Date(hasTz ? trimmed : `${trimmed}Z`);
 }
 
-/** Parse tab-delimited output from Swift helper into MeetingEvent[].
+/** Reason codes for parse diagnostics emitted by {@link parseEvents}. */
+export type ParseDiagnosticReason =
+  | "malformed_field_count"
+  | "invalid_iso"
+  | "invalid_id";
+
+/** Diagnostic record for a single malformed input line. */
+export interface ParseDiagnostic {
+  readonly line: number;
+  readonly reason: ParseDiagnosticReason;
+  readonly raw?: string;
+}
+
+/** Structured result of {@link parseEvents}: parsed events plus diagnostics for skipped lines. */
+export interface ParseResult {
+  readonly events: readonly MeetingEvent[];
+  readonly diagnostics: readonly ParseDiagnostic[];
+}
+
+/** Truncate a raw line for diagnostic preview to keep logs bounded. */
+function previewLine(line: string): string {
+  return line.length > 200 ? `${line.slice(0, 200)}…` : line;
+}
+
+/** Parse tab-delimited output from Swift helper into a {@link ParseResult}.
  *
  * Strictly requires exactly {@link EXPECTED_FIELD_COUNT} fields per line. Any
- * malformed line is skipped with a warning that includes the actual field
- * count and (truncated) raw line for diagnostics. A summary count of skipped
- * lines is logged at the end. */
-export function parseEvents(raw: string): MeetingEvent[] {
-  if (!raw) return [];
+ * malformed line is skipped and recorded as a {@link ParseDiagnostic} entry on
+ * the returned result so callers can observe / log them centrally.
+ *
+ * Out-of-range (not today/tomorrow) and duplicate-by-id lines are filtered
+ * silently (these are normal, not errors). */
+export function parseEvents(raw: string): ParseResult {
+  if (!raw) return { events: [], diagnostics: [] };
 
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
@@ -139,100 +170,114 @@ export function parseEvents(raw: string): MeetingEvent[] {
   searchEnd.setDate(searchEnd.getDate() + 2);
 
   const seen = new Set<string>();
-  let skipped = 0;
-  const skip = (reason: string, line: string, fieldCount?: number): void => {
-    skipped += 1;
-    const preview = line.length > 200 ? `${line.slice(0, 200)}…` : line;
-    console.warn(`[event-parser] Skipping event: ${reason}`, {
-      fieldCount,
-      raw: preview,
-    });
-  };
+  const diagnostics: ParseDiagnostic[] = [];
+  const events: MeetingEvent[] = [];
 
-  const result = raw
+  const lines = raw
     .split("\n")
-    .map((line) => line.replace(/[\r\n]+$/u, ""))
-    .filter(Boolean)
-    .flatMap((line): MeetingEvent[] => {
-      const fields = line.split("\t");
-      if (fields.length !== EXPECTED_FIELD_COUNT) {
-        skip(
-          `expected ${EXPECTED_FIELD_COUNT} tab-delimited fields, got ${fields.length}`,
-          line,
-          fields.length,
-        );
-        return [];
+    .map((line) => line.replace(/[\r\n]+$/u, ""));
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (!line) continue;
+    const lineNumber = i + 1;
+
+    const fields = line.split("\t");
+    if (!isStringTupleOfLength(fields, EXPECTED_FIELD_COUNT)) {
+      diagnostics.push({
+        line: lineNumber,
+        reason: "malformed_field_count",
+        raw: previewLine(line),
+      });
+      continue;
+    }
+    const [
+      id,
+      title,
+      startStr,
+      endStr,
+      urlField,
+      calendarName,
+      allDayStr,
+      emailField,
+      notesField,
+    ] = fields;
+
+    const startDate = parseIsoUtc(startStr);
+    const endDate = parseIsoUtc(endStr);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      diagnostics.push({
+        line: lineNumber,
+        reason: "invalid_iso",
+        raw: previewLine(line),
+      });
+      continue;
+    }
+
+    // Guard: only today + tomorrow (silent filter, not an error)
+    if (startDate < todayMidnight || startDate >= searchEnd) continue;
+
+    // Brand id (must be non-empty after trim)
+    const idResult = asEventId(id);
+    if (!idResult.ok) {
+      diagnostics.push({
+        line: lineNumber,
+        reason: "invalid_id",
+        raw: previewLine(line),
+      });
+      continue;
+    }
+    const uid = idResult.value;
+
+    // Deduplicate by id (silent filter)
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+
+    // Brand timestamps via the validator. toISOString() always emits a
+    // canonical Z-suffixed string, so this is effectively a typed handshake;
+    // any failure here would indicate a programmer error and is treated as
+    // an invalid_iso diagnostic for symmetry with the parse-time check.
+    const startBrand = asIsoUtc(startDate.toISOString());
+    const endBrand = asIsoUtc(endDate.toISOString());
+    if (!startBrand.ok || !endBrand.ok) {
+      diagnostics.push({
+        line: lineNumber,
+        reason: "invalid_iso",
+        raw: previewLine(line),
+      });
+      continue;
+    }
+
+    // Brand meetUrl when present. Failure is non-fatal — we keep the event
+    // but drop the URL so downstream join actions are simply unavailable.
+    let brandedMeetUrl: MeetingEvent["meetUrl"];
+    const rawMeetUrl = urlField.trim();
+    if (rawMeetUrl) {
+      const urlResult = asMeetUrl(rawMeetUrl);
+      if (urlResult.ok) {
+        brandedMeetUrl = urlResult.value;
       }
+    }
 
-      const [
-        id,
-        title,
-        startStr,
-        endStr,
-        urlField,
-        calendarName,
-        allDayStr,
-        emailField,
-        notesField,
-      ] = fields as [
-        string,
-        string,
-        string,
-        string,
-        string,
-        string,
-        string,
-        string,
-        string,
-      ];
-
-      const meetUrl = urlField.trim() || undefined;
-
-      const startDate = parseIsoUtc(startStr);
-      const endDate = parseIsoUtc(endStr);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        skip(
-          `invalid ISO8601 date(s) start=${JSON.stringify(startStr)} end=${JSON.stringify(endStr)}`,
-          line,
-          fields.length,
-        );
-        return [];
-      }
-
-      // Guard: only today + tomorrow
-      if (startDate < todayMidnight || startDate >= searchEnd) return [];
-
-      // Deduplicate by id
-      const uid = id.trim();
-      if (seen.has(uid)) return [];
-      seen.add(uid);
-
-      return [
-        {
-          id: uid,
-          title: title.trim(),
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          ...(meetUrl ? { meetUrl } : {}),
-          calendarName: calendarName.trim(),
-          isAllDay: allDayStr.trim() === "true",
-          ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
-          ...(notesField?.trim()
-            ? { description: cleanDescription(notesField) }
-            : {}),
-        },
-      ];
-    })
-    .sort(
-      (a, b) =>
-        new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
-    );
-
-  if (skipped > 0) {
-    console.warn(
-      `[event-parser] Skipped ${skipped} event${skipped === 1 ? "" : "s"} due to parse errors`,
-    );
+    events.push({
+      id: uid,
+      title: title.trim(),
+      startDate: startBrand.value,
+      endDate: endBrand.value,
+      ...(brandedMeetUrl ? { meetUrl: brandedMeetUrl } : {}),
+      calendarName: calendarName.trim(),
+      isAllDay: allDayStr.trim() === "true",
+      ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
+      ...(notesField?.trim()
+        ? { description: cleanDescription(notesField) }
+        : {}),
+    });
   }
 
-  return result;
+  events.sort(
+    (a, b) =>
+      new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+  );
+
+  return { events, diagnostics };
 }
