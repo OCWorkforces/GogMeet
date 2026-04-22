@@ -48,7 +48,7 @@ describe("registerSettingsHandlers", () => {
 
   it("registers 2 handlers", () => {
     const mockWin = {
-      webContents: { send: vi.fn() },
+      webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
     } as unknown as import("electron").BrowserWindow;
 
     registerSettingsHandlers(mockWin);
@@ -85,7 +85,7 @@ describe("registerSettingsHandlers", () => {
       const updated = { ...DEFAULT_SETTINGS, openBeforeMinutes: 3 };
       mockUpdateSettings.mockReturnValue(updated);
       const mockWin = {
-        webContents: { send: vi.fn() },
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
       registerSettingsHandlers(mockWin);
@@ -101,7 +101,7 @@ describe("registerSettingsHandlers", () => {
       const updated = { ...DEFAULT_SETTINGS, launchAtLogin: true };
       mockUpdateSettings.mockReturnValue(updated);
       const mockWin = {
-        webContents: { send: vi.fn() },
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
       registerSettingsHandlers(mockWin);
@@ -113,7 +113,7 @@ describe("registerSettingsHandlers", () => {
 
     it("does not sync auto-launch when launchAtLogin not changed", async () => {
       const mockWin = {
-        webContents: { send: vi.fn() },
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
       registerSettingsHandlers(mockWin);
       const handler = getRegisteredHandler("settings:set");
@@ -124,7 +124,7 @@ describe("registerSettingsHandlers", () => {
 
     it("sends settings:changed via webContents for display-affecting changes", async () => {
       const mockWin = {
-        webContents: { send: vi.fn() },
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
       const updated = { ...DEFAULT_SETTINGS, showTomorrowMeetings: false };
       mockUpdateSettings.mockReturnValue(updated);
@@ -141,7 +141,7 @@ describe("registerSettingsHandlers", () => {
 
     it("returns settings for unauthorized sender", async () => {
       const mockWin = {
-        webContents: { send: vi.fn() },
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
       registerSettingsHandlers(mockWin);
       const handler = getRegisteredHandler("settings:set");

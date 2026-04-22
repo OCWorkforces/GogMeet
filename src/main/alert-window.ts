@@ -1,4 +1,5 @@
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
+import type { AlertPayload } from "../shared/alert.js";
 import type { MeetingEvent } from "../shared/models.js";
 import { BrowserWindow } from "electron";
 import {
@@ -6,6 +7,23 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "./utils/browser-window.js";
+
+import { typedSend } from "./ipc-handlers/shared.js";
+
+function toAlertPayload(event: MeetingEvent): AlertPayload {
+  const payload: AlertPayload = {
+    id: event.id,
+    title: event.title,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    calendarName: event.calendarName,
+    isAllDay: event.isAllDay,
+  };
+  if (event.description !== undefined) {
+    payload.description = event.description;
+  }
+  return payload;
+}
 
 let alertWindow: BrowserWindow | null = null;
 let isAlertShowing = false;
@@ -71,7 +89,7 @@ function showAlertInternal(event: MeetingEvent): void {
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;
-    win.webContents.send(IPC_CHANNELS.ALERT_SHOW, event);
+    typedSend(win.webContents, IPC_CHANNELS.ALERT_SHOW, toAlertPayload(event));
     // Measure rendered content height before showing to avoid a visible resize flash.
     // ready-to-show fires when first paint is ready, so the DOM is laid out and
     // getBoundingClientRect() returns accurate values without an arbitrary timer.

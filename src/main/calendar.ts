@@ -7,6 +7,7 @@ import type {
 } from "../shared/models.js";
 import { runSwiftHelper } from "./swift/binary-manager.js";
 import { parseEvents } from "./swift/event-parser.js";
+import { getErrorStderr } from "./swift/guards.js";
 
 export { cleanDescription, parseEvents } from "./swift/event-parser.js";
 
@@ -16,13 +17,20 @@ const execFileAsync = promisify(execFile);
 export async function getCalendarEventsResult(): Promise<CalendarResult> {
   try {
     const output = await runSwiftHelper();
-    return { events: parseEvents(output) };
+    const { events, diagnostics } = parseEvents(output);
+    for (const d of diagnostics) {
+      console.warn(
+        `[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`,
+        d.raw ?? "",
+      );
+    }
+    return { kind: "ok", events: [...events] };
   } catch (err) {
-    const stderr = (err as { stderr?: string }).stderr?.trim();
+    const stderr = getErrorStderr(err);
     const message =
       stderr || (err instanceof Error ? err.message : "Unknown error");
     console.error("[calendar] getCalendarEventsResult error:", err);
-    return { error: message };
+    return { kind: "err", error: message };
   }
 }
 

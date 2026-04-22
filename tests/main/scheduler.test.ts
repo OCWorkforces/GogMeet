@@ -17,7 +17,7 @@ vi.mock("electron", () => {
 
 // Mock calendar module
 vi.mock("../../src/main/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
 // Mock tray module so updateTrayTitle can be spied on
@@ -518,7 +518,7 @@ describe("scheduleEvents", () => {
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
 
     // 2 errors — tray must still be showing
     await poll();
@@ -534,7 +534,7 @@ describe("scheduleEvents", () => {
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
 
     // Reset mock
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
   });
 
   it("E16b: consecutiveErrors resets on success; 2 errors + success leaves tray intact", async () => {
@@ -544,19 +544,19 @@ describe("scheduleEvents", () => {
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "permission denied" } as never);
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
 
     await poll();
     await poll();
     expect(stateModule.consecutiveErrors).toBe(2);
 
     // Success — errors reset, tray preserved
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
     await poll();
     expect(stateModule.consecutiveErrors).toBe(0);
     expect(countdownIntervals.size).toBe(1);
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
   });
 
   it("E18: scheduleEvents([]) immediately clears tray", () => {
@@ -594,6 +594,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
       isDestroyed: vi.fn().mockReturnValue(false),
       webContents: {
         send: mockWebContentsSend,
+        isDestroyed: vi.fn().mockReturnValue(false),
       },
     };
   });
@@ -610,17 +611,17 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
 
-    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated");
+    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated", undefined);
   });
 
   it("F2: poll does NOT send IPC if window is null", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     // Don't set window - it should remain null
     setSchedulerWindow(null as never);
@@ -631,7 +632,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F3: poll does NOT send IPC if window is destroyed", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     mockWindow.isDestroyed.mockReturnValue(true);
     setSchedulerWindow(mockWindow as never);
@@ -642,7 +643,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F4: poll does NOT send IPC on calendar fetch error", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ error: "Calendar access denied" } as never);
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "Calendar access denied" });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
@@ -654,7 +655,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   it("F5: poll sends IPC after successful fetch with events", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
     const event = makeEvent({ id: "f5-event" });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
 
     setSchedulerWindow(mockWindow as never);
     await poll();

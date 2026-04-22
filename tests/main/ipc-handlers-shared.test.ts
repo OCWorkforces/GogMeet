@@ -83,7 +83,7 @@ describe("typedHandle", () => {
 
     mockIpcMain.handle.mockClear();
     typedHandle("calendar:get-events", async () => {
-      return { events: [] };
+      return { kind: "ok", events: [] };
     });
     expect(mockIpcMain.handle).toHaveBeenCalledWith(
       "calendar:get-events",

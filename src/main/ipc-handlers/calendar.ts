@@ -1,3 +1,4 @@
+import type { IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS, type IpcResponse } from "../../shared/ipc-channels.js";
 import {
   getCalendarEventsResult,
@@ -10,14 +11,14 @@ export function registerCalendarHandlers(): void {
   typedHandle(
     IPC_CHANNELS.CALENDAR_GET_EVENTS,
     async (
-      event,
+      event: IpcMainInvokeEvent,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
-      if (!validateSender(event)) return { error: "unauthorized" };
+      if (!validateSender(event)) return { kind: "err", error: "unauthorized" };
       try {
         return await getCalendarEventsResult();
       } catch (err) {
         console.error("[ipc] CALENDAR_GET_EVENTS error:", err);
-        return { error: err instanceof Error ? err.message : String(err) };
+        return { kind: "err", error: err instanceof Error ? err.message : String(err) };
       }
     },
   );
@@ -25,7 +26,7 @@ export function registerCalendarHandlers(): void {
   typedHandle(
     IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION,
     async (
-      event,
+      event: IpcMainInvokeEvent,
     ): Promise<
       IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>
     > => {
@@ -42,7 +43,7 @@ export function registerCalendarHandlers(): void {
   typedHandle(
     IPC_CHANNELS.CALENDAR_PERMISSION_STATUS,
     async (
-      event,
+      event: IpcMainInvokeEvent,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>> => {
       if (!validateSender(event)) return "denied";
       try {

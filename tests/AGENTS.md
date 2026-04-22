@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 516 tests across 40 files.
+Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 548 tests across 42 files.
 
 ## STRUCTURE
 
@@ -23,6 +23,9 @@ tests/
 │   ├── shortcuts.test.ts                  # 304 lines, global shortcuts
 │   ├── settings.test.ts                   # 204 lines, persistent settings
 │   └── [module].test.ts                   # One per source module
+│   ├── brand.test.ts                      # Branded type validators (EventId, MeetUrl, IsoUtc)
+│   ├── guards.test.ts                     # Runtime type guards
+│   ├── ipc-handlers-settings.test.ts      # May have updated typedSend mocks
 └── renderer/             # ~5 tests, jsdom environment
     ├── main-ui.test.ts                    # 523 lines, popover state machine
     ├── delegation.test.ts                 # Event delegation
@@ -36,6 +39,8 @@ tests/
 **Electron API** (`setup.main.ts`, global): full mock of `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`.
 
 `BrowserWindow` shape: `Object.assign(vi.fn().mockImplementation(() => ({...})), { getAllWindows: vi.fn() })`. Access constructor options via `vi.mocked(BrowserWindow).mock.calls[0][0]`.
+
+BrowserWindow mocks must include `isDestroyed: vi.fn().mockReturnValue(false)` for typedSend tests.
 
 **Swift binary** (`vi.hoisted` + `promisify.custom`):
 ```typescript
@@ -60,6 +65,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 | `makeEvent()`    | `(overrides?) => MeetingEvent`                                                  | Factory with defaults (5 min from now)   |
 | `makeSwiftLine()`| `(id, title, start, end, url, cal, allDay, email?, notes?) => string`           | Tab-delimited 9-field line               |
 | `isoFromNow()`   | `(minutes) => string`                                                           | ISO timestamp relative to now            |
+| `makeBrand()`    | Various brand factories                                                         | Create branded EventId/MeetUrl/IsoUtc for tests |
 
 ## PATTERNS
 
@@ -67,6 +73,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 - **Stateful modules**: clear Maps/Sets in `beforeEach` (`timers.clear()`, `firedEvents.clear()`). Call `_resetForTest()` for scheduler state.
 - **Module reload**: `vi.resetModules(); await import("../../src/main/module.js")` for dynamic import tests.
 - **IPC validation**: test `validateSender()` with `file://` (accept) vs `https://` (reject).
+- **Brand validators**: tests follow `Result<T,string>` pattern, test both `.ok` and `.error` cases.
 
 ## CONVENTIONS
 
@@ -79,7 +86,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 516 tests
+bun run test           # Run all 548 tests
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```

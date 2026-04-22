@@ -26,6 +26,7 @@ vi.mock("electron-log", () => ({
 // Mock calendar module
 vi.mock("../../src/main/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({
+    kind: "ok",
     events: [
       {
         id: "evt-1",
@@ -99,7 +100,7 @@ describe("shortcuts", () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
         await import("../../src/main/calendar.js");
-      vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ events: [] });
+      vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
 
       registerShortcuts();
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
@@ -113,6 +114,7 @@ describe("shortcuts", () => {
       const { getCalendarEventsResult } =
         await import("../../src/main/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "err",
         error: "no access",
       });
 
@@ -204,6 +206,7 @@ describe("shortcuts", () => {
       const lateStart = new Date(Date.now() + 7200000).toISOString();
 
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "ok",
         events: [
           {
             id: "evt-late",
@@ -279,6 +282,7 @@ describe("shortcuts", () => {
       const { getCalendarEventsResult } =
         await import("../../src/main/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "ok",
         events: [
           {
             id: "evt-past",

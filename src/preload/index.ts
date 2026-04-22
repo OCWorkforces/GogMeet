@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-channels.js";
-import type { MeetingEvent } from "../shared/models.js";
+import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
 
 const api = {
@@ -64,8 +64,15 @@ const api = {
     },
   },
   alert: {
-    onShowAlert: (callback: (data: MeetingEvent) => void) =>
-      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data)),
+    onShowAlert: (callback: (data: AlertPayload) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: AlertPayload): void => {
+        callback(data);
+      };
+      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, handler);
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.ALERT_SHOW, handler);
+      };
+    },
   },
 };
 

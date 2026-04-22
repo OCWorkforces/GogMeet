@@ -69,16 +69,23 @@ export function createSchedulerState(): SchedulerState {
 
 export let state = createSchedulerState();
 
+/**
+ * Live Map view that always reflects the current state.X map even after
+ * resetState() / replaceState() swap the underlying state object.
+ *
+ * Implementation note: uses a Proxy with Reflect.get for dynamic property
+ * forwarding — typed without `as unknown as` by relying on Reflect.get's
+ * `unknown` return and a narrow downcast for the function-bind path.
+ */
 function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
   const boundCache = new WeakMap<
     Map<K, V>,
     Map<PropertyKey, (...args: unknown[]) => unknown>
   >();
-  return new Proxy({} as Map<K, V>, {
+  return new Proxy(new Map<K, V>(), {
     get(_target, prop) {
       const map = getMap();
-      const record = map as unknown as Record<PropertyKey, unknown>;
-      const value = record[prop];
+      const value: unknown = Reflect.get(map, prop, map);
       if (typeof value === "function") {
         let perTarget = boundCache.get(map);
         if (!perTarget) {
@@ -97,16 +104,18 @@ function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
   });
 }
 
+/**
+ * Live Set view — see createMapView for rationale.
+ */
 function createSetView<T>(getSet: () => Set<T>): Set<T> {
   const boundCache = new WeakMap<
     Set<T>,
     Map<PropertyKey, (...args: unknown[]) => unknown>
   >();
-  return new Proxy({} as Set<T>, {
+  return new Proxy(new Set<T>(), {
     get(_target, prop) {
       const set = getSet();
-      const record = set as unknown as Record<PropertyKey, unknown>;
-      const value = record[prop];
+      const value: unknown = Reflect.get(set, prop, set);
       if (typeof value === "function") {
         let perTarget = boundCache.get(set);
         if (!perTarget) {
@@ -356,3 +365,69 @@ export let titleDirty = state.titleDirty;
 
 /** Whether the in-meeting resolution needs to re-resolve (in-meeting set changed) */
 export let inMeetingDirty = state.inMeetingDirty;
+
+// ---------------------------------------------------------------------------
+// Typed getter functions — preferred API for internal scheduler consumers.
+// These return the live underlying Maps/Sets (mutable) and always reflect the
+// current state object even after resetState() / replaceState() swaps it.
+// ---------------------------------------------------------------------------
+
+export function getTimers(): Map<string, ReturnType<typeof setTimeout>> {
+  return state.timers;
+}
+
+export function getAlertTimers(): Map<string, ReturnType<typeof setTimeout>> {
+  return state.alertTimers;
+}
+
+export function getTitleTimers(): Map<string, ReturnType<typeof setTimeout>> {
+  return state.titleTimers;
+}
+
+export function getCountdownIntervals(): Map<string, ReturnType<typeof setInterval>> {
+  return state.countdownIntervals;
+}
+
+export function getClearTimers(): Map<string, ReturnType<typeof setTimeout>> {
+  return state.clearTimers;
+}
+
+export function getInMeetingIntervals(): Map<string, ReturnType<typeof setInterval>> {
+  return state.inMeetingIntervals;
+}
+
+export function getInMeetingEndTimers(): Map<string, ReturnType<typeof setTimeout>> {
+  return state.inMeetingEndTimers;
+}
+
+export function getScheduledEventData(): Map<string, ScheduledEventSnapshot> {
+  return state.scheduledEventData;
+}
+
+export function getFiredEvents(): Set<string> {
+  return state.firedEvents;
+}
+
+export function getAlertFiredEvents(): Set<string> {
+  return state.alertFiredEvents;
+}
+
+export function getActiveTitleEventId(): string | null {
+  return state.activeTitleEventId;
+}
+
+export function getActiveInMeetingEventId(): string | null {
+  return state.activeInMeetingEventId;
+}
+
+export function getConsecutiveErrors(): number {
+  return state.consecutiveErrors;
+}
+
+export function isTitleDirty(): boolean {
+  return state.titleDirty;
+}
+
+export function isInMeetingDirty(): boolean {
+  return state.inMeetingDirty;
+}

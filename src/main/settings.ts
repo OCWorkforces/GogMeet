@@ -7,6 +7,8 @@ import {
   OPEN_BEFORE_MINUTES_MAX,
 } from "../shared/settings.js";
 import type { AppSettings } from "../shared/settings.js";
+import { ok, err } from "../shared/result.js";
+import type { Result } from "../shared/result.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;
@@ -30,57 +32,66 @@ function clampOpenBeforeMinutes(value: number): number {
   );
 }
 
-export function loadSettings(): AppSettings {
+export function loadSettings(): Result<AppSettings, string> {
   const settingsPath = getSettingsPath();
 
   if (!existsSync(settingsPath)) {
     settingsCache = { ...DEFAULT_SETTINGS };
     settingsLoaded = true;
-    return settingsCache;
+    return ok(settingsCache);
   }
 
+  let raw: string;
   try {
-    const raw = readFileSync(settingsPath, "utf-8");
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-
-    // Migrate legacy fullScreenAlert → windowAlert
-    if (
-      parsed &&
-      typeof parsed.fullScreenAlert === "boolean" &&
-      typeof (parsed as Record<string, unknown>).windowAlert !== "boolean"
-    ) {
-      (parsed as Record<string, unknown>).windowAlert = parsed.fullScreenAlert;
-    }
-
-    // Validate and construct settings object
-    settingsCache = {
-      schemaVersion: DEFAULT_SETTINGS.schemaVersion,
-      openBeforeMinutes: clampOpenBeforeMinutes(
-        typeof parsed.openBeforeMinutes === "number"
-          ? parsed.openBeforeMinutes
-          : DEFAULT_SETTINGS.openBeforeMinutes,
-      ),
-      launchAtLogin:
-        typeof parsed.launchAtLogin === "boolean"
-          ? parsed.launchAtLogin
-          : DEFAULT_SETTINGS.launchAtLogin,
-      showTomorrowMeetings:
-        typeof parsed.showTomorrowMeetings === "boolean"
-          ? parsed.showTomorrowMeetings
-          : DEFAULT_SETTINGS.showTomorrowMeetings,
-      windowAlert:
-        typeof (parsed as Record<string, unknown>).windowAlert === "boolean"
-          ? ((parsed as Record<string, unknown>).windowAlert as boolean)
-          : DEFAULT_SETTINGS.windowAlert,
-    };
-    settingsLoaded = true;
-    return settingsCache;
-  } catch {
-    // Corrupted JSON or other error - return defaults
+    raw = readFileSync(settingsPath, "utf-8");
+  } catch (e) {
     settingsCache = { ...DEFAULT_SETTINGS };
     settingsLoaded = true;
-    return settingsCache;
+    return err(`Failed to read settings file: ${e instanceof Error ? e.message : String(e)}`);
   }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch (e) {
+    // Corrupted JSON - cache defaults and surface error
+    settingsCache = { ...DEFAULT_SETTINGS };
+    settingsLoaded = true;
+    return err(`Failed to parse settings JSON: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // Migrate legacy fullScreenAlert → windowAlert
+  if (
+    parsed &&
+    typeof parsed.fullScreenAlert === "boolean" &&
+    typeof parsed.windowAlert !== "boolean"
+  ) {
+    parsed.windowAlert = parsed.fullScreenAlert;
+  }
+
+  // Validate and construct settings object
+  settingsCache = {
+    schemaVersion: DEFAULT_SETTINGS.schemaVersion,
+    openBeforeMinutes: clampOpenBeforeMinutes(
+      typeof parsed.openBeforeMinutes === "number"
+        ? parsed.openBeforeMinutes
+        : DEFAULT_SETTINGS.openBeforeMinutes,
+    ),
+    launchAtLogin:
+      typeof parsed.launchAtLogin === "boolean"
+        ? parsed.launchAtLogin
+        : DEFAULT_SETTINGS.launchAtLogin,
+    showTomorrowMeetings:
+      typeof parsed.showTomorrowMeetings === "boolean"
+        ? parsed.showTomorrowMeetings
+        : DEFAULT_SETTINGS.showTomorrowMeetings,
+    windowAlert:
+      typeof parsed.windowAlert === "boolean"
+        ? parsed.windowAlert
+        : DEFAULT_SETTINGS.windowAlert,
+  };
+  settingsLoaded = true;
+  return ok(settingsCache);
 }
 
 export function saveSettings(settings: AppSettings): void {

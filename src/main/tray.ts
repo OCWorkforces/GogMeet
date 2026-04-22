@@ -10,7 +10,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { CalendarResult } from "../shared/models.js";
+import { type CalendarResult, isCalendarOk } from "../shared/models.js";
 import { getCalendarEventsResult as getCalendarEventsDefault } from "./calendar.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
@@ -94,7 +94,12 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
   tray.on("click", async () => {
     const result = await (getEvents ?? getCalendarEventsDefault)();
     let template: MenuItemConstructorOptions[];
-    if ("error" in result) {
+    if (isCalendarOk(result)) {
+      template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
+        onAbout: () => showAbout(mainWindow),
+        onOpenSettings: () => createSettingsWindow(),
+      });
+    } else {
       template = [
         { label: "Calendar unavailable", enabled: false },
         { type: "separator" },
@@ -102,13 +107,8 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
         { label: "About GogMeet", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
-    } else {
-      template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
-        onAbout: () => showAbout(mainWindow),
-        onOpenSettings: () => createSettingsWindow(),
-      });
     }
-    tray!.popUpContextMenu(Menu.buildFromTemplate(template));
+    if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
   });
 }
 

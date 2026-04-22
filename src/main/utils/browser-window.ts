@@ -12,7 +12,7 @@ export const SECURE_WEB_PREFERENCES = {
   sandbox: true,
   contextIsolation: true,
   nodeIntegration: false,
-} as const;
+} as const satisfies Record<string, string | boolean | number>;
 
 /**
  * Returns the absolute path to the preload script.

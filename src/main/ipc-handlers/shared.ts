@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import type { IpcChannelMap } from "../../shared/ipc-channels.js";
+import type { IpcChannelMap, PushChannelMap } from "../../shared/ipc-channels.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
 const ALLOWED_ORIGINS = new Set([
@@ -67,5 +67,18 @@ export function typedHandle<K extends keyof IpcChannelMap>(
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) =>
     handler(event, args[0] as IpcChannelMap[K]["request"]),
   );
+}
+
+/**
+ * Type-safe wrapper for main→renderer push channels (webContents.send).
+ * Ensures payload type matches PushChannelMap entry and guards against destroyed webContents.
+ */
+export function typedSend<K extends keyof PushChannelMap>(
+  wc: Electron.WebContents,
+  channel: K,
+  payload: PushChannelMap[K],
+): void {
+  if (wc.isDestroyed()) return;
+  wc.send(channel, payload);
 }
 

@@ -1,14 +1,14 @@
-import type { BrowserWindow } from "electron";
+import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
 import { getSettings, updateSettings } from "../settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../auto-launch.js";
-import { validateSender, typedHandle } from "./shared.js";
+import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
-    (event): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
+    (event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
       if (!validateSender(event)) return getSettings();
       return getSettings();
     },
@@ -17,7 +17,7 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_SET,
     (
-      event,
+      event: IpcMainInvokeEvent,
       partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
     ): IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET> => {
       if (!validateSender(event)) return getSettings();
@@ -37,7 +37,7 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
           partial.openBeforeMinutes !== undefined ||
           partial.windowAlert !== undefined
         ) {
-          win.webContents.send(IPC_CHANNELS.SETTINGS_CHANGED, updated);
+          typedSend(win.webContents, IPC_CHANNELS.SETTINGS_CHANGED, updated);
         }
 
         return updated;

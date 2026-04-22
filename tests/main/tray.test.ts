@@ -37,7 +37,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("../../src/main/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
 vi.mock("../../src/main/utils/meet-url.js", () => ({

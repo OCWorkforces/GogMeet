@@ -8,7 +8,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 | -------------------- | ---------------------------------------------------------------------- |
 | `index.ts`           | App bootstrap, BrowserWindow factory, lifecycle events                 |
 | `lifecycle.ts`       | Subsystem init/shutdown (`initializeApp` / `shutdownApp`)              |
-| `calendar.ts`        | Swift EventKit calendar queries (delegates to `swift/`)                |
+| `calendar.ts`        | Swift EventKit calendar queries (delegates to `swift/`), uses `isCalendarOk()` guard for discriminated `CalendarResult` |
 | `tray.ts`            | System tray icon, context menu, window positioning, countdown title    |
 | `ipc.ts`             | IPC registration (delegates to `ipc-handlers/`)                        |
 | `settings.ts`        | Persistent app settings (JSON in userData)                             |
@@ -72,6 +72,7 @@ shutdownApp():
 - **Query time**: ~0.7s (EventKit indexed queries, no network waits)
 - **Output format**: 9 tab-delimited fields: `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`
 - **Filtering**: Skips cancelled events, declined invitations; only Google Meet URLs via regex
+- **Type guards**: `swift/guards.ts` — runtime narrowing for Swift output fields, eliminates unsafe `as` casts
 
 ## IPC HANDLERS (`ipc-handlers/`)
 
@@ -85,7 +86,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 | `app.ts`      | `app:open-external`, `app:get-version`                                             | 2 invoke channels                                     |
 | `window.ts`   | `window:set-height`                                                                | Fire-and-forget (`ipcMain.on`)                        |
 
-**Push channels** (main → renderer via `win.webContents.send()`):
+**Push channels** (main → renderer): use `typedSend()` from `ipc-handlers/shared.ts` with `isDestroyed()` guard.
 
 | Channel                   | Trigger                            |
 | ------------------------- | ---------------------------------- |
@@ -106,7 +107,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 | `browser-window.ts` | `SECURE_WEB_PREFERENCES`, `getPreloadPath`, `loadWindowContent` | All BrowserWindow creation             | index, settings-window, alert-window |
 | `meet-url.ts`       | `buildMeetUrl`                                                  | Appends `?authuser=email`              | tray, shortcuts, scheduler           |
 | `url-validation.ts` | `isAllowedMeetUrl`, `MEET_URL_ALLOWLIST`                        | URL allowlist for `shell.openExternal` | meet-url, ipc-handlers/app           |
-| `packageInfo.ts`    | `getPackageInfo`                                                | Read package.json at runtime (frozen)  | index                                |
+| `packageInfo.ts`    | `getPackageInfo`                                                | Read package.json (9 explicit readonly fields, runtime validation) | index                                |
 
 ## ANTI-PATTERNS
 
