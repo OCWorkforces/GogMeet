@@ -8,6 +8,7 @@ Manages the Swift EventKit helper binary lifecycle and parses its output into ty
 | ------------------- | ---------------------------------------------------------------------- |
 | `binary-manager.ts` | Compile, cache, and run the Swift helper with hash-based recompilation |
 | `event-parser.ts`   | Parse 9-field tab-delimited Swift output into `MeetingEvent[]`         |
+| `guards.ts`         | Runtime type guards for Swift output fields, eliminates unsafe `as` casts |
 
 ## BINARY LIFECYCLE (binary-manager.ts)
 
@@ -37,9 +38,14 @@ Prod:    process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swif
 
 ## PARSING (event-parser.ts)
 
-`parseEvents(raw: string): MeetingEvent[]`
+`parseEvents(raw: string): ParseResult`
 
-- Splits on newlines → tab-delimited fields (9 required, strict, lines with fewer fields are rejected with warning log)
+Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`.
+
+- `ParseDiagnostic` has `line`, `reason` (`malformed_field_count`, `invalid_iso`, `unknown_calendar`, etc.), `raw`
+- Diagnostics logged via `console.warn` by `calendar.ts` consumer
+- Splits on newlines → tab-delimited fields (9 required, strict, lines with fewer fields rejected with diagnostic)
+- Branded outputs: `parseEvents` produces branded `EventId`, `MeetUrl`, `IsoUtc` fields via validators from `shared/brand.ts`
 - Filters: valid dates, today+tomorrow only, deduplicates by UID
 - Sorts by startDate ascending
 
@@ -49,6 +55,17 @@ Prod:    process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swif
 - Removes long separator lines (underscores, dashes, asterisks)
 
 **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` maps exit codes to typed `SwiftHelperError`.
+
+## TYPE GUARDS (guards.ts)
+
+Runtime narrowing functions:
+
+- `isObjectRecord(v)`: validates plain object
+- `isExecErrorLike(v)`: validates exec error shape
+- `getErrorStderr(v)`: safe stderr extraction
+- `isStringTupleOfLength<N>(arr, n)`: recursive `BuildStringTuple` for `noUncheckedIndexedAccess`
+
+Eliminates 3 unsafe `as` casts from `event-parser.ts` and `calendar.ts`.
 
 ## ANTI-PATTERNS
 

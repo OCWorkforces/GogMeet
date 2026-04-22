@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML string templates with `escapeHtml()` for XSS protection.
+Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML string templates with `escapeHtml()` for XSS protection. Shared types imported from `../shared/` (AppState, AlertPayload, branded types).
 
 ## ENTRY POINTS
 
@@ -38,7 +38,7 @@ src/renderer/
 
 ## STATE MACHINE (index.ts)
 
-`AppState`: `loading` → `no-permission` → `no-events` → `has-events` → `error`
+`AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
 - `loadEvents()` fetches via `window.api.calendar.getEvents()`
 - Visibility-aware: pauses refresh when hidden, resumes on show
@@ -53,7 +53,7 @@ src/renderer/
 
 ## ALERT WINDOW
 
-- Triggered by `window.api.alert.onShowAlert()` push channel
+- Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent. Returns cleanup function `() => void`.
 - Shows meeting title, time, description (all escaped)
 - Keyboard: Escape or any key dismisses
 - Error boundary: try/catch around rendering with fallback DOM
@@ -65,9 +65,12 @@ src/renderer/
 - `data-action` event delegation, no inline handlers
 - State changes trigger full re-render, no diffing
 - CSS lives in `styles/`, loaded via HTML link
+- DOM element casts (`as HTMLElement`) are accepted pattern for vanilla TS, documented with comments at each site (5 locations)
+- `version` in index.ts is `let` (reassigned on line 165), not `const`
 
 ## ANTI-PATTERNS
 
 - Never bypass `escapeHtml()` for any user-controlled string in innerHTML
 - Never store DOM references across renders, full re-render replaces innerHTML
 - Never use `onclick` inline handlers, use `data-action` delegation
+- All user-facing string fields (title, calendarName, description, meetUrl) arrive as branded types from shared but are string-compatible for rendering

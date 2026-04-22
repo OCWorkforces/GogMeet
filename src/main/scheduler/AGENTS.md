@@ -72,7 +72,7 @@ Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callba
 
 ## STATE ARCHITECTURE (state.ts)
 
-**Proxy view pattern**: Module exports Proxy-wrapped Maps/Sets over a singleton `SchedulerState` object. Callers like `timers.get(id)` always reflect current state. WeakMap-cached bound methods: Proxy `get` handler caches `.bind()` results per target, preventing re-binding on every property access.
+**Proxy view pattern**: Module exports Proxy-wrapped Maps/Sets with `Reflect.get` for property access over a singleton `SchedulerState` object. 14 typed getter functions (`getTimers()`, `getFiredEvents()`, etc.) provide direct access without unsafe casts. Callers like `timers.get(id)` always reflect current state. WeakMap-cached bound methods: Proxy `get` handler caches `.bind()` results per target, preventing re-binding on every property access. 14 getter functions: `getTimers`, `getAlertTimers`, `getTitleTimers`, `getCountdownIntervals`, `getClearTimers`, `getInMeetingIntervals`, `getInMeetingEndTimers`, `getScheduledEventData`, `getFiredEvents`, `getAlertFiredEvents`, `getActiveTitleEventId`, `getActiveInMeetingEventId`, `getConsecutiveErrors`, plus `isTitleDirty`, `isInMeetingDirty`.
 
 **Dual scalar export**: Each scalar (`activeTitleEventId`, `activeInMeetingEventId`, `consecutiveErrors`) exists both as a property on `state` AND as a module-level `let`. `syncExportedScalars()` keeps them in sync after `replaceState()`.
 
@@ -108,7 +108,7 @@ index.ts
 countdown.ts
   └── title-countdown.ts (clearHandle, tickCountdown, cancelledEvents)
 
-poll.ts
+poll.ts (uses `typedSend()` instead of raw `webContents.send()` for push channels)
   ├── index.ts          (scheduleEvents)
   ├── calendar.ts       (event fetch)
   └── state.ts          (consecutive errors, scheduled snapshot)

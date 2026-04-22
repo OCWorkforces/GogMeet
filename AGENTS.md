@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
 **Generated:** 2026-04-22
-**Commit:** 6658ebd
+**Commit:** 73c9990
 **Branch:** develop
 
 ## OVERVIEW
@@ -38,7 +38,11 @@ src/
 │   ├── alert/        # Full-screen meeting alert (separate entry)
 │   └── styles/       # CSS reset + popover styles
 ├── preload/          # Context bridge (sandbox)
-├── shared/           # Types shared across processes
+├── shared/           # Types, brands, results shared across processes
+│   ├── alert.ts     # AlertPayload for alert:show push
+│   ├── brand.ts     # Branded types (EventId, MeetUrl, IsoUtc)
+│   ├── app-state.ts # AppState extracted from renderer
+│   └── result.ts    # Result<T,E> for fallible ops
 └── assets/           # Tray icons (light/dark/template, 1x/2x)
 ```
 
@@ -59,6 +63,11 @@ src/
 | Alert window          | `src/main/alert-window.ts`                    | Full-screen overlay                     |
 | Settings window       | `src/main/settings-window.ts`                 | Singleton, shows in Dock                |
 | Global shortcut       | `src/main/shortcuts.ts`                       | Cmd+Shift+M → join next                 |
+| Alert payload contract | `src/shared/alert.ts` | AlertPayload for alert:show push |
+| Branded types | `src/shared/brand.ts` | EventId, MeetUrl, IsoUtc with validators |
+| Shared AppState | `src/shared/app-state.ts` | Extracted from renderer |
+| Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
+| Swift type guards | `src/main/swift/guards.ts` | Runtime type narrowing |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
 
 ## CONVENTIONS
@@ -73,6 +82,11 @@ src/
 - **Alert window**: Full-screen overlay, singleton, Escape to dismiss
 - **macOS only**: Swift EventKit, dock hiding — no cross-platform
 - **Scheduler imports**: `scheduler/facade.ts` is the sole public interface; external consumers must import from `facade.js`, not `index.js`
+- **Discriminated unions**: CalendarResult uses `kind: "ok"|"err"` tag, narrow with `isCalendarOk()`
+- **Branded types**: EventId, MeetUrl, IsoUtc — validated at trust boundaries (parser, URL validation)
+- **typedSend()**: All main→renderer push uses `typedSend()` with `isDestroyed()` guard, no raw `webContents.send()`
+- **as const satisfies**: Config objects use `as const satisfies T` for compile-time validation
+- **Result type**: `Result<T,E>` used for fallible operations (settings load, brand validation)
 - **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
 
 ## ANTI-PATTERNS (THIS PROJECT)
@@ -93,6 +107,9 @@ src/
 - All BrowserWindows must have `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
 - `SWIFT_SRC_DEV` path uses `../..` (2 levels up from bundled `lib/main/`), NOT `../../..`
 - Never use `.startsWith()` for URL validation, use `new URL().hostname` exact match against `MEET_URL_ALLOWLIST`
+- Never use raw `webContents.send()` — use `typedSend()` from shared.ts
+- Never use `"error" in result` duck-typing — use `isCalendarOk()` or `result.kind === "ok"`
+- Never assign raw strings to branded types (EventId, MeetUrl, IsoUtc) — use validators
 - Never call `allowSleep()` without a matching `preventSleep()`, ref-counted in power.ts
 
 ## BUILD SYSTEM
@@ -112,7 +129,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (516 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (548 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
@@ -134,3 +151,8 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Binary cache**: 0o700 mode for security; 5 retries with exponential backoff (1s to 30s) on compile failure
 - **Sandbox**: `app.enableSandbox()` called before `whenReady()`, all BrowserWindows use `sandbox: true`
 - **Alert coalescing**: `alert-window.ts` uses `isAlertShowing` queue, coalesces duplicate uids on rapid `showAlert()` calls
+- **Branded types**: EventId, MeetUrl, IsoUtc — phantom brand via unique symbol, string-compatible for read, validated at parser/URL boundaries
+- **Discriminated CalendarResult**: `kind: "ok"|"err"` tag enables exhaustive narrowing
+- **ParseResult**: `parseEvents()` returns `{events, diagnostics[]}` — diagnostics logged via console.warn
+- **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types
+- **AlertPayload**: Unified in shared/alert.ts — single type for alert:show across all 3 processes

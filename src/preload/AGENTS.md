@@ -41,12 +41,17 @@ const api = {
       ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, (_event, settings) => callback(settings));
   },
   alert: {
-    onShowAlert: (callback: (data: MeetingEvent) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, (_event, data) => callback(data));
+    onShowAlert: (callback: (data: AlertPayload) => void): () => void => {
+      // Returns cleanup function, unlike previous void return
+      const handler = (_event: IpcRendererEvent, data: AlertPayload) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, handler);
+      return () => ipcRenderer.off(IPC_CHANNELS.ALERT_SHOW, handler);
     },
   },
 };
 ```
+
+All push listeners (`onEventsUpdated`, `onChanged`, `onShowAlert`) now return cleanup functions that unregister the underlying `ipcRenderer` handler.
 
 ## EXPOSE
 
@@ -75,4 +80,4 @@ if (req === "electron" || req.startsWith("electron/")) {
 
 ## CHANNEL IMPORT
 
-Channels imported from `../shared/ipc-channels.js`, `../shared/models.js`, `../shared/settings.js` (single sources of truth).
+Channels imported from `../shared/ipc-channels.js`, `../shared/models.js`, `../shared/settings.js`, `../shared/alert.js` (single sources of truth).
