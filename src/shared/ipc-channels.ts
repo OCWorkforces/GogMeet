@@ -1,5 +1,6 @@
 import type { CalendarResult, CalendarPermission } from "./models.js";
 import type { AppSettings } from "./settings.js";
+import type { AlertPayload } from "./alert.js";
 
 /** IPC channel names — single source of truth */
 export const IPC_CHANNELS = {
@@ -14,58 +15,36 @@ export const IPC_CHANNELS = {
   SETTINGS_CHANGED: "settings:changed",
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
   ALERT_SHOW: "alert:show",
-} as const;
+} as const satisfies Record<string, string>;
 
 // ─── Type utilities for IPC ──────────────────────────────────────────────────
 
-type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
+export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
-/** IPC Request/Response type map for type-safe IPC */
-export type IpcChannelMap = {
-  [K in IpcChannel]: {
-    request: IpcChannelRequest<K>;
-    response: IpcChannelResponse<K>;
-  };
-};
+/**
+ * IPC invoke channel map — single source of truth for request/response types.
+ * Each entry maps a channel string to its `{ request; response }` payload types.
+ */
+export interface IpcChannelMap {
+  [IPC_CHANNELS.CALENDAR_GET_EVENTS]: { request: void; response: CalendarResult };
+  [IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION]: { request: void; response: CalendarPermission };
+  [IPC_CHANNELS.CALENDAR_PERMISSION_STATUS]: { request: void; response: CalendarPermission };
+  [IPC_CHANNELS.WINDOW_SET_HEIGHT]: { request: number; response: void };
+  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: { request: string; response: void };
+  [IPC_CHANNELS.APP_GET_VERSION]: { request: void; response: string };
+  [IPC_CHANNELS.SETTINGS_GET]: { request: void; response: AppSettings };
+  [IPC_CHANNELS.SETTINGS_SET]: { request: Partial<AppSettings>; response: AppSettings };
+}
 
-type IpcChannelRequest<C extends IpcChannel> =
-  C extends typeof IPC_CHANNELS.CALENDAR_GET_EVENTS
-    ? void
-    : C extends typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION
-      ? void
-      : C extends typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS
-        ? void
-        : C extends typeof IPC_CHANNELS.WINDOW_SET_HEIGHT
-          ? number
-          : C extends typeof IPC_CHANNELS.APP_OPEN_EXTERNAL
-            ? string
-            : C extends typeof IPC_CHANNELS.APP_GET_VERSION
-              ? void
-              : C extends typeof IPC_CHANNELS.SETTINGS_GET
-                ? void
-                : C extends typeof IPC_CHANNELS.SETTINGS_SET
-                  ? Partial<AppSettings>
-                  : never;
+/** Type-safe IPC request/response derived from the channel map */
+export type IpcRequest<K extends keyof IpcChannelMap> = IpcChannelMap[K]["request"];
+export type IpcResponse<K extends keyof IpcChannelMap> = IpcChannelMap[K]["response"];
 
-type IpcChannelResponse<C extends IpcChannel> =
-  C extends typeof IPC_CHANNELS.CALENDAR_GET_EVENTS
-    ? CalendarResult
-    : C extends typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION
-      ? CalendarPermission
-      : C extends typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS
-        ? CalendarPermission
-        : C extends typeof IPC_CHANNELS.WINDOW_SET_HEIGHT
-          ? void
-          : C extends typeof IPC_CHANNELS.APP_OPEN_EXTERNAL
-            ? void
-            : C extends typeof IPC_CHANNELS.APP_GET_VERSION
-              ? string
-              : C extends typeof IPC_CHANNELS.SETTINGS_GET
-                ? AppSettings
-                : C extends typeof IPC_CHANNELS.SETTINGS_SET
-                  ? AppSettings
-                  : never;
+// ─── Push channels: main → renderer (webContents.send) ──────────────────────
 
-/** Type-safe IPC request/response */
-export type IpcRequest<C extends IpcChannel> = IpcChannelRequest<C>;
-export type IpcResponse<C extends IpcChannel> = IpcChannelResponse<C>;
+/** Push channel payload type map for type-safe webContents.send */
+export interface PushChannelMap {
+  [IPC_CHANNELS.ALERT_SHOW]: AlertPayload;
+  [IPC_CHANNELS.SETTINGS_CHANGED]: AppSettings;
+  [IPC_CHANNELS.CALENDAR_EVENTS_UPDATED]: void;
+}
