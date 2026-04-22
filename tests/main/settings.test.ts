@@ -55,9 +55,11 @@ describe("settings", () => {
         rmSync(settingsPath);
       }
 
-      const settings = loadSettings();
+      const result = loadSettings();
 
-      expect(settings).toEqual(DEFAULT_SETTINGS);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toEqual(DEFAULT_SETTINGS);
     });
 
     it("reads existing file correctly", () => {
@@ -72,11 +74,13 @@ describe("settings", () => {
       const fs = require("fs");
       fs.writeFileSync(settingsPath, JSON.stringify(expectedSettings));
 
-      const settings = loadSettings();
+      const result = loadSettings();
 
-      expect(settings.openBeforeMinutes).toBe(3);
-      expect(settings.launchAtLogin).toBe(true);
-      expect(settings.showTomorrowMeetings).toBe(false);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.openBeforeMinutes).toBe(3);
+      expect(result.value.launchAtLogin).toBe(true);
+      expect(result.value.showTomorrowMeetings).toBe(false);
     });
 
     it("handles corrupted JSON (returns defaults)", () => {
@@ -85,9 +89,14 @@ describe("settings", () => {
       const fs = require("fs");
       fs.writeFileSync(settingsPath, "{ not valid json }");
 
-      const settings = loadSettings();
+      const result = loadSettings();
 
-      expect(settings).toEqual(DEFAULT_SETTINGS);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatch(/Failed to parse settings JSON/);
+
+      // Cache should fall back to defaults
+      expect(getSettings()).toEqual(DEFAULT_SETTINGS);
     });
   });
 
@@ -196,9 +205,11 @@ describe("settings", () => {
       const fs = require("fs");
       fs.writeFileSync(settingsPath, JSON.stringify({ openBeforeMinutes: 2 }));
 
-      const settings = loadSettings();
+      const result = loadSettings();
 
-      expect(settings.launchAtLogin).toBe(false);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.launchAtLogin).toBe(false);
     });
   });
 });

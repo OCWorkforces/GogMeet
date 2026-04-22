@@ -49,7 +49,7 @@ const {
   mockAllowSleep: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   mockRequestCalendarPermission: vi.fn().mockResolvedValue("granted"),
-  mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+  mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   mockInitPowerCallbacks: vi.fn(),
 }))
 

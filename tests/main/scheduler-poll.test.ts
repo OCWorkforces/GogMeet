@@ -8,7 +8,7 @@ vi.mock("electron", () => ({
 
 // Mock calendar module
 vi.mock("../../src/main/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
 // Mock power module
@@ -62,7 +62,7 @@ describe("poll()", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -77,7 +77,7 @@ describe("poll()", () => {
   it("resets consecutiveErrors to 0 on successful poll with events", async () => {
     stateModule.setConsecutiveErrors(2);
     const event = makeEvent();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
 
     await poll();
 
@@ -86,7 +86,7 @@ describe("poll()", () => {
 
   it("resets consecutiveErrors to 0 on success with empty events", async () => {
     stateModule.setConsecutiveErrors(1);
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     await poll();
 
@@ -220,21 +220,21 @@ describe("poll()", () => {
     const mockSend = vi.fn();
     stateModule.state.win = {
       isDestroyed: vi.fn().mockReturnValue(false),
-      webContents: { send: mockSend },
+      webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     await poll();
 
-    expect(mockSend).toHaveBeenCalledWith("calendar:events-updated");
+    expect(mockSend).toHaveBeenCalledWith("calendar:events-updated", undefined);
 
     stateModule.state.win = null;
   });
 
   it("does NOT send IPC when window is null", async () => {
     stateModule.state.win = null;
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     // Should not throw
     await expect(poll()).resolves.toBeUndefined();
@@ -247,7 +247,7 @@ describe("poll()", () => {
       webContents: { send: mockSend },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     await poll();
 
@@ -292,7 +292,7 @@ describe("startScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -337,7 +337,7 @@ describe("stopScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -387,7 +387,7 @@ describe("restartScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });

@@ -48,8 +48,9 @@ describe("parseEvents", () => {
       "user@example.com",
     );
 
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(1);
+    expect(diagnostics).toEqual([]);
     expect(events[0]).toEqual({
       id: "evt-1",
       title: "Team Standup",
@@ -75,15 +76,19 @@ describe("parseEvents", () => {
       "false",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].userEmail).toBeUndefined();
+    expect(events[0]?.userEmail).toBeUndefined();
   });
 
-  it("skips lines with fewer than 7 fields", () => {
+  it("records a malformed_field_count diagnostic for lines with wrong field count", () => {
     const input = "evt-1\tTitle\t2024-01-01"; // Only 3 fields
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.reason).toBe("malformed_field_count");
+    expect(diagnostics[0]?.line).toBe(1);
+    expect(diagnostics[0]?.raw).toBe("evt-1\tTitle\t2024-01-01");
   });
 
   it("filters out events before today midnight", () => {
@@ -101,8 +106,10 @@ describe("parseEvents", () => {
       "false",
     );
 
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(0);
+    // Out-of-range filter is silent, not a diagnostic
+    expect(diagnostics).toEqual([]);
   });
 
   it("filters out events beyond 2 days from today midnight", () => {
@@ -120,8 +127,9 @@ describe("parseEvents", () => {
       "false",
     );
 
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(0);
+    expect(diagnostics).toEqual([]);
   });
 
   it("deduplicates events by id", () => {
@@ -138,7 +146,7 @@ describe("parseEvents", () => {
     );
     const input = `${line}\n${line}`;
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
   });
 
@@ -169,10 +177,10 @@ describe("parseEvents", () => {
       ),
     ].join("\n");
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(2);
-    expect(events[0].id).toBe("evt-early");
-    expect(events[1].id).toBe("evt-late");
+    expect(events[0]?.id).toBe("evt-early");
+    expect(events[1]?.id).toBe("evt-late");
   });
 
   it("handles all-day events", () => {
@@ -188,9 +196,9 @@ describe("parseEvents", () => {
       "true",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].isAllDay).toBe(true);
+    expect(events[0]?.isAllDay).toBe(true);
   });
 
   it("handles optional meetUrl (empty string becomes undefined)", () => {
@@ -206,9 +214,9 @@ describe("parseEvents", () => {
       "false",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].meetUrl).toBeUndefined();
+    expect(events[0]?.meetUrl).toBeUndefined();
   });
 
   it("handles optional userEmail (empty/whitespace excluded)", () => {
@@ -225,17 +233,23 @@ describe("parseEvents", () => {
       "   ",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].userEmail).toBeUndefined();
+    expect(events[0]?.userEmail).toBeUndefined();
   });
 
-  it("returns empty array for empty input", () => {
-    expect(parseEvents("")).toEqual([]);
-    expect(parseEvents("   ")).toEqual([]);
+  it("returns empty result for empty input", () => {
+    expect(parseEvents("")).toEqual({ events: [], diagnostics: [] });
   });
 
-  it("returns empty array for malformed dates", () => {
+  it("records a diagnostic for whitespace-only single-line input", () => {
+    const { events, diagnostics } = parseEvents("   ");
+    expect(events).toEqual([]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.reason).toBe("malformed_field_count");
+  });
+
+  it("records an invalid_iso diagnostic for malformed dates", () => {
     const input = makeSwiftLine(
       "evt-bad",
       "Bad Date",
@@ -246,8 +260,49 @@ describe("parseEvents", () => {
       "false",
     );
 
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.reason).toBe("invalid_iso");
+    expect(diagnostics[0]?.line).toBe(1);
+  });
+
+  it("collects diagnostics for mixed valid/invalid input with correct line numbers", () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    const validLine = makeSwiftLine(
+      "evt-ok",
+      "OK",
+      start,
+      end,
+      "https://meet.google.com/ok",
+      "Work",
+      "false",
+    );
+    const malformed = "too\tfew\tfields";
+    const badIso = makeSwiftLine(
+      "evt-badiso",
+      "Bad ISO",
+      "not-a-date",
+      "also-bad",
+      "https://meet.google.com/badiso",
+      "Work",
+      "false",
+    );
+    const input = [validLine, malformed, badIso].join("\n");
+
+    const { events, diagnostics } = parseEvents(input);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("evt-ok");
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics[0]).toMatchObject({
+      line: 2,
+      reason: "malformed_field_count",
+    });
+    expect(diagnostics[1]).toMatchObject({
+      line: 3,
+      reason: "invalid_iso",
+    });
   });
 
   it("trims whitespace from fields", () => {
@@ -264,13 +319,13 @@ describe("parseEvents", () => {
       "  user@example.com  ",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].id).toBe("evt-trim");
-    expect(events[0].title).toBe("Trimmed Title");
-    expect(events[0].meetUrl).toBe("https://meet.google.com/trim");
-    expect(events[0].calendarName).toBe("Work");
-    expect(events[0].userEmail).toBe("user@example.com");
+    expect(events[0]?.id).toBe("evt-trim");
+    expect(events[0]?.title).toBe("Trimmed Title");
+    expect(events[0]?.meetUrl).toBe("https://meet.google.com/trim");
+    expect(events[0]?.calendarName).toBe("Work");
+    expect(events[0]?.userEmail).toBe("user@example.com");
   });
 
   it("handles multiple valid events", () => {
@@ -311,11 +366,11 @@ describe("parseEvents", () => {
       ),
     ].join("\n");
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(3);
-    expect(events[0].title).toBe("Meeting 1");
-    expect(events[1].title).toBe("Meeting 2");
-    expect(events[2].title).toBe("Meeting 3");
+    expect(events[0]?.title).toBe("Meeting 1");
+    expect(events[1]?.title).toBe("Meeting 2");
+    expect(events[2]?.title).toBe("Meeting 3");
   });
 
   it("handles Windows-style line endings (CRLF)", () => {
@@ -331,7 +386,7 @@ describe("parseEvents", () => {
       "false",
     ).replace(/\n/g, "\r\n");
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
   });
 
@@ -362,9 +417,12 @@ describe("parseEvents", () => {
       "",
     ].join("\n");
 
-    const events = parseEvents(input);
+    const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(2);
-    expect(events).toHaveLength(2);
+    // "   " is a non-empty line but only one field; current strict check flags it.
+    // Verify it's reported as malformed_field_count rather than silently dropped.
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.reason).toBe("malformed_field_count");
   });
 
   it("parses 9-field input with description", () => {
@@ -382,9 +440,9 @@ describe("parseEvents", () => {
       "This is a meeting note",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].description).toBe("This is a meeting note");
+    expect(events[0]?.description).toBe("This is a meeting note");
   });
 
   it("excludes empty or whitespace-only description", () => {
@@ -402,9 +460,9 @@ describe("parseEvents", () => {
       "   ",
     );
 
-    const events = parseEvents(input);
+    const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
-    expect(events[0].description).toBeUndefined();
+    expect(events[0]?.description).toBeUndefined();
   });
 });
 

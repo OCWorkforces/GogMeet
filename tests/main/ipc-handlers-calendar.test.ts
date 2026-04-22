@@ -57,14 +57,14 @@ describe("registerCalendarHandlers", () => {
           isAllDay: false,
         },
       ];
-      mockGetCalendarEventsResult.mockResolvedValue({ events });
+      mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", events });
 
       registerCalendarHandlers();
       const handler = getRegisteredHandler("calendar:get-events");
       expect(handler).toBeDefined();
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ events });
+      expect(result).toEqual({ kind: "ok", events });
     });
 
     it("returns unauthorized for blocked sender", async () => {
@@ -72,7 +72,7 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(unauthorizedEvent);
-      expect(result).toEqual({ error: "unauthorized" });
+      expect(result).toEqual({ kind: "err", error: "unauthorized" });
     });
 
     it("returns error on exception", async () => {
@@ -84,7 +84,7 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ error: "Calendar error" });
+      expect(result).toEqual({ kind: "err", error: "Calendar error" });
     });
 
     it("returns stringified error for non-Error exceptions", async () => {
@@ -94,7 +94,7 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ error: "string error" });
+      expect(result).toEqual({ kind: "err", error: "string error" });
     });
   });
 

@@ -20,6 +20,7 @@ vi.mock("electron", () => {
     this.webContents = {
       send: mockSend,
       executeJavaScript: vi.fn().mockResolvedValue(300),
+      isDestroyed: vi.fn(() => false),
     };
     // Capture handlers without invoking — allows deferred firing for race condition tests
     this._onceHandlers = new Map<string, () => void>();
