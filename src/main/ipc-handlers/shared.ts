@@ -24,8 +24,26 @@ export function validateOnSender(event: IpcMainEvent): boolean {
 }
 
 function validateSenderUrl(senderUrl: string): boolean {
-  // file:// origin check (packaged app)
-  if (senderUrl.startsWith("file://")) return true;
+  // file:// origin check (packaged app) — restrict to our renderer output paths
+  if (senderUrl.startsWith("file://")) {
+    try {
+      const parsed = new URL(senderUrl);
+      // Normalize path separators (Windows-safe, though app is macOS-only)
+      const normalizedPath = decodeURIComponent(parsed.pathname).replace(/\\/g, "/");
+      // Accept only HTML files inside our renderer output directory
+      if (
+        normalizedPath.includes("/lib/renderer/") &&
+        normalizedPath.endsWith(".html")
+      ) {
+        return true;
+      }
+      console.warn("[ipc] Rejected file:// IPC from unauthorized path:", normalizedPath);
+      return false;
+    } catch {
+      console.warn("[ipc] Rejected file:// IPC with malformed URL:", senderUrl);
+      return false;
+    }
+  }
   // Dev server origins
   for (const origin of ALLOWED_ORIGINS) {
     if (senderUrl.startsWith(origin)) return true;

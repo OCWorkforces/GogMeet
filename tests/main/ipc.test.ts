@@ -6,7 +6,7 @@ import type { IpcMainInvokeEvent } from "electron";
 describe("validateSender", () => {
   it("accepts file:// origin (packaged app)", () => {
     const event = {
-      senderFrame: { url: "file:///path/to/app/index.html" },
+      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
     } as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });

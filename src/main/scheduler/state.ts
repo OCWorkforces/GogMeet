@@ -24,6 +24,7 @@ export interface SchedulerState {
   inMeetingDirty: boolean;
   consecutiveErrors: number;
   pollTimeout: ReturnType<typeof setTimeout> | null;
+  pollEpoch: number;
   win: BrowserWindow | null;
   onTrayTitleUpdate?:
     | ((
@@ -59,6 +60,7 @@ export function createSchedulerState(): SchedulerState {
     inMeetingDirty: false,
     consecutiveErrors: 0,
     pollTimeout: null,
+    pollEpoch: 0,
     win: null,
     onTrayTitleUpdate: null,
     powerCallbacks: null,
@@ -68,12 +70,27 @@ export function createSchedulerState(): SchedulerState {
 export let state = createSchedulerState();
 
 function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
+  const boundCache = new WeakMap<
+    Map<K, V>,
+    Map<PropertyKey, (...args: unknown[]) => unknown>
+  >();
   return new Proxy({} as Map<K, V>, {
     get(_target, prop) {
-      const map = getMap() as unknown as Record<PropertyKey, unknown>;
-      const value = map[prop];
+      const map = getMap();
+      const record = map as unknown as Record<PropertyKey, unknown>;
+      const value = record[prop];
       if (typeof value === "function") {
-        return (value as (...args: unknown[]) => unknown).bind(getMap());
+        let perTarget = boundCache.get(map);
+        if (!perTarget) {
+          perTarget = new Map();
+          boundCache.set(map, perTarget);
+        }
+        let bound = perTarget.get(prop);
+        if (!bound) {
+          bound = (value as (...args: unknown[]) => unknown).bind(map);
+          perTarget.set(prop, bound);
+        }
+        return bound;
       }
       return value;
     },
@@ -81,12 +98,27 @@ function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
 }
 
 function createSetView<T>(getSet: () => Set<T>): Set<T> {
+  const boundCache = new WeakMap<
+    Set<T>,
+    Map<PropertyKey, (...args: unknown[]) => unknown>
+  >();
   return new Proxy({} as Set<T>, {
     get(_target, prop) {
-      const set = getSet() as unknown as Record<PropertyKey, unknown>;
-      const value = set[prop];
+      const set = getSet();
+      const record = set as unknown as Record<PropertyKey, unknown>;
+      const value = record[prop];
       if (typeof value === "function") {
-        return (value as (...args: unknown[]) => unknown).bind(getSet());
+        let perTarget = boundCache.get(set);
+        if (!perTarget) {
+          perTarget = new Map();
+          boundCache.set(set, perTarget);
+        }
+        let bound = perTarget.get(prop);
+        if (!bound) {
+          bound = (value as (...args: unknown[]) => unknown).bind(set);
+          perTarget.set(prop, bound);
+        }
+        return bound;
       }
       return value;
     },
@@ -190,7 +222,7 @@ export function cancelStaleEntries(
         clearTimeout(s.timers.get(id)!);
         s.timers.delete(id);
       }
-      console.log("[scheduler] Cancelled timer for removed event");
+      console.debug("[scheduler] Cancelled timer for removed event");
     }
   }
   // Alert timers
@@ -202,7 +234,7 @@ export function cancelStaleEntries(
         clearTimeout(s.alertTimers.get(id)!);
         s.alertTimers.delete(id);
       }
-      console.log("[scheduler] Cancelled alert timer for removed event");
+      console.debug("[scheduler] Cancelled alert timer for removed event");
     }
   }
   // Title timers

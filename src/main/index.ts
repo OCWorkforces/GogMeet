@@ -13,6 +13,10 @@ import {
 // Setting log-level to 3 (ERROR) filters out WARNING-level Chromium messages.
 app.commandLine.appendSwitch('log-level', '3');
 
+// Enable strict sandboxing for all renderers (security best practice).
+// Preload uses only contextBridge + ipcRenderer (sandbox-compatible).
+app.enableSandbox();
+
 // === Process-level error handlers ===
 process.on("uncaughtException", (error: Error) => {
   console.error("[main] Uncaught exception:", error);
@@ -90,7 +94,12 @@ app.whenReady().then(() => {
   app.dock?.hide();
 
   mainWindow = createWindow();
-  void initializeApp(mainWindow);
+  initializeApp(mainWindow).catch((error: unknown) => {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error("[main] initializeApp failed:", err);
+    dialog.showErrorBox("GogMeet Startup Error", err.message);
+    app.quit();
+  });
 });
 
 app.on("window-all-closed", () => {

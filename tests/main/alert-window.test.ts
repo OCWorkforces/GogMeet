@@ -38,7 +38,7 @@ vi.mock("electron", () => {
   };
 });
 
-import { showAlert } from "../../src/main/alert-window.js";
+let showAlert: typeof import("../../src/main/alert-window.js").showAlert;
 import { BrowserWindow, app } from "electron";
 
 function makeEvent(overrides: Partial<{ id: string; title: string }> = {}) {
@@ -78,10 +78,12 @@ function fireEvent(win: Record<string, unknown>, eventName: string): void {
 }
 
 describe("alert-window", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    vi.resetModules();
     vi.useFakeTimers();
     delete process.env.VITE_DEV_SERVER_URL;
+    ({ showAlert } = await import("../../src/main/alert-window.js"));
   });
 
   afterEach(() => {
@@ -108,12 +110,26 @@ describe("alert-window", () => {
       expect(options.webPreferences!.nodeIntegration).toBe(false);
     });
 
-    it("closes existing alert before creating new one", () => {
+    it("queues subsequent alerts instead of creating a new window immediately", () => {
       showAlert(makeEvent({ id: "first" }));
       showAlert(makeEvent({ id: "second" }));
 
+      // New behavior: second alert is queued, only one window created until first closes
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    });
+
+    it("creates a second window after the first one closes", () => {
+      showAlert(makeEvent({ id: "first" }));
       const win1 = getWindow(1);
-      expect(win1.close).toHaveBeenCalled();
+
+      showAlert(makeEvent({ id: "second" }));
+      // Second is queued, no new window yet
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+      // Fire close on first, which triggers processNextAlert via setImmediate
+      fireEvent(win1, "closed");
+      vi.runAllTimers();
+
       expect(BrowserWindow).toHaveBeenCalledTimes(2);
     });
   });
@@ -187,25 +203,26 @@ describe("alert-window", () => {
       ).not.toHaveBeenCalled();
     });
 
-    it("does not crash when old window closed handler fires after new window is created", () => {
-      // This is the core race condition: showAlert(A) -> showAlert(B) -> A's 'closed' fires
-      // The old closed handler must not null out alertWindow when it points to window B.
+    it("processes the queued alert when the current window fires closed", () => {
+      // New behavior: queued alerts are processed after the active window closes.
       const mockSend = vi.fn();
 
       // First alert — creates window A
       showAlert(makeEvent({ id: "race-a" }));
       const winA = getWindow(1);
 
-      // Second alert — closes window A, creates window B
+      // Second alert — queued (no window B yet)
       showAlert(makeEvent({ id: "race-b" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+      // Window A closes — queue processes and creates window B via setImmediate
+      fireEvent(winA, "closed");
+      vi.runAllTimers();
+
       const winB = getWindow(2);
       (winB.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
 
-      // Old window A's 'closed' handler fires AFTER window B was already assigned
-      // This must NOT null out alertWindow (which now points to B)
-      fireEvent(winA, "closed");
-
-      // Window B's ready-to-show should still work
+      // Window B's ready-to-show should work normally
       fireEvent(winB, "ready-to-show");
       expect(mockSend).toHaveBeenCalledTimes(1);
       expect(mockSend).toHaveBeenCalledWith(
@@ -214,22 +231,18 @@ describe("alert-window", () => {
       );
     });
 
-    it("does not execute JavaScript when window is destroyed before setTimeout fires", () => {
+    it("does not execute JavaScript when window is destroyed before ready-to-show fires", () => {
       const mockExecuteJS = vi.fn().mockResolvedValue(300);
 
-      showAlert(makeEvent({ id: "timeout-destroyed" }));
+      showAlert(makeEvent({ id: "destroyed-before-ready" }));
       const win = getWindow(1);
       (
         win.webContents as { executeJavaScript: ReturnType<typeof vi.fn> }
       ).executeJavaScript = mockExecuteJS;
-      win.isDestroyed = vi.fn(() => false);
 
-      // Fire ready-to-show — this registers the setTimeout
+      // Window gets destroyed before ready-to-show fires
+      win.isDestroyed = vi.fn(() => true);
       fireEvent(win, "ready-to-show");
-
-      // Window gets destroyed before the 150ms timeout fires
-      (win.isDestroyed as ReturnType<typeof vi.fn>).mockReturnValue(true);
-      vi.advanceTimersByTime(150);
 
       // executeJavaScript should NOT be called — guard bailed out
       expect(mockExecuteJS).not.toHaveBeenCalled();

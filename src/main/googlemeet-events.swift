@@ -5,7 +5,11 @@ import Foundation
 // Outputs Google Meet events for today+tomorrow in tab-delimited format:
 // uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
 //
-// Each line is one event. Exit 0 on success, exit 1 on permission denied.
+// Structured exit codes (consumed by event-parser.ts via err.code):
+//   0 — success
+//   2 — calendar permission denied
+//   3 — no calendars found / nothing to query
+//   4 — other error (date range, regex compile, etc.)
 
 let store = EKEventStore()
 let sema = DispatchSemaphore(value: 0)
@@ -24,10 +28,17 @@ func requestCalendarAccess(completion: @escaping (Bool) -> Void) {
     }
 }
 
+// Always signal the semaphore before exiting so the run loop never hangs
+// if exit() is intercepted (e.g. by a test harness or signal handler).
+func fail(_ message: String, code: Int32) -> Never {
+    fputs("error: \(message)\n", stderr)
+    sema.signal()
+    exit(code)
+}
+
 requestCalendarAccess { granted in
     guard granted else {
-        fputs("error: calendar access denied\n", stderr)
-        exit(1)
+        fail("calendar access denied", code: 2)
     }
 
     let cal = Calendar.current
@@ -35,18 +46,20 @@ requestCalendarAccess { granted in
     startComps.hour = 0; startComps.minute = 0; startComps.second = 0
     guard let startDate = cal.date(from: startComps),
           let endDate = cal.date(byAdding: .day, value: 2, to: startDate) else {
-        fputs("error: could not compute date range\n", stderr)
-        exit(1)
+        fail("could not compute date range", code: 4)
     }
 
     let pred = store.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
+    let availableCalendars = store.calendars(for: .event)
+    if availableCalendars.isEmpty {
+        fail("no calendars available", code: 3)
+    }
     let events = store.events(matching: pred)
 
     guard let meetRegex = try? NSRegularExpression(
         pattern: #"https://meet\.google\.com/[^\s"'<>\\]+"#
     ) else {
-        fputs("error: could not compile meet URL regex\n", stderr)
-        exit(1)
+        fail("could not compile meet URL regex", code: 4)
     }
     let isoFormatter = ISO8601DateFormatter()
 

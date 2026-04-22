@@ -67,7 +67,9 @@ function handleInProgressEvent(
   now: number,
   activeIds: Set<string>,
   s: StateLocals,
+  shouldAbort: () => boolean,
 ): boolean {
+  if (shouldAbort()) return false;
   if (startMs > now) return false;
 
   // Meeting already ended
@@ -184,16 +186,32 @@ function scheduleFutureTimers(
   endMs: number,
   now: number,
   s: StateLocals,
+  shouldAbort: () => boolean,
 ): void {
   const effectiveDelay = Math.max(0, delayMs);
 
   // Alert timer (fires 1 minute before browser timer)
   const alertSettings = getSettings();
   if (alertSettings.windowAlert && !s.alertFiredEvents.has(event.id)) {
-    scheduleAlertTimer(event, effectiveDelay, s.alertTimers, s.alertFiredEvents);
+    scheduleAlertTimer(
+      event,
+      effectiveDelay,
+      s.alertTimers,
+      s.alertFiredEvents,
+      shouldAbort,
+    );
   }
 
-  scheduleBrowserTimer(event, effectiveDelay, startMs, endMs, s.timers, s.firedEvents, s.scheduledEventData);
+  scheduleBrowserTimer(
+    event,
+    effectiveDelay,
+    startMs,
+    endMs,
+    s.timers,
+    s.firedEvents,
+    s.scheduledEventData,
+    shouldAbort,
+  );
 
   // 30-min tray title countdown
   scheduleTitleCountdown(
@@ -211,6 +229,22 @@ function scheduleFutureTimers(
 export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
   const activeIds = new Set<string>();
+
+  // Capture pollEpoch so timer callbacks scheduled here can detect a
+  // resetState() (which bumps the epoch) and abort instead of mutating
+  // a freshly-swapped state object.
+  const capturedEpoch = state.pollEpoch;
+  const shouldAbort = (): boolean => state.pollEpoch !== capturedEpoch;
+
+  // Snapshot the previously-active event ids so we can detect whether
+  // this scheduling pass actually changed the set (and thus whether the
+  // title / in-meeting resolvers need to re-run).
+  const previousActiveIds = new Set<string>([
+    ...state.timers.keys(),
+    ...state.titleTimers.keys(),
+    ...state.countdownIntervals.keys(),
+    ...state.inMeetingIntervals.keys(),
+  ]);
 
   const s: StateLocals = {
     timers: state.timers,
@@ -232,25 +266,37 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     const openAtMs = startMs - getOpenBeforeMs();
     const delayMs = openAtMs - now;
 
-    if (handleInProgressEvent(event, startMs, endMs, now, activeIds, s)) continue;
+    if (handleInProgressEvent(event, startMs, endMs, now, activeIds, s, shouldAbort)) continue;
     if (delayMs > MAX_SCHEDULE_AHEAD_MS) continue;
 
     activeIds.add(event.id);
 
     if (shouldSkipScheduledEvent(event, startMs, endMs, s)) continue;
 
-    scheduleFutureTimers(event, delayMs, startMs, endMs, now, s);
+    scheduleFutureTimers(event, delayMs, startMs, endMs, now, s, shouldAbort);
   }
 
-  markTitleDirty();
-  markInMeetingDirty();
+  // Only mark dirty when the active id set actually changed — avoids
+  // unnecessary title / in-meeting recalculation on no-op polls.
+  const activeSetChanged =
+    previousActiveIds.size !== activeIds.size ||
+    [...activeIds].some((id) => !previousActiveIds.has(id));
+  if (activeSetChanged) {
+    markTitleDirty();
+    markInMeetingDirty();
+  }
+
+  // Hoisted callback so the cancel path uses a single named function —
+  // keeps sleep management symmetric with cancelStaleEntries' contract.
+  const onCountdownIntervalCancel = (): void => {
+    state.powerCallbacks?.allowSleep?.();
+  };
+
   // Cancel timers for events that are no longer in the list (e.g. cancelled meetings)
   cancelStaleEntries(state, activeIds, {
     onBrowserCancel: cancelBrowserTimer,
     onAlertCancel: cancelAlertTimer,
-    onCountdownIntervalCancel: () => {
-      state.powerCallbacks?.allowSleep?.();
-    },
+    onCountdownIntervalCancel,
   });
 
   // After cleanup, re-resolve tray title ownership

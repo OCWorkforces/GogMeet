@@ -21,6 +21,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 let tray: Tray | null = null;
+let themeListener: (() => void) | null = null;
 
 let aboutOpen = false;
 
@@ -81,12 +82,13 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
   tray.setToolTip("GogMeet");
 
   // Update icon whenever the system theme changes
-  const onThemeUpdated = (): void => {
+  themeListener = (): void => {
     tray?.setImage(buildIcon(nativeTheme.shouldUseDarkColors));
   };
-  nativeTheme.on("updated", onThemeUpdated);
+  nativeTheme.on("updated", themeListener);
 
-  // Listener is cleaned up on process exit (app.before-quit destroys the tray).
+  // Clean up the nativeTheme listener (and tray) on app quit to avoid leaks.
+  app.once("before-quit", destroyTray);
 
   // Left-click → dynamic meeting menu
   tray.on("click", async () => {
@@ -108,6 +110,21 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
     }
     tray!.popUpContextMenu(Menu.buildFromTemplate(template));
   });
+}
+
+/**
+ * Destroy the tray and remove the nativeTheme listener.
+ * Safe to call multiple times.
+ */
+export function destroyTray(): void {
+  if (themeListener) {
+    nativeTheme.removeListener("updated", themeListener);
+    themeListener = null;
+  }
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 }
 
 /** Max characters to show for the event title portion of the tray label */

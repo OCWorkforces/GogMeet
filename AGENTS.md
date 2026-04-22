@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-04-16
-**Commit:** f46a7f4
+**Generated:** 2026-04-22
+**Commit:** 6658ebd
 **Branch:** develop
 
 ## OVERVIEW
@@ -25,7 +25,7 @@ src/
 │   ├── lifecycle.ts  # Subsystem init/shutdown orchestration
 │   ├── calendar.ts   # Swift EventKit calendar integration
 │   ├── tray.ts       # System tray icon + menu + meeting context menu
-│   ├── scheduler/    # Auto-launch browser before meetings (7 files)
+│   ├── scheduler/    # Auto-launch browser before meetings (8 files)
 │   ├── ipc-handlers/ # IPC handler implementations (5 files)
 │   ├── swift/         # Swift binary management + event parsing
 │   ├── menu/          # Tray context menu
@@ -73,6 +73,7 @@ src/
 - **Alert window**: Full-screen overlay, singleton, Escape to dismiss
 - **macOS only**: Swift EventKit, dock hiding — no cross-platform
 - **Scheduler imports**: `scheduler/facade.ts` is the sole public interface; external consumers must import from `facade.js`, not `index.js`
+- **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -91,6 +92,8 @@ src/
 - Never insert user content via `innerHTML` without `escapeHtml()` — XSS protection
 - All BrowserWindows must have `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
 - `SWIFT_SRC_DEV` path uses `../..` (2 levels up from bundled `lib/main/`), NOT `../../..`
+- Never use `.startsWith()` for URL validation, use `new URL().hostname` exact match against `MEET_URL_ALLOWLIST`
+- Never call `allowSleep()` without a matching `preventSleep()`, ref-counted in power.ts
 
 ## BUILD SYSTEM
 
@@ -109,7 +112,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (518 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (516 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
@@ -125,4 +128,9 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh)
 - **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 3 scalars, 2 dirty flags (in `scheduler/state.ts`)
 - **Window hide on blur**: Popover hides when focus lost (dev mode exempt)
-- **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts` — all external imports go through `scheduler/facade.ts`
+- **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts`, all external imports go through `scheduler/facade.ts`
+- **Scheduler pollEpoch**: Race condition guard, stale callbacks from previous scheduler instances are silently discarded
+- **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error
+- **Binary cache**: 0o700 mode for security; 5 retries with exponential backoff (1s to 30s) on compile failure
+- **Sandbox**: `app.enableSandbox()` called before `whenReady()`, all BrowserWindows use `sandbox: true`
+- **Alert coalescing**: `alert-window.ts` uses `isAlertShowing` queue, coalesces duplicate uids on rapid `showAlert()` calls

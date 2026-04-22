@@ -110,9 +110,9 @@ function render(errorMessage?: string): void {
   `;
 
   setupSelectListener();
-  setupToggleListener();
-  setupTomorrowToggleListener();
-  setupAlertToggleListener();
+  setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
+  setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
+  setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -135,6 +135,13 @@ function showSaveIndicator(id: string, text: string): void {
   saveIndicatorTimers.set(id, timer);
 }
 
+function clearSaveIndicatorTimers(): void {
+  for (const timer of saveIndicatorTimers.values()) {
+    clearTimeout(timer);
+  }
+  saveIndicatorTimers.clear();
+}
+
 function setupSelectListener(): void {
   const select = document.getElementById(
     "open-before-select",
@@ -154,46 +161,54 @@ function setupSelectListener(): void {
   });
 }
 
-function setupToggleListener(): void {
-  const toggle = document.getElementById(
-    "launch-at-login-toggle",
-  ) as HTMLInputElement | null;
+type ToggleSettingKey = {
+  [K in keyof AppSettings]: AppSettings[K] extends boolean ? K : never;
+}[keyof AppSettings];
+
+function setupToggleListener(
+  toggleId: string,
+  settingKey: ToggleSettingKey,
+  indicatorId: string,
+): void {
+  const toggle = document.getElementById(toggleId) as HTMLInputElement | null;
   if (!toggle) return;
 
   toggle.addEventListener("change", () => {
-    void saveSettings(
-      { launchAtLogin: toggle.checked },
-      "launch-save-indicator",
+    const previous = settings[settingKey];
+    const next = toggle.checked;
+    void saveToggleSetting(
+      toggle,
+      settingKey,
+      next,
+      previous,
+      indicatorId,
     );
   });
 }
 
-function setupTomorrowToggleListener(): void {
-  const toggle = document.getElementById(
-    "show-tomorrow-toggle",
-  ) as HTMLInputElement | null;
-  if (!toggle) return;
-
-  toggle.addEventListener("change", () => {
-    void saveSettings(
-      { showTomorrowMeetings: toggle.checked },
-      "tomorrow-save-indicator",
-    );
-  });
+async function saveToggleSetting(
+  toggle: HTMLInputElement,
+  settingKey: ToggleSettingKey,
+  next: boolean,
+  previous: boolean,
+  indicatorId: string,
+): Promise<void> {
+  try {
+    await saveSettings({ [settingKey]: next } as Partial<AppSettings>, indicatorId);
+    if (settings[settingKey] !== next) {
+      revertToggle(toggle, previous);
+    }
+  } catch {
+    revertToggle(toggle, previous);
+  }
 }
 
-function setupAlertToggleListener(): void {
-  const toggle = document.getElementById(
-    "window-alert-toggle",
-  ) as HTMLInputElement | null;
-  if (!toggle) return;
-
-  toggle.addEventListener("change", () => {
-    void saveSettings(
-      { windowAlert: toggle.checked },
-      "alert-save-indicator",
-    );
-  });
+function revertToggle(toggle: HTMLInputElement, previous: boolean): void {
+  toggle.checked = previous;
+  const wrapper = toggle.closest(".toggle-switch");
+  if (wrapper) {
+    wrapper.setAttribute("aria-checked", previous ? "true" : "false");
+  }
 }
 
 async function saveSettings(
@@ -210,6 +225,7 @@ async function saveSettings(
     // Only re-render for dropdown changes — toggles already reflect visual state
     // and a full re-render would cut short the CSS slide animation
     if (partial.openBeforeMinutes !== undefined) {
+      clearSaveIndicatorTimers();
       render();
     }
 
@@ -217,6 +233,7 @@ async function saveSettings(
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to save settings";
+    clearSaveIndicatorTimers();
     render(message);
   } finally {
     isSaving = false;

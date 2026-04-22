@@ -81,11 +81,6 @@ describe("shortcuts", () => {
     expect(globalShortcut.register).toHaveBeenCalledTimes(1);
   });
 
-  it("registers will-quit handler to unregister shortcut", () => {
-    registerShortcuts();
-    expect(app.on).toHaveBeenCalledWith("will-quit", expect.any(Function));
-  });
-
   describe("shortcut handler", () => {
     it("joins the next upcoming meeting when pressed", async () => {
       const { shell } = await import("electron");
@@ -144,42 +139,6 @@ describe("shortcuts", () => {
     });
   });
 
-  describe("will-quit handler", () => {
-    it("unregisters shortcut on will-quit", async () => {
-      // Ensure register returns true so registered flag is set
-      vi.mocked(globalShortcut.register).mockReturnValue(true);
-      registerShortcuts();
-
-      // Get the will-quit callback
-      const willQuitCall = vi.mocked(app.on).mock.calls.find(
-        (call) => call[0] === "will-quit",
-      );
-      expect(willQuitCall).toBeDefined();
-      const willQuitHandler = willQuitCall![1] as () => void;
-
-      willQuitHandler();
-
-      expect(globalShortcut.unregister).toHaveBeenCalledWith(
-        "CmdOrCtrl+Shift+M",
-      );
-    });
-
-    it("does not unregister if registration failed", async () => {
-      vi.mocked(globalShortcut.register).mockReturnValue(false);
-
-      registerShortcuts();
-
-      const willQuitCall = vi.mocked(app.on).mock.calls.find(
-        (call) => call[0] === "will-quit",
-      );
-      expect(willQuitCall).toBeDefined();
-      const willQuitHandler = willQuitCall![1] as () => void;
-
-      willQuitHandler();
-
-      expect(globalShortcut.unregister).not.toHaveBeenCalled();
-    });
-  });
 
   describe("shortcut handler — edge cases", () => {
     it("filters out all-day events", async () => {

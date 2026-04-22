@@ -1,4 +1,4 @@
-import { globalShortcut, app, shell } from "electron";
+import { globalShortcut, shell, dialog } from "electron";
 import { getCalendarEventsResult } from "./calendar.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
 import log from "electron-log";
@@ -33,7 +33,10 @@ export function registerShortcuts(): void {
       }
 
       const url = buildMeetUrl(nextMeeting);
-      if (!url) return;
+      if (!url) {
+        dialog.showErrorBox("GogMeet", "No meeting URL available");
+        return;
+      }
       void shell.openExternal(url);
     } catch (err) {
       log.error("[shortcuts] Failed to join meeting:", err);
@@ -46,11 +49,4 @@ export function registerShortcuts(): void {
   } else {
     log.warn("[shortcuts] Failed to register Cmd+Shift+M");
   }
-
-  app.on("will-quit", () => {
-    if (registered) {
-      globalShortcut.unregister("CmdOrCtrl+Shift+M");
-      registered = false;
-    }
-  });
 }

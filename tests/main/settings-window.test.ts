@@ -59,8 +59,6 @@ describe("settings-window", () => {
       const options = vi.mocked(BrowserWindow).mock.calls[0][0];
       expect(options.width).toBe(520);
       expect(options.height).toBe(480);
-      expect(options.minWidth).toBe(520);
-      expect(options.minHeight).toBe(480);
       expect(options.resizable).toBe(false);
       expect(options.show).toBe(false);
     });

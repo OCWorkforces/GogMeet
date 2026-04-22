@@ -14,12 +14,14 @@ export function scheduleAlertTimer(
   effectiveDelay: number,
   alertTimers: Map<string, ReturnType<typeof setTimeout>>,
   alertFiredEvents: Set<string>,
+  shouldAbort?: () => boolean,
 ): void {
   // Cancel any existing alert timer for this event
   cancelAlertTimer(event.id, alertTimers);
 
   const alertDelayMs = Math.max(0, effectiveDelay - ALERT_OFFSET_MS);
   const alertHandle = setTimeout(() => {
+    if (shouldAbort?.()) return;
     alertTimers.delete(event.id);
     alertFiredEvents.add(event.id);
     try {

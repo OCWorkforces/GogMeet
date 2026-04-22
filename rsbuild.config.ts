@@ -52,6 +52,6 @@ export default defineConfig({
   },
   performance: {
     chunkSplit: { strategy: "all-in-one" },
-    removeConsole: ["log", "info", "warn", "error"],
+    removeConsole: ["log", "debug", "info", "warn", "error", "trace", "table", "dir", "group", "groupEnd", "time", "timeEnd", "count", "assert"],
   },
 });

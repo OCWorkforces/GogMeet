@@ -9,6 +9,9 @@ const TITLE_BEFORE_MS = 30 * 60 * 1000; // 30 minutes
 
 export { TITLE_BEFORE_MS };
 
+/** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
+const cancelledEvents = new Set<string>();
+
 /** Frozen snapshot for title countdown params */
 export interface TitleCountdownParams {
   eventId: string;
@@ -39,6 +42,9 @@ function startCountdown(
   // Guard: bail if event was deleted between titleTimer fire and now
   if (!state.scheduledEventData.has(params.eventId)) return;
 
+  // Clear any stale cancellation marker from prior scheduling cycles
+  cancelledEvents.delete(params.eventId);
+
   state.powerCallbacks?.preventSleep?.();
   tickCountdown(params); // immediate tick so title appears right away — sets ownership via resolveActiveTitleEvent below
   const intervalHandle = setInterval(() => {
@@ -53,6 +59,12 @@ function startCountdown(
 
   const clearHandle = setTimeout(
     () => {
+      // If cancel ran first, skip cleanup to avoid double allowSleep / stale Map mutation
+      if (cancelledEvents.has(params.eventId)) {
+        cancelledEvents.delete(params.eventId);
+        clearTimers.delete(params.eventId);
+        return;
+      }
       // Clear pre-meeting countdown
       const countdown = countdownIntervals.get(params.eventId);
       if (countdown) {
@@ -134,6 +146,7 @@ export function cancelTitleCountdown(
   }
   const existingCountdown = countdownIntervals.get(eventId);
   if (existingCountdown) {
+    cancelledEvents.add(eventId);
     clearInterval(existingCountdown);
     state.powerCallbacks?.allowSleep?.();
     markTitleDirty();

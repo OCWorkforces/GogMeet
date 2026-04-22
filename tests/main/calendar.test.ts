@@ -25,14 +25,7 @@ function makeSwiftLine(
   email?: string,
   notes?: string,
 ): string {
-  const parts = [id, title, start, end, url, calendar, allDay];
-  if (email !== undefined) {
-    parts.push(email);
-  }
-  if (notes !== undefined) {
-    parts.push(notes);
-  }
-  return parts.join("\t");
+  return [id, title, start, end, url, calendar, allDay, email ?? "", notes ?? ""].join("\t");
 }
 
 // Helper to get ISO strings for relative times
