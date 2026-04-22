@@ -1,5 +1,6 @@
 import type { AppSettings } from "../shared/settings.js";
 import type { CalendarPermission, CalendarResult } from "../shared/models.js";
+import type { AlertPayload } from "../shared/alert.js";
 
 declare global {
   interface Window {
@@ -23,7 +24,7 @@ declare global {
         onChanged(callback: (settings: AppSettings) => void): () => void;
       };
       alert: {
-        onShowAlert(callback: (data: { title: string; meetUrl: string }) => void): void;
+        onShowAlert(callback: (data: AlertPayload) => void): () => void;
       };
     };
   }

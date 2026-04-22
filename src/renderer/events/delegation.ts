@@ -9,6 +9,7 @@ export function setupDelegatedEvents(handlers: DelegatedEventHandlers): void {
   if (!container) return;
 
   container.addEventListener("click", (e: MouseEvent) => {
+    // DOM cast: event.target is EventTarget; cast to HTMLElement is standard delegation pattern
     const target = (e.target as HTMLElement).closest<HTMLElement>(
       "[data-action]",
     );

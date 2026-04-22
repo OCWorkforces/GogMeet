@@ -1,11 +1,6 @@
 import "./styles.css";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { AlertPayload } from "../../shared/alert.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
-
-type AlertPayload = Pick<MeetingEvent, "title"> &
-  Partial<Omit<MeetingEvent, "title">> & {
-    meetUrl?: string;
-  };
 
 const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
@@ -93,12 +88,12 @@ function render(data: AlertPayload): void {
     if (!app) return;
 
     const title = escapeHtml(data.title);
-    const calendarName = escapeHtml(data.calendarName ?? "Unknown calendar");
+    const calendarName = escapeHtml(data.calendarName);
     const description = escapeHtml(data.description?.trim() ?? "");
     const timeRange = formatTimeRange(
-      data.startDate ?? "",
-      data.endDate ?? "",
-      data.isAllDay ?? false,
+      data.startDate,
+      data.endDate,
+      data.isAllDay,
     );
 
     app.innerHTML = `
@@ -142,6 +137,7 @@ function setupDelegatedEvents(): void {
   if (!app) return;
 
   app.addEventListener("click", (event: MouseEvent) => {
+    // DOM cast: event.target is EventTarget; cast to HTMLElement is standard delegation pattern
     const target = (event.target as HTMLElement).closest<HTMLElement>(
       "[data-action]",
     );

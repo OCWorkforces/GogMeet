@@ -1,18 +1,13 @@
 import "./styles/main.css";
-import type { MeetingEvent } from "../shared/models.js";
 import type { CalendarPermission } from "../shared/models.js";
+import { isCalendarOk } from "../shared/models.js";
 import type { AppSettings } from "../shared/settings.js";
 import { DEFAULT_SETTINGS } from "../shared/settings.js";
 import { isTomorrow } from "../shared/utils/time.js";
 import { renderBody } from "./rendering/body.js";
 import { setupDelegatedEvents } from "./events/delegation.js";
 
-type AppState =
-  | { type: "loading" }
-  | { type: "no-permission"; retrying: boolean }
-  | { type: "no-events" }
-  | { type: "has-events"; events: MeetingEvent[] }
-  | { type: "error"; message: string };
+import type { AppState } from "../shared/app-state.js";
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -36,8 +31,8 @@ function formatLastUpdated(ts: number): string {
 }
 
 function renderFooter(): string {
+  const label = lastUpdatedAt === null ? "Loading…" : formatLastUpdated(lastUpdatedAt);
   const isLoading = lastUpdatedAt === null;
-  const label = isLoading ? "Loading…" : formatLastUpdated(lastUpdatedAt!);
   const icon = isLoading
     ? ""
     : '<span class="footer-refresh-icon" aria-hidden="true">↻</span>';
@@ -114,7 +109,7 @@ async function loadEvents() {
 
     const result = await window.api.calendar.getEvents();
 
-    if ("error" in result) {
+    if (!isCalendarOk(result)) {
       state = { type: "error", message: result.error };
     } else {
       // Filter events based on settings
@@ -191,6 +186,7 @@ async function init() {
 
   // Keyboard accessibility: Escape closes, Enter/Space activates focused button
   document.addEventListener("keydown", (e: KeyboardEvent) => {
+    // DOM cast: document.activeElement is Element | null; cast to HTMLElement to access .blur()
     const active = document.activeElement as HTMLElement | null;
     switch (e.key) {
       case "Escape":

@@ -1,14 +1,8 @@
-import type { MeetingEvent } from "../../shared/models.js";
 import type { AppSettings } from "../../shared/settings.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
 import { isTomorrow } from "../../shared/utils/time.js";
 
-type AppState =
-  | { type: "loading" }
-  | { type: "no-permission"; retrying: boolean }
-  | { type: "no-events" }
-  | { type: "has-events"; events: MeetingEvent[] }
-  | { type: "error"; message: string };
+import type { AppState } from "../../shared/app-state.js";
 
 function formatRelativeTime(
   startDate: string,

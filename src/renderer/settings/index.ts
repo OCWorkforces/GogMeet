@@ -143,6 +143,7 @@ function clearSaveIndicatorTimers(): void {
 }
 
 function setupSelectListener(): void {
+  // DOM cast: getElementById returns HTMLElement | null; narrow to specific subtype is standard DOM practice
   const select = document.getElementById(
     "open-before-select",
   ) as HTMLSelectElement | null;
@@ -170,6 +171,7 @@ function setupToggleListener(
   settingKey: ToggleSettingKey,
   indicatorId: string,
 ): void {
+  // DOM cast: getElementById returns HTMLElement | null; narrow to specific subtype is standard DOM practice
   const toggle = document.getElementById(toggleId) as HTMLInputElement | null;
   if (!toggle) return;
 
