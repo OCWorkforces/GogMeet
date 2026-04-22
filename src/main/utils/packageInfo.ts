@@ -12,16 +12,15 @@ import { readFileSync } from 'fs';
  * Package.json structure with commonly used fields
  */
 export interface PackageInfo {
-  name: string;
-  productName: string;
-  version: string;
-  description: string;
-  repository: string;
-  homepage: string;
-  author: string;
-  license?: string;
-  main?: string;
-  [key: string]: unknown; // Allow access to other fields
+  readonly name: string;
+  readonly productName: string;
+  readonly version: string;
+  readonly description: string;
+  readonly repository: string;
+  readonly homepage: string;
+  readonly author: string;
+  readonly license?: string;
+  readonly main?: string;
 }
 
 /**
@@ -39,7 +38,29 @@ export function getPackageInfo(): Readonly<PackageInfo> {
     try {
       const pkgPath = path.join(app.getAppPath(), 'package.json');
       const pkgContent = readFileSync(pkgPath, 'utf-8');
-      packageInfo = JSON.parse(pkgContent) as PackageInfo;
+      const parsed = JSON.parse(pkgContent) as Partial<PackageInfo>;
+      if (
+        typeof parsed.name !== 'string' ||
+        typeof parsed.productName !== 'string' ||
+        typeof parsed.version !== 'string' ||
+        typeof parsed.description !== 'string' ||
+        typeof parsed.repository !== 'string' ||
+        typeof parsed.homepage !== 'string' ||
+        typeof parsed.author !== 'string'
+      ) {
+        throw new Error('package.json is missing one or more required fields');
+      }
+      packageInfo = {
+        name: parsed.name,
+        productName: parsed.productName,
+        version: parsed.version,
+        description: parsed.description,
+        repository: parsed.repository,
+        homepage: parsed.homepage,
+        author: parsed.author,
+        ...(parsed.license !== undefined ? { license: parsed.license } : {}),
+        ...(parsed.main !== undefined ? { main: parsed.main } : {}),
+      };
     } catch (error) {
       console.error('[PackageInfo] Failed to load package.json:', error);
       // Return minimal fallback to prevent crashes

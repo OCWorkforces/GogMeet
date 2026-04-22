@@ -1,9 +1,14 @@
+import type { MeetUrl } from "../../shared/brand.js";
+import { asMeetUrl } from "../../shared/brand.js";
+import type { Result } from "../../shared/result.js";
+import { err, ok } from "../../shared/result.js";
+
 /** Allowlisted Meet URL prefixes (preserved for backward-compatible exports) */
 export const MEET_URL_ALLOWLIST = [
   "https://meet.google.com/",
   "https://calendar.google.com/",
   "https://accounts.google.com/",
-] as const;
+] as const satisfies readonly string[];
 
 /** Hostnames derived from the allowlist for strict, parser-based matching. */
 const ALLOWED_HOSTNAMES: readonly string[] = MEET_URL_ALLOWLIST.map((prefix) => {
@@ -20,24 +25,23 @@ const ALLOWED_HOSTNAMES: readonly string[] = MEET_URL_ALLOWLIST.map((prefix) => 
  * - Non-https schemes (http, data, javascript, file, etc.)
  */
 export function isAllowedMeetUrl(url: string): boolean {
-  if (typeof url !== "string" || url.length === 0) return false;
+  return validateMeetUrl(url).ok;
+}
 
-  // Reject case-variant protocols up front (URL parser normalises case,
-  // which would otherwise silently accept "HTTPS://...").
-  if (!url.startsWith("https://")) return false;
-
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
+/**
+ * Structural + allowlist validator that returns a branded {@link MeetUrl} on
+ * success. Used at trust boundaries (Swift parser ingress, IPC handlers) so
+ * the rest of the system can rely on the brand to know a URL has already
+ * cleared every check enforced here.
+ */
+export function validateMeetUrl(url: string): Result<MeetUrl, string> {
+  const branded = asMeetUrl(url);
+  if (!branded.ok) return branded;
+  // asMeetUrl already enforced https://, no credentials, default port.
+  // We only need the hostname-allowlist check here.
+  const parsed = new URL(branded.value);
+  if (!ALLOWED_HOSTNAMES.includes(parsed.hostname)) {
+    return err("MeetUrl hostname is not in the allowlist");
   }
-
-  if (parsed.protocol !== "https:") return false;
-  // Reject embedded credentials: https://evil@meet.google.com/
-  if (parsed.username !== "" || parsed.password !== "") return false;
-  // Reject non-default ports (https default port serialises as empty string).
-  if (parsed.port !== "") return false;
-
-  return ALLOWED_HOSTNAMES.includes(parsed.hostname);
+  return ok(branded.value);
 }
