@@ -1,5 +1,7 @@
 import { getCalendarEventsResult } from "../calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
+import { isCalendarOk } from "../../shared/models.js";
+import { typedSend } from "../ipc-handlers/shared.js";
 
 import {
   state,
@@ -34,12 +36,12 @@ function handleMaxConsecutiveErrors(): void {
 export async function poll(): Promise<void> {
   try {
     const result = await getCalendarEventsResult();
-    if ("events" in result) {
+    if (isCalendarOk(result)) {
       setConsecutiveErrors(0);
       scheduleEvents(result.events);
       // Notify renderer of updated events
       if (state.win && !state.win.isDestroyed()) {
-        state.win.webContents.send(IPC_CHANNELS.CALENDAR_EVENTS_UPDATED);
+        typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, undefined);
       }
     } else {
       console.error("[scheduler] Calendar error:", result.error);
