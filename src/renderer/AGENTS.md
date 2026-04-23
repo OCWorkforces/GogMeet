@@ -55,6 +55,7 @@ src/renderer/
 
 - Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent. Returns cleanup function `() => void`.
 - Shows meeting title, time, description (all escaped)
+- Title uses `-webkit-line-clamp: 2` with `overflow-wrap: anywhere` — allows up to 2 lines, no truncation for long/Vietnamese titles
 - Keyboard: Escape or any key dismisses
 - Error boundary: try/catch around rendering with fallback DOM
 

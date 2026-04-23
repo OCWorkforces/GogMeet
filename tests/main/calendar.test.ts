@@ -512,6 +512,26 @@ describe("cleanDescription", () => {
     const input = "Key points:\n- Item 1\n- Item 2";
     expect(cleanDescription(input)).toBe(input);
   });
+
+  it("strips HTML anchor tags from CalDAV-synced descriptions", () => {
+    const input = "Join meeting: <a href=\"https://meet.google.com/xxx\">https://meet.google.com/xxx</a>";
+    expect(cleanDescription(input)).toBe("Join meeting: https://meet.google.com/xxx");
+  });
+
+  it("strips nested HTML tags, keeps inner text", () => {
+    const input = "<div><b>Agenda:</b> <a href=\"https://example.com\">Details</a></div>";
+    expect(cleanDescription(input)).toBe("Agenda: Details");
+  });
+
+  it("strips <br> and self-closing tags", () => {
+    const input = "Line one<br>Line two<br/>Line three";
+    expect(cleanDescription(input)).toBe("Line oneLine twoLine three");
+  });
+
+  it("strips HTML tags mixed with Outlook artifacts", () => {
+    const input = "-::~:~::~:~::~:~::-\n<a href=\"https://meet.google.com/abc\">Join</a>\n________________________________";
+    expect(cleanDescription(input)).toBe("Join");
+  });
 });
 
 describe("requestCalendarPermission", () => {
