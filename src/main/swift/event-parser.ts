@@ -92,9 +92,17 @@ export function classifySwiftError(err: unknown): SwiftHelperError {
   return new SwiftHelperError("unknown", baseMessage, undefined, stderr);
 }
 
-/** Strip Outlook/Exchange HTML-to-plaintext border artifacts from event notes. */
+/** Strip HTML tags from event notes. CalDAV-synced events (e.g. Google Calendar)
+ *  via macOS Calendar) may contain raw HTML like `<a href="...">link</a>` in the notes field.
+ *  EventKit returns this verbatim; stripping ensures downstream consumers see plain text. */
+function stripHtmlTags(text: string): string {
+  return text.replace(/<[^>]*>/g, "");
+}
+
+/** Strip Outlook/Exchange HTML-to-plaintext border artifacts from event notes,
+ *  and remove any HTML tags present in CalDAV-synced event descriptions. */
 export function cleanDescription(notes: string): string {
-  return notes
+  return stripHtmlTags(notes)
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line) => {
