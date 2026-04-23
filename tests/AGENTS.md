@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 548 tests across 42 files.
+Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 552 tests across 42 files.
 
 ## STRUCTURE
 
@@ -15,7 +15,7 @@ tests/
 │   ├── scheduler-countdown.test.ts        # 491 lines, countdown logic
 │   ├── scheduler-title-countdown.test.ts  # 500 lines, title timers
 │   ├── scheduler-browser-timer.test.ts    # 251 lines, browser auto-open
-│   ├── calendar.test.ts                   # 525 lines, Swift output parsing
+│   ├── calendar.test.ts                   # 557 lines, Swift output parsing + HTML stripping + cleanDescription
 │   ├── swift-binary-manager.test.ts       # 447 lines, binary cache/compile
 │   ├── alert-window.test.ts               # 366 lines, alert queue/race tests
 │   ├── lifecycle.test.ts                  # 212 lines, init/shutdown
@@ -86,7 +86,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 548 tests
+bun run test           # Run all 552 tests
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```

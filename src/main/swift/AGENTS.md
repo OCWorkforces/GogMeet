@@ -51,9 +51,10 @@ Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`
 
 `cleanDescription(notes: string): string`
 
+- Strips HTML tags (e.g. `<a href="...">link</a>`) from CalDAV-synced event notes via internal `stripHtmlTags()` helper
 - Strips Outlook/Exchange HTML-to-plaintext border artifacts (`-::~:~::~:...`)
 - Removes long separator lines (underscores, dashes, asterisks)
-
+- Order: HTML tag stripping → line split → artifact filtering → rejoin
 **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` maps exit codes to typed `SwiftHelperError`.
 
 ## TYPE GUARDS (guards.ts)

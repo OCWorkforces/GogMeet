@@ -129,7 +129,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (548 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (552 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
