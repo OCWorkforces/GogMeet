@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 552 tests across 42 files.
+Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 614 tests across 45 files.
 
 ## STRUCTURE
 
@@ -86,7 +86,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 552 tests
+bun run test           # Run all 614 tests
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```
