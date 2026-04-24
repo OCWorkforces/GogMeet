@@ -89,13 +89,13 @@ export function renderBody(s: AppState, settings: AppSettings): string {
       const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
       const sectionHeader = hasTomorrowEvents ? "Today & Tomorrow" : "Today";
 
-      let html = "";
+      const parts: string[] = [];
       if (upcoming.length > 0) {
-        html += `<p class="section-header">${sectionHeader}</p>`;
+        parts.push(`<p class="section-header">${sectionHeader}</p>`);
         upcoming.forEach((event, i) => {
           const rel = formatRelativeTime(event.startDate, event.endDate);
           const autoJoin = !event.isAllDay && !!event.meetUrl;
-          html += `
+          parts.push(`
             <div class="meeting-item">
               <div class="meeting-item-row">
                 <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
@@ -109,23 +109,23 @@ export function renderBody(s: AppState, settings: AppSettings): string {
                 </span>
               </div>
             </div>
-          `;
+          `);
           if (i < upcoming.length - 1)
-            html += `<div class="meeting-divider"></div>`;
+            parts.push(`<div class="meeting-divider"></div>`);
         });
       }
 
       if (past.length > 0 && upcoming.length === 0) {
-        html += `
+        parts.push(`
           <div class="state-screen">
             <div class="state-icon">✅</div>
             <p class="state-title">All done for today!</p>
             <p class="state-desc">No more upcoming meetings.</p>
           </div>
-        `;
+        `);
       }
 
-      return html;
+      return parts.join("");
     }
   }
 }
