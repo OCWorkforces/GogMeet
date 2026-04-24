@@ -34,13 +34,18 @@ const { initPowerCallbacks } = stateModule;
 const { poll, startScheduler, stopScheduler, restartScheduler, _resetForTest } =
   await import("../../src/main/scheduler/poll.js");
 
-// Access proxy views from state module for reading map state
-const {
-  countdownIntervals,
-  clearTimers,
-  inMeetingIntervals,
-  inMeetingEndTimers,
-} = stateModule;
+// Live references to current state Maps — re-bound in each beforeEach after _resetForTest()
+const { getCountdownIntervals, getClearTimers, getInMeetingIntervals, getInMeetingEndTimers } = stateModule;
+let countdownIntervals = getCountdownIntervals();
+let clearTimers = getClearTimers();
+let inMeetingIntervals = getInMeetingIntervals();
+let inMeetingEndTimers = getInMeetingEndTimers();
+function refreshStateRefs(): void {
+  countdownIntervals = getCountdownIntervals();
+  clearTimers = getClearTimers();
+  inMeetingIntervals = getInMeetingIntervals();
+  inMeetingEndTimers = getInMeetingEndTimers();
+}
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   return {
@@ -62,6 +67,7 @@ describe("poll()", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
@@ -70,6 +76,7 @@ describe("poll()", () => {
 
   afterEach(() => {
     _resetForTest();
+    refreshStateRefs();
     vi.useRealTimers();
     stateModule.state.powerCallbacks = null;
   });
@@ -81,7 +88,7 @@ describe("poll()", () => {
 
     await poll();
 
-    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
   });
 
   it("resets consecutiveErrors to 0 on success with empty events", async () => {
@@ -90,7 +97,7 @@ describe("poll()", () => {
 
     await poll();
 
-    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
   });
 
   it("increments consecutiveErrors on error result", async () => {
@@ -99,10 +106,10 @@ describe("poll()", () => {
     } as never);
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(1);
+    expect(stateModule.getConsecutiveErrors()).toBe(1);
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(stateModule.getConsecutiveErrors()).toBe(2);
   });
 
   it("increments consecutiveErrors on thrown exception", async () => {
@@ -111,7 +118,7 @@ describe("poll()", () => {
     );
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(1);
+    expect(stateModule.getConsecutiveErrors()).toBe(1);
   });
 
   it("does not clear display timers on 1-2 consecutive errors", async () => {
@@ -126,11 +133,11 @@ describe("poll()", () => {
     } as never);
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(1);
+    expect(stateModule.getConsecutiveErrors()).toBe(1);
     expect(countdownIntervals.size).toBe(1);
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(stateModule.getConsecutiveErrors()).toBe(2);
     expect(countdownIntervals.size).toBe(1);
 
     clearInterval(stateModule.state.countdownIntervals.get("evt-1")!);
@@ -164,7 +171,7 @@ describe("poll()", () => {
     await poll();
     await poll();
 
-    expect(stateModule.consecutiveErrors).toBe(3);
+    expect(stateModule.getConsecutiveErrors()).toBe(3);
     expect(countdownIntervals.size).toBe(0);
     expect(clearTimers.size).toBe(0);
     expect(inMeetingIntervals.size).toBe(0);
@@ -209,10 +216,10 @@ describe("poll()", () => {
     await poll();
     // After 2 errors, countdown should still be there
     // (Note: errors >= 3 triggers clear, so at count=2 no clear)
-    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(stateModule.getConsecutiveErrors()).toBe(2);
 
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(3);
+    expect(stateModule.getConsecutiveErrors()).toBe(3);
     expect(countdownIntervals.size).toBe(0);
   });
 
@@ -292,6 +299,7 @@ describe("startScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
@@ -300,6 +308,7 @@ describe("startScheduler", () => {
 
   afterEach(() => {
     _resetForTest();
+    refreshStateRefs();
     vi.useRealTimers();
     stateModule.state.powerCallbacks = null;
   });
@@ -337,6 +346,7 @@ describe("stopScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
@@ -345,6 +355,7 @@ describe("stopScheduler", () => {
 
   afterEach(() => {
     _resetForTest();
+    refreshStateRefs();
     vi.useRealTimers();
     stateModule.state.powerCallbacks = null;
   });
@@ -387,6 +398,7 @@ describe("restartScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
@@ -395,6 +407,7 @@ describe("restartScheduler", () => {
 
   afterEach(() => {
     _resetForTest();
+    refreshStateRefs();
     vi.useRealTimers();
     stateModule.state.powerCallbacks = null;
   });
@@ -426,7 +439,7 @@ describe("_resetForTest", () => {
 
     _resetForTest();
 
-    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
   });
 
   it("resets activeTitleEventId to null", () => {
@@ -434,7 +447,7 @@ describe("_resetForTest", () => {
 
     _resetForTest();
 
-    expect(stateModule.activeTitleEventId).toBeNull();
+    expect(stateModule.getActiveTitleEventId()).toBeNull();
   });
 
   it("resets activeInMeetingEventId to null", () => {
@@ -442,7 +455,7 @@ describe("_resetForTest", () => {
 
     _resetForTest();
 
-    expect(stateModule.activeInMeetingEventId).toBeNull();
+    expect(stateModule.getActiveInMeetingEventId()).toBeNull();
   });
 
   it("clears pollTimeout", () => {
@@ -460,6 +473,7 @@ describe("_resetForTest", () => {
     );
 
     _resetForTest();
+    refreshStateRefs();
 
     expect(countdownIntervals.size).toBe(0);
   });

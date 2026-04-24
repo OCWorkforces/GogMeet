@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron before importing scheduler
 vi.mock("electron", () => {
@@ -40,7 +41,28 @@ const pollModule = await import("../../src/main/scheduler/poll.js");
 const { poll, _resetForTest } = pollModule;
 
 const stateModule = await import("../../src/main/scheduler/state.js");
-const { firedEvents, scheduledEventData, timers, alertTimers, inMeetingIntervals, titleTimers, countdownIntervals, clearTimers, alertFiredEvents, markTitleDirty, initPowerCallbacks } = stateModule;
+const { markTitleDirty, initPowerCallbacks, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+// Live references to current state Maps/Sets — re-bound in each beforeEach after _resetForTest()
+let timers = getTimers();
+let alertTimers = getAlertTimers();
+let titleTimers = getTitleTimers();
+let countdownIntervals = getCountdownIntervals();
+let clearTimers = getClearTimers();
+let inMeetingIntervals = getInMeetingIntervals();
+let firedEvents = getFiredEvents();
+let alertFiredEvents = getAlertFiredEvents();
+let scheduledEventData = getScheduledEventData();
+function refreshStateRefs(): void {
+  timers = getTimers();
+  alertTimers = getAlertTimers();
+  titleTimers = getTitleTimers();
+  countdownIntervals = getCountdownIntervals();
+  clearTimers = getClearTimers();
+  inMeetingIntervals = getInMeetingIntervals();
+  firedEvents = getFiredEvents();
+  alertFiredEvents = getAlertFiredEvents();
+  scheduledEventData = getScheduledEventData();
+}
 const countdownModule = await import("../../src/main/scheduler/countdown.js");
 const { resolveActiveTitleEvent, resolveActiveInMeetingEvent } = countdownModule;
 
@@ -51,19 +73,8 @@ setTrayTitleCallback(mockUpdateTrayTitle);
 const { updateTrayTitle } = await import("../../src/main/tray.js");
 
 
-function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
-  return {
-    id: "test-id",
-    title: "Test Meeting",
-    startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 min from now
-    endDate: new Date(Date.now() + 35 * 60 * 1000).toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
-    userEmail: "user@example.com",
-    ...overrides,
-  };
-}
+const makeEvent = (overrides: Partial<MeetingEvent> = {}): MeetingEvent =>
+  createMockEvent(overrides);
 
 describe("scheduleEvents", () => {
   beforeEach(() => {
@@ -73,6 +84,7 @@ describe("scheduleEvents", () => {
     scheduledEventData.clear();
     countdownIntervals.clear();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
   });
@@ -83,6 +95,7 @@ describe("scheduleEvents", () => {
     scheduledEventData.clear();
     countdownIntervals.clear();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
     stateModule.state.powerCallbacks = null;
   });
@@ -523,12 +536,12 @@ describe("scheduleEvents", () => {
     // 2 errors — tray must still be showing
     await poll();
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(stateModule.getConsecutiveErrors()).toBe(2);
     expect(countdownIntervals.size).toBe(1); // countdown still alive
 
     // 3rd error — tray must clear
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(3);
+    expect(stateModule.getConsecutiveErrors()).toBe(3);
     expect(countdownIntervals.size).toBe(0);
     const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
@@ -548,12 +561,12 @@ describe("scheduleEvents", () => {
 
     await poll();
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(2);
+    expect(stateModule.getConsecutiveErrors()).toBe(2);
 
     // Success — errors reset, tray preserved
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
     await poll();
-    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
     expect(countdownIntervals.size).toBe(1);
 
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
@@ -585,6 +598,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     scheduledEventData.clear();
     countdownIntervals.clear();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
 
@@ -606,6 +620,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     scheduledEventData.clear();
     countdownIntervals.clear();
     _resetForTest();
+    refreshStateRefs();
     stateModule.state.powerCallbacks = null;
   });
 
@@ -649,7 +664,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     await poll();
 
     expect(mockWebContentsSend).not.toHaveBeenCalled();
-    expect(stateModule.consecutiveErrors).toBe(1);
+    expect(stateModule.getConsecutiveErrors()).toBe(1);
   });
 
   it("F5: poll sends IPC after successful fetch with events", async () => {
@@ -660,8 +675,8 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     setSchedulerWindow(mockWindow as never);
     await poll();
 
-    expect(stateModule.consecutiveErrors).toBe(0);
-    expect(stateModule.consecutiveErrors).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
   });
 });
 
@@ -670,12 +685,14 @@ describe("Wave 2: Dirty flag for title resolution", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
   });
   afterEach(() => {
     vi.useRealTimers();
     _resetForTest();
+    refreshStateRefs();
     stateModule.state.powerCallbacks = null;
     vi.mocked(mockUpdateTrayTitle).mockClear();
   });

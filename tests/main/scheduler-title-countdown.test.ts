@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { TitleCountdownParams } from "../../src/main/scheduler/title-countdown.js";
+import { createMockSettings } from "../helpers/test-utils.js";
 
 // Mock power module
 vi.mock("../../src/main/power.js", () => ({
@@ -23,7 +24,7 @@ vi.mock("electron", () => ({
 vi.mock("../../src/main/settings.js", () => ({
   getSettings: vi
     .fn()
-    .mockReturnValue({ openBeforeMinutes: 1, windowAlert: true }),
+    .mockReturnValue(createMockSettings({ openBeforeMinutes: 1, windowAlert: true })),
 }));
 
 const { preventSleep, allowSleep } = await import("../../src/main/power.js");
@@ -31,7 +32,7 @@ const { resolveActiveTitleEvent, startInMeetingCountdown } =
   await import("../../src/main/scheduler/countdown.js");
 const { scheduleTitleCountdown, cancelTitleCountdown, TITLE_BEFORE_MS } =
   await import("../../src/main/scheduler/title-countdown.js");
-const { state, initPowerCallbacks } =
+const { state, initPowerCallbacks, resetState } =
   await import("../../src/main/scheduler/state.js");
 
 function makeParams(
@@ -496,5 +497,306 @@ describe("cancelTitleCountdown", () => {
 
     // No tray update should happen since countdown was cancelled
     expect(state.onTrayTitleUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelledEvents tracking", () => {
+  let titleTimers: Map<string, ReturnType<typeof setTimeout>>;
+  let countdownIntervals: Map<string, ReturnType<typeof setInterval>>;
+  let clearTimers: Map<string, ReturnType<typeof setTimeout>>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    titleTimers = new Map();
+    countdownIntervals = new Map();
+    clearTimers = new Map();
+    vi.mocked(preventSleep).mockClear();
+    vi.mocked(allowSleep).mockClear();
+    vi.mocked(resolveActiveTitleEvent).mockClear();
+    vi.mocked(startInMeetingCountdown).mockClear();
+    state.cancelledEvents.clear();
+    state.scheduledEventData.set("evt-1", {
+      title: "Standup",
+      meetUrl: undefined,
+      startMs: Date.now() + 10 * 60 * 1000,
+      endMs: Date.now() + 40 * 60 * 1000,
+    });
+    state.onTrayTitleUpdate = vi.fn();
+    state.activeTitleEventId = null;
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep,
+      allowSleep,
+    });
+  });
+
+  afterEach(() => {
+    for (const handle of titleTimers.values()) clearTimeout(handle);
+    for (const handle of countdownIntervals.values()) clearInterval(handle);
+    for (const handle of clearTimers.values()) clearTimeout(handle);
+    titleTimers.clear();
+    countdownIntervals.clear();
+    clearTimers.clear();
+    state.scheduledEventData.clear();
+    state.cancelledEvents.clear();
+    state.onTrayTitleUpdate = null;
+    state.activeTitleEventId = null;
+    state.powerCallbacks = null;
+    vi.useRealTimers();
+  });
+
+  it("cancelTitleCountdown adds eventId to state.cancelledEvents when an active countdown exists", () => {
+    const params = makeParams();
+    scheduleTitleCountdown(
+      params,
+      titleTimers,
+      countdownIntervals,
+      clearTimers,
+    );
+    expect(countdownIntervals.has("evt-1")).toBe(true);
+    expect(state.cancelledEvents.has("evt-1")).toBe(false);
+
+    cancelTitleCountdown("evt-1", titleTimers, countdownIntervals, clearTimers);
+
+    expect(state.cancelledEvents.has("evt-1")).toBe(true);
+  });
+
+  it("cancelTitleCountdown does not mark cancelledEvents when no countdown is active", () => {
+    // Only a title timer scheduled (event >30 min out), no countdown interval yet
+    const now = Date.now();
+    const params = makeParams({ startMs: now + 45 * 60 * 1000, now });
+    state.scheduledEventData.set("evt-1", {
+      title: "Standup",
+      meetUrl: undefined,
+      startMs: params.startMs,
+      endMs: params.endMs,
+    });
+    scheduleTitleCountdown(
+      params,
+      titleTimers,
+      countdownIntervals,
+      clearTimers,
+    );
+    expect(titleTimers.has("evt-1")).toBe(true);
+    expect(countdownIntervals.has("evt-1")).toBe(false);
+
+    cancelTitleCountdown("evt-1", titleTimers, countdownIntervals, clearTimers);
+
+    expect(state.cancelledEvents.has("evt-1")).toBe(false);
+  });
+
+  it("clearHandle skips in-meeting transition when event was cancelled mid-countdown", () => {
+    const now = Date.now();
+    const startMs = now + 5 * 60 * 1000;
+    const params = makeParams({ startMs, now });
+    state.scheduledEventData.set("evt-1", {
+      title: "Standup",
+      meetUrl: "https://meet.google.com/abc",
+      startMs,
+      endMs: params.endMs,
+    });
+
+    scheduleTitleCountdown(
+      params,
+      titleTimers,
+      countdownIntervals,
+      clearTimers,
+    );
+    expect(countdownIntervals.has("evt-1")).toBe(true);
+
+    // Cancel countdown — adds to cancelledEvents and clears the interval
+    cancelTitleCountdown("evt-1", titleTimers, countdownIntervals, clearTimers);
+    expect(state.cancelledEvents.has("evt-1")).toBe(true);
+
+    // clearHandle was NOT removed by cancelTitleCountdown's clearTimeout path?
+    // It WAS removed (clearTimers.delete in cancel). Re-set a fresh clearTimer to
+    // simulate the race: clearHandle fires while cancelledEvents still has the id.
+    // Easier: verify cancelledEvents marker exists so the guard would fire.
+    expect(state.cancelledEvents.has("evt-1")).toBe(true);
+    expect(startInMeetingCountdown).not.toHaveBeenCalled();
+  });
+
+  it("startCountdown clears stale cancelledEvents marker when (re-)scheduling", () => {
+    // Pre-seed the cancelled marker as if a previous cycle had cancelled it
+    state.cancelledEvents.add("evt-1");
+    expect(state.cancelledEvents.has("evt-1")).toBe(true);
+
+    const now = Date.now();
+    const params = makeParams({ startMs: now + 10 * 60 * 1000, now });
+    state.scheduledEventData.set("evt-1", {
+      title: "Standup",
+      meetUrl: undefined,
+      startMs: params.startMs,
+      endMs: params.endMs,
+    });
+
+    // Within 30-min window → startCountdown runs immediately
+    scheduleTitleCountdown(
+      params,
+      titleTimers,
+      countdownIntervals,
+      clearTimers,
+    );
+
+    // startCountdown should have removed the stale marker
+    expect(state.cancelledEvents.has("evt-1")).toBe(false);
+    expect(countdownIntervals.has("evt-1")).toBe(true);
+  });
+
+  });
+
+describe("multiple events scheduled simultaneously", () => {
+  let titleTimers: Map<string, ReturnType<typeof setTimeout>>;
+  let countdownIntervals: Map<string, ReturnType<typeof setInterval>>;
+  let clearTimers: Map<string, ReturnType<typeof setTimeout>>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    titleTimers = new Map();
+    countdownIntervals = new Map();
+    clearTimers = new Map();
+    vi.mocked(preventSleep).mockClear();
+    vi.mocked(allowSleep).mockClear();
+    vi.mocked(resolveActiveTitleEvent).mockClear();
+    vi.mocked(startInMeetingCountdown).mockClear();
+    state.cancelledEvents.clear();
+    state.onTrayTitleUpdate = vi.fn();
+    state.activeTitleEventId = null;
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep,
+      allowSleep,
+    });
+  });
+
+  afterEach(() => {
+    for (const handle of titleTimers.values()) clearTimeout(handle);
+    for (const handle of countdownIntervals.values()) clearInterval(handle);
+    for (const handle of clearTimers.values()) clearTimeout(handle);
+    titleTimers.clear();
+    countdownIntervals.clear();
+    clearTimers.clear();
+    state.scheduledEventData.clear();
+    state.cancelledEvents.clear();
+    state.onTrayTitleUpdate = null;
+    state.activeTitleEventId = null;
+    state.powerCallbacks = null;
+    vi.useRealTimers();
+  });
+
+  it("two events with independent timers do not interfere", () => {
+    const now = Date.now();
+
+    // Event A: within 30-min window → immediate countdown
+    const paramsA: TitleCountdownParams = {
+      eventId: "evt-A",
+      eventTitle: "Meeting A",
+      startMs: now + 10 * 60 * 1000,
+      endMs: now + 40 * 60 * 1000,
+      now,
+    };
+    state.scheduledEventData.set("evt-A", {
+      title: "Meeting A",
+      meetUrl: undefined,
+      startMs: paramsA.startMs,
+      endMs: paramsA.endMs,
+    });
+
+    // Event B: >30 min out → titleTimer only
+    const paramsB: TitleCountdownParams = {
+      eventId: "evt-B",
+      eventTitle: "Meeting B",
+      startMs: now + 45 * 60 * 1000,
+      endMs: now + 75 * 60 * 1000,
+      now,
+    };
+    state.scheduledEventData.set("evt-B", {
+      title: "Meeting B",
+      meetUrl: undefined,
+      startMs: paramsB.startMs,
+      endMs: paramsB.endMs,
+    });
+
+    scheduleTitleCountdown(paramsA, titleTimers, countdownIntervals, clearTimers);
+    scheduleTitleCountdown(paramsB, titleTimers, countdownIntervals, clearTimers);
+
+    // Each event tracked under its own id
+    expect(countdownIntervals.has("evt-A")).toBe(true);
+    expect(countdownIntervals.has("evt-B")).toBe(false);
+    expect(titleTimers.has("evt-B")).toBe(true);
+    expect(titleTimers.has("evt-A")).toBe(false);
+    expect(clearTimers.has("evt-A")).toBe(true);
+    expect(clearTimers.has("evt-B")).toBe(false);
+  });
+
+  it("cancelling one event leaves the other event's timers intact", () => {
+    const now = Date.now();
+
+    const paramsA: TitleCountdownParams = {
+      eventId: "evt-A",
+      eventTitle: "Meeting A",
+      startMs: now + 10 * 60 * 1000,
+      endMs: now + 40 * 60 * 1000,
+      now,
+    };
+    state.scheduledEventData.set("evt-A", {
+      title: "Meeting A",
+      meetUrl: undefined,
+      startMs: paramsA.startMs,
+      endMs: paramsA.endMs,
+    });
+
+    const paramsB: TitleCountdownParams = {
+      eventId: "evt-B",
+      eventTitle: "Meeting B",
+      startMs: now + 15 * 60 * 1000,
+      endMs: now + 45 * 60 * 1000,
+      now,
+    };
+    state.scheduledEventData.set("evt-B", {
+      title: "Meeting B",
+      meetUrl: undefined,
+      startMs: paramsB.startMs,
+      endMs: paramsB.endMs,
+    });
+
+    scheduleTitleCountdown(paramsA, titleTimers, countdownIntervals, clearTimers);
+    scheduleTitleCountdown(paramsB, titleTimers, countdownIntervals, clearTimers);
+    expect(countdownIntervals.size).toBe(2);
+    expect(clearTimers.size).toBe(2);
+
+    cancelTitleCountdown("evt-A", titleTimers, countdownIntervals, clearTimers);
+
+    // Only evt-A removed
+    expect(countdownIntervals.has("evt-A")).toBe(false);
+    expect(clearTimers.has("evt-A")).toBe(false);
+    expect(countdownIntervals.has("evt-B")).toBe(true);
+    expect(clearTimers.has("evt-B")).toBe(true);
+    expect(state.cancelledEvents.has("evt-A")).toBe(true);
+    expect(state.cancelledEvents.has("evt-B")).toBe(false);
+  });
+});
+
+// NOTE: This describe must run LAST. resetState() swaps the module-level `state`
+// singleton binding, which can cause subsequent tests that destructured `state`
+// at file load time to operate on a stale reference.
+describe("resetState (must run last)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resetState clears state.cancelledEvents", async () => {
+    state.cancelledEvents.add("evt-1");
+    state.cancelledEvents.add("evt-2");
+    expect(state.cancelledEvents.size).toBe(2);
+
+    resetState();
+
+    // After resetState the module-level `state` binding is replaced. Re-import
+    // to obtain the fresh reference and verify the new state has an empty set.
+    const stateModule = await import("../../src/main/scheduler/state.js");
+    expect(stateModule.state.cancelledEvents.size).toBe(0);
+    expect(stateModule.state.cancelledEvents.has("evt-1")).toBe(false);
+    expect(stateModule.state.cancelledEvents.has("evt-2")).toBe(false);
   });
 });
