@@ -7,7 +7,7 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | File                 | Role                                                                       |
 | -------------------- | -------------------------------------------------------------------------- |
 | `index.ts`           | Central hub: `scheduleEvents()` sets/resets per-event timers               |
-| `state.ts`           | Singleton state with Proxy views over Maps/Sets, dirty flags               |
+| `state.ts`           | Singleton state with typed getter functions over Maps/Sets, dirty flags               |
 | `countdown.ts`       | In-meeting countdown, title resolution                                     |
 | `poll.ts`            | Calendar polling loop, `startScheduler`/`stopScheduler`/`restartScheduler` |
 | `alert-timer.ts`     | `scheduleAlertTimer()` — fires 60s before browser open                     |
@@ -70,17 +70,13 @@ Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callba
   → meeting ends → all timers cleared
 ```
 
-## STATE ARCHITECTURE (state.ts)
+**Getter function pattern**: Module exports a singleton `SchedulerState` object (`state`) and typed getter functions (`getTimers()`, `getAlertTimers()`, etc.) that return the live underlying Maps/Sets. Callers like `getTimers().get(id)` always reflect current state. 14 getter functions: `getTimers`, `getAlertTimers`, `getTitleTimers`, `getCountdownIntervals`, `getClearTimers`, `getInMeetingIntervals`, `getInMeetingEndTimers`, `getScheduledEventData`, `getFiredEvents`, `getAlertFiredEvents`, `getActiveTitleEventId`, `getActiveInMeetingEventId`, `getConsecutiveErrors`, plus `isTitleDirty`, `isInMeetingDirty`.
 
-**Proxy view pattern**: Module exports Proxy-wrapped Maps/Sets with `Reflect.get` for property access over a singleton `SchedulerState` object. 14 typed getter functions (`getTimers()`, `getFiredEvents()`, etc.) provide direct access without unsafe casts. Callers like `timers.get(id)` always reflect current state. WeakMap-cached bound methods: Proxy `get` handler caches `.bind()` results per target, preventing re-binding on every property access. 14 getter functions: `getTimers`, `getAlertTimers`, `getTitleTimers`, `getCountdownIntervals`, `getClearTimers`, `getInMeetingIntervals`, `getInMeetingEndTimers`, `getScheduledEventData`, `getFiredEvents`, `getAlertFiredEvents`, `getActiveTitleEventId`, `getActiveInMeetingEventId`, `getConsecutiveErrors`, plus `isTitleDirty`, `isInMeetingDirty`.
+**Dirty flags**: `titleDirty` and `inMeetingDirty` track when title resolution needs re-run. `markTitleDirty()` / `markInMeetingDirty()` set flags; resolvers clear them after processing.
 
-**Dual scalar export**: Each scalar (`activeTitleEventId`, `activeInMeetingEventId`, `consecutiveErrors`) exists both as a property on `state` AND as a module-level `let`. `syncExportedScalars()` keeps them in sync after `replaceState()`.
+**State primitives**: `setActiveTitleEventId()`, `setActiveInMeetingEventId()`, `setConsecutiveErrors()`, `incrementConsecutiveErrors()` — mutators that directly modify `state` properties.
 
-**Dirty flags**: `titleDirty` and `inMeetingDirty` track when title resolution needs re-run. `markTitleDirty(id)` / `markInMeetingDirty(id)` set flags; resolvers clear them after processing.
-
-**State primitives**: `setActiveTitleEventId()`, `setActiveInMeetingEventId()`, `setConsecutiveErrors()`, `incrementConsecutiveErrors()` — mutators that sync scalars.
-
-**Reset**: `resetState({ preserveWindow? })` clears all resources, replaces with fresh state. `replaceState()` swaps entire state (testing).
+**Reset**: `resetState({ preserveWindow? })` clears all resources via `clearSchedulerResources()`, replaces with fresh state via `replaceState()`. `replaceState()` swaps entire `state` object (testing), preserving `win`/`onTrayTitleUpdate`/`powerCallbacks`.
 
 ## DESIGN DECISIONS
 
