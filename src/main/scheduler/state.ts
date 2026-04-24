@@ -18,6 +18,8 @@ export interface SchedulerState {
   scheduledEventData: Map<string, ScheduledEventSnapshot>;
   firedEvents: Set<string>;
   alertFiredEvents: Set<string>;
+  /** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
+  cancelledEvents: Set<string>;
   activeTitleEventId: string | null;
   activeInMeetingEventId: string | null;
   titleDirty: boolean;
@@ -54,6 +56,7 @@ export function createSchedulerState(): SchedulerState {
     scheduledEventData: new Map<string, ScheduledEventSnapshot>(),
     firedEvents: new Set<string>(),
     alertFiredEvents: new Set<string>(),
+    cancelledEvents: new Set<string>(),
     activeTitleEventId: null,
     activeInMeetingEventId: null,
     titleDirty: false,
@@ -69,107 +72,35 @@ export function createSchedulerState(): SchedulerState {
 
 export let state = createSchedulerState();
 
-/**
- * Live Map view that always reflects the current state.X map even after
- * resetState() / replaceState() swap the underlying state object.
- *
- * Implementation note: uses a Proxy with Reflect.get for dynamic property
- * forwarding — typed without `as unknown as` by relying on Reflect.get's
- * `unknown` return and a narrow downcast for the function-bind path.
- */
-function createMapView<K, V>(getMap: () => Map<K, V>): Map<K, V> {
-  const boundCache = new WeakMap<
-    Map<K, V>,
-    Map<PropertyKey, (...args: unknown[]) => unknown>
-  >();
-  return new Proxy(new Map<K, V>(), {
-    get(_target, prop) {
-      const map = getMap();
-      const value: unknown = Reflect.get(map, prop, map);
-      if (typeof value === "function") {
-        let perTarget = boundCache.get(map);
-        if (!perTarget) {
-          perTarget = new Map();
-          boundCache.set(map, perTarget);
-        }
-        let bound = perTarget.get(prop);
-        if (!bound) {
-          bound = (value as (...args: unknown[]) => unknown).bind(map);
-          perTarget.set(prop, bound);
-        }
-        return bound;
-      }
-      return value;
-    },
-  });
-}
-
-/**
- * Live Set view — see createMapView for rationale.
- */
-function createSetView<T>(getSet: () => Set<T>): Set<T> {
-  const boundCache = new WeakMap<
-    Set<T>,
-    Map<PropertyKey, (...args: unknown[]) => unknown>
-  >();
-  return new Proxy(new Set<T>(), {
-    get(_target, prop) {
-      const set = getSet();
-      const value: unknown = Reflect.get(set, prop, set);
-      if (typeof value === "function") {
-        let perTarget = boundCache.get(set);
-        if (!perTarget) {
-          perTarget = new Map();
-          boundCache.set(set, perTarget);
-        }
-        let bound = perTarget.get(prop);
-        if (!bound) {
-          bound = (value as (...args: unknown[]) => unknown).bind(set);
-          perTarget.set(prop, bound);
-        }
-        return bound;
-      }
-      return value;
-    },
-  });
-}
 
 export function setActiveTitleEventId(eventId: string | null): void {
   state.activeTitleEventId = eventId;
-  activeTitleEventId = eventId;
 }
 
 export function setActiveInMeetingEventId(eventId: string | null): void {
   state.activeInMeetingEventId = eventId;
-  activeInMeetingEventId = eventId;
 }
 
 export function setConsecutiveErrors(value: number): void {
   state.consecutiveErrors = value;
-  consecutiveErrors = value;
 }
 
 export function markTitleDirty(): void {
   state.titleDirty = true;
-  titleDirty = true;
 }
 
 export function markInMeetingDirty(): void {
   state.inMeetingDirty = true;
-  inMeetingDirty = true;
 }
+
+/** Cap to prevent unbounded growth after error handler has already fired */
+const MAX_CONSECUTIVE_ERRORS_CAP = 4;
 
 export function incrementConsecutiveErrors(): void {
-  setConsecutiveErrors(state.consecutiveErrors + 1);
+  const next = state.consecutiveErrors + 1;
+  setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));
 }
 
-export function syncExportedScalars(): void {
-  activeTitleEventId = state.activeTitleEventId;
-  activeInMeetingEventId = state.activeInMeetingEventId;
-  consecutiveErrors = state.consecutiveErrors;
-  titleDirty = state.titleDirty;
-  inMeetingDirty = state.inMeetingDirty;
-}
 
 export function initPowerCallbacks(callbacks: PowerCallbacks): void {
   state.powerCallbacks = callbacks;
@@ -205,6 +136,7 @@ export function clearSchedulerResources(s: SchedulerState): void {
   s.scheduledEventData.clear();
   s.firedEvents.clear();
   s.alertFiredEvents.clear();
+  s.cancelledEvents.clear();
 }
 
 /**
@@ -302,8 +234,13 @@ export function cancelStaleEntries(
 }
 
 export function replaceState(nextState: SchedulerState): void {
-  state = nextState;
-  syncExportedScalars();
+// Clear old timer handles to prevent stale callbacks
+  clearSchedulerResources(state);
+  // Preserve critical refs that should survive state replacement
+  nextState.win = state.win;
+  nextState.onTrayTitleUpdate = state.onTrayTitleUpdate ?? null;
+  nextState.powerCallbacks = state.powerCallbacks ?? null;
+state = nextState;
 }
 
 export function resetState(options?: { preserveWindow?: boolean }): void {
@@ -315,56 +252,14 @@ export function resetState(options?: { preserveWindow?: boolean }): void {
   clearSchedulerResources(state);
 
   const nextState = createSchedulerState();
-  nextState.win = previousWindow;
-  nextState.onTrayTitleUpdate = previousCallback ?? null;
-  nextState.powerCallbacks = previousPowerCallbacks ?? null;
   replaceState(nextState);
+  // Override preserved refs with explicit values (resetState semantics)
+  state.win = previousWindow;
+  state.onTrayTitleUpdate = previousCallback ?? null;
+  state.powerCallbacks = previousPowerCallbacks ?? null;
 }
 
-/** Map of eventId → active open-browser timer handle */
-export const timers = createMapView(() => state.timers);
 
-/** Map of eventId → alert window timer handle (fires 1 min before browser timer) */
-export const alertTimers = createMapView(() => state.alertTimers);
-
-/** Map of eventId → setTimeout handle that fires when the 30-min window opens */
-export const titleTimers = createMapView(() => state.titleTimers);
-
-/** Map of eventId → setInterval handle for the per-minute countdown tick */
-export const countdownIntervals = createMapView(() => state.countdownIntervals);
-
-/** Map of eventId → setTimeout handle that fires at meeting start to clear title */
-export const clearTimers = createMapView(() => state.clearTimers);
-
-/** Map of eventId → setInterval handle for per-minute in-meeting countdown */
-export const inMeetingIntervals = createMapView(() => state.inMeetingIntervals);
-
-/** Map of eventId → setTimeout handle that fires at meeting END */
-export const inMeetingEndTimers = createMapView(() => state.inMeetingEndTimers);
-
-/** Map of eventId → stored event snapshot for change detection */
-export const scheduledEventData = createMapView(() => state.scheduledEventData);
-
-/** Set of eventIds that have already fired (prevents re-fire on refresh) */
-export const firedEvents = createSetView(() => state.firedEvents);
-
-/** Set of eventIds that have already shown an alert (prevents re-show on refresh) */
-export const alertFiredEvents = createSetView(() => state.alertFiredEvents);
-
-/** Which event currently owns the tray title display (null = no countdown active) */
-export let activeTitleEventId: string | null = state.activeTitleEventId;
-
-/** Which event currently owns the in-meeting tray title */
-export let activeInMeetingEventId: string | null = state.activeInMeetingEventId;
-
-/** Counter of consecutive calendar fetch errors — reset to 0 on success */
-export let consecutiveErrors = state.consecutiveErrors;
-
-/** Whether the title resolution needs to re-resolve (countdown set changed) */
-export let titleDirty = state.titleDirty;
-
-/** Whether the in-meeting resolution needs to re-resolve (in-meeting set changed) */
-export let inMeetingDirty = state.inMeetingDirty;
 
 // ---------------------------------------------------------------------------
 // Typed getter functions — preferred API for internal scheduler consumers.

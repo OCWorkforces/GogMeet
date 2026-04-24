@@ -1,18 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { buildMeetUrl } from "../../src/main/utils/meet-url.js";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
-  return {
-    id: "test-id",
-    title: "Test Meeting",
+  // The original meet-url.test.ts factory omitted userEmail; preserve that
+  // semantic so URL-building tests without an explicit email don't get
+  // ?authuser= appended unexpectedly.
+  return createMockEvent({
     startDate: new Date().toISOString(),
     endDate: new Date().toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
+    userEmail: undefined,
     ...overrides,
-  };
+  });
 }
 
 describe("buildMeetUrl", () => {

@@ -22,7 +22,7 @@ import {
   allowSleep,
 } from "./power.js";
 import { updateTrayTitle } from "./tray.js";
-import { getSettings } from "./settings.js";
+import { getSettings, loadSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
 import { checkNotificationPermission } from "./notification.js";
 import { registerShortcuts } from "./shortcuts.js";
@@ -68,6 +68,14 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       if (calendarPerm === "not-determined") {
         console.log("[lifecycle] Calendar permission not determined — requesting...");
         await requestCalendarPermission();
+      }
+    });
+
+    // Ensure settings are loaded before starting scheduler
+    tryRun("loadSettings", () => {
+      const result = loadSettings();
+      if (!result.ok) {
+        console.warn("[lifecycle] Settings load warning:", result.error);
       }
     });
 
