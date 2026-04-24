@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockSettings } from "../helpers/test-utils.js";
 
 // Use vi.hoisted for mock functions used in vi.mock factories
 const {
@@ -177,13 +178,9 @@ describe("lifecycle", () => {
     });
 
     it("syncs auto-launch with launchAtLogin from settings", async () => {
-      mockGetSettings.mockReturnValue({
-        schemaVersion: 1,
-        openBeforeMinutes: 1,
-        launchAtLogin: true,
-        showTomorrowMeetings: true,
-        windowAlert: true,
-      });
+      mockGetSettings.mockReturnValue(
+        createMockSettings({ launchAtLogin: true }),
+      );
 
       await initializeApp(mockWindow);
 
