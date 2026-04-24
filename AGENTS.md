@@ -1,6 +1,6 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-04-22
+**Generated:** 2026-04-24
 **Commit:** 73c9990
 **Branch:** develop
 
@@ -57,7 +57,7 @@ src/
 | Swift binary          | `src/main/swift/binary-manager.ts`            | Hash-based cache, `runSwiftHelper()`    |
 | Scheduler             | `src/main/scheduler/index.ts`                 | Central timer hub                       |
 | Scheduler lifecycle   | `src/main/scheduler/poll.ts`                  | Start/stop/restart                      |
-| Scheduler state       | `src/main/scheduler/state.ts`                 | Proxy views over Maps/Sets              |
+| Scheduler state       | `src/main/scheduler/state.ts`                 | Getter-only API over Maps/Sets/scalars |
 | Scheduler public API  | `src/main/scheduler/facade.ts`                | Single entry point for external consumers |
 | Tray title            | `src/main/tray.ts:119`                        | `updateTrayTitle()`                     |
 | Alert window          | `src/main/alert-window.ts`                    | Full-screen overlay                     |
@@ -82,12 +82,15 @@ src/
 - **Alert window**: Full-screen overlay, singleton, Escape to dismiss
 - **macOS only**: Swift EventKit, dock hiding — no cross-platform
 - **Scheduler imports**: `scheduler/facade.ts` is the sole public interface; external consumers must import from `facade.js`, not `index.js`
+- **Scheduler state access**: All state (Maps, Sets, scalars) accessed via typed getter functions (`getTimers()`, `getActiveTitleEventId()`, etc.) — no direct Proxy views or module-level `let` exports
+- **Renderer string building**: Use `parts.push()` + `.join('')` pattern for meeting list rendering — not `html +=` concatenation
 - **Discriminated unions**: CalendarResult uses `kind: "ok"|"err"` tag, narrow with `isCalendarOk()`
 - **Branded types**: EventId, MeetUrl, IsoUtc — validated at trust boundaries (parser, URL validation)
 - **typedSend()**: All main→renderer push uses `typedSend()` with `isDestroyed()` guard, no raw `webContents.send()`
 - **as const satisfies**: Config objects use `as const satisfies T` for compile-time validation
 - **Result type**: `Result<T,E>` used for fallible operations (settings load, brand validation)
 - **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
+- **Settings eager-load**: `loadSettings()` called during lifecycle init before `startScheduler()` — guarantees cache warm before scheduler polls
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -129,7 +132,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (552 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (614 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
@@ -143,7 +146,9 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Auto-open**: Browser opens 1-5 min before each non-all-day meeting; `?authuser=email` appended
 - **Full-screen alert**: Fires at `openBeforeMinutes + 1` min before meeting (suppresses browser auto-open)
 - **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh)
-- **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 3 scalars, 2 dirty flags (in `scheduler/state.ts`)
+- **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 1 cancelledEvents Set, 5 scalars (activeTitleEventId, activeInMeetingEventId, consecutiveErrors, titleDirty, inMeetingDirty) — all in `SchedulerState` object, accessed via getter functions
+- **replaceState safety**: `replaceState()` clears old timer handles via `clearSchedulerResources()` and preserves `win`/`onTrayTitleUpdate`/`powerCallbacks` from old state
+- **ConsecutiveErrors cap**: `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4) to prevent unbounded growth after error handler fires
 - **Window hide on blur**: Popover hides when focus lost (dev mode exempt)
 - **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts`, all external imports go through `scheduler/facade.ts`
 - **Scheduler pollEpoch**: Race condition guard, stale callbacks from previous scheduler instances are silently discarded
@@ -156,3 +161,4 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **ParseResult**: `parseEvents()` returns `{events, diagnostics[]}` — diagnostics logged via console.warn
 - **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types
 - **AlertPayload**: Unified in shared/alert.ts — single type for alert:show across all 3 processes
+- **Test utilities**: Shared factory functions in `tests/helpers/test-utils.ts` — `createMockEvent()`, `createMockSettings()`, `createMockIpcEvent()`, `isoFromNow()`
