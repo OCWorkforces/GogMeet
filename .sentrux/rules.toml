@@ -7,6 +7,22 @@ max_cycles = 0            # Zero circular dependencies allowed
 max_cc = 25               # Max cyclomatic complexity per function
 no_god_files = true       # No file >500 lines or fan-out >15
 
+# Quality gate — minimum overall quality signal (0-10000 scale)
+# Current: 5860, target: 7000+. Conservative first step.
+[constraints.quality_gate]
+description = "Minimum quality signal threshold"
+minimum_quality_signal = 6000
+
+# Maximum dependency chain depth (current: 14, target: ~10 post-refactor)
+[constraints.max_dependency_depth]
+description = "Maximum dependency chain depth"
+max_depth = 12
+
+# Maximum lines per source file (state.ts was 433, close to limit)
+[constraints.max_file_lines]
+description = "Maximum lines per source file"
+max_lines = 500
+
 # ════════════════════════════════════════════════════════════════
 # LAYER DEFINITIONS (ordered by dependency level)
 # ════════════════════════════════════════════════════════════════
@@ -292,3 +308,29 @@ name = "renderer-alert-no-settings"
 from = "src/renderer/alert"
 to = "src/renderer/settings"
 type = "forbidden"
+
+# ════════════════════════════════════════════════════════════════
+# 9. TEST COVERAGE REQUIREMENTS
+# (critical modules must have corresponding test files)
+# ════════════════════════════════════════════════════════════════
+
+# Scheduler modules must have tests
+[[rules]]
+description = "Scheduler modules must have tests"
+layer = "test"
+pattern = "src/main/scheduler/*.ts"
+requires_test = true
+
+# IPC handlers must have tests
+[[rules]]
+description = "IPC handlers must have tests"
+layer = "test"
+pattern = "src/main/ipc-handlers/*.ts"
+requires_test = true
+
+# Swift bridge must have tests
+[[rules]]
+description = "Swift bridge must have tests"
+layer = "test"
+pattern = "src/main/swift/*.ts"
+requires_test = true
