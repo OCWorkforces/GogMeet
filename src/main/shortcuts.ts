@@ -2,6 +2,7 @@ import { globalShortcut, shell, dialog } from "electron";
 import { getCalendarEventsResult } from "./calendar.js";
 import { isCalendarOk } from "../shared/models.js";
 import { buildMeetUrl } from "./utils/meet-url.js";
+import { getLastKnownEvents } from "./scheduler/facade.js";
 import log from "electron-log";
 
 let registered = false;
@@ -12,7 +13,7 @@ export function registerShortcuts(): void {
   const ret = globalShortcut.register("CmdOrCtrl+Shift+M", async () => {
     log.info("[shortcuts] Cmd+Shift+M pressed — joining next meeting");
     try {
-      const result = await getCalendarEventsResult();
+      const result = getLastKnownEvents() ?? await getCalendarEventsResult();
       if (!isCalendarOk(result)) {
         log.warn("[shortcuts] No calendar access");
         return;
@@ -50,4 +51,9 @@ export function registerShortcuts(): void {
   } else {
     log.warn("[shortcuts] Failed to register Cmd+Shift+M");
   }
+}
+
+export function unregisterShortcuts(): void {
+  globalShortcut.unregisterAll();
+  registered = false;
 }

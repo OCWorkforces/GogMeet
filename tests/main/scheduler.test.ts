@@ -33,6 +33,18 @@ vi.mock("../../src/main/power.js", () => ({
   allowSleep: vi.fn(),
 }));
 
+// Mock settings module — scheduler reads openBeforeMinutes via getSettings()
+vi.mock("../../src/main/settings.js", () => ({
+  getSettings: vi.fn().mockReturnValue({
+    schemaVersion: 1,
+    openBeforeMinutes: 3,
+    launchAtLogin: false,
+    showTomorrowMeetings: true,
+    windowAlert: true,
+  }),
+  loadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
+}));
+
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");

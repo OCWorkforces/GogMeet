@@ -13,4 +13,4 @@ export {
   setTrayTitleCallback,
 } from "./index.js";
 
-export { initPowerCallbacks } from "./state.js";
+export { initPowerCallbacks, getLastKnownEvents } from "./state.js";

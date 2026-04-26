@@ -1,4 +1,5 @@
 import type { BrowserWindow } from "electron";
+import type { CalendarResult } from "../../shared/models.js";
 
 export interface ScheduledEventSnapshot {
   title: string;
@@ -36,6 +37,7 @@ export interface SchedulerState {
       ) => void)
     | null;
   powerCallbacks?: PowerCallbacks | null;
+  lastKnownEvents: CalendarResult | null;
 }
 
 export interface PowerCallbacks {
@@ -67,6 +69,7 @@ export function createSchedulerState(): SchedulerState {
     win: null,
     onTrayTitleUpdate: null,
     powerCallbacks: null,
+    lastKnownEvents: null,
   };
 }
 
@@ -137,6 +140,7 @@ export function clearSchedulerResources(s: SchedulerState): void {
   s.firedEvents.clear();
   s.alertFiredEvents.clear();
   s.cancelledEvents.clear();
+  s.lastKnownEvents = null;
 }
 
 /**
@@ -155,24 +159,24 @@ export function cancelStaleEntries(
   },
 ): void {
   // Browser timers
-  for (const id of s.timers.keys()) {
+  for (const [id, handle] of s.timers) {
     if (!activeIds.has(id)) {
       if (callbacks?.onBrowserCancel) {
         callbacks.onBrowserCancel(id, s.timers);
       } else {
-        clearTimeout(s.timers.get(id)!);
+        clearTimeout(handle);
         s.timers.delete(id);
       }
       console.debug("[scheduler] Cancelled timer for removed event");
     }
   }
   // Alert timers
-  for (const [id] of s.alertTimers) {
+  for (const [id, handle] of s.alertTimers) {
     if (!activeIds.has(id)) {
       if (callbacks?.onAlertCancel) {
         callbacks.onAlertCancel(id, s.alertTimers);
       } else {
-        clearTimeout(s.alertTimers.get(id)!);
+        clearTimeout(handle);
         s.alertTimers.delete(id);
       }
       console.debug("[scheduler] Cancelled alert timer for removed event");
@@ -240,6 +244,7 @@ export function replaceState(nextState: SchedulerState): void {
   nextState.win = state.win;
   nextState.onTrayTitleUpdate = state.onTrayTitleUpdate ?? null;
   nextState.powerCallbacks = state.powerCallbacks ?? null;
+  nextState.lastKnownEvents = state.lastKnownEvents;
 state = nextState;
 }
 
@@ -267,43 +272,43 @@ export function resetState(options?: { preserveWindow?: boolean }): void {
 // current state object even after resetState() / replaceState() swaps it.
 // ---------------------------------------------------------------------------
 
-export function getTimers(): Map<string, ReturnType<typeof setTimeout>> {
+export function getTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
   return state.timers;
 }
 
-export function getAlertTimers(): Map<string, ReturnType<typeof setTimeout>> {
+export function getAlertTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
   return state.alertTimers;
 }
 
-export function getTitleTimers(): Map<string, ReturnType<typeof setTimeout>> {
+export function getTitleTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
   return state.titleTimers;
 }
 
-export function getCountdownIntervals(): Map<string, ReturnType<typeof setInterval>> {
+export function getCountdownIntervals(): ReadonlyMap<string, ReturnType<typeof setInterval>> {
   return state.countdownIntervals;
 }
 
-export function getClearTimers(): Map<string, ReturnType<typeof setTimeout>> {
+export function getClearTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
   return state.clearTimers;
 }
 
-export function getInMeetingIntervals(): Map<string, ReturnType<typeof setInterval>> {
+export function getInMeetingIntervals(): ReadonlyMap<string, ReturnType<typeof setInterval>> {
   return state.inMeetingIntervals;
 }
 
-export function getInMeetingEndTimers(): Map<string, ReturnType<typeof setTimeout>> {
+export function getInMeetingEndTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
   return state.inMeetingEndTimers;
 }
 
-export function getScheduledEventData(): Map<string, ScheduledEventSnapshot> {
+export function getScheduledEventData(): ReadonlyMap<string, ScheduledEventSnapshot> {
   return state.scheduledEventData;
 }
 
-export function getFiredEvents(): Set<string> {
+export function getFiredEvents(): ReadonlySet<string> {
   return state.firedEvents;
 }
 
-export function getAlertFiredEvents(): Set<string> {
+export function getAlertFiredEvents(): ReadonlySet<string> {
   return state.alertFiredEvents;
 }
 
@@ -325,4 +330,8 @@ export function isTitleDirty(): boolean {
 
 export function isInMeetingDirty(): boolean {
   return state.inMeetingDirty;
+}
+
+  export function getLastKnownEvents(): CalendarResult | null {
+  return state.lastKnownEvents;
 }

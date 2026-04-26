@@ -22,10 +22,14 @@ export function scheduleBrowserTimer(
     timers.delete(event.id);
     firedEvents.add(event.id);
     // Always show notification for all meetings
-    new Notification({
-      title: event.title,
-      body: "Starting now",
-    }).show();
+    try {
+      new Notification({
+        title: event.title,
+        body: "Starting now",
+      }).show();
+    } catch {
+      console.warn(`[scheduler] Notification denied for "${event.title}"`);
+    }
     // Open browser for meetings with a URL (alert dismiss doesn't prevent this)
     if (!event.meetUrl) {
       console.log(

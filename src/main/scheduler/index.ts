@@ -85,7 +85,6 @@ function handleInProgressEvent(
 
   // Only clear fired flags if event hasn't fired yet — preserve if already fired
   if (!s.firedEvents.has(event.id)) {
-    s.firedEvents.delete(event.id);
     s.alertFiredEvents.delete(event.id);
   }
 

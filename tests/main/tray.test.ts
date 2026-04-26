@@ -164,4 +164,21 @@ describe("tray module exports", () => {
       expect.any(Function),
     );
   });
+
+  it("registers before-quit handler only once even when setupTray is called multiple times", async () => {
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { app } = await import("electron");
+
+    // Clear accumulated calls from prior tests in this file before counting
+    vi.mocked(app.once).mockClear();
+
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
+    setupTray(mockWindow);           // First call: registers before-quit
+    setupTray(mockWindow);           // Second call: should skip
+
+    const beforeQuitCalls = vi.mocked(app.once).mock.calls.filter(
+      (c: unknown[]) => c[0] === "before-quit",
+    );
+    expect(beforeQuitCalls).toHaveLength(1);
+  });
 });
