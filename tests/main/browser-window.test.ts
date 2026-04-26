@@ -32,6 +32,7 @@ import {
   getPreloadPath,
   loadWindowContent,
   setupCspHeaders,
+  _resetCspForTest,
 } from "../../src/main/utils/browser-window.js";
 
 function makeWindow(): BrowserWindow {
@@ -136,6 +137,7 @@ describe("loadWindowContent", () => {
 describe("setupCspHeaders", () => {
   beforeEach(() => {
     mockOnHeadersReceived.mockReset();
+    _resetCspForTest();
     appState.isPackaged = false;
   });
 

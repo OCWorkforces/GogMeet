@@ -46,11 +46,16 @@ export function loadWindowContent(win: BrowserWindow, page: string): void {
 
 const CSP_BASE = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";
 
+let cspHeadersConfigured = false;
+
 /**
  * Enforce Content-Security-Policy via HTTP response headers for all windows.
  * In dev mode, adds `connect-src` for HMR WebSocket connections.
  */
 export function setupCspHeaders(): void {
+  if (cspHeadersConfigured) return;
+  cspHeadersConfigured = true;
+
   const csp = app.isPackaged
     ? CSP_BASE
     : `${CSP_BASE}; connect-src 'self' ws://localhost:*`;
@@ -63,4 +68,9 @@ export function setupCspHeaders(): void {
       },
     });
   });
+}
+
+/** Reset CSP configuration state — for tests only, not for production use */
+export function _resetCspForTest(): void {
+  cspHeadersConfigured = false;
 }
