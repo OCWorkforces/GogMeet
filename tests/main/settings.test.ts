@@ -27,7 +27,7 @@ import {
 describe("settings", () => {
   const settingsPath = join(MOCK_USER_DATA_PATH, "settings.json");
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset mocks
     vi.clearAllMocks();
 
@@ -38,31 +38,24 @@ describe("settings", () => {
     mkdirSync(MOCK_USER_DATA_PATH, { recursive: true });
 
     // Reset the settings cache by reloading
-    loadSettings();
-  });
-
-  afterEach(() => {
-    // Cleanup temp directory
-    if (existsSync(MOCK_USER_DATA_PATH)) {
-      rmSync(MOCK_USER_DATA_PATH, { recursive: true, force: true });
-    }
+    await loadSettings();
   });
 
   describe("loadSettings", () => {
-    it("returns defaults when no file exists", () => {
+    it("returns defaults when no file exists", async () => {
       // Delete settings file if it exists
       if (existsSync(settingsPath)) {
         rmSync(settingsPath);
       }
 
-      const result = loadSettings();
+      const result = await loadSettings();
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value).toEqual(DEFAULT_SETTINGS);
     });
 
-    it("reads existing file correctly", () => {
+    it("reads existing file correctly", async () => {
       const expectedSettings = {
         openBeforeMinutes: 3,
         launchAtLogin: true,
@@ -74,7 +67,7 @@ describe("settings", () => {
       const fs = require("fs");
       fs.writeFileSync(settingsPath, JSON.stringify(expectedSettings));
 
-      const result = loadSettings();
+      const result = await loadSettings();
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -83,13 +76,13 @@ describe("settings", () => {
       expect(result.value.showTomorrowMeetings).toBe(false);
     });
 
-    it("handles corrupted JSON (returns defaults)", () => {
+    it("handles corrupted JSON (returns defaults)", async () => {
       // Write invalid JSON
       mkdirSync(MOCK_USER_DATA_PATH, { recursive: true });
       const fs = require("fs");
       fs.writeFileSync(settingsPath, "{ not valid json }");
 
-      const result = loadSettings();
+      const result = await loadSettings();
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -101,14 +94,16 @@ describe("settings", () => {
   });
 
   describe("saveSettings", () => {
-    it("persists to disk", () => {
+    it("persists to disk", async () => {
       const settingsToSave = {
         openBeforeMinutes: 4,
         launchAtLogin: true,
         showTomorrowMeetings: true,
+        windowAlert: true,
+        schemaVersion: 1,
       };
 
-      saveSettings(settingsToSave);
+      await saveSettings(settingsToSave);
 
       // Verify file was created and contains correct data
       expect(existsSync(settingsPath)).toBe(true);
@@ -119,12 +114,10 @@ describe("settings", () => {
       expect(saved.openBeforeMinutes).toBe(4);
       expect(saved.launchAtLogin).toBe(true);
       expect(saved.showTomorrowMeetings).toBe(true);
-    });
   });
-  describe("getSettings", () => {
-    it("returns cached copy", () => {
+    it("returns cached copy", async () => {
       // Load to populate cache
-      loadSettings();
+      await loadSettings();
 
       const settings = getSettings();
 
@@ -133,12 +126,12 @@ describe("settings", () => {
   });
 
   describe("updateSettings", () => {
-    it("merges partial, saves, and returns full settings", () => {
+    it("merges partial, saves, and returns full settings", async () => {
       // First, save initial settings
-      saveSettings({ openBeforeMinutes: 2, launchAtLogin: false, showTomorrowMeetings: true });
+      await saveSettings({ openBeforeMinutes: 2, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 });
 
       // Now update with partial
-      const result = updateSettings({ openBeforeMinutes: 4 });
+      const result = await updateSettings({ openBeforeMinutes: 4 });
 
       expect(result.openBeforeMinutes).toBe(4);
       expect(result.launchAtLogin).toBe(false);
@@ -156,23 +149,23 @@ describe("settings", () => {
       expect(cached.openBeforeMinutes).toBe(4);
     });
 
-    it("clamps openBeforeMinutes to 1-5 range (value below min -> 1)", () => {
-      const result = updateSettings({ openBeforeMinutes: 0 });
+    it("clamps openBeforeMinutes to 1-5 range (value below min -> 1)", async () => {
+      const result = await updateSettings({ openBeforeMinutes: 0 });
 
       expect(result.openBeforeMinutes).toBe(OPEN_BEFORE_MINUTES_MIN);
     });
 
-    it("clamps openBeforeMinutes to 1-5 range (value above max -> 5)", () => {
-      const result = updateSettings({ openBeforeMinutes: 10 });
+    it("clamps openBeforeMinutes to 1-5 range (value above max -> 5)", async () => {
+      const result = await updateSettings({ openBeforeMinutes: 10 });
 
       expect(result.openBeforeMinutes).toBe(OPEN_BEFORE_MINUTES_MAX);
     });
 
-    it("ignores unknown properties in partial", () => {
+    it("ignores unknown properties in partial", async () => {
       // TypeScript would catch this at compile time, but runtime test too
       const initial = getSettings();
 
-      const result = updateSettings({
+      const result = await updateSettings({
         openBeforeMinutes: 3,
       });
 
@@ -181,12 +174,12 @@ describe("settings", () => {
       expect(Object.keys(result).sort()).toEqual(["windowAlert", "launchAtLogin", "openBeforeMinutes", "schemaVersion", "showTomorrowMeetings"].sort());
     });
 
-    it("updates launchAtLogin correctly", () => {
+    it("updates launchAtLogin correctly", async () => {
       // Start with default (false)
-      saveSettings({ openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true });
+      await saveSettings({ openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 });
 
       // Enable launch at login
-      const result = updateSettings({ launchAtLogin: true });
+      const result = await updateSettings({ launchAtLogin: true });
 
       expect(result.launchAtLogin).toBe(true);
 
@@ -196,16 +189,16 @@ describe("settings", () => {
       expect(saved.launchAtLogin).toBe(true);
 
       // Disable again
-      const result2 = updateSettings({ launchAtLogin: false });
+      const result2 = await updateSettings({ launchAtLogin: false });
       expect(result2.launchAtLogin).toBe(false);
     });
 
-    it("defaults launchAtLogin to false when not in file", () => {
+    it("defaults launchAtLogin to false when not in file", async () => {
       // Write settings without launchAtLogin
       const fs = require("fs");
       fs.writeFileSync(settingsPath, JSON.stringify({ openBeforeMinutes: 2 }));
 
-      const result = loadSettings();
+      const result = await loadSettings();
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;

@@ -45,7 +45,7 @@ const COMPILE_RETRY_BASE_MS = 1000;
 /** Cap for exponential backoff between compile retries (ms). */
 const COMPILE_RETRY_MAX_MS = 30_000;
 /** Hard timeout for a single swiftc invocation (ms). */
-const SWIFTC_TIMEOUT_MS = 60_000;
+const SWIFTC_TIMEOUT_MS = 20_000;
 
 function logError(error: unknown): void {
   console.error("[binary-manager]", error);

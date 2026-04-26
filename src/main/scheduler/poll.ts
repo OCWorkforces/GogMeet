@@ -32,6 +32,14 @@ function handleMaxConsecutiveErrors(): void {
   );
 }
 
+/** Increment error counter and clear tray if threshold reached */
+function handlePollFailure(): void {
+  incrementConsecutiveErrors();
+  if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    handleMaxConsecutiveErrors();
+  }
+}
+
 /** Poll calendar and refresh timers */
 export async function poll(): Promise<void> {
   try {
@@ -39,23 +47,18 @@ export async function poll(): Promise<void> {
     if (isCalendarOk(result)) {
       setConsecutiveErrors(0);
       scheduleEvents(result.events);
+      state.lastKnownEvents = result;
       // Notify renderer of updated events
       if (state.win && !state.win.isDestroyed()) {
         typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, undefined);
       }
     } else {
       console.error("[scheduler] Calendar error:", result.error);
-      incrementConsecutiveErrors();
-      if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        handleMaxConsecutiveErrors();
-      }
+      handlePollFailure();
     }
   } catch (err) {
     console.error("[scheduler] Poll error:", err);
-    incrementConsecutiveErrors();
-    if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-      handleMaxConsecutiveErrors();
-    }
+    handlePollFailure();
   }
 }
 

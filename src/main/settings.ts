@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "path";
 import {
   DEFAULT_SETTINGS,
@@ -18,13 +18,6 @@ function getSettingsPath(): string {
   return join(userDataPath, "settings.json");
 }
 
-function ensureUserDataDir(): void {
-  const userDataPath = app.getPath("userData");
-  if (!existsSync(userDataPath)) {
-    mkdirSync(userDataPath, { recursive: true });
-  }
-}
-
 function clampOpenBeforeMinutes(value: number): number {
   return Math.max(
     OPEN_BEFORE_MINUTES_MIN,
@@ -32,19 +25,27 @@ function clampOpenBeforeMinutes(value: number): number {
   );
 }
 
-export function loadSettings(): Result<AppSettings, string> {
-  const settingsPath = getSettingsPath();
+function isEnoent(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: unknown }).code === "ENOENT"
+  );
+}
 
-  if (!existsSync(settingsPath)) {
-    settingsCache = { ...DEFAULT_SETTINGS };
-    settingsLoaded = true;
-    return ok(settingsCache);
-  }
+export async function loadSettings(): Promise<Result<AppSettings, string>> {
+  const settingsPath = getSettingsPath();
 
   let raw: string;
   try {
-    raw = readFileSync(settingsPath, "utf-8");
+    raw = await readFile(settingsPath, "utf-8");
   } catch (e) {
+    if (isEnoent(e)) {
+      settingsCache = { ...DEFAULT_SETTINGS };
+      settingsLoaded = true;
+      return ok(settingsCache);
+    }
     settingsCache = { ...DEFAULT_SETTINGS };
     settingsLoaded = true;
     return err(`Failed to read settings file: ${e instanceof Error ? e.message : String(e)}`);
@@ -94,23 +95,24 @@ export function loadSettings(): Result<AppSettings, string> {
   return ok(settingsCache);
 }
 
-export function saveSettings(settings: AppSettings): void {
-  ensureUserDataDir();
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  const userDataPath = app.getPath("userData");
+  await mkdir(userDataPath, { recursive: true });
   const settingsPath = getSettingsPath();
   const raw = JSON.stringify(settings, null, 2);
-  writeFileSync(settingsPath, raw, "utf-8");
+  await writeFile(settingsPath, raw, "utf-8");
 }
 
 export function getSettings(): AppSettings {
   if (!settingsLoaded) {
-    loadSettings();
+    throw new Error("Settings not loaded — loadSettings() must be called during app initialization");
   }
   return { ...settingsCache };
 }
 
-export function updateSettings(partial: Partial<AppSettings>): AppSettings {
+export async function updateSettings(partial: Partial<AppSettings>): Promise<AppSettings> {
   if (!settingsLoaded) {
-    loadSettings();
+    throw new Error("Settings not loaded — loadSettings() must be called during app initialization");
   }
   // Merge with current cache
   const merged: AppSettings = {
@@ -137,9 +139,8 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
   }
 
   // Save and update cache
-  saveSettings(merged);
+  await saveSettings(merged);
   settingsCache = { ...merged };
 
   return getSettings();
 }
-

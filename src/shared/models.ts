@@ -13,6 +13,18 @@ export interface MeetingEvent {
   description?: string; // Event description/notes from macOS Calendar
 }
 
+/**
+ * CalendarResult — domain-specific result for Swift EventKit fetches.
+ *
+ * Intentionally diverges from the generic `Result<T,E>` in result.ts:
+ *  - Uses `kind: "ok"|"err"` (not `ok: boolean`) with an `isCalendarOk()` guard.
+ *  - Models discrete Swift exit codes (permission-denied, no-calendars, error,
+ *    timeout) that map to specific tray menu states and user-facing messages.
+ *
+ * Do not collapse into `Result<MeetingEvent[], CalendarError>`: the shape is
+ * a stable contract across the Swift parser, IPC boundary, and renderer. For
+ * unrelated fallible operations, use `Result<T,E>` from result.ts instead.
+ */
 /** Successful calendar fetch — events available */
 export interface CalendarResultOk {
   kind: "ok";

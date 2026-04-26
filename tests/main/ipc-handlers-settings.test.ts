@@ -43,7 +43,7 @@ describe("registerSettingsHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSettings.mockReturnValue(DEFAULT_SETTINGS);
-    mockUpdateSettings.mockReturnValue(DEFAULT_SETTINGS);
+    mockUpdateSettings.mockResolvedValue(DEFAULT_SETTINGS);
   });
 
   it("registers 2 handlers", () => {
@@ -83,7 +83,7 @@ describe("registerSettingsHandlers", () => {
   describe("settings:set", () => {
     it("updates settings and restarts scheduler", async () => {
       const updated = { ...DEFAULT_SETTINGS, openBeforeMinutes: 3 };
-      mockUpdateSettings.mockReturnValue(updated);
+      mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
@@ -99,7 +99,7 @@ describe("registerSettingsHandlers", () => {
 
     it("syncs auto-launch when launchAtLogin changes", async () => {
       const updated = { ...DEFAULT_SETTINGS, launchAtLogin: true };
-      mockUpdateSettings.mockReturnValue(updated);
+      mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
@@ -127,7 +127,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
       const updated = { ...DEFAULT_SETTINGS, showTomorrowMeetings: false };
-      mockUpdateSettings.mockReturnValue(updated);
+      mockUpdateSettings.mockResolvedValue(updated);
 
       registerSettingsHandlers(mockWin);
       const handler = getRegisteredHandler("settings:set");

@@ -403,14 +403,21 @@ describe("runSwiftHelper", () => {
       .mockRejectedValueOnce(new Error("swiftc fail 2"));
 
     const mod = await loadModule();
-    // Capture rejection via try/catch rather than expect().rejects to avoid
-    // interaction issues between fake timers and async assertions
     const thrownPromise = mod.runSwiftHelper().then(
       () => ({ ok: true as const }),
       (err: Error) => ({ ok: false as const, err }),
     );
+    // runSwiftHelper goes through ~30 async operations before registering the
+    // first sleep() timer (binary fail → cleanup × 2 → ensureBinary again →
+    // mkdir + readFile + access → compileOnce → execFile × 2 → catch → sleep).
+    // advanceTimersByTimeAsync only flushes 1 microtask level before checking
+    // for timers, so pre-flush the queue to ensure sleep() is registered first.
+    for (let f = 0; f < 50; f++) await Promise.resolve();
     for (let i = 0; i < 10; i++) {
       await vi.advanceTimersByTimeAsync(30_000);
+      // Flush between advances so each retry's next sleep() gets registered
+      // before the next advance (each retry needs ~7 microtask ticks).
+      for (let f = 0; f < 15; f++) await Promise.resolve();
     }
     const result = await thrownPromise;
     expect(result.ok).toBe(false);

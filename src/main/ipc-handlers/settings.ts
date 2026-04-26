@@ -8,21 +8,20 @@ import { validateSender, typedHandle, typedSend } from "./shared.js";
 export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
-    (event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
-      if (!validateSender(event)) return getSettings();
+    (_event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
       return getSettings();
     },
   );
 
   typedHandle(
     IPC_CHANNELS.SETTINGS_SET,
-    (
+    async (
       event: IpcMainInvokeEvent,
       partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
-    ): IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET> => {
+    ): Promise<IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET>> => {
       if (!validateSender(event)) return getSettings();
       try {
-        const updated = updateSettings(partial);
+        const updated = await updateSettings(partial);
         restartScheduler(); // Apply new timing immediately
 
         // Sync auto-launch if the setting changed

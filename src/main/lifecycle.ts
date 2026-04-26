@@ -25,7 +25,7 @@ import { updateTrayTitle } from "./tray.js";
 import { getSettings, loadSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
 import { checkNotificationPermission } from "./notification.js";
-import { registerShortcuts } from "./shortcuts.js";
+import { registerShortcuts, unregisterShortcuts } from "./shortcuts.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -51,10 +51,28 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       errors.push(new Error(`${label}: ${error.message}`));
     }
   };
+  const tryRunCritical = (label: string, fn: () => void): void => {
+    try {
+      fn();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error(`[lifecycle] ${label} failed:`, error);
+      throw new Error(`${label}: ${error.message}`);
+    }
+  };
+  const tryRunAsyncCritical = async (label: string, fn: () => Promise<void>): Promise<void> => {
+    try {
+      await fn();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error(`[lifecycle] ${label} failed:`, error);
+      throw new Error(`${label}: ${error.message}`);
+    }
+  };
 
   try {
     tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
-    tryRun("setupTray", () => setupTray(mainWindow, getCalendarEventsResult));
+    tryRunCritical("setupTray", () => setupTray(mainWindow, getCalendarEventsResult));
     tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
     tryRun("setSchedulerWindow", () => setSchedulerWindow(mainWindow));
     tryRun("initPowerCallbacks", () =>
@@ -72,8 +90,8 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     });
 
     // Ensure settings are loaded before starting scheduler
-    tryRun("loadSettings", () => {
-      const result = loadSettings();
+    await tryRunAsyncCritical("loadSettings", async () => {
+      const result = await loadSettings();
       if (!result.ok) {
         console.warn("[lifecycle] Settings load warning:", result.error);
       }
@@ -113,4 +131,5 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
 export function shutdownApp(): void {
   cleanupPowerManagement();
   stopScheduler();
+  unregisterShortcuts();
 }

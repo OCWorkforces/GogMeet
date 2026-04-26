@@ -132,9 +132,17 @@ export function cleanDescription(notes: string): string {
  * — never re-append if a marker is already present (avoids "...ZZ"). */
 function parseIsoUtc(raw: string): Date {
   const trimmed = raw.trim();
-  // Detect existing TZ designator: trailing 'Z' or ±HH:MM offset on time portion
-  const hasTz = /Z$/i.test(trimmed) || /[+\-]\d{2}:?\d{2}$/.test(trimmed);
-  return new Date(hasTz ? trimmed : `${trimmed}Z`);
+  // Detect existing TZ designator: trailing 'Z' or ±HH:MM / ±HHMM offset on time portion
+  const hasTz = /Z$/i.test(trimmed) || /[+-]\d{2}:?\d{2}$/.test(trimmed);
+  const result = new Date(hasTz ? trimmed : `${trimmed}Z`);
+  // Guard: if the ±offset regex matched but produced an invalid Date (e.g. "+99:99"),
+  // strip the bogus offset and reinterpret the datetime as UTC so the caller's
+  // isNaN check can emit a useful diagnostic instead of propagating a silent NaN.
+  if (isNaN(result.getTime()) && hasTz && !/Z$/i.test(trimmed)) {
+    const stripped = trimmed.replace(/[+-]\d{2}:?\d{2}$/, "");
+    return new Date(`${stripped}Z`);
+  }
+  return result;
 }
 
 /** Reason codes for parse diagnostics emitted by {@link parseEvents}. */

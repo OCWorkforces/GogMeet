@@ -16,6 +16,7 @@ import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
+import { getLastKnownEvents } from "./scheduler/facade.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,15 +25,18 @@ let tray: Tray | null = null;
 let themeListener: (() => void) | null = null;
 
 let aboutOpen = false;
+let beforeQuitRegistered = false;
 
 function showAbout(mainWindow: BrowserWindow): void {
   if (aboutOpen) {
-    // Focus the existing about window
-    const existing = BrowserWindow.getAllWindows().find(
-      (w) => w !== mainWindow,
-    );
-    existing?.focus();
-    return;
+    // Focus the existing about window if it's still alive
+    const existing = BrowserWindow.getAllWindows().find((w) => w !== mainWindow);
+    if (existing) {
+      existing.focus();
+      return;
+    }
+    // Window closed without firing 'closed' — reset flag and open a new panel
+    aboutOpen = false;
   }
   aboutOpen = true;
   app.showAboutPanel();
@@ -88,27 +92,42 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
   nativeTheme.on("updated", themeListener);
 
   // Clean up the nativeTheme listener (and tray) on app quit to avoid leaks.
-  app.once("before-quit", destroyTray);
+  if (!beforeQuitRegistered) {
+    beforeQuitRegistered = true;
+    app.once("before-quit", destroyTray);
+  }
 
-  // Left-click → dynamic meeting menu
+  // Left-click → cache-then-refresh meeting menu
   tray.on("click", async () => {
-    const result = await (getEvents ?? getCalendarEventsDefault)();
-    let template: MenuItemConstructorOptions[];
-    if (isCalendarOk(result)) {
-      template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
+    // Show cached events immediately if available
+    const cached = getLastKnownEvents();
+    const cachedEvents = cached && isCalendarOk(cached) ? cached.events : null;
+    if (cachedEvents) {
+      const template = buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
         onAbout: () => showAbout(mainWindow),
         onOpenSettings: () => createSettingsWindow(),
       });
-    } else {
-      template = [
+      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
+    }
+    // Always trigger background refresh
+    const result = await (getEvents ?? getCalendarEventsDefault)();
+    if (isCalendarOk(result) && (!cachedEvents || result.events !== cachedEvents)) {
+      const template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
+        onAbout: () => showAbout(mainWindow),
+        onOpenSettings: () => createSettingsWindow(),
+      });
+      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
+    } else if (!cachedEvents && !isCalendarOk(result)) {
+      // No cache and fetch failed — show error menu
+      const template: MenuItemConstructorOptions[] = [
         { label: "Calendar unavailable", enabled: false },
         { type: "separator" },
         { label: "Settings...", click: () => createSettingsWindow() },
         { label: "About GogMeet", click: () => showAbout(mainWindow) },
         { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
       ];
+      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
     }
-    if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
   });
 }
 
@@ -117,6 +136,7 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
  * Safe to call multiple times.
  */
 export function destroyTray(): void {
+  beforeQuitRegistered = false; // Allow re-registration if tray is recreated
   if (themeListener) {
     nativeTheme.removeListener("updated", themeListener);
     themeListener = null;

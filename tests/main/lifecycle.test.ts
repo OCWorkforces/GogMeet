@@ -12,9 +12,11 @@ const {
   mockSetSchedulerWindow,
   mockSetTrayTitleCallback,
   mockGetSettings,
+  mockLoadSettings,
   mockSyncAutoLaunch,
   mockCheckNotificationPermission,
   mockRegisterShortcuts,
+  mockUnregisterShortcuts,
   mockInitPowerManagement,
   mockCleanupPowerManagement,
   mockGetPollInterval,
@@ -40,9 +42,11 @@ const {
     showTomorrowMeetings: true,
     windowAlert: true,
   }),
+  mockLoadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
   mockSyncAutoLaunch: vi.fn(),
   mockCheckNotificationPermission: vi.fn().mockResolvedValue(undefined),
   mockRegisterShortcuts: vi.fn(),
+  mockUnregisterShortcuts: vi.fn(),
   mockInitPowerManagement: vi.fn(),
   mockCleanupPowerManagement: vi.fn(),
   mockGetPollInterval: vi.fn().mockReturnValue(120000),
@@ -66,6 +70,7 @@ vi.mock("../../src/main/tray.js", () => ({
 
 vi.mock("../../src/main/settings.js", () => ({
   getSettings: mockGetSettings,
+  loadSettings: mockLoadSettings,
 }));
 
 vi.mock("../../src/main/auto-launch.js", () => ({
@@ -78,6 +83,7 @@ vi.mock("../../src/main/notification.js", () => ({
 
 vi.mock("../../src/main/shortcuts.js", () => ({
   registerShortcuts: mockRegisterShortcuts,
+  unregisterShortcuts: mockUnregisterShortcuts,
 }));
 
 vi.mock("../../src/main/power.js", () => ({
@@ -187,6 +193,39 @@ describe("lifecycle", () => {
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(true);
     });
   })
+
+  describe("fail-fast", () => {
+    it("aborts init when setupTray throws (startScheduler not called)", async () => {
+      const electron = await import("electron");
+      mockSetupTray.mockImplementationOnce(() => {
+        throw new Error("tray boom");
+      });
+
+      await initializeApp(mockWindow);
+
+      expect(electron.dialog.showErrorBox).toHaveBeenCalledWith(
+        "GogMeet Startup Error",
+        expect.stringContaining("setupTray"),
+      );
+      expect(electron.app.quit).toHaveBeenCalled();
+      expect(mockStartScheduler).not.toHaveBeenCalled();
+    });
+
+    it("aborts init when loadSettings throws (startScheduler not called)", async () => {
+      const electron = await import("electron");
+      mockLoadSettings.mockRejectedValueOnce(new Error("fs boom"));
+
+      await initializeApp(mockWindow);
+
+      expect(electron.dialog.showErrorBox).toHaveBeenCalledWith(
+        "GogMeet Startup Error",
+        expect.stringContaining("loadSettings"),
+      );
+      expect(electron.app.quit).toHaveBeenCalled();
+      expect(mockStartScheduler).not.toHaveBeenCalled();
+    });
+  });
+
 
   describe("shutdownApp", () => {
     it("calls cleanupPowerManagement and stopScheduler", () => {
