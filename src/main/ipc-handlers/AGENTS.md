@@ -15,6 +15,7 @@ Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.han
 | `calendar.ts` | `registerCalendarHandlers`                                                                                                            | 56    | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS` |
 | `settings.ts` | `registerSettingsHandlers`                                                                                                            | 50    | `SETTINGS_GET`, `SETTINGS_SET` (triggers restartScheduler + syncAutoLaunch + push); imports restartScheduler from scheduler/facade.js (not index.js, circular dep prevention) |
 | `window.ts`   | `registerWindowHandlers`                                                                                                              | 30    | `WINDOW_SET_HEIGHT` (fire-and-forget, clamped 220–480)                             |
+| `scheduler.ts`| `registerSchedulerHandlers`                                                                                                           | —     | `SCHEDULER_FORCE_POLL` (fire-and-forget, `ipcMain.on`, `validateOnSender` → `void forcePoll()`) |
 
 ## PATTERNS
 
@@ -56,6 +57,7 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 | `SETTINGS_GET`                | settings.ts  | invoke                                        |
 | `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                       |
 | `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (clamped)                     |
+| `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`          |
 
 Push channels use `typedSend()` from `shared.ts`:
 

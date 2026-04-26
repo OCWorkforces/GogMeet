@@ -162,7 +162,14 @@ async function loadEvents() {
 
 async function init() {
   setupDelegatedEvents({
-    onLoadEvents: () => void loadEvents(),
+    onForcePoll: () => {
+      window.api.scheduler.forcePoll();
+      // loadEvents() will be triggered by CALENDAR_EVENTS_UPDATED push from main.
+      // For error/no-permission states (no push arrives), also reload directly.
+      if (rs.state.type === 'error' || rs.state.type === 'no-permission') {
+        void loadEvents();
+      }
+    },
     onGrantAccess: () => void grantAccess(),
     onOpenExternal: (url) => window.api.app.openExternal(url),
   });

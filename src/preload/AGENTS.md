@@ -48,6 +48,9 @@ const api = {
       return () => ipcRenderer.off(IPC_CHANNELS.ALERT_SHOW, handler);
     },
   },
+  scheduler: {
+    forcePoll: (): void => ipcRenderer.send(IPC_CHANNELS.SCHEDULER_FORCE_POLL),
+  },
 };
 ```
 

@@ -74,6 +74,10 @@ const api = {
       };
     },
   },
+
+  scheduler: {
+    forcePoll: (): void => ipcRenderer.send(IPC_CHANNELS.SCHEDULER_FORCE_POLL),
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);

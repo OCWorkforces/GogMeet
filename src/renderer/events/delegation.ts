@@ -1,5 +1,5 @@
 export interface DelegatedEventHandlers {
-  onLoadEvents: () => void;
+  onForcePoll: () => void;
   onGrantAccess: () => void;
   onOpenExternal: (url: string) => void;
 }
@@ -19,7 +19,7 @@ export function setupDelegatedEvents(handlers: DelegatedEventHandlers): void {
     switch (action) {
       case "refresh":
       case "retry":
-        handlers.onLoadEvents();
+        handlers.onForcePoll();
         break;
       case "grant-access":
         handlers.onGrantAccess();

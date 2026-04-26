@@ -120,7 +120,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 677 tests
+bun run test           # Run all 677 tests (12 IPC channels)
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```

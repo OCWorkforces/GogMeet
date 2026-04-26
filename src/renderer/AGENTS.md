@@ -40,7 +40,8 @@ src/renderer/
 
 `AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
-- `loadEvents()` fetches via `window.api.calendar.getEvents()`
+- `loadEvents()` fetches via `window.api.calendar.getEvents()` (reads cache; used after CALENDAR_EVENTS_UPDATED push)
+- `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
 - Visibility-aware: pauses refresh when hidden, resumes on show
 - `lastPollTime = Date.now()` prevents redundant fetch on first show
 
