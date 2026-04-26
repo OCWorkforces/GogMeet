@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.8.6",
+  "version": "1.9.0",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
@@ -56,7 +56,10 @@
     "test": "vitest run -c vitest.workspace.ts",
     "test:watch": "vitest -c vitest.workspace.ts",
     "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
-    "clean": "rimraf lib dist"
+    "clean": "rimraf lib dist",
+    "lint": "eslint src/ --cache",
+    "format:check": "prettier --check 'src/**/*.{ts,css}'",
+    "format": "prettier --write 'src/**/*.{ts,css}'"
   },
   "sideEffects": false,
   "type": "module"
