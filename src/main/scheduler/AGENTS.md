@@ -27,6 +27,7 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `setSchedulerWindow`   | `(w: BrowserWindow) => void`       | Injects renderer window for IPC push                    |
 | `setTrayTitleCallback` | `(fn) => void`                     | Decouples scheduler from tray                           |
 
+| `forcePoll`            | `() => Promise<void>`              | Coalesced immediate poll: clears pending setTimeout, bumps pollEpoch, runs poll(), re-arms next tick. 10s coalesce guard prevents thrash. |
 **Import point**: External consumers should import from `facade.js`, which re-exports the public API. Avoid importing from `index.js` directly.
 
 ## CONSTANTS
@@ -110,7 +111,7 @@ poll.ts (uses `typedSend()` instead of raw `webContents.send()` for push channel
   └── state.ts          (consecutive errors, scheduled snapshot)
 
 facade.ts
-  ├── poll.ts           (re-exports startScheduler/stopScheduler/restartScheduler)
+  ├── poll.ts           (re-exports startScheduler/stopScheduler/restartScheduler/forcePoll)
   ├── index.ts          (re-exports scheduleEvents/setSchedulerWindow/setTrayTitleCallback)
   └── state.ts          (re-exports state primitives as needed)
 ```

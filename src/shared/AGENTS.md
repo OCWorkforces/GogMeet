@@ -31,6 +31,8 @@ export const IPC_CHANNELS = {
   SETTINGS_CHANGED: "settings:changed", // push: main → renderer
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated", // push: main → renderer
   ALERT_SHOW: "alert:show", // push: main → renderer
+  SCHEDULER_FORCE_POLL: "scheduler:force-poll", // fire-and-forget: renderer → main
+  ALERT_SHOW: "alert:show", // push: main → renderer
 } as const;
 ```
 

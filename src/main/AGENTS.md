@@ -37,7 +37,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 initializeApp(win):
   loadSettings()             → settings.ts (must be first)
   registerIpcHandlers(win)  → ipc-handlers/ modules
-  setupTray(win)            → tray.ts
+  setupTray(win)            → tray.ts (1 arg; fires forcePoll() in background on click)
   setTrayTitleCallback      → decouples scheduler from tray
   setSchedulerWindow(win)   → scheduler/index.ts
   calendarPermission        → calendar.ts
@@ -87,6 +87,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 | `settings.ts` | `settings:get`, `settings:set`                                                     | + pushes `settings:changed`                           |
 | `app.ts`      | `app:open-external`, `app:get-version`                                             | 2 invoke channels                                     |
 | `window.ts`   | `window:set-height`                                                                | Fire-and-forget (`ipcMain.on`)                        |
+| `scheduler.ts`| `scheduler:force-poll`                                                             | Fire-and-forget (`ipcMain.on`), triggers `forcePoll()` |
 
 **Push channels** (main → renderer): use `typedSend()` from `ipc-handlers/shared.ts` with `isDestroyed()` guard.
 

@@ -25,8 +25,8 @@ src/
 │   ├── lifecycle.ts  # Subsystem init/shutdown orchestration
 │   ├── calendar.ts   # Swift EventKit calendar integration
 │   ├── tray.ts       # System tray icon + menu + meeting context menu
-│   ├── scheduler/    # Auto-launch browser before meetings (8 files)
-│   ├── ipc-handlers/ # IPC handler implementations (5 files)
+│   ├── scheduler/    # Auto-launch browser before meetings (9 files)
+│   ├── ipc-handlers/ # IPC handler implementations (6 files)
 │   ├── swift/         # Swift binary management + event parsing
 │   ├── menu/          # Tray context menu
 │   └── utils/         # Main process utilities
@@ -56,7 +56,7 @@ src/
 | Calendar logic        | `src/main/calendar.ts`                        | Delegates to `swift/`                   |
 | Swift binary          | `src/main/swift/binary-manager.ts`            | Hash-based cache, `runSwiftHelper()`    |
 | Scheduler             | `src/main/scheduler/index.ts`                 | Central timer hub                       |
-| Scheduler lifecycle   | `src/main/scheduler/poll.ts`                  | Start/stop/restart                      |
+| Scheduler lifecycle + forcePoll | `src/main/scheduler/poll.ts`            | Start/stop/restart/forcePoll (10s coalesce) |
 | Scheduler state       | `src/main/scheduler/state.ts`                 | Getter-only API over Maps/Sets/scalars |
 | Scheduler public API  | `src/main/scheduler/facade.ts`                | Single entry point for external consumers |
 | Tray title            | `src/main/tray.ts:119`                        | `updateTrayTitle()`                     |
@@ -68,6 +68,7 @@ src/
 | Shared AppState | `src/shared/app-state.ts` | Extracted from renderer |
 | Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
 | Swift type guards | `src/main/swift/guards.ts` | Runtime type narrowing |
+| Force-poll IPC      | `src/main/ipc-handlers/scheduler.ts`          | `scheduler:force-poll` fire-and-forget → `forcePoll()` |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
 
 ## CONVENTIONS
@@ -145,13 +146,14 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Swift output format**: 9 tab-delimited fields: uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes
 - **Auto-open**: Browser opens 1-5 min before each non-all-day meeting; `?authuser=email` appended
 - **Full-screen alert**: Fires at `openBeforeMinutes + 1` min before meeting (suppresses browser auto-open)
-- **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh)
+- **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh); refresh button and tray click fire `forcePoll()` for immediate re-fetch
 - **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 1 cancelledEvents Set, 5 scalars (activeTitleEventId, activeInMeetingEventId, consecutiveErrors, titleDirty, inMeetingDirty) — all in `SchedulerState` object, accessed via getter functions
 - **replaceState safety**: `replaceState()` clears old timer handles via `clearSchedulerResources()` and preserves `win`/`onTrayTitleUpdate`/`powerCallbacks` from old state
 - **ConsecutiveErrors cap**: `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4) to prevent unbounded growth after error handler fires
 - **Window hide on blur**: Popover hides when focus lost (dev mode exempt)
 - **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts`, all external imports go through `scheduler/facade.ts`
 - **Scheduler pollEpoch**: Race condition guard, stale callbacks from previous scheduler instances are silently discarded
+- **forcePoll coalesce**: `forcePoll()` skips if a poll completed within the last 10s (`FORCE_POLL_COALESCE_MS`); prevents thrash from rapid tray clicks or wake storms
 - **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error
 - **Binary cache**: 0o700 mode for security; 5 retries with exponential backoff (1s to 30s) on compile failure
 - **Sandbox**: `app.enableSandbox()` called before `whenReady()`, all BrowserWindows use `sandbox: true`
@@ -162,3 +164,4 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types
 - **AlertPayload**: Unified in shared/alert.ts — single type for alert:show across all 3 processes
 - **Test utilities**: Shared factory functions in `tests/helpers/test-utils.ts` — `createMockEvent()`, `createMockSettings()`, `createMockIpcEvent()`, `isoFromNow()`
+- **IPC channels**: 12 total (7 invoke, 2 fire-and-forget, 3 push main→renderer)
