@@ -22,7 +22,13 @@ export function isObjectRecord(value: unknown): value is Record<string, unknown>
  * `code`/`stderr`/`message` lazily. Field access still validates each field
  * via `typeof`. */
 export function isExecErrorLike(value: unknown): value is ExecErrorLike {
-  return isObjectRecord(value);
+  if (!isObjectRecord(value)) return false;
+  const e = value as Record<string, unknown>;
+  return (
+    (e["code"] === undefined || typeof e["code"] === "number" || typeof e["code"] === "string") &&
+    (e["stderr"] === undefined || typeof e["stderr"] === "string") &&
+    (e["message"] === undefined || typeof e["message"] === "string")
+  );
 }
 
 /** Read `.stderr` from an unknown error, returning a trimmed non-empty string
