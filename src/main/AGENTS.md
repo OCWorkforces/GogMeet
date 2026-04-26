@@ -35,15 +35,17 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 
 ```
 initializeApp(win):
+  loadSettings()             → settings.ts (must be first)
   registerIpcHandlers(win)  → ipc-handlers/ modules
   setupTray(win)            → tray.ts
   setTrayTitleCallback      → decouples scheduler from tray
   setSchedulerWindow(win)   → scheduler/index.ts
+  calendarPermission        → calendar.ts
   startScheduler()          → scheduler/index.ts
   initPowerManagement(() => restartScheduler())  → power.ts
   registerShortcuts()       → shortcuts.ts
-  syncAutoLaunch()          → auto-launch.ts
   checkNotificationPermission() → notification.ts
+  syncAutoLaunch()          → auto-launch.ts
 
 shutdownApp():
   cleanupPowerManagement()  → power.ts
@@ -115,3 +117,5 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 - Never bundle Swift source inside ASAR — `swiftc` cannot read from ASAR archives (see `asarUnpack` in `electron-builder.yml`)
 - Never bypass `validateSender()` in IPC handlers — every handler must check sender origin
 - Never change `SWIFT_SRC_DEV` relative path without verifying from bundled `lib/main/index.cjs` (see `swift/AGENTS.md`)
+- `index.ts` suppresses Chromium DNS sorter warnings via `app.commandLine.appendSwitch("log-level", "3")` — this filters WARNING-level Chromium messages from VPN/virtual interfaces (Chromium bug 40445828); do NOT remove
+- `settings.ts` migrates legacy `fullScreenAlert` → `windowAlert` key on load — preserve this migration when adding new settings keys

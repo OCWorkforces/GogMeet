@@ -71,6 +71,14 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   };
 
   try {
+    // Ensure settings are loaded before registering IPC handlers
+    await tryRunAsyncCritical("loadSettings", async () => {
+      const result = await loadSettings();
+      if (!result.ok) {
+        console.warn("[lifecycle] Settings load warning:", result.error);
+      }
+    });
+
     tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
     tryRunCritical("setupTray", () => setupTray(mainWindow, getCalendarEventsResult));
     tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
@@ -86,14 +94,6 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       if (calendarPerm === "not-determined") {
         console.log("[lifecycle] Calendar permission not determined — requesting...");
         await requestCalendarPermission();
-      }
-    });
-
-    // Ensure settings are loaded before starting scheduler
-    await tryRunAsyncCritical("loadSettings", async () => {
-      const result = await loadSettings();
-      if (!result.ok) {
-        console.warn("[lifecycle] Settings load warning:", result.error);
       }
     });
 

@@ -1,18 +1,26 @@
 @import "../styles/reset.css";
 
 :root {
-  --surface-elevated: rgba(255, 255, 255, 0.95);
-  --border-subtle: rgba(0, 0, 0, 0.05);
-  --accent-bg: rgba(0, 122, 255, 0.08);
-  --success: #34c759;
-  --success-bg: rgba(52, 199, 89, 0.1);
+  --bg: #0D1017;
+  --surface: rgba(44, 44, 46, 0.85);
+  --surface-elevated: rgba(58, 58, 60, 0.95);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --text-tertiary: #636366;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-bg: rgba(10, 132, 255, 0.1);
+  --success: #30d158;
+  --success-bg: rgba(48, 209, 88, 0.1);
   --radius-sm: 7px;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: rgba(28, 28, 30, 0.94);
+    --bg: #0D1017;
     --surface: rgba(44, 44, 46, 0.85);
     --surface-elevated: rgba(58, 58, 60, 0.95);
     --border: rgba(255, 255, 255, 0.09);
