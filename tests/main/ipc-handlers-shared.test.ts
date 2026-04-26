@@ -15,6 +15,21 @@ describe("validateSender (invoke)", () => {
     expect(validateSender(event)).toBe(true);
   });
 
+  it("rejects path traversal escaping /lib/renderer/ via ..", () => {
+    const event = {
+      senderFrame: { url: "file:///lib/renderer/../../../etc/passwd.html" },
+    } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(false);
+  });
+
+  it("rejects path traversal that retains /lib/renderer/ substring without normalization", () => {
+    // Without path.normalize(), "/path/to/lib/renderer/../../evil.html" would pass .includes() check
+    const event = {
+      senderFrame: { url: "file:///path/to/lib/renderer/../../evil.html" },
+    } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(false);
+  });
+
   it("accepts localhost:5173", () => {
     const event = {
       senderFrame: { url: "http://localhost:5173/" },

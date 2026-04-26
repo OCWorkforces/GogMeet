@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import type { IpcChannelMap, PushChannelMap } from "../../shared/ipc-channels.js";
 
@@ -29,7 +31,7 @@ function validateSenderUrl(senderUrl: string): boolean {
     try {
       const parsed = new URL(senderUrl);
       // Normalize path separators (Windows-safe, though app is macOS-only)
-      const normalizedPath = decodeURIComponent(parsed.pathname).replace(/\\/g, "/");
+      const normalizedPath = path.normalize(decodeURIComponent(parsed.pathname).replace(/\\/g, "/"));
       // Accept only HTML files inside our renderer output directory
       if (
         normalizedPath.includes("/lib/renderer/") &&
