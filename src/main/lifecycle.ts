@@ -12,7 +12,6 @@ import {
 import {
   getCalendarPermissionStatus,
   requestCalendarPermission,
-  getCalendarEventsResult,
 } from "./calendar.js";
 import {
   initPowerManagement,
@@ -80,7 +79,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     });
 
     tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
-    tryRunCritical("setupTray", () => setupTray(mainWindow, getCalendarEventsResult));
+    tryRunCritical("setupTray", () => setupTray(mainWindow));
     tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
     tryRun("setSchedulerWindow", () => setSchedulerWindow(mainWindow));
     tryRun("initPowerCallbacks", () =>

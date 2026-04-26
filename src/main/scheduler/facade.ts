@@ -1,6 +1,7 @@
 // scheduler/facade.ts — single entry point for external consumers
 export {
   poll,
+  forcePoll,
   startScheduler,
   stopScheduler,
   restartScheduler,

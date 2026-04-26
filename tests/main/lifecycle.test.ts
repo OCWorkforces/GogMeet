@@ -126,7 +126,7 @@ describe("lifecycle", () => {
       expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow);
 
       // Tray set up with main window
-      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow, mockGetCalendarEventsResult);
+      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow);
 
       // Scheduler receives tray callback and window reference
       expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(

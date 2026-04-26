@@ -26,6 +26,9 @@ declare global {
       alert: {
         onShowAlert(callback: (data: AlertPayload) => void): () => void;
       };
+      scheduler: {
+        forcePoll(): void;
+      };
     };
   }
 }

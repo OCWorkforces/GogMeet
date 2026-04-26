@@ -20,6 +20,12 @@ import { scheduleEvents } from "./index.js";
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+/** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */
+const FORCE_POLL_COALESCE_MS = 10_000;
+
+/** Timestamp of the last completed poll (used by forcePoll coalesce guard) */
+let lastPollCompletedAt = 0;
+
 /** Clear tray state after too many consecutive poll failures */
 function handleMaxConsecutiveErrors(): void {
   markTitleDirty();
@@ -62,6 +68,47 @@ export async function poll(): Promise<void> {
   }
 }
 
+/**
+ * Force an immediate poll outside the normal schedule.
+ * Cancels the pending setTimeout, runs poll() now, then re-arms the next tick.
+ * Coalesces: no-ops if a poll completed within the last FORCE_POLL_COALESCE_MS.
+ */
+export async function forcePoll(): Promise<void> {
+  const now = Date.now();
+  if (now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
+    console.debug('[scheduler] forcePoll skipped — last poll was <10s ago');
+    return;
+  }
+
+  // Cancel the pending background setTimeout so we don't double-poll
+  if (state.pollTimeout !== null) {
+    clearTimeout(state.pollTimeout);
+    state.pollTimeout = null;
+  }
+
+  // Bump epoch so the old rescheduled callback (if any) no-ops when it fires
+  state.pollEpoch++;
+  const epoch = state.pollEpoch;
+
+  await poll();
+  lastPollCompletedAt = Date.now();
+
+  // Re-arm the next scheduled poll from "now" if the scheduler is still running
+  // Re-arm the next scheduled poll from "now" if the scheduler is still active
+  if (state.pollEpoch === epoch) {
+    function scheduleNextAfterForce(): void {
+      state.pollTimeout = setTimeout(async () => {
+        await poll();
+        lastPollCompletedAt = Date.now();
+        if (state.pollTimeout !== null && state.pollEpoch === epoch) {
+          scheduleNextAfterForce();
+        }
+      }, state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000);
+    }
+    scheduleNextAfterForce();
+  }
+}
+
 /** Start the scheduler — call once from app.whenReady() */
 export function startScheduler(): void {
   if (state.pollTimeout !== null) return; // already running
@@ -77,6 +124,7 @@ export function startScheduler(): void {
   function scheduleNextPoll(): void {
     state.pollTimeout = setTimeout(async () => {
       await poll();
+      lastPollCompletedAt = Date.now();
       if (state.pollTimeout !== null && state.pollEpoch === epoch) {
         scheduleNextPoll();
       }

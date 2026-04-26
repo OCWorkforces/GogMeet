@@ -10,13 +10,12 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type CalendarResult, isCalendarOk } from "../shared/models.js";
-import { getCalendarEventsResult as getCalendarEventsDefault } from "./calendar.js";
+import { isCalendarOk } from "../shared/models.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
-import { getLastKnownEvents } from "./scheduler/facade.js";
+import { getLastKnownEvents, forcePoll } from "./scheduler/facade.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,7 +54,7 @@ function showAbout(mainWindow: BrowserWindow): void {
   });
 }
 
-export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<CalendarResult>): void {
+export function setupTray(mainWindow: BrowserWindow): void {
   // In dev:      __dirname = lib/main/   → ../../src/assets
   // In packaged: __dirname = app.asar/lib/main/ → ../../src/assets (inside asar)
   //
@@ -97,8 +96,8 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
     app.once("before-quit", destroyTray);
   }
 
-  // Left-click → cache-then-refresh meeting menu
-  tray.on("click", async () => {
+  // Left-click → show cached events immediately, then force-poll in background
+  tray.on("click", () => {
     // Show cached events immediately if available
     const cached = getLastKnownEvents();
     const cachedEvents = cached && isCalendarOk(cached) ? cached.events : null;
@@ -108,19 +107,10 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
         onOpenSettings: () => createSettingsWindow(),
       });
       if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
-    }
-    // Always trigger background refresh
-    const result = await (getEvents ?? getCalendarEventsDefault)();
-    if (isCalendarOk(result) && (!cachedEvents || result.events !== cachedEvents)) {
-      const template = buildMeetingMenuTemplate(result.events, getSettings().showTomorrowMeetings, {
-        onAbout: () => showAbout(mainWindow),
-        onOpenSettings: () => createSettingsWindow(),
-      });
-      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
-    } else if (!cachedEvents && !isCalendarOk(result)) {
-      // No cache and fetch failed — show error menu
+    } else {
+      // No cache — show minimal placeholder menu while polling
       const template: MenuItemConstructorOptions[] = [
-        { label: "Calendar unavailable", enabled: false },
+        { label: "Loading…", enabled: false },
         { type: "separator" },
         { label: "Settings...", click: () => createSettingsWindow() },
         { label: "About GogMeet", click: () => showAbout(mainWindow) },
@@ -128,6 +118,8 @@ export function setupTray(mainWindow: BrowserWindow, getEvents?: () => Promise<C
       ];
       if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
     }
+    // Fire force-poll in background — CALENDAR_EVENTS_UPDATED push will refresh the open popover
+    void forcePoll();
   });
 }
 

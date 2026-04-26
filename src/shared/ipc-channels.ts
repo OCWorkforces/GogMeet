@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   SETTINGS_CHANGED: "settings:changed",
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
   ALERT_SHOW: "alert:show",
+  SCHEDULER_FORCE_POLL: "scheduler:force-poll",
 } as const satisfies Record<string, string>;
 
 // ─── Type utilities for IPC ──────────────────────────────────────────────────
