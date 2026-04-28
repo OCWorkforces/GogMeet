@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 677 tests across 48 files.
+Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 723 tests across 50 files.
 
 ## STRUCTURE
 
@@ -13,6 +13,7 @@ tests/
 │   └── test-utils.ts     # Shared factory functions (see TEST HELPERS below)
 ├── main/                 # 39 files, Node environment
 │   ├── scheduler.test.ts                  # 806 lines, state machine (A-F groups)
+|   ├── app-state.test.ts                      # AppState type (18 tests)
 │   ├── scheduler-poll.test.ts             # 480 lines, poll lifecycle
 │   ├── scheduler-countdown.test.ts        # 491 lines, countdown logic
 │   ├── scheduler-title-countdown.test.ts  # 802 lines, title timers
@@ -120,7 +121,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 677 tests (12 IPC channels)
+bun run test           # Run all 723 tests (12 IPC channels)
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```
@@ -131,8 +132,7 @@ Notable areas **not** covered by tests:
 
 - **No integration tests** — no tests spanning main+renderer together, no real EventKit/Swift, no packaged Electron app
 - **`validateSender()` behavior** — `ipc-handlers-shared.test.ts` tests structure but not actual `file://` accept vs `https://` reject behavior
-- **Alert dismiss** — `alert.test.ts` tests `formatTimeRange` but not Escape key dismiss or animation sequence
+- **Alert dismiss** — `alert.test.ts` tests `formatTimeRange` and basic rendering but not Escape key dismiss or full animation sequence
 - **Auto-updater full flow** — download, install, relaunch lifecycle not exercised
-- **Power save blocker lifecycle** — `power.test.ts` tests poll intervals but not `powerSaveBlocker.start/stop`
-- **`src/shared/app-state.ts`** — AppState type not tested in isolation
+- **Power save blocker lifecycle** — `power.test.ts` covers `preventSleep`/`allowSleep` ref-counting but not raw `powerSaveBlocker.start/stop` internals
 - **Scheduler title-countdown ordering** — `scheduler-title-countdown.test.ts:780-782` contains a NOTE: the `resetState()` describe group MUST run last (swaps module-level singleton binding, breaking earlier tests that destructured state at file load time)

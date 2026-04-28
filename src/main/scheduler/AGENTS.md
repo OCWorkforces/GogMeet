@@ -9,11 +9,11 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `index.ts`           | Central hub: `scheduleEvents()` sets/resets per-event timers               |
 | `state.ts`           | Singleton state with typed getter functions over Maps/Sets, dirty flags               |
 | `countdown.ts`       | In-meeting countdown, title resolution                                     |
-| `poll.ts`            | Calendar polling loop, `startScheduler`/`stopScheduler`/`restartScheduler` |
+| `poll.ts`            | Calendar polling loop, `startScheduler`/`stopScheduler`/`restartScheduler`; emits `meeting-list-updated` via `mainBus` after each successful poll |
 | `alert-timer.ts`     | `scheduleAlertTimer()` — fires 60s before browser open                     |
 | `browser-timer.ts`   | `scheduleBrowserTimer()` — browser open + Notification                     |
 | `title-countdown.ts` | `scheduleTitleCountdown()` — 30-min window title timer                     |
-| `facade.ts`          | Single public interface for external consumers (re-exports from poll.ts and index.ts) |
+| `facade.ts`          | Single public interface for external consumers (re-exports from poll.ts, index.ts, state.ts) |
 
 ## PUBLIC API
 

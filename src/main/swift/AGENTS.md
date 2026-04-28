@@ -4,58 +4,65 @@ Manages the Swift EventKit helper binary lifecycle and parses its output into ty
 
 ## FILES
 
-| File                | Role                                                                   |
-| ------------------- | ---------------------------------------------------------------------- |
-| `binary-manager.ts` | Compile, cache, and run the Swift helper with hash-based recompilation |
-| `event-parser.ts`   | Parse 9-field tab-delimited Swift output into `MeetingEvent[]`         |
-| `guards.ts`         | Runtime type guards for Swift output fields, eliminates unsafe `as` casts |
+| File                   | Role                                                                   |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `binary-manager.ts`    | Orchestration: `ensureBinary()`, `runSwiftHelper()`, re-exports        |
+| `binary-cache.ts`      | Cache paths, hash compute/verify, Swift source resolution, secure dir  |
+| `binary-compiler.ts`   | swiftc invocation, retry with exponential backoff (5 retries, 1s→30s)  |
+| `event-parser.ts`      | `parseEvents()`, `ParseResult`, re-exports from sub-modules            |
+| `event-field-parser.ts`| Per-field extractors (uid, title, url, dates, allDay, email, notes)    |
+| `event-validator.ts`   | ISO parsing, diagnostics, Swift error classification (`classifySwiftError`) |
+| `guards.ts`            | Runtime type guards for Swift output fields, eliminates unsafe `as` casts |
 
-## BINARY LIFECYCLE (binary-manager.ts)
+## BINARY LIFECYCLE
 
-1. `runSwiftHelper()` → `ensureBinary()` → check hash → compile if needed → execute
-2. On failure: delete binary + hash → recompile → retry up to 5 times with exponential backoff (1s→30s)
-3. Binary cached in OS temp dir (`$TMPDIR/googlemeet/googlemeet-events`)
-4. Hash stored alongside binary (`source.hash`) — only recompiles when Swift source changes
-5. Cache directory created with mode `0o700` (owner-only access)
-6. Binary hash verified before execution; recompiled on mismatch
-7. On compile timeout: SIGTERM → 5s grace → SIGKILL
+```
+runSwiftHelper()  →  ensureBinary()  →  binary-cache: check hash
+                                      → binary-compiler: compile if needed (5 retries, exp backoff)
+                                      → execute binary, verify stdout
+```
+
+1. Cache directory created with mode `0o700` (owner-only)
+2. Hash stored alongside binary (`source.hash`) — recompiles on source change only
+3. Binary hash verified before execution; recompiled on mismatch
+4. On compile timeout: SIGTERM → 5s grace → SIGKILL
+5. 5 retries with exponential backoff (1s→30s)
 
 ### Path Resolution
 
 ```
-Dev:     lib/main/index.cjs → __dirname → ../../src/main/googlemeet-events.swift
-Prod:    process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift
+Dev:   lib/main/index.cjs → __dirname → ../../src/main/googlemeet-events.swift
+Prod:  process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift
 ```
 
 **CRITICAL**: `SWIFT_SRC_DEV` uses `../..` (2 levels up from `lib/main/`), NOT `../../..`. The rslib bundler flattens `src/main/swift/` into `lib/main/index.cjs`, reducing directory depth by 1 level.
 
-### Compilation
+### Compilation (binary-compiler.ts)
 
 - Architecture-aware target: `arm64-apple-macosx11.0` or `x86_64-apple-macosx11.0`
 - Flags: `-Osize -whole-module-optimization`
 - Fallback with explicit SDK path for CI environments
 - `strip -x -S` removes debug symbols (optional)
 
-## PARSING (event-parser.ts)
+## PARSING (event-parser.ts + event-field-parser.ts + event-validator.ts)
 
 `parseEvents(raw: string): ParseResult`
 
 Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`.
 
-- `ParseDiagnostic` has `line`, `reason` (`malformed_field_count`, `invalid_iso`, `unknown_calendar`, etc.), `raw`
+- `ParseDiagnostic` has `line`, `reason` (`malformed_field_count`, `invalid_iso`, etc.), `raw`
 - Diagnostics logged via `console.warn` by `calendar.ts` consumer
-- Splits on newlines → tab-delimited fields (9 required, strict, lines with fewer fields rejected with diagnostic)
-- Branded outputs: `parseEvents` produces branded `EventId`, `MeetUrl`, `IsoUtc` fields via validators from `shared/brand.ts`
-- Filters: valid dates, today+tomorrow only, deduplicates by UID
-- Sorts by startDate ascending
+- Splits on newlines → tab-delimited fields (9 required, strict)
+- Branded outputs: `EventId`, `MeetUrl`, `IsoUtc` via validators from `shared/brand.ts`
+- Filters: valid dates, today+tomorrow only, deduplicates by UID, sorts by startDate ascending
 
 `cleanDescription(notes: string): string`
 
-- Strips HTML tags (e.g. `<a href="...">link</a>`) from CalDAV-synced event notes via internal `stripHtmlTags()` helper
-- Strips Outlook/Exchange HTML-to-plaintext border artifacts (`-::~:~::~:...`)
+- Strips HTML tags from CalDAV-synced event notes via `stripHtmlTags()`
+- Strips Outlook/Exchange HTML-to-plaintext border artifacts
 - Removes long separator lines (underscores, dashes, asterisks)
-- Order: HTML tag stripping → line split → artifact filtering → rejoin
-**Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` maps exit codes to typed `SwiftHelperError`.
+
+**Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` in `event-validator.ts` maps exit codes to typed `SwiftHelperError`.
 
 ## TYPE GUARDS (guards.ts)
 
@@ -66,7 +73,7 @@ Runtime narrowing functions:
 - `getErrorStderr(v)`: safe stderr extraction
 - `isStringTupleOfLength<N>(arr, n)`: recursive `BuildStringTuple` for `noUncheckedIndexedAccess`
 
-Eliminates 3 unsafe `as` casts from `event-parser.ts` and `calendar.ts`.
+Eliminates unsafe `as` casts from `event-parser.ts` and `calendar.ts`.
 
 ## ANTI-PATTERNS
 

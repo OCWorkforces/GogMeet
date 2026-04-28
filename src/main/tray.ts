@@ -10,18 +10,21 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isCalendarOk } from "../shared/models.js";
+import type { MeetingEvent } from "../shared/models.js";
 import { createSettingsWindow } from "./settings-window.js";
 import { getSettings } from "./settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
-import { getLastKnownEvents, forcePoll } from "./scheduler/facade.js";
+import { forcePoll } from "./scheduler/facade.js";
+import { mainBus } from "./events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 let tray: Tray | null = null;
+let cachedMeetings: MeetingEvent[] | null = null;
 let themeListener: (() => void) | null = null;
+let meetingsListener: ((events: MeetingEvent[]) => void) | null = null;
 
 let aboutOpen = false;
 let beforeQuitRegistered = false;
@@ -96,11 +99,18 @@ export function setupTray(mainWindow: BrowserWindow): void {
     app.once("before-quit", destroyTray);
   }
 
+  // Subscribe to meeting list updates (decoupled from scheduler module)
+  if (!meetingsListener) {
+    meetingsListener = (events: MeetingEvent[]): void => {
+      cachedMeetings = events;
+    };
+    mainBus.on("meeting-list-updated", meetingsListener);
+  }
+
   // Left-click → show cached events immediately, then force-poll in background
   tray.on("click", () => {
     // Show cached events immediately if available
-    const cached = getLastKnownEvents();
-    const cachedEvents = cached && isCalendarOk(cached) ? cached.events : null;
+    const cachedEvents = cachedMeetings;
     if (cachedEvents) {
       const template = buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
         onAbout: () => showAbout(mainWindow),
@@ -128,6 +138,11 @@ export function setupTray(mainWindow: BrowserWindow): void {
  * Safe to call multiple times.
  */
 export function destroyTray(): void {
+  if (meetingsListener) {
+    mainBus.off("meeting-list-updated", meetingsListener);
+    meetingsListener = null;
+  }
+  cachedMeetings = null;
   beforeQuitRegistered = false; // Allow re-registration if tray is recreated
   if (themeListener) {
     nativeTheme.removeListener("updated", themeListener);

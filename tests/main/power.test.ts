@@ -146,3 +146,94 @@ describe("power", () => {
     });
   });
 });
+
+describe("power — extended powerSaveBlocker lifecycle", () => {
+  beforeEach(() => {
+    _resetSleepBlocker();
+    vi.mocked(powerSaveBlocker.start).mockReset();
+    vi.mocked(powerSaveBlocker.start).mockReturnValue(1);
+    vi.mocked(powerSaveBlocker.stop).mockReset();
+  });
+
+  it("powerSaveBlocker.start receives 'prevent-display-sleep' arg exactly", () => {
+    preventSleep();
+    expect(powerSaveBlocker.start).toHaveBeenCalledWith("prevent-display-sleep");
+  });
+
+  it("ref count 0 → 1: start invoked once on first preventSleep", () => {
+    expect(isSleepPrevented()).toBe(false);
+    preventSleep();
+    expect(powerSaveBlocker.start).toHaveBeenCalledTimes(1);
+    expect(isSleepPrevented()).toBe(true);
+  });
+
+  it("ref count 1 → 2: start NOT invoked again on second preventSleep", () => {
+    preventSleep();
+    vi.mocked(powerSaveBlocker.start).mockClear();
+    preventSleep();
+    expect(powerSaveBlocker.start).not.toHaveBeenCalled();
+    expect(isSleepPrevented()).toBe(true);
+  });
+
+  it("allowSleep does NOT call stop until ref count hits 0 (3→2→1→0)", () => {
+    preventSleep();
+    preventSleep();
+    preventSleep();
+    allowSleep();
+    expect(powerSaveBlocker.stop).not.toHaveBeenCalled();
+    allowSleep();
+    expect(powerSaveBlocker.stop).not.toHaveBeenCalled();
+    allowSleep();
+    expect(powerSaveBlocker.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("allowSleep passes the original blocker id returned by start", () => {
+    vi.mocked(powerSaveBlocker.start).mockReturnValue(42);
+    preventSleep();
+    allowSleep();
+    expect(powerSaveBlocker.stop).toHaveBeenCalledWith(42);
+  });
+
+  it("allowSleep with no prior preventSleep is a graceful no-op", () => {
+    expect(() => allowSleep()).not.toThrow();
+    expect(powerSaveBlocker.stop).not.toHaveBeenCalled();
+    expect(isSleepPrevented()).toBe(false);
+  });
+
+  it("multiple unmatched allowSleep calls remain no-ops", () => {
+    allowSleep();
+    allowSleep();
+    allowSleep();
+    expect(powerSaveBlocker.stop).not.toHaveBeenCalled();
+    expect(isSleepPrevented()).toBe(false);
+  });
+
+  it("preventSleep recovers gracefully when powerSaveBlocker.start throws", () => {
+    vi.mocked(powerSaveBlocker.start).mockImplementationOnce(() => {
+      throw new Error("blocker init failed");
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => preventSleep()).not.toThrow();
+    expect(isSleepPrevented()).toBe(false);
+    // Subsequent preventSleep can still establish a blocker (refCount rolled back)
+    preventSleep();
+    expect(isSleepPrevented()).toBe(true);
+
+    errSpy.mockRestore();
+  });
+
+  it("allowSleep recovers gracefully when powerSaveBlocker.stop throws", () => {
+    vi.mocked(powerSaveBlocker.stop).mockImplementationOnce(() => {
+      throw new Error("blocker stop failed");
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    preventSleep();
+    expect(() => allowSleep()).not.toThrow();
+    // After failed stop, blockerId is cleared so isSleepPrevented reports false
+    expect(isSleepPrevented()).toBe(false);
+
+    errSpy.mockRestore();
+  });
+});
