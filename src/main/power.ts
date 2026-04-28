@@ -1,5 +1,7 @@
 import { powerMonitor, powerSaveBlocker } from "electron";
 
+import { mainBus } from "./events.js";
+
 const BASE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
 export function isOnBattery(): boolean {
@@ -13,6 +15,22 @@ export function getPollInterval(): number {
 export function initPowerManagement(onChange: () => void): void {
   powerMonitor.on("on-battery", onChange);
   powerMonitor.on("on-ac", onChange);
+}
+
+/**
+ * Register power-state event publishers on the main event bus.
+ *
+ * Separate from {@link initPowerManagement} so the existing `onChange`
+ * registration semantics (and tests) remain unchanged. Call once at
+ * lifecycle init alongside `initPowerManagement`.
+ */
+export function initPowerEvents(): void {
+  powerMonitor.on("on-battery", () => {
+    mainBus.emit("power-state-changed", { onAC: false });
+  });
+  powerMonitor.on("on-ac", () => {
+    mainBus.emit("power-state-changed", { onAC: true });
+  });
 }
 
 export function cleanupPowerManagement(): void {

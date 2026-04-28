@@ -111,3 +111,293 @@ describe("alert event delegation", () => {
     expect(action).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extended coverage: Escape key dismiss, alert:show IPC push DOM update,
+// and duplicate-uid coalescing (rapid showAlert calls).
+//
+// These tests exercise the alert module by capturing the onShowAlert callback
+// registered at module-import time, then driving it directly. Each test uses
+// vi.resetModules() so the module's private state (isDismissing flag, IIFE
+// listener registration) is fresh and Independent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AlertCallback = (data: import("../../src/shared/alert.js").AlertPayload) => void;
+
+interface AlertHarness {
+  callback: AlertCallback;
+  onShowAlertMock: ReturnType<typeof vi.fn>;
+}
+
+interface TrackedListener {
+  type: string;
+  listener: EventListenerOrEventListenerObject;
+}
+const trackedDocListeners: TrackedListener[] = [];
+let originalDocAddEventListener: typeof document.addEventListener | null = null;
+
+function installListenerTracker(): void {
+  if (originalDocAddEventListener) return;
+  originalDocAddEventListener = document.addEventListener.bind(document);
+  document.addEventListener = ((
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ) => {
+    trackedDocListeners.push({ type, listener });
+    return originalDocAddEventListener!(type, listener, options);
+  }) as typeof document.addEventListener;
+}
+
+function clearTrackedDocListeners(): void {
+  for (const { type, listener } of trackedDocListeners) {
+    document.removeEventListener(type, listener);
+  }
+  trackedDocListeners.length = 0;
+}
+
+async function loadAlertModule(): Promise<AlertHarness> {
+  clearTrackedDocListeners();
+  vi.resetModules();
+  document.body.innerHTML = '<div id="app"></div>';
+  installListenerTracker();
+
+  const onShowAlertMock = vi.fn<(cb: AlertCallback) => void>();
+  vi.stubGlobal("api", {
+    alert: { onShowAlert: onShowAlertMock },
+  });
+
+  await import("../../src/renderer/alert/index.js");
+
+  document.dispatchEvent(new Event("DOMContentLoaded"));
+
+  const firstCall = onShowAlertMock.mock.calls[0];
+  if (!firstCall || typeof firstCall[0] !== "function") {
+    throw new Error("alert module did not register onShowAlert callback");
+  }
+  return { callback: firstCall[0] as AlertCallback, onShowAlertMock };
+}
+
+function makeAlertPayload(
+  overrides: Partial<import("../../src/shared/alert.js").AlertPayload> = {},
+): import("../../src/shared/alert.js").AlertPayload {
+  type AP = import("../../src/shared/alert.js").AlertPayload;
+  type Brand<T, B> = T & { readonly __brand?: B };
+  const base = {
+    id: "evt-1" as Brand<string, "EventId">,
+    title: "Standup",
+    startDate: "2026-03-27T10:00:00.000Z" as Brand<string, "IsoUtc">,
+    endDate: "2026-03-27T10:30:00.000Z" as Brand<string, "IsoUtc">,
+    meetUrl: "https://meet.google.com/abc-defg-hij" as Brand<string, "MeetUrl">,
+    calendarName: "Work",
+    isAllDay: false,
+    description: "Daily sync",
+  } as unknown as AP;
+  return { ...base, ...overrides };
+}
+
+describe("alert: Escape key dismiss handler registration", () => {
+  let closeSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    closeSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("Escape key triggers dismiss flow which calls window.close()", async () => {
+    const { callback } = await loadAlertModule();
+
+    // Render a card so dismissAlert takes the animation path.
+    callback(makeAlertPayload());
+    expect(document.querySelector(".alert-card")).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+    // dismissAlert sets a 300ms fallback timer; advance jsdom timers.
+    vi.useFakeTimers();
+    // Re-dispatch: previous Escape already started fallback before we faked timers,
+    // so simulate by directly firing animationend on the card to close.
+    const card = document.querySelector(".alert-card");
+    card?.dispatchEvent(new Event("animationend"));
+    vi.useRealTimers();
+
+    expect(closeSpy).toHaveBeenCalled();
+  });
+
+  it("non-Escape keys do NOT trigger window.close()", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload());
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
+
+    expect(closeSpy).not.toHaveBeenCalled();
+  });
+
+  it("data-action='dismiss' click triggers window.close() via animationend", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload());
+
+    const btn = document.querySelector<HTMLButtonElement>(
+      '[data-action="dismiss"]',
+    );
+    expect(btn).not.toBeNull();
+    btn?.click();
+
+    const card = document.querySelector(".alert-card");
+    card?.dispatchEvent(new Event("animationend"));
+
+    expect(closeSpy).toHaveBeenCalled();
+  });
+});
+
+describe("alert: alert:show IPC push updates DOM correctly", () => {
+  beforeEach(() => {
+    vi.spyOn(window, "close").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("renders title, calendar, and time range from payload", async () => {
+    const { callback } = await loadAlertModule();
+    callback(
+      makeAlertPayload({
+        title: "Sprint Review",
+        calendarName: "Engineering",
+      }),
+    );
+
+    const html = document.getElementById("app")?.innerHTML ?? "";
+    expect(html).toContain("Sprint Review");
+    expect(html).toContain("Engineering");
+    expect(html).toContain("Meeting Starting");
+    expect(document.querySelector(".alert-card")).not.toBeNull();
+    expect(document.querySelector(".alert-title")).not.toBeNull();
+  });
+
+  it("escapes HTML in user-controlled fields (XSS protection)", async () => {
+    const { callback } = await loadAlertModule();
+    callback(
+      makeAlertPayload({
+        title: "<script>alert(1)</script>",
+        calendarName: "<img src=x onerror=alert(1)>",
+        description: "<b>bold</b>",
+      }),
+    );
+
+    const html = document.getElementById("app")?.innerHTML ?? "";
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).not.toContain("<img src=x onerror=alert(1)>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("renders 'All day' for all-day events", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload({ isAllDay: true }));
+
+    const html = document.getElementById("app")?.innerHTML ?? "";
+    expect(html).toContain("All day");
+  });
+
+  it("omits description block when description is empty/whitespace", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload({ description: "   " }));
+
+    expect(
+      document.querySelector(".alert-description-wrapper"),
+    ).toBeNull();
+  });
+
+  it("includes description block when non-empty description provided", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload({ description: "Agenda items" }));
+
+    expect(
+      document.querySelector(".alert-description-wrapper"),
+    ).not.toBeNull();
+    expect(
+      document.querySelector(".alert-description")?.textContent,
+    ).toContain("Agenda items");
+  });
+
+  it("renders 'Time unavailable' for malformed ISO dates", async () => {
+    const { callback } = await loadAlertModule();
+    type AP = import("../../src/shared/alert.js").AlertPayload;
+    type Brand<T, B> = T & { readonly __brand?: B };
+    const payload = makeAlertPayload({
+      startDate: "not-an-iso-date" as Brand<string, "IsoUtc">,
+      endDate: "also-bad" as Brand<string, "IsoUtc">,
+    } as Partial<AP>);
+    callback(payload);
+
+    const html = document.getElementById("app")?.innerHTML ?? "";
+    expect(html).toContain("Time unavailable");
+  });
+});
+
+describe("alert: duplicate uid coalescing (rapid showAlert calls)", () => {
+  beforeEach(() => {
+    vi.spyOn(window, "close").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("re-rendering with the same uid replaces DOM in place (no duplicate cards)", async () => {
+    const { callback } = await loadAlertModule();
+    const payload = makeAlertPayload({ title: "Standup" });
+
+    callback(payload);
+    callback(payload);
+    callback(payload);
+
+    const cards = document.querySelectorAll(".alert-card");
+    expect(cards.length).toBe(1);
+    expect(document.querySelector(".alert-title")?.textContent).toBe(
+      "Standup",
+    );
+  });
+
+  it("subsequent payload with new uid replaces previous content (single card)", async () => {
+    const { callback } = await loadAlertModule();
+
+    callback(makeAlertPayload({ id: "evt-A" as never, title: "First" }));
+    expect(document.querySelector(".alert-title")?.textContent).toBe("First");
+
+    callback(makeAlertPayload({ id: "evt-B" as never, title: "Second" }));
+    const cards = document.querySelectorAll(".alert-card");
+    expect(cards.length).toBe(1);
+    expect(document.querySelector(".alert-title")?.textContent).toBe("Second");
+  });
+
+  it("dismiss in flight: repeated dismiss triggers within same module are coalesced", async () => {
+    const { callback } = await loadAlertModule();
+    callback(makeAlertPayload());
+
+    const card = document.querySelector(".alert-card");
+    const classListAddSpy = vi.spyOn(card!.classList, "add");
+
+    const btn = document.querySelector<HTMLButtonElement>(
+      '[data-action="dismiss"]',
+    );
+    btn?.click();
+    btn?.click();
+    btn?.click();
+
+    const dismissingAdds = classListAddSpy.mock.calls.filter(
+      (c) => c[0] === "alert-dismissing",
+    );
+    expect(dismissingAdds.length).toBe(1);
+  });
+
+});

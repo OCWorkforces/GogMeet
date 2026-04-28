@@ -2,6 +2,7 @@ import { getCalendarEventsResult } from "../calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { isCalendarOk } from "../../shared/models.js";
 import { typedSend } from "../ipc-handlers/shared.js";
+import { mainBus } from "../events.js";
 
 import {
   state,
@@ -54,6 +55,8 @@ export async function poll(): Promise<void> {
       setConsecutiveErrors(0);
       scheduleEvents(result.events);
       state.lastKnownEvents = result;
+      // Notify subscribers (e.g. tray) of the freshly fetched meeting list
+      mainBus.emit("meeting-list-updated", result.events);
       // Notify renderer of updated events
       if (state.win && !state.win.isDestroyed()) {
         typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, undefined);

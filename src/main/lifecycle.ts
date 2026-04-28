@@ -15,6 +15,7 @@ import {
 } from "./calendar.js";
 import {
   initPowerManagement,
+  initPowerEvents,
   cleanupPowerManagement,
   getPollInterval,
   preventSleep,
@@ -98,6 +99,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
 
     tryRun("startScheduler", () => startScheduler());
     tryRun("initPowerManagement", () => initPowerManagement(() => restartScheduler()));
+    tryRun("initPowerEvents", () => initPowerEvents());
     tryRun("registerShortcuts", () => registerShortcuts());
 
     // Check notification permission on first run
