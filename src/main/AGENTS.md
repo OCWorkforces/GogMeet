@@ -9,7 +9,8 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 | `index.ts`           | App bootstrap, BrowserWindow factory, lifecycle events                 |
 | `lifecycle.ts`       | Subsystem init/shutdown (`initializeApp` / `shutdownApp`)              |
 | `calendar.ts`        | Swift EventKit calendar queries (delegates to `swift/`), uses `isCalendarOk()` guard for discriminated `CalendarResult` |
-| `tray.ts`            | System tray icon, context menu, window positioning, countdown title    |
+| `tray.ts`            | System tray icon, context menu, window positioning, countdown title; subscribes to `meeting-list-updated` event bus |
+| `events.ts`          | Typed event bus (`TypedMainEventBus`, `MainEvents`): `meeting-list-updated` + `power-state-changed`, singleton `mainBus` |
 | `ipc.ts`             | IPC registration (delegates to `ipc-handlers/`)                        |
 | `settings.ts`        | Persistent app settings (JSON in userData)                             |
 | `auto-launch.ts`     | macOS login items (launch at login)                                    |
@@ -43,6 +44,7 @@ initializeApp(win):
   calendarPermission        → calendar.ts
   startScheduler()          → scheduler/index.ts
   initPowerManagement(() => restartScheduler())  → power.ts
+  initPowerEvents()              → power.ts (emits power-state-changed on battery change)
   registerShortcuts()       → shortcuts.ts
   checkNotificationPermission() → notification.ts
   syncAutoLaunch()          → auto-launch.ts

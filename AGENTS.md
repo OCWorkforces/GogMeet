@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-04-26
-**Commit:** 4728d4e
+**Generated:** 2026-04-28
+**Commit:** f18c1ed
 **Branch:** develop
 
 ## OVERVIEW
@@ -25,9 +25,10 @@ src/
 │   ├── lifecycle.ts  # Subsystem init/shutdown orchestration
 │   ├── calendar.ts   # Swift EventKit calendar integration
 │   ├── tray.ts       # System tray icon + menu + meeting context menu
+│   ├── events.ts     # Typed event bus (TypedMainEventBus, mainBus singleton)
 │   ├── scheduler/    # Auto-launch browser before meetings (9 files)
 │   ├── ipc-handlers/ # IPC handler implementations (6 files)
-│   ├── swift/         # Swift binary management + event parsing
+│   ├── swift/         # Swift binary management + event parsing (8 files)
 │   ├── menu/          # Tray context menu
 │   └── utils/         # Main process utilities
 ├── renderer/         # UI (web context, vanilla TS)
@@ -133,7 +134,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (677 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (723 tests, main + renderer workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
