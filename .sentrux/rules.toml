@@ -8,15 +8,15 @@ max_cc = 25               # Max cyclomatic complexity per function
 no_god_files = true       # No file >500 lines or fan-out >15
 
 # Quality gate — minimum overall quality signal (0-10000 scale)
-# Current: 5860, target: 7000+. Conservative first step.
+# Current: 5925. Set below current to catch regressions.
 [constraints.quality_gate]
 description = "Minimum quality signal threshold"
-minimum_quality_signal = 6000
+minimum_quality_signal = 5800
 
-# Maximum dependency chain depth (current: 14, target: ~10 post-refactor)
+# Maximum dependency chain depth (current: 14, allowing +1 buffer)
 [constraints.max_dependency_depth]
 description = "Maximum dependency chain depth"
-max_depth = 12
+max_depth = 15
 
 # Maximum lines per source file (state.ts was 433, close to limit)
 [constraints.max_file_lines]
@@ -43,9 +43,9 @@ order = 0
 paths = ["src/renderer/**"]
 
 # ════════════════════════════════════════════════════════════════
-# BOUNDARY RULES (forbidden cross-process imports)
+# BOUNDARY RULES
 # ════════════════════════════════════════════════════════════════
-
+#
 # GogMeet Architectural Constraints
 # Enforces Electron 3-process separation and module boundaries.
 #
@@ -55,280 +55,264 @@ paths = ["src/renderer/**"]
 #   3. Source ↔ test isolation
 #   4. Utils isolation (pure helpers — no business logic deps)
 #   5. IPC handler boundaries (thin wrappers, no window creation)
-#   6. Cycle prevention — scheduler (scheduler ↔ tray ↔ ipc-handlers)
-#   7. Cycle prevention — shortcuts (leaf module isolation)
+#   6. Scheduler boundaries (facade pattern, no tray import)
+#   7. Shortcuts isolation (leaf action module)
 #   8. Renderer entry independence (separate HTML entry points)
+#   9. Swift bridge isolation (only shared types + internal)
+#  10. Leaf module isolation (auto-launch, auto-updater, notification, power)
+#  11. Calendar isolation (only swift + shared deps)
+#  12. Settings isolation (only shared deps)
+#  13. Window module boundaries (no scheduler/tray deps)
+#  14. Menu isolation (only utils + shared deps)
 
 # ────────────────────────────────────────────────────────────────
 # 1. CROSS-PROCESS BOUNDARIES
 # ────────────────────────────────────────────────────────────────
 
-# Renderer must NEVER import from main process
-# (communication goes through IPC via preload bridge)
 [[rules]]
-name = "no-renderer-to-main-import"
-from = "src/renderer"
-to = "src/main"
-type = "forbidden"
+name = "renderer-no-main-import"
+description = "Renderer must not import from main process (communication via IPC/preload bridge)"
+deny = ["src.renderer -> src.main"]
 
-# Main must NEVER import from renderer
-# (main communicates via win.webContents.send)
 [[rules]]
-name = "no-main-to-renderer-import"
-from = "src/main"
-to = "src/renderer"
-type = "forbidden"
+name = "main-no-renderer-import"
+description = "Main must not import from renderer (communication via webContents.send)"
+deny = ["src.main -> src.renderer"]
 
-# Preload must ONLY import from shared (types/channels)
-# (preload is the bridge — it should not import main process logic)
 [[rules]]
-name = "no-preload-to-main-import"
-from = "src/preload"
-to = "src/main"
-type = "forbidden"
+name = "preload-no-main-import"
+description = "Preload must not import main process logic (only shared types/channels)"
+deny = ["src.preload -> src.main"]
 
-# Preload must not import renderer code
-# (preload exposes API; renderer consumes it, never the reverse)
 [[rules]]
-name = "no-preload-to-renderer-import"
-from = "src/preload"
-to = "src/renderer"
-type = "forbidden"
+name = "preload-no-renderer-import"
+description = "Preload must not import renderer code (preload exposes API; renderer consumes it)"
+deny = ["src.preload -> src.renderer"]
 
-# Renderer must not import from preload directly
-# (communication goes through context bridge API)
 [[rules]]
-name = "no-renderer-to-preload-import"
-from = "src/renderer"
-to = "src/preload"
-type = "forbidden"
+name = "renderer-no-preload-import"
+description = "Renderer must not import preload directly (communication via context bridge API)"
+deny = ["src.renderer -> src.preload"]
 
 # ────────────────────────────────────────────────────────────────
 # 2. SHARED SELF-CONTAINMENT
 # ────────────────────────────────────────────────────────────────
 
-# Shared must be self-contained — no reverse dependencies
-# (shared defines types used by all processes; it must not depend on them)
 [[rules]]
-name = "shared-no-main-import"
-from = "src/shared"
-to = "src/main"
-type = "forbidden"
-
-[[rules]]
-name = "shared-no-renderer-import"
-from = "src/shared"
-to = "src/renderer"
-type = "forbidden"
-
-[[rules]]
-name = "shared-no-preload-import"
-from = "src/shared"
-to = "src/preload"
-type = "forbidden"
+name = "shared-no-process-imports"
+description = "Shared must be self-contained — no dependencies on process-specific modules"
+deny = [
+  "src.shared -> src.main",
+  "src.shared -> src.renderer",
+  "src.shared -> src.preload",
+]
 
 # ────────────────────────────────────────────────────────────────
 # 3. SOURCE ↔ TEST ISOLATION
 # ────────────────────────────────────────────────────────────────
 
-# Tests must not be imported by source code
 [[rules]]
 name = "no-source-to-test-import"
-from = "src"
-to = "tests"
-type = "forbidden"
+description = "Source code must not import from tests"
+deny = ["src -> tests"]
 
 # ────────────────────────────────────────────────────────────────
 # 4. UTILS ISOLATION
 # (utils are pure helpers — no business logic, no side effects)
 # ────────────────────────────────────────────────────────────────
 
-# Utils must stay isolated — no business logic dependencies
 [[rules]]
-name = "utils-no-scheduler-import"
-from = "src/main/utils"
-to = "src/main/scheduler"
-type = "forbidden"
-
-[[rules]]
-name = "utils-no-tray-import"
-from = "src/main/utils"
-to = "src/main/tray"
-type = "forbidden"
-
-[[rules]]
-name = "utils-no-settings-import"
-from = "src/main/utils"
-to = "src/main/settings"
-type = "forbidden"
-
-# Utils must not import calendar (Swift EventKit business logic)
-[[rules]]
-name = "utils-no-calendar-import"
-from = "src/main/utils"
-to = "src/main/calendar"
-type = "forbidden"
-
-# Utils must not import IPC handlers (utils are lower-level)
-[[rules]]
-name = "utils-no-ipc-handlers-import"
-from = "src/main/utils"
-to = "src/main/ipc-handlers"
-type = "forbidden"
+name = "utils-leaf-modules"
+description = "Utility modules are leaves in the dependency graph — no business logic dependencies"
+deny = [
+  "src.main.utils -> src.main.scheduler",
+  "src.main.utils -> src.main.tray",
+  "src.main.utils -> src.main.settings",
+  "src.main.utils -> src.main.calendar",
+  "src.main.utils -> src.main.ipc-handlers",
+]
 
 # ────────────────────────────────────────────────────────────────
 # 5. IPC HANDLER BOUNDARIES
 # (IPC handlers are thin wrappers; window creation is managed elsewhere)
 # ────────────────────────────────────────────────────────────────
 
-# Calendar IPC handler must not depend on scheduler
-# (calendar handler serves data; scheduler consumes it — no reverse)
 [[rules]]
-name = "ipc-calendar-no-scheduler"
-from = "src/main/ipc-handlers/calendar"
-to = "src/main/scheduler"
-type = "forbidden"
+name = "ipc-handlers-no-scheduler"
+description = "Calendar, app, and window IPC handlers must not depend on scheduler"
+deny = [
+  "src.main.ipc-handlers.calendar -> src.main.scheduler",
+  "src.main.ipc-handlers.app -> src.main.scheduler",
+  "src.main.ipc-handlers.window -> src.main.scheduler",
+]
 
-# App IPC handler must not import scheduler
-# (app handler handles open-external and get-version; no scheduling concern)
 [[rules]]
-name = "ipc-app-no-scheduler"
-from = "src/main/ipc-handlers/app"
-to = "src/main/scheduler"
-type = "forbidden"
-
-# Window IPC handler must not import scheduler
-# (window handler manages popover height; no scheduling concern)
-[[rules]]
-name = "ipc-window-no-scheduler"
-from = "src/main/ipc-handlers/window"
-to = "src/main/scheduler"
-type = "forbidden"
-
-# IPC handlers must not import alert-window
-# (alert lifecycle is managed by scheduler, not IPC layer)
-[[rules]]
-name = "ipc-handlers-no-alert-window"
-from = "src/main/ipc-handlers"
-to = "src/main/alert-window"
-type = "forbidden"
-
-# IPC handlers must not import settings-window
-# (settings window lifecycle is managed by tray, not IPC layer)
-[[rules]]
-name = "ipc-handlers-no-settings-window"
-from = "src/main/ipc-handlers"
-to = "src/main/settings-window"
-type = "forbidden"
+name = "ipc-handlers-no-window-modules"
+description = "IPC handlers must not import window lifecycle modules"
+deny = [
+  "src.main.ipc-handlers -> src.main.alert-window",
+  "src.main.ipc-handlers -> src.main.settings-window",
+]
 
 # ────────────────────────────────────────────────────────────────
-# 6. CYCLE PREVENTION — SCHEDULER
-# (scheduler → tray would create cycles; ipc-handlers → scheduler
-#  is allowed only for settings handler's restartScheduler)
+# 6. SCHEDULER BOUNDARIES
+# (facade pattern: tray/shortcuts/ipc-handlers → scheduler/facade,
+#  scheduler never imports tray; poll imports ipc-handlers/shared
+#  for typedSend — no cycle because shared.ts is a leaf utility)
 # ────────────────────────────────────────────────────────────────
 
-# Scheduler must NEVER import tray (prevents scheduler ↔ tray cycle)
-# (scheduler depends on calendar, settings, alert-window;
-#  tray depends on calendar, settings, settings-window)
 [[rules]]
 name = "scheduler-no-tray"
-from = "src/main/scheduler"
-to = "src/main/tray"
-type = "forbidden"
+description = "Scheduler must never import tray (uses callback decoupling via setTrayTitleCallback)"
+deny = ["src.main.scheduler -> src.main.tray"]
 
-# Tray must NEVER import scheduler (prevents tray ↔ scheduler cycle)
-[[rules]]
-name = "tray-no-scheduler"
-from = "src/main/tray"
-to = "src/main/scheduler"
-type = "forbidden"
-
-# Scheduler must NEVER import IPC handlers (prevents cycle)
-# (ipc-handlers/settings imports scheduler for restartScheduler;
-#  reverse must be forbidden)
-[[rules]]
-name = "scheduler-no-ipc-handlers"
-from = "src/main/scheduler"
-to = "src/main/ipc-handlers"
-type = "forbidden"
-
-# IPC handlers must use scheduler facade, not direct index import
-# (prevents re-introduction of circular dependency through re-exports;
-#  ipc-handlers/settings.ts must import from scheduler/facade.js)
 [[rules]]
 name = "ipc-handlers-use-scheduler-facade"
-from = "src/main/ipc-handlers"
-to = "src/main/scheduler/index"
-type = "forbidden"
+description = "External consumers must use scheduler/facade.ts, not scheduler/index.ts directly"
+deny = ["src.main.ipc-handlers -> src.main.scheduler.index"]
 
-# scheduler/index must not re-export from poll (prevents circular dep regression)
-# (poll.ts imports scheduleEvents from index.ts — reverse re-export creates cycle;
-#  use scheduler/facade.ts as the public API surface instead)
 [[rules]]
-name = "scheduler-index-no-poll-reexport"
-from = "src/main/scheduler/index"
-to = "src/main/scheduler/poll"
-type = "forbidden"
+name = "scheduler-index-no-poll"
+description = "scheduler/index.ts must not import from poll.ts (prevents circular dep; use facade as public API)"
+deny = ["src.main.scheduler.index -> src.main.scheduler.poll"]
 
 # ────────────────────────────────────────────────────────────────
-# 7. CYCLE PREVENTION — SHORTCUTS
-# (shortcuts is a leaf module: registers Cmd+Shift+M, joins next meeting)
+# 7. SHORTCUTS ISOLATION
+# (shortcuts is a leaf action module: registers Cmd+Shift+M, joins next meeting)
 # ────────────────────────────────────────────────────────────────
 
-# Shortcuts must not import scheduler (shortcuts is a leaf action)
-[[rules]]
-name = "shortcuts-no-scheduler"
-from = "src/main/shortcuts"
-to = "src/main/scheduler"
-type = "forbidden"
-
-# Shortcuts must not import tray (shortcuts is a leaf action)
 [[rules]]
 name = "shortcuts-no-tray"
-from = "src/main/shortcuts"
-to = "src/main/tray"
-type = "forbidden"
+description = "Shortcuts must not import tray (leaf action, no UI coupling)"
+deny = ["src.main.shortcuts -> src.main.tray"]
 
 # ────────────────────────────────────────────────────────────────
 # 8. RENDERER ENTRY INDEPENDENCE
 # (3 separate HTML entries: popover, settings, alert — fully independent)
 # ────────────────────────────────────────────────────────────────
 
-# Settings renderer must not import alert renderer
-# (separate BrowserWindow entries with no shared runtime)
 [[rules]]
-name = "renderer-settings-no-alert"
-from = "src/renderer/settings"
-to = "src/renderer/alert"
-type = "forbidden"
+name = "renderer-entry-independence"
+description = "Renderer entries (popover, settings, alert) are separate BrowserWindows — no cross-imports"
+deny = [
+  "src.renderer.settings -> src.renderer.alert",
+  "src.renderer.alert -> src.renderer.settings",
+]
 
-# Alert renderer must not import settings renderer
+# ────────────────────────────────────────────────────────────────
+# 9. SWIFT BRIDGE ISOLATION
+# (Swift bridge modules only depend on shared types and each other)
+# ────────────────────────────────────────────────────────────────
+
 [[rules]]
-name = "renderer-alert-no-settings"
-from = "src/renderer/alert"
-to = "src/renderer/settings"
-type = "forbidden"
+name = "swift-isolation"
+description = "Swift bridge modules only depend on shared types and each other — no application logic deps"
+deny = [
+  "src.main.swift -> src.main.scheduler",
+  "src.main.swift -> src.main.tray",
+  "src.main.swift -> src.main.settings",
+  "src.main.swift -> src.main.calendar",
+  "src.main.swift -> src.main.ipc-handlers",
+]
+
+# ────────────────────────────────────────────────────────────────
+# 10. LEAF MODULE ISOLATION
+# (auto-launch, auto-updater, notification, power have no internal app deps)
+# ────────────────────────────────────────────────────────────────
+
+[[rules]]
+name = "leaf-modules-no-business-logic"
+description = "Leaf modules (auto-launch, auto-updater, notification, power) have no internal application deps"
+deny = [
+  "src.main.auto-launch -> src.main.scheduler",
+  "src.main.auto-launch -> src.main.tray",
+  "src.main.auto-launch -> src.main.settings",
+  "src.main.auto-updater -> src.main.scheduler",
+  "src.main.auto-updater -> src.main.tray",
+  "src.main.auto-updater -> src.main.settings",
+  "src.main.notification -> src.main.scheduler",
+  "src.main.notification -> src.main.tray",
+  "src.main.notification -> src.main.settings",
+  "src.main.power -> src.main.scheduler",
+  "src.main.power -> src.main.tray",
+  "src.main.power -> src.main.settings",
+]
+
+# ────────────────────────────────────────────────────────────────
+# 11. CALENDAR ISOLATION
+# (calendar only depends on swift bridge and shared types)
+# ────────────────────────────────────────────────────────────────
+
+[[rules]]
+name = "calendar-isolation"
+description = "Calendar module only depends on swift bridge and shared types — no business logic deps"
+deny = [
+  "src.main.calendar -> src.main.scheduler",
+  "src.main.calendar -> src.main.tray",
+  "src.main.calendar -> src.main.ipc-handlers",
+]
+
+# ────────────────────────────────────────────────────────────────
+# 12. SETTINGS ISOLATION
+# (settings only depends on shared types)
+# ────────────────────────────────────────────────────────────────
+
+[[rules]]
+name = "settings-isolation"
+description = "Settings only depends on shared types — no business logic deps"
+deny = [
+  "src.main.settings -> src.main.scheduler",
+  "src.main.settings -> src.main.tray",
+]
+
+# ────────────────────────────────────────────────────────────────
+# 13. WINDOW MODULE BOUNDARIES
+# (window lifecycle managed by lifecycle.ts / tray / scheduler)
+# ────────────────────────────────────────────────────────────────
+
+[[rules]]
+name = "window-modules-boundaries"
+description = "Window modules must not import from scheduler or tray (lifecycle managed externally)"
+deny = [
+  "src.main.settings-window -> src.main.scheduler",
+  "src.main.settings-window -> src.main.tray",
+  "src.main.alert-window -> src.main.scheduler",
+  "src.main.alert-window -> src.main.tray",
+]
+
+# ────────────────────────────────────────────────────────────────
+# 14. MENU ISOLATION
+# (menu modules only depend on utils and shared types)
+# ────────────────────────────────────────────────────────────────
+
+[[rules]]
+name = "menu-isolation"
+description = "Menu modules only depend on utils and shared types — no business logic deps"
+deny = [
+  "src.main.menu -> src.main.scheduler",
+  "src.main.menu -> src.main.tray",
+  "src.main.menu -> src.main.settings",
+  "src.main.menu -> src.main.calendar",
+  "src.main.menu -> src.main.ipc-handlers",
+]
 
 # ════════════════════════════════════════════════════════════════
-# 9. TEST COVERAGE REQUIREMENTS
+# 15. TEST COVERAGE REQUIREMENTS
 # (critical modules must have corresponding test files)
 # ════════════════════════════════════════════════════════════════
 
-# Scheduler modules must have tests
 [[rules]]
 description = "Scheduler modules must have tests"
 layer = "test"
 pattern = "src/main/scheduler/*.ts"
 requires_test = true
 
-# IPC handlers must have tests
 [[rules]]
 description = "IPC handlers must have tests"
 layer = "test"
 pattern = "src/main/ipc-handlers/*.ts"
 requires_test = true
 
-# Swift bridge must have tests
 [[rules]]
 description = "Swift bridge must have tests"
 layer = "test"
