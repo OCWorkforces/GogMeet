@@ -1,13 +1,13 @@
 {
   "name": "gogmeet",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "main": "lib/main/index.cjs",
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^10.0.1",
-    "@rsbuild/core": "^2.0.2",
+    "@rsbuild/core": "^2.0.3",
     "@rslib/core": "^0.21.3",
     "@rspack/core": "^2.0.1",
     "@tsconfig/node24": "^24.0.4",
