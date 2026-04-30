@@ -32,6 +32,24 @@ export type MeetUrl = Brand<string, "MeetUrl">;
 /** An ISO-8601 timestamp string interpreted as UTC. */
 export type IsoUtc = Brand<string, "IsoUtc">;
 
+/** Popover window height (px), clamped to [220, 480]. */
+export type WindowHeight = Brand<number, "WindowHeight">;
+
+/** Bounds for the popover window height brand. */
+export const WINDOW_HEIGHT_MIN = 220;
+export const WINDOW_HEIGHT_MAX = 480;
+
+/**
+ * Clamp + round any number into the [WINDOW_HEIGHT_MIN, WINDOW_HEIGHT_MAX]
+ * range and brand it as a {@link WindowHeight}. Non-finite inputs collapse
+ * to WINDOW_HEIGHT_MIN.
+ */
+export function clampWindowHeight(n: number): WindowHeight {
+  const safe = Number.isFinite(n) ? n : WINDOW_HEIGHT_MIN;
+  const clamped = Math.max(WINDOW_HEIGHT_MIN, Math.min(WINDOW_HEIGHT_MAX, Math.round(safe)));
+  return brand<"WindowHeight", number>(clamped);
+}
+
 /**
  * Internal trust-boundary cast: tag a value with a brand WITHOUT validation.
  *
@@ -40,7 +58,7 @@ export type IsoUtc = Brand<string, "IsoUtc">;
  * fixtures that synthesise known-good data). Production callers should prefer
  * the `as*` validators below.
  */
-export function brand<B extends string, T>(value: T): Brand<T, B> {
+export function brand<B extends string, T extends string | number>(value: T): Brand<T, B> {
   return value as Brand<T, B>;
 }
 
@@ -112,7 +130,7 @@ export function asIsoUtc(raw: string): Result<IsoUtc, string> {
     return err("IsoUtc must be a non-empty string");
   }
   const trimmed = raw.trim();
-  const hasTz = /Z$/i.test(trimmed) || /[+\-]\d{2}:?\d{2}$/.test(trimmed);
+  const hasTz = /Z$/i.test(trimmed) || /[+-]\d{2}:?\d{2}$/.test(trimmed);
   const date = new Date(hasTz ? trimmed : `${trimmed}Z`);
   if (Number.isNaN(date.getTime())) {
     return err("IsoUtc is not a parseable timestamp");
