@@ -8,10 +8,6 @@ export {
   _resetForTest,
 } from "./poll.js";
 
-export {
-  scheduleEvents,
-  setSchedulerWindow,
-  setTrayTitleCallback,
-} from "./index.js";
+export { scheduleEvents, setSchedulerWindow, setTrayTitleCallback } from "./index.js";
 
 export { initPowerCallbacks, getLastKnownEvents } from "./state.js";

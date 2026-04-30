@@ -5,18 +5,11 @@ import { scheduleTitleCountdown, cancelTitleCountdown } from "./title-countdown.
 
 import type { BrowserWindow } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
+import type { EventId } from "../../shared/brand.js";
 
-import {
-  state,
-  markTitleDirty,
-  markInMeetingDirty,
-  cancelStaleEntries,
-} from "./state.js";
+import { state, markTitleDirty, markInMeetingDirty, cancelStaleEntries } from "./state.js";
 
-import {
-  resolveActiveInMeetingEvent,
-  startInMeetingCountdown,
-} from "./countdown.js";
+import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(): number {
@@ -32,11 +25,7 @@ export function setSchedulerWindow(w: BrowserWindow): void {
 
 /** Set the tray title update callback — called from main/index.ts to decouple scheduler from tray */
 export function setTrayTitleCallback(
-  fn: (
-    title: string | null,
-    minsRemaining?: number,
-    inMeeting?: boolean,
-  ) => void,
+  fn: (title: string | null, minsRemaining?: number, inMeeting?: boolean) => void,
 ): void {
   state.onTrayTitleUpdate = fn;
 }
@@ -65,7 +54,7 @@ function handleInProgressEvent(
   startMs: number,
   endMs: number,
   now: number,
-  activeIds: Set<string>,
+  activeIds: Set<EventId>,
   s: StateLocals,
   shouldAbort: () => boolean,
 ): boolean {
@@ -148,9 +137,7 @@ function shouldSkipScheduledEvent(
     if (urlChanged) {
       cancelBrowserTimer(event.id, s.timers);
       cancelAlertTimer(event.id, s.alertTimers);
-      console.log(
-        `[scheduler] URL changed for "${event.title}" — rescheduling browser open`,
-      );
+      console.log(`[scheduler] URL changed for "${event.title}" — rescheduling browser open`);
       // fall through — caller will schedule new timers
       return false;
     }
@@ -158,8 +145,7 @@ function shouldSkipScheduledEvent(
     // Title-only change — update tray immediately if this event owns the title
     if (state.activeTitleEventId === event.id) {
       const remaining = Math.ceil((startMs - Date.now()) / 60_000);
-      if (remaining > 0)
-        state.onTrayTitleUpdate?.(event.title, remaining);
+      if (remaining > 0) state.onTrayTitleUpdate?.(event.title, remaining);
     }
     console.log(`[scheduler] Title updated for "${event.title}"`);
     return true; // no timer changes needed
@@ -171,9 +157,7 @@ function shouldSkipScheduledEvent(
   s.scheduledEventData.delete(event.id);
   s.firedEvents.delete(event.id); // allow re-fire at new time
   s.alertFiredEvents.delete(event.id); // allow re-alert at new time
-  console.log(
-    `[scheduler] Rescheduled "${event.title}" — start time changed`,
-  );
+  console.log(`[scheduler] Rescheduled "${event.title}" — start time changed`);
   return false; // fall through to schedule new timer
 }
 
@@ -192,13 +176,7 @@ function scheduleFutureTimers(
   // Alert timer (fires 1 minute before browser timer)
   const alertSettings = getSettings();
   if (alertSettings.windowAlert && !s.alertFiredEvents.has(event.id)) {
-    scheduleAlertTimer(
-      event,
-      effectiveDelay,
-      s.alertTimers,
-      s.alertFiredEvents,
-      shouldAbort,
-    );
+    scheduleAlertTimer(event, effectiveDelay, s.alertTimers, s.alertFiredEvents, shouldAbort);
   }
 
   scheduleBrowserTimer(
@@ -227,7 +205,7 @@ function scheduleFutureTimers(
  */
 export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
-  const activeIds = new Set<string>();
+  const activeIds = new Set<EventId>();
 
   // Capture pollEpoch so timer callbacks scheduled here can detect a
   // resetState() (which bumps the epoch) and abort instead of mutating
@@ -238,7 +216,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
   // Snapshot the previously-active event ids so we can detect whether
   // this scheduling pass actually changed the set (and thus whether the
   // title / in-meeting resolvers need to re-run).
-  const previousActiveIds = new Set<string>([
+  const previousActiveIds = new Set<EventId>([
     ...state.timers.keys(),
     ...state.titleTimers.keys(),
     ...state.countdownIntervals.keys(),
@@ -302,4 +280,3 @@ export function scheduleEvents(events: MeetingEvent[]): void {
   // (handles the case where the active countdown event was just removed)
   resolveActiveInMeetingEvent();
 }
-

@@ -1,18 +1,15 @@
 import { state, setActiveTitleEventId, markTitleDirty } from "./state.js";
-import {
-  resolveActiveTitleEvent,
-  startInMeetingCountdown,
-} from "./countdown.js";
+import type { EventId } from "../../shared/brand.js";
+import { resolveActiveTitleEvent, startInMeetingCountdown } from "./countdown.js";
 
 /** How long before meeting start to show the tray title (ms) */
-const TITLE_BEFORE_MS = 30 * 60 * 1000; // 30 minutes
+const TITLE_BEFORE_MS: number = 30 * 60 * 1000; // 30 minutes
 
 export { TITLE_BEFORE_MS };
 
-
 /** Frozen snapshot for title countdown params */
 export interface TitleCountdownParams {
-  eventId: string;
+  eventId: EventId;
   eventTitle: string;
   startMs: number;
   endMs: number;
@@ -34,8 +31,8 @@ function tickCountdown(params: TitleCountdownParams): void {
 /** Start per-minute countdown interval and schedule clear at startMs */
 function startCountdown(
   params: TitleCountdownParams,
-  countdownIntervals: Map<string, ReturnType<typeof setInterval>>,
-  clearTimers: Map<string, ReturnType<typeof setTimeout>>,
+  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>,
+  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>,
 ): void {
   // Guard: bail if event was deleted between titleTimer fire and now
   if (!state.scheduledEventData.has(params.eventId)) return;
@@ -97,17 +94,12 @@ function startCountdown(
  */
 export function scheduleTitleCountdown(
   params: TitleCountdownParams,
-  titleTimers: Map<string, ReturnType<typeof setTimeout>>,
-  countdownIntervals: Map<string, ReturnType<typeof setInterval>>,
-  clearTimers: Map<string, ReturnType<typeof setTimeout>>,
+  titleTimers: Map<EventId, ReturnType<typeof setTimeout>>,
+  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>,
+  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>,
 ): void {
   // Cancel any existing title/countdown/clear timers before (re-)scheduling
-  cancelTitleCountdown(
-    params.eventId,
-    titleTimers,
-    countdownIntervals,
-    clearTimers,
-  );
+  cancelTitleCountdown(params.eventId, titleTimers, countdownIntervals, clearTimers);
 
   const titleAtMs = params.startMs - TITLE_BEFORE_MS;
   const titleDelayMs = titleAtMs - params.now;
@@ -132,10 +124,10 @@ export function scheduleTitleCountdown(
  * Cancel title countdown timers for a specific event.
  */
 export function cancelTitleCountdown(
-  eventId: string,
-  titleTimers: Map<string, ReturnType<typeof setTimeout>>,
-  countdownIntervals: Map<string, ReturnType<typeof setInterval>>,
-  clearTimers: Map<string, ReturnType<typeof setTimeout>>,
+  eventId: EventId,
+  titleTimers: Map<EventId, ReturnType<typeof setTimeout>>,
+  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>,
+  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>,
 ): void {
   const existingTitle = titleTimers.get(eventId);
   if (existingTitle) {
