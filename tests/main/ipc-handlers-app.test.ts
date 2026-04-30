@@ -48,7 +48,7 @@ describe("registerAppHandlers", () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, "https://meet.google.com/abc-def-ghi");
+      await handler!(authorizedEvent, { url: "https://meet.google.com/abc-def-ghi" });
       expect(mockShell.openExternal).toHaveBeenCalledWith(
         "https://meet.google.com/abc-def-ghi",
       );
@@ -60,7 +60,7 @@ describe("registerAppHandlers", () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, "https://evil.com/");
+      await handler!(authorizedEvent, { url: "https://evil.com/" });
       expect(mockShell.openExternal).not.toHaveBeenCalled();
     });
 
@@ -68,7 +68,7 @@ describe("registerAppHandlers", () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, 123);
+      await handler!(authorizedEvent, { url: 123 });
       expect(mockShell.openExternal).not.toHaveBeenCalled();
     });
 
@@ -76,7 +76,7 @@ describe("registerAppHandlers", () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(unauthorizedEvent, "https://meet.google.com/abc");
+      await handler!(unauthorizedEvent, { url: "https://meet.google.com/abc" });
       expect(mockShell.openExternal).not.toHaveBeenCalled();
     });
 
@@ -89,7 +89,7 @@ describe("registerAppHandlers", () => {
 
       // Should not throw
       await expect(
-        handler!(authorizedEvent, "https://meet.google.com/abc"),
+        handler!(authorizedEvent, { url: "https://meet.google.com/abc" }),
       ).resolves.toBeUndefined();
     });
   });

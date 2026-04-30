@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron
 vi.mock("electron", () => ({
@@ -48,17 +49,7 @@ function refreshStateRefs(): void {
 }
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
-  return {
-    id: "test-id",
-    title: "Test Meeting",
-    startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 35 * 60 * 1000).toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
-    userEmail: "user@example.com",
-    ...overrides,
-  };
+  return createMockEvent(overrides);
 }
 
 const mockTrayCallback = vi.fn();

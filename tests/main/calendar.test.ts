@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseEvents, cleanDescription, requestCalendarPermission, getCalendarPermissionStatus } from "../../src/main/calendar.js";
+import { parseEvents, cleanDescription, requestCalendarPermission, getCalendarPermissionStatus, invalidateCalendarPermissionCache } from "../../src/main/calendar.js";
 import type { MeetingEvent } from "../../src/shared/models.js";
 
 const { execFileAsyncMock } = vi.hoisted(() => ({
@@ -557,6 +557,7 @@ describe("requestCalendarPermission", () => {
 describe("getCalendarPermissionStatus", () => {
   beforeEach(() => {
     execFileAsyncMock.mockReset();
+    invalidateCalendarPermissionCache();
   });
 
   it('returns "granted" when AppleScript succeeds', async () => {

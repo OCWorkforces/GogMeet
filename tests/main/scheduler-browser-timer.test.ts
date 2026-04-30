@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/models.js";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
 // Override the global electron mock with a constructable Notification
 vi.mock("electron", () => {
@@ -28,17 +29,12 @@ const { scheduleBrowserTimer, cancelBrowserTimer } =
   await import("../../src/main/scheduler/browser-timer.js");
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
-  return {
+  return createMockEvent({
     id: "evt-1",
     title: "Standup",
-    startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 35 * 60 * 1000).toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
     userEmail: "user@test.com",
     ...overrides,
-  };
+  });
 }
 
 describe("scheduleBrowserTimer", () => {

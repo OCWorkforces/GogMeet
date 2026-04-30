@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
 vi.mock("../../src/main/alert-window.js", () => ({
   showAlert: vi.fn(),
@@ -10,17 +11,7 @@ const { scheduleAlertTimer, cancelAlertTimer, ALERT_OFFSET_MS } =
   await import("../../src/main/scheduler/alert-timer.js");
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
-  return {
-    id: "evt-1",
-    title: "Standup",
-    startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 35 * 60 * 1000).toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
-    userEmail: "user@example.com",
-    ...overrides,
-  };
+  return createMockEvent({ id: "evt-1", title: "Standup", ...overrides });
 }
 
 describe("scheduleAlertTimer", () => {

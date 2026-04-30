@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 
 vi.mock("../../src/main/utils/meet-url.js", () => ({
@@ -14,17 +15,13 @@ const NOW = new Date("2026-04-08T14:00:00");
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   const start = new Date(NOW.getTime() + 60 * 60 * 1000); // +1h
   const end = new Date(NOW.getTime() + 2 * 60 * 60 * 1000); // +2h
-  return {
+  return createMockEvent({
     id: "evt-1",
     title: "Standup",
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    calendarName: "Work",
-    isAllDay: false,
-    userEmail: "user@example.com",
+    startDate: asTestIsoUtc(start.toISOString()),
+    endDate: asTestIsoUtc(end.toISOString()),
     ...overrides,
-  };
+  });
 }
 
 function todayAt(hours: number, minutes = 0): Date {

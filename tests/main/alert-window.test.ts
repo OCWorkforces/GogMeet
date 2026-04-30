@@ -41,17 +41,11 @@ vi.mock("electron", () => {
 
 let showAlert: typeof import("../../src/main/alert-window.js").showAlert;
 import { BrowserWindow, app } from "electron";
+import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent } from "../helpers/test-utils.js";
 
-function makeEvent(overrides: Partial<{ id: string; title: string }> = {}) {
-  return {
-    id: overrides.id ?? "test-1",
-    title: overrides.title ?? "Test Meeting",
-    startDate: new Date().toISOString(),
-    endDate: new Date().toISOString(),
-    calendarName: "Work",
-    isAllDay: false,
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-  };
+function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
+  return createMockEvent({ id: "test-1", ...overrides });
 }
 
 /** Get the nth BrowserWindow instance created (1-indexed) */

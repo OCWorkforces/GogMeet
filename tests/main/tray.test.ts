@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MeetingEvent } from "../../src/shared/models.js";
+import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 vi.mock("electron", () => ({
   Tray: vi.fn().mockImplementation(function (this: {
@@ -50,30 +51,15 @@ vi.mock("../../src/main/settings.js", () => ({
 
 // Helper to create mock event
 function createMockEvent(
-  overrides: Partial<{
-    id: string;
-    title: string;
-    startDate: string;
-    endDate: string;
-    meetUrl: string | null;
-    isAllDay: boolean;
-    userEmail: string | null;
-  }> = {},
+  overrides: Partial<MeetingEvent> = {},
 ): MeetingEvent {
   const now = new Date();
   const in1Hour = new Date(now.getTime() + 60 * 60 * 1000);
-
-  const defaults = {
-    id: "test-id",
-    title: "Test Meeting",
-    startDate: now.toISOString(),
-    endDate: in1Hour.toISOString(),
-    meetUrl: "https://meet.google.com/abc-def-ghi",
-    isAllDay: false,
-    userEmail: "user@example.com",
-  };
-
-  return { ...defaults, ...overrides } as MeetingEvent;
+  return createSharedMockEvent({
+    startDate: asTestIsoUtc(now.toISOString()),
+    endDate: asTestIsoUtc(in1Hour.toISOString()),
+    ...overrides,
+  });
 }
 
 // Pure function tests - formatRemainingTime
