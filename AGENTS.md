@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-04-28
-**Commit:** f18c1ed
+**Generated:** 2026-04-30
+**Commit:** 4ea9e34
 **Branch:** develop
 
 ## OVERVIEW
@@ -147,7 +147,7 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Swift output format**: 9 tab-delimited fields: uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes
 - **Auto-open**: Browser opens 1-5 min before each non-all-day meeting; `?authuser=email` appended
 - **Full-screen alert**: Fires at `openBeforeMinutes + 1` min before meeting (suppresses browser auto-open)
-- **Scheduler polling**: 2 min on AC, 4 min on battery (independent of renderer's 5-min UI refresh); refresh button and tray click fire `forcePoll()` for immediate re-fetch
+- **Scheduler polling**: 2 min on AC, 4 min on battery; refresh button and tray click fire `forcePoll()` for immediate re-fetch
 - **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 1 cancelledEvents Set, 5 scalars (activeTitleEventId, activeInMeetingEventId, consecutiveErrors, titleDirty, inMeetingDirty) — all in `SchedulerState` object, accessed via getter functions
 - **replaceState safety**: `replaceState()` clears old timer handles via `clearSchedulerResources()` and preserves `win`/`onTrayTitleUpdate`/`powerCallbacks` from old state
 - **ConsecutiveErrors cap**: `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4) to prevent unbounded growth after error handler fires
@@ -162,7 +162,10 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Branded types**: EventId, MeetUrl, IsoUtc — phantom brand via unique symbol, string-compatible for read, validated at parser/URL boundaries
 - **Discriminated CalendarResult**: `kind: "ok"|"err"` tag enables exhaustive narrowing
 - **ParseResult**: `parseEvents()` returns `{events, diagnostics[]}` — diagnostics logged via console.warn
-- **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types
+- **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types; `CALENDAR_EVENTS_UPDATED` payload is `MeetingEvent[]` (sent only when event hash changes)
 - **AlertPayload**: Unified in shared/alert.ts — single type for alert:show across all 3 processes
-- **Test utilities**: Shared factory functions in `tests/helpers/test-utils.ts` — `createMockEvent()`, `createMockSettings()`, `createMockIpcEvent()`, `isoFromNow()`
+- **Test utilities**: Shared factory functions in `tests/helpers/test-utils.ts` — `createMockEvent()`, `createMockSettings()`, `createMockIpcEvent()`, `isoFromNow()`, `asTestEventId()`, `asTestMeetUrl()`, `asTestIsoUtc()`
 - **IPC channels**: 12 total (7 invoke, 2 fire-and-forget, 3 push main→renderer)
+- **Power state caching**: `power.ts` caches `onBattery` at init, updates on `powerMonitor` events — `getPollInterval()` reads cache without polling OS each time
+- **Push payload**: `calendar:events-updated` delivers `MeetingEvent[]` directly — renderer uses events from push, no extra `getEvents()` round-trip needed
+- **Renderer push-only**: Renderer has no polling timer; all updates come via `onEventsUpdated` push from main

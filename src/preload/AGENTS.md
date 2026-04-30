@@ -21,6 +21,7 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION),
     getPermissionStatus: (): Promise<CalendarPermission> =>
       ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
+    onEventsUpdated: (callback: (events: MeetingEvent[]) => void): () => void,
   },
   window: {
     setHeight: (height: number): void =>
@@ -54,7 +55,7 @@ const api = {
 };
 ```
 
-All push listeners (`onEventsUpdated`, `onChanged`, `onShowAlert`) now return cleanup functions that unregister the underlying `ipcRenderer` handler.
+All push listeners (`onEventsUpdated`, `onChanged`, `onShowAlert`) return cleanup functions `() => void` that call `ipcRenderer.off()` to unregister the handler.
 
 ## EXPOSE
 

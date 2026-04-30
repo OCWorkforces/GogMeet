@@ -64,7 +64,7 @@ Push channels use `typedSend()` from `shared.ts`:
 | Channel                    | Source           | Payload                              |
 | -------------------------- | ---------------- | ------------------------------------ |
 | `SETTINGS_CHANGED`         | settings.ts      | push via `typedSend` (`AppSettings`) |
-| `CALENDAR_EVENTS_UPDATED`  | poll.ts          | push via `typedSend` (void)          |
+| `CALENDAR_EVENTS_UPDATED`  | poll.ts          | push via `typedSend` (`MeetingEvent[]`, hash-gated) |
 | `ALERT_SHOW`               | alert-window.ts  | push via `typedSend` (`AlertPayload`)|
 
 ## ANTI-PATTERNS
