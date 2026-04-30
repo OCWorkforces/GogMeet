@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Vitest workspace with 2 projects: `main` (Node env) + `renderer` (jsdom env). Full Electron API mock auto-loaded via `setup.main.ts`. 723 tests across 50 files.
+Vitest workspace with 3 projects: `main` (Node env) + `renderer` (jsdom env) + `shared` (Node env). Full Electron API mock auto-loaded via `setup.main.ts`. 745 tests across 51 files.
 
 ## STRUCTURE
 
@@ -62,6 +62,8 @@ tests/
     ├── utils/escape-html.test.ts          # escapeHtml unit test
     ├── utils/result.test.ts               # Result<T,E> helpers
     └── utils/time.test.ts                 # Time formatting in renderer
+└── shared/               # 1 file, Node environment
+    └── errors.test.ts                     # AppError variants, errFrom(), formatAppError(), SwiftHelperError.toAppError()
 ```
 
 ## MOCK PATTERNS
@@ -121,7 +123,7 @@ vi.mock("../../src/main/power.js", () => ({ getPollInterval: vi.fn().mockReturnV
 ## COMMANDS
 
 ```bash
-bun run test           # Run all 723 tests (12 IPC channels)
+bun run test           # Run all 745 tests (12 IPC channels)
 bun run test:watch     # Watch mode
 bun run test:coverage  # With v8 coverage
 ```

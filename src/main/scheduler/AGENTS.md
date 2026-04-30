@@ -52,9 +52,11 @@ Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calenda
 | `clearTimers`        | `setTimeout`  | At `startMs` → switch to in-meeting     |
 | `inMeetingIntervals` | `setInterval` | Every 60s during meeting                |
 | `inMeetingEndTimers` | `setTimeout`  | At `endMs` → cleanup                    |
-| `scheduledEventData` | Map           | Snapshot for change detection, event UID→{title,meetUrl,startMs,endMs} |
+| `scheduledEventData` | Map           | Snapshot for change detection, `Map<EventId, ScheduledEventSnapshot>` where `meetUrl: MeetUrl | undefined` (branded) |
 
 Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (prevents alert re-show).
+
+**Branded keys**: All timer Maps and Sets are keyed by `EventId` (branded string), not bare `string`. Maps are `Map<EventId, ...>`, Sets are `Set<EventId>`.
 
 Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callbacks).
 
@@ -72,6 +74,8 @@ Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callba
 ```
 
 **Getter function pattern**: Module exports a singleton `SchedulerState` object (`state`) and typed getter functions (`getTimers()`, `getAlertTimers()`, etc.) that return the live underlying Maps/Sets. Callers like `getTimers().get(id)` always reflect current state. 14 getter functions: `getTimers`, `getAlertTimers`, `getTitleTimers`, `getCountdownIntervals`, `getClearTimers`, `getInMeetingIntervals`, `getInMeetingEndTimers`, `getScheduledEventData`, `getFiredEvents`, `getAlertFiredEvents`, `getActiveTitleEventId`, `getActiveInMeetingEventId`, `getConsecutiveErrors`, plus `isTitleDirty`, `isInMeetingDirty`.
+
+**Readonly views**: All Map getters return `ReadonlyMap<EventId, ...>` and all Set getters return `ReadonlySet<EventId>` — callers cannot mutate state directly; mutation goes through dedicated setters/primitives.
 
 **Dirty flags**: `titleDirty` and `inMeetingDirty` track when title resolution needs re-run. `markTitleDirty()` / `markInMeetingDirty()` set flags; resolvers clear them after processing.
 

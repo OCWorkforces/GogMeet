@@ -12,9 +12,10 @@ Type definitions and utilities shared across main, preload, and renderer process
 | `utils/escape-html.ts` | XSS protection utility (used by main popover + alert)                             |
 | `utils/time.ts`        | `isTomorrow`, `formatMeetingTime`, `formatRemainingTime` — shared time formatting |
 | `alert.ts`             | AlertPayload for `alert:show` push channel                                        |
-| `brand.ts`             | Branded types: EventId, MeetUrl, IsoUtc with validators returning Result<T,string> |
+| `brand.ts`             | Branded types: EventId, MeetUrl, IsoUtc, WindowHeight with validators returning Result<T,string> |
 | `app-state.ts`         | AppState type (extracted from renderer)                                           |
 | `result.ts`            | Result<T,E> discriminated union (ok/err)                                          |
+| `errors.ts`            | AppError discriminated union (6 variants), `errFrom()`, `formatAppError()`, type guards |
 
 ## IPC CHANNELS (`ipc-channels.ts`)
 
@@ -101,11 +102,15 @@ interface AlertPayload {
 }
 ```
 
+Note: `AlertPayload` intentionally omits `meetUrl` — it is a narrow projection of `MeetingEvent` for alert display only (JSDoc-documented in `alert.ts`).
+
 ## RESULT TYPE (`result.ts`)
 
 ```typescript
 type Result<T, E = string> = { ok: true; value: T } | { ok: false; error: E };
 ```
+
+`AppResult<T>` is an alias for `Result<T, AppError>` defined in `errors.ts` — preferred for fallible operations that surface taxonomy errors. Default `Result<T, E = string>` preserved for backward compat.
 
 Used by `loadSettings`, brand validators.
 
@@ -162,3 +167,9 @@ export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
 | renderer | `../shared/<file>.js` |
 
 Note: `.js` extension required for ESM resolution even though source is `.ts`.
+
+## TYPESCRIPT CONSTRAINTS
+
+- **`isolatedDeclarations`**: Enabled — every export in this directory must carry an explicit type annotation (no inferred return types on exported functions, no implicit types on exported consts). Prefer explicit annotations over `satisfies` on exports.
+- **`verbatimModuleSyntax`**: Type-only imports must use `import type { ... }`.
+- **`noPropertyAccessFromIndexSignature`**: Use bracket notation for index-signature access.

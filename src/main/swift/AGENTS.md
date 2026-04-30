@@ -64,6 +64,8 @@ Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`
 
 **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` in `event-validator.ts` maps exit codes to typed `SwiftHelperError`.
 
+**AppError mapping**: `SwiftHelperError.toAppError()` maps exit codes 2/3/4 to `AppError` discriminated union variants (`swift-permission-denied`, `swift-no-calendars`, `swift-runtime`). See `src/shared/errors.ts` for the full AppError taxonomy.
+
 ## TYPE GUARDS (guards.ts)
 
 Runtime narrowing functions:

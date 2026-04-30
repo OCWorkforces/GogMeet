@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
 **Generated:** 2026-04-30
-**Commit:** 4ea9e34
+**Commit:** 43c6523
 **Branch:** develop
 
 ## OVERVIEW
@@ -41,9 +41,10 @@ src/
 ├── preload/          # Context bridge (sandbox)
 ├── shared/           # Types, brands, results shared across processes
 │   ├── alert.ts     # AlertPayload for alert:show push
-│   ├── brand.ts     # Branded types (EventId, MeetUrl, IsoUtc)
+│   ├── brand.ts     # Branded types (EventId, MeetUrl, IsoUtc, WindowHeight)
+│   ├── errors.ts    # AppError discriminated union for error taxonomy
 │   ├── app-state.ts # AppState extracted from renderer
-│   └── result.ts    # Result<T,E> for fallible ops
+│   └── result.ts    # Result<T,E> & AppResult<T> for fallible ops
 └── assets/           # Tray icons (light/dark/template, 1x/2x)
 ```
 
@@ -70,6 +71,9 @@ src/
 | Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
 | Swift type guards | `src/main/swift/guards.ts` | Runtime type narrowing |
 | Force-poll IPC      | `src/main/ipc-handlers/scheduler.ts`          | `scheduler:force-poll` fire-and-forget → `forcePoll()` |
+| Error taxonomy        | `src/shared/errors.ts`                        | AppError union, errFrom(), formatAppError() |
+| Window height brand   | `src/shared/brand.ts`                         | WindowHeight, clampWindowHeight()          |
+| CSP types             | `src/main/utils/browser-window.ts`            | CSPSource, CSPDirective, CSP template      |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
 
 ## CONVENTIONS
@@ -93,6 +97,9 @@ src/
 - **Result type**: `Result<T,E>` used for fallible operations (settings load, brand validation)
 - **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
 - **Settings eager-load**: `loadSettings()` called during lifecycle init before `startScheduler()` — guarantees cache warm before scheduler polls
+- **noPropertyAccessFromIndexSignature**: Enabled — index-signature accesses use bracket notation (`obj["key"]` not `obj.key`)
+- **isolatedDeclarations**: Enabled — all exports have explicit type annotations; `satisfies` dropped in favor of explicit annotations
+- **erasableSyntaxOnly**: Enabled — no non-erasable syntax (enums, namespaces, parameter properties)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -115,6 +122,7 @@ src/
 - Never use raw `webContents.send()` — use `typedSend()` from shared.ts
 - Never use `"error" in result` duck-typing — use `isCalendarOk()` or `result.kind === "ok"`
 - Never assign raw strings to branded types (EventId, MeetUrl, IsoUtc) — use validators
+- Never use dot notation on index-signature types — use bracket notation (`parsed["key"]` not `parsed.key`)
 - Never call `allowSleep()` without a matching `preventSleep()`, ref-counted in power.ts
 
 ## BUILD SYSTEM
@@ -134,7 +142,7 @@ bun run dev          # Start dev (watch + electron)
 bun run build        # Build all (main + preload + renderer)
 bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
 bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (723 tests, main + renderer workspaces)
+bun run test         # Run Vitest tests (745 tests, main/renderer/shared workspaces)
 bun run test:watch   # Watch mode
 bun run clean        # Remove lib/ dist/
 rm -rf /tmp/googlemeet   # Force Swift binary recompile
@@ -169,3 +177,11 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **Power state caching**: `power.ts` caches `onBattery` at init, updates on `powerMonitor` events — `getPollInterval()` reads cache without polling OS each time
 - **Push payload**: `calendar:events-updated` delivers `MeetingEvent[]` directly — renderer uses events from push, no extra `getEvents()` round-trip needed
 - **Renderer push-only**: Renderer has no polling timer; all updates come via `onEventsUpdated` push from main
+- **AppError taxonomy**: Unified discriminated union in shared/errors.ts — 6 variants (swift-permission-denied, swift-no-calendars, swift-runtime, validation, io, unknown) with type guards
+- **AppResult<T>**: Alias for `Result<T, AppError>` — default `Result<T, E = string>` preserved for backward compat
+- **WindowHeight brand**: Phantom-branded number type with `clampWindowHeight()` validator clamping to min/max range
+- **Scheduler branding**: All timer `Map`s and `Set`s keyed by `EventId` (branded string) — no bare `Map<string, ...>`
+- **IPC payload branding**: `APP_OPEN_EXTERNAL` uses `{url: MeetUrl}`, `WINDOW_SET_HEIGHT` uses `{height: WindowHeight}` — branded at preload boundary
+- **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
+- **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
+- **AlertPayload**: Intentionally omits `meetUrl` — narrow projection of MeetingEvent for alert display (JSDoc documented)

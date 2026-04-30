@@ -54,6 +54,8 @@ shutdownApp():
   stopScheduler()           → scheduler/index.ts
 ```
 
+**Error handling**: Fatal init failures wrapped via `tryRun`/`tryRunAsync`; errors normalized through `AppError` taxonomy in `shared/errors.ts` (6 variants), shown via `dialog.showErrorBox()` on fatal.
+
 ## WINDOW CONFIG
 
 ```typescript
@@ -87,7 +89,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 | `shared.ts`   | —                                                                                  | `typedHandle()`, `validateSender()`, height constants |
 | `calendar.ts` | `calendar:get-events`, `calendar:request-permission`, `calendar:permission-status` | 3 invoke channels                                     |
 | `settings.ts` | `settings:get`, `settings:set`                                                     | + pushes `settings:changed`                           |
-| `app.ts`      | `app:open-external`, `app:get-version`                                             | 2 invoke channels                                     |
+| `app.ts`      | `app:open-external`, `app:get-version`                                             | 2 invoke channels; `app:open-external` payload is `{url: MeetUrl}` (branded) |
 | `window.ts`   | `window:set-height`                                                                | Fire-and-forget (`ipcMain.on`)                        |
 | `scheduler.ts`| `scheduler:force-poll`                                                             | Fire-and-forget (`ipcMain.on`), triggers `forcePoll()` |
 
@@ -122,3 +124,4 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 - Never change `SWIFT_SRC_DEV` relative path without verifying from bundled `lib/main/index.cjs` (see `swift/AGENTS.md`)
 - `index.ts` suppresses Chromium DNS sorter warnings via `app.commandLine.appendSwitch("log-level", "3")` — this filters WARNING-level Chromium messages from VPN/virtual interfaces (Chromium bug 40445828); do NOT remove
 - `settings.ts` migrates legacy `fullScreenAlert` → `windowAlert` key on load — preserve this migration when adding new settings keys
+- Never use dot notation on index-signature types — use bracket notation (`obj["key"]`); `noPropertyAccessFromIndexSignature` is enabled
