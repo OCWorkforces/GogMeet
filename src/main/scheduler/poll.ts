@@ -1,6 +1,6 @@
 import { getCalendarEventsResult } from "../calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { isCalendarOk } from "../../shared/models.js";
+import { isCalendarOk, type MeetingEvent } from "../../shared/models.js";
 import { typedSend } from "../ipc-handlers/shared.js";
 import { mainBus } from "../events.js";
 
@@ -26,6 +26,14 @@ const FORCE_POLL_COALESCE_MS = 10_000;
 
 /** Timestamp of the last completed poll (used by forcePoll coalesce guard) */
 let lastPollCompletedAt = 0;
+
+/** Last sent events hash — null sentinel ensures first poll always sends */
+let lastSentEventsHash: string | null = null;
+
+/** Compute stable hash for event list — used to gate IPC push */
+function computeEventsHash(events: MeetingEvent[]): string {
+  return events.map((e) => `${e.id}|${e.startDate}|${e.endDate}|${e.title}`).join("|");
+}
 
 /** Clear tray state after too many consecutive poll failures */
 function handleMaxConsecutiveErrors(): void {
@@ -57,9 +65,13 @@ export async function poll(): Promise<void> {
       state.lastKnownEvents = result;
       // Notify subscribers (e.g. tray) of the freshly fetched meeting list
       mainBus.emit("meeting-list-updated", result.events);
-      // Notify renderer of updated events
+      // Notify renderer of updated events — only if content actually changed
       if (state.win && !state.win.isDestroyed()) {
-        typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, undefined);
+        const eventHash = computeEventsHash(result.events);
+        if (lastSentEventsHash === null || eventHash !== lastSentEventsHash) {
+          lastSentEventsHash = eventHash;
+          typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, result.events);
+        }
       }
     } else {
       console.error("[scheduler] Calendar error:", result.error);
@@ -79,7 +91,7 @@ export async function poll(): Promise<void> {
 export async function forcePoll(): Promise<void> {
   const now = Date.now();
   if (now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
-    console.debug('[scheduler] forcePoll skipped — last poll was <10s ago');
+    console.debug("[scheduler] forcePoll skipped — last poll was <10s ago");
     return;
   }
 
@@ -152,5 +164,5 @@ export function restartScheduler(): void {
 /** Reset mutable state for tests — not for production use */
 export function _resetForTest(): void {
   resetState();
+  lastSentEventsHash = null;
 }
-

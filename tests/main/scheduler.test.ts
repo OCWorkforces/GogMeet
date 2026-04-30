@@ -643,8 +643,10 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     setSchedulerWindow(mockWindow as never);
     await poll();
 
-    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated", undefined);
+    // IPC now sends events array (empty in this case) instead of undefined
+    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated", []);
   });
+
 
   it("F2: poll does NOT send IPC if window is null", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/calendar.js");

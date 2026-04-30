@@ -1,4 +1,4 @@
-import type { CalendarResult, CalendarPermission } from "./models.js";
+import type { CalendarResult, CalendarPermission, MeetingEvent } from "./models.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";
 
@@ -47,5 +47,5 @@ export type IpcResponse<K extends keyof IpcChannelMap> = IpcChannelMap[K]["respo
 export interface PushChannelMap {
   [IPC_CHANNELS.ALERT_SHOW]: AlertPayload;
   [IPC_CHANNELS.SETTINGS_CHANGED]: AppSettings;
-  [IPC_CHANNELS.CALENDAR_EVENTS_UPDATED]: void;
+  [IPC_CHANNELS.CALENDAR_EVENTS_UPDATED]: MeetingEvent[];
 }

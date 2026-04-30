@@ -233,8 +233,8 @@ describe("poll()", () => {
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     await poll();
-
-    expect(mockSend).toHaveBeenCalledWith("calendar:events-updated", undefined);
+    // IPC now sends events array (empty in this case) instead of undefined
+    expect(mockSend).toHaveBeenCalledWith("calendar:events-updated", []);
 
     stateModule.state.win = null;
   });
