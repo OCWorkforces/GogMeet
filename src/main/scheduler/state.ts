@@ -1,28 +1,29 @@
 import type { BrowserWindow } from "electron";
 import type { CalendarResult } from "../../shared/models.js";
+import type { EventId, MeetUrl } from "../../shared/brand.js";
 
 export interface ScheduledEventSnapshot {
   title: string;
-  meetUrl: string | undefined;
+  meetUrl: MeetUrl | undefined;
   startMs: number;
   endMs: number;
 }
 
 export interface SchedulerState {
-  timers: Map<string, ReturnType<typeof setTimeout>>;
-  alertTimers: Map<string, ReturnType<typeof setTimeout>>;
-  titleTimers: Map<string, ReturnType<typeof setTimeout>>;
-  countdownIntervals: Map<string, ReturnType<typeof setInterval>>;
-  clearTimers: Map<string, ReturnType<typeof setTimeout>>;
-  inMeetingIntervals: Map<string, ReturnType<typeof setInterval>>;
-  inMeetingEndTimers: Map<string, ReturnType<typeof setTimeout>>;
-  scheduledEventData: Map<string, ScheduledEventSnapshot>;
-  firedEvents: Set<string>;
-  alertFiredEvents: Set<string>;
+  timers: Map<EventId, ReturnType<typeof setTimeout>>;
+  alertTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  titleTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>;
+  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  inMeetingIntervals: Map<EventId, ReturnType<typeof setInterval>>;
+  inMeetingEndTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
+  firedEvents: Set<EventId>;
+  alertFiredEvents: Set<EventId>;
   /** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
-  cancelledEvents: Set<string>;
-  activeTitleEventId: string | null;
-  activeInMeetingEventId: string | null;
+  cancelledEvents: Set<EventId>;
+  activeTitleEventId: EventId | null;
+  activeInMeetingEventId: EventId | null;
   titleDirty: boolean;
   inMeetingDirty: boolean;
   consecutiveErrors: number;
@@ -30,11 +31,7 @@ export interface SchedulerState {
   pollEpoch: number;
   win: BrowserWindow | null;
   onTrayTitleUpdate?:
-    | ((
-        title: string | null,
-        minsRemaining?: number,
-        inMeeting?: boolean,
-      ) => void)
+    | ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void)
     | null;
   powerCallbacks?: PowerCallbacks | null;
   lastKnownEvents: CalendarResult | null;
@@ -48,17 +45,17 @@ export interface PowerCallbacks {
 
 export function createSchedulerState(): SchedulerState {
   return {
-    timers: new Map<string, ReturnType<typeof setTimeout>>(),
-    alertTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    titleTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    countdownIntervals: new Map<string, ReturnType<typeof setInterval>>(),
-    clearTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    inMeetingIntervals: new Map<string, ReturnType<typeof setInterval>>(),
-    inMeetingEndTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-    scheduledEventData: new Map<string, ScheduledEventSnapshot>(),
-    firedEvents: new Set<string>(),
-    alertFiredEvents: new Set<string>(),
-    cancelledEvents: new Set<string>(),
+    timers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    alertTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    titleTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    countdownIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
+    clearTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    inMeetingIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
+    inMeetingEndTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    scheduledEventData: new Map<EventId, ScheduledEventSnapshot>(),
+    firedEvents: new Set<EventId>(),
+    alertFiredEvents: new Set<EventId>(),
+    cancelledEvents: new Set<EventId>(),
     activeTitleEventId: null,
     activeInMeetingEventId: null,
     titleDirty: false,
@@ -73,14 +70,13 @@ export function createSchedulerState(): SchedulerState {
   };
 }
 
-export let state = createSchedulerState();
+export let state: SchedulerState = createSchedulerState();
 
-
-export function setActiveTitleEventId(eventId: string | null): void {
+export function setActiveTitleEventId(eventId: EventId | null): void {
   state.activeTitleEventId = eventId;
 }
 
-export function setActiveInMeetingEventId(eventId: string | null): void {
+export function setActiveInMeetingEventId(eventId: EventId | null): void {
   state.activeInMeetingEventId = eventId;
 }
 
@@ -103,7 +99,6 @@ export function incrementConsecutiveErrors(): void {
   const next = state.consecutiveErrors + 1;
   setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));
 }
-
 
 export function initPowerCallbacks(callbacks: PowerCallbacks): void {
   state.powerCallbacks = callbacks;
@@ -151,10 +146,10 @@ export function clearSchedulerResources(s: SchedulerState): void {
  */
 export function cancelStaleEntries(
   s: SchedulerState,
-  activeIds: Set<string>,
+  activeIds: Set<EventId>,
   callbacks?: {
-    onBrowserCancel?: (id: string, timers: Map<string, ReturnType<typeof setTimeout>>) => void;
-    onAlertCancel?: (id: string, alertTimers: Map<string, ReturnType<typeof setTimeout>>) => void;
+    onBrowserCancel?: (id: EventId, timers: Map<EventId, ReturnType<typeof setTimeout>>) => void;
+    onAlertCancel?: (id: EventId, alertTimers: Map<EventId, ReturnType<typeof setTimeout>>) => void;
     onCountdownIntervalCancel?: () => void;
   },
 ): void {
@@ -238,14 +233,14 @@ export function cancelStaleEntries(
 }
 
 export function replaceState(nextState: SchedulerState): void {
-// Clear old timer handles to prevent stale callbacks
+  // Clear old timer handles to prevent stale callbacks
   clearSchedulerResources(state);
   // Preserve critical refs that should survive state replacement
   nextState.win = state.win;
   nextState.onTrayTitleUpdate = state.onTrayTitleUpdate ?? null;
   nextState.powerCallbacks = state.powerCallbacks ?? null;
   nextState.lastKnownEvents = state.lastKnownEvents;
-state = nextState;
+  state = nextState;
 }
 
 export function resetState(options?: { preserveWindow?: boolean }): void {
@@ -264,59 +259,57 @@ export function resetState(options?: { preserveWindow?: boolean }): void {
   state.powerCallbacks = previousPowerCallbacks ?? null;
 }
 
-
-
 // ---------------------------------------------------------------------------
 // Typed getter functions — preferred API for internal scheduler consumers.
 // These return the live underlying Maps/Sets (mutable) and always reflect the
 // current state object even after resetState() / replaceState() swaps it.
 // ---------------------------------------------------------------------------
 
-export function getTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
+export function getTimers(): ReadonlyMap<EventId, ReturnType<typeof setTimeout>> {
   return state.timers;
 }
 
-export function getAlertTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
+export function getAlertTimers(): ReadonlyMap<EventId, ReturnType<typeof setTimeout>> {
   return state.alertTimers;
 }
 
-export function getTitleTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
+export function getTitleTimers(): ReadonlyMap<EventId, ReturnType<typeof setTimeout>> {
   return state.titleTimers;
 }
 
-export function getCountdownIntervals(): ReadonlyMap<string, ReturnType<typeof setInterval>> {
+export function getCountdownIntervals(): ReadonlyMap<EventId, ReturnType<typeof setInterval>> {
   return state.countdownIntervals;
 }
 
-export function getClearTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
+export function getClearTimers(): ReadonlyMap<EventId, ReturnType<typeof setTimeout>> {
   return state.clearTimers;
 }
 
-export function getInMeetingIntervals(): ReadonlyMap<string, ReturnType<typeof setInterval>> {
+export function getInMeetingIntervals(): ReadonlyMap<EventId, ReturnType<typeof setInterval>> {
   return state.inMeetingIntervals;
 }
 
-export function getInMeetingEndTimers(): ReadonlyMap<string, ReturnType<typeof setTimeout>> {
+export function getInMeetingEndTimers(): ReadonlyMap<EventId, ReturnType<typeof setTimeout>> {
   return state.inMeetingEndTimers;
 }
 
-export function getScheduledEventData(): ReadonlyMap<string, ScheduledEventSnapshot> {
+export function getScheduledEventData(): ReadonlyMap<EventId, ScheduledEventSnapshot> {
   return state.scheduledEventData;
 }
 
-export function getFiredEvents(): ReadonlySet<string> {
+export function getFiredEvents(): ReadonlySet<EventId> {
   return state.firedEvents;
 }
 
-export function getAlertFiredEvents(): ReadonlySet<string> {
+export function getAlertFiredEvents(): ReadonlySet<EventId> {
   return state.alertFiredEvents;
 }
 
-export function getActiveTitleEventId(): string | null {
+export function getActiveTitleEventId(): EventId | null {
   return state.activeTitleEventId;
 }
 
-export function getActiveInMeetingEventId(): string | null {
+export function getActiveInMeetingEventId(): EventId | null {
   return state.activeInMeetingEventId;
 }
 
@@ -332,6 +325,6 @@ export function isInMeetingDirty(): boolean {
   return state.inMeetingDirty;
 }
 
-  export function getLastKnownEvents(): CalendarResult | null {
+export function getLastKnownEvents(): CalendarResult | null {
   return state.lastKnownEvents;
 }

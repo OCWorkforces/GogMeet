@@ -3,11 +3,16 @@ import type { EventId, IsoUtc, MeetUrl } from "../../shared/brand.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../shared/brand.js";
 import { parseIsoUtc } from "./event-validator.js";
 
+const HTML_TAG_RE = /<[^>]*>/g;
+const OUTLOOK_BORDER_RE = /^[-~:]+$/;
+const LONG_SEPARATOR_RE = /^[_\-*]{5,}$/;
+const OUTLOOK_BORDERED_RE = /^[*_][\s_\-*]+[*_]$/;
+
 /** Strip HTML tags from event notes. CalDAV-synced events (e.g. Google Calendar)
  *  via macOS Calendar) may contain raw HTML like `<a href="...">link</a>` in the notes field.
  *  EventKit returns this verbatim; stripping ensures downstream consumers see plain text. */
 function stripHtmlTags(text: string): string {
-  return text.replace(/<[^>]*>/g, "");
+  return text.replace(HTML_TAG_RE, "");
 }
 
 /** Strip Outlook/Exchange HTML-to-plaintext border artifacts from event notes,
@@ -21,13 +26,13 @@ export function cleanDescription(notes: string): string {
       if (!trimmed) return true;
 
       // Outlook text-border: -::~:~::~:~:...:~::-
-      if (/^[-~:]+$/.test(trimmed) && trimmed.length > 10) return false;
+      if (OUTLOOK_BORDER_RE.test(trimmed) && trimmed.length > 10) return false;
 
       // Long separator lines (underscores, dashes, asterisks)
-      if (/^[_\-\*]{5,}$/.test(trimmed)) return false;
+      if (LONG_SEPARATOR_RE.test(trimmed)) return false;
 
       // Outlook bordered separators: * ___ * or similar
-      if (/^[\*_][\s_\-\*]+[\*_]$/.test(trimmed)) return false;
+      if (OUTLOOK_BORDERED_RE.test(trimmed)) return false;
 
       return true;
     })
@@ -42,10 +47,7 @@ export interface ParsedTimestamps {
 }
 
 /** Parse and validate the start/end ISO timestamp pair from raw Swift fields. */
-export function parseTimestampPair(
-  startStr: string,
-  endStr: string,
-): ParsedTimestamps | null {
+export function parseTimestampPair(startStr: string, endStr: string): ParsedTimestamps | null {
   const start = parseIsoUtc(startStr);
   const end = parseIsoUtc(endStr);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
@@ -53,10 +55,7 @@ export function parseTimestampPair(
 }
 
 /** Brand a Date pair into IsoUtc values via canonical ISO8601 round-trip. */
-export function brandTimestamps(
-  start: Date,
-  end: Date,
-): { start: IsoUtc; end: IsoUtc } | null {
+export function brandTimestamps(start: Date, end: Date): { start: IsoUtc; end: IsoUtc } | null {
   const startBrand = asIsoUtc(start.toISOString());
   const endBrand = asIsoUtc(end.toISOString());
   if (!startBrand.ok || !endBrand.ok) return null;

@@ -1,4 +1,5 @@
 import type { CalendarResult, CalendarPermission, MeetingEvent } from "./models.js";
+import type { MeetUrl, WindowHeight } from "./brand.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";
 
@@ -16,7 +17,7 @@ export const IPC_CHANNELS = {
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
   ALERT_SHOW: "alert:show",
   SCHEDULER_FORCE_POLL: "scheduler:force-poll",
-} as const satisfies Record<string, string>;
+} as const;
 
 // ─── Type utilities for IPC ──────────────────────────────────────────────────
 
@@ -30,8 +31,8 @@ export interface IpcChannelMap {
   [IPC_CHANNELS.CALENDAR_GET_EVENTS]: { request: void; response: CalendarResult };
   [IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION]: { request: void; response: CalendarPermission };
   [IPC_CHANNELS.CALENDAR_PERMISSION_STATUS]: { request: void; response: CalendarPermission };
-  [IPC_CHANNELS.WINDOW_SET_HEIGHT]: { request: number; response: void };
-  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: { request: string; response: void };
+  [IPC_CHANNELS.WINDOW_SET_HEIGHT]: { request: { height: WindowHeight }; response: void };
+  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: { request: { url: MeetUrl }; response: void };
   [IPC_CHANNELS.APP_GET_VERSION]: { request: void; response: string };
   [IPC_CHANNELS.SETTINGS_GET]: { request: void; response: AppSettings };
   [IPC_CHANNELS.SETTINGS_SET]: { request: Partial<AppSettings>; response: AppSettings };

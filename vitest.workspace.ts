@@ -31,6 +31,19 @@ export default defineConfig({
           },
         },
       },
+      {
+        test: {
+          name: 'shared',
+          environment: 'node',
+          include: ['tests/shared/**/*.test.ts'],
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json-summary'],
+            include: ['src/shared/**/*.ts'],
+            exclude: ['src/shared/**/*.d.ts'],
+          },
+        },
+      },
     ],
   },
 });

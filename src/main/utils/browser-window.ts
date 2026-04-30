@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from "electron";
+import { app, type BrowserWindow, session } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +12,7 @@ export const SECURE_WEB_PREFERENCES = {
   sandbox: true,
   contextIsolation: true,
   nodeIntegration: false,
-} as const satisfies Record<string, string | boolean | number>;
+} as const;
 
 /**
  * Returns the absolute path to the preload script.
@@ -33,18 +33,29 @@ export function getPreloadPath(): string {
 export function loadWindowContent(win: BrowserWindow, page: string): void {
   const load = !app.isPackaged
     ? () => {
-        const devUrl =
-          process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
+        const devUrl = process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
         return win.loadURL(`${devUrl}/${page}.html`);
       }
     : () => win.loadFile(path.join(__dirname, "..", "renderer", `${page}.html`));
 
   load().catch((error: unknown) => {
-    console.error('[browser-window] Failed to load content:', error);
+    console.error("[browser-window] Failed to load content:", error);
   });
 }
 
-const CSP_BASE = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";
+type CSPSource = `'self'` | `'unsafe-inline'` | `data:` | `ws://localhost:*`;
+type CSPDirectiveName =
+  | "default-src"
+  | "script-src"
+  | "style-src"
+  | "img-src"
+  | "font-src"
+  | "connect-src";
+type CSPDirective = `${CSPDirectiveName} ${CSPSource}${string}`;
+type CSP = `${CSPDirective}` | `${CSPDirective}; ${string}`;
+
+const CSP_BASE: CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";
 
 let cspHeadersConfigured = false;
 
@@ -56,9 +67,7 @@ export function setupCspHeaders(): void {
   if (cspHeadersConfigured) return;
   cspHeadersConfigured = true;
 
-  const csp = app.isPackaged
-    ? CSP_BASE
-    : `${CSP_BASE}; connect-src 'self' ws://localhost:*`;
+  const csp: CSP = app.isPackaged ? CSP_BASE : `${CSP_BASE}; connect-src 'self' ws://localhost:*`;
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({

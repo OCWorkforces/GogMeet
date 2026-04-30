@@ -11,7 +11,7 @@ import {
 // Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
 // These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
 // Setting log-level to 3 (ERROR) filters out WARNING-level Chromium messages.
-app.commandLine.appendSwitch('log-level', '3');
+app.commandLine.appendSwitch("log-level", "3");
 
 // Enable strict sandboxing for all renderers (security best practice).
 // Preload uses only contextBridge + ipcRenderer (sandbox-compatible).
@@ -32,10 +32,10 @@ process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) =>
 });
 
 const packageJson = getPackageInfo();
-const platform = [os.type(), os.release(), os.arch()].join(', ');
+const platform = [os.type(), os.release(), os.arch()].join(", ");
 
 app.setAboutPanelOptions({
-  applicationName: 'GogMeet',
+  applicationName: "GogMeet",
   applicationVersion: app.getVersion(),
   copyright: `Developed by ${packageJson.author}`,
   version: platform,

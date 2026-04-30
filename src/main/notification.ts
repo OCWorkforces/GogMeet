@@ -48,8 +48,7 @@ export async function checkNotificationPermission(): Promise<void> {
     cancelId: 1,
     title: "Enable Notifications",
     message: "GogMeet needs notification permission to remind you about meetings.",
-    detail:
-      "Would you like to open System Settings to enable notifications for GogMeet?",
+    detail: "Would you like to open System Settings to enable notifications for GogMeet?",
   });
 
   if (response === 0) {

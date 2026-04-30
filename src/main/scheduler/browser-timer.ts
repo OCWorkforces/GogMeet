@@ -1,5 +1,6 @@
 import { Notification } from "electron";
 import type { MeetingEvent } from "../../shared/models.js";
+import type { EventId } from "../../shared/brand.js";
 import type { ScheduledEventSnapshot } from "./state.js";
 import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 
@@ -12,9 +13,9 @@ export function scheduleBrowserTimer(
   effectiveDelay: number,
   startMs: number,
   endMs: number,
-  timers: Map<string, ReturnType<typeof setTimeout>>,
-  firedEvents: Set<string>,
-  scheduledEventData: Map<string, ScheduledEventSnapshot>,
+  timers: Map<EventId, ReturnType<typeof setTimeout>>,
+  firedEvents: Set<EventId>,
+  scheduledEventData: Map<EventId, ScheduledEventSnapshot>,
   shouldAbort?: () => boolean,
 ): void {
   const handle = setTimeout(() => {
@@ -32,9 +33,7 @@ export function scheduleBrowserTimer(
     }
     // Open browser for meetings with a URL (alert dismiss doesn't prevent this)
     if (!event.meetUrl) {
-      console.log(
-        `[scheduler] Notification shown for "${event.title}" (no URL)`,
-      );
+      console.log(`[scheduler] Notification shown for "${event.title}" (no URL)`);
       return;
     }
     const url = buildMeetUrl(event);
@@ -58,8 +57,8 @@ export function scheduleBrowserTimer(
  * Cancel a browser timer for a specific event.
  */
 export function cancelBrowserTimer(
-  eventId: string,
-  timers: Map<string, ReturnType<typeof setTimeout>>,
+  eventId: EventId,
+  timers: Map<EventId, ReturnType<typeof setTimeout>>,
 ): void {
   const handle = timers.get(eventId);
   if (handle) {

@@ -42,9 +42,7 @@ function handleMaxConsecutiveErrors(): void {
   clearAllDisplayTimers();
   setActiveInMeetingEventId(null);
   resolveActiveTitleEvent();
-  console.error(
-    `[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`,
-  );
+  console.error(`[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`);
 }
 
 /** Increment error counter and clear tray if threshold reached */
@@ -112,13 +110,16 @@ export async function forcePoll(): Promise<void> {
   // Re-arm the next scheduled poll from "now" if the scheduler is still active
   if (state.pollEpoch === epoch) {
     function scheduleNextAfterForce(): void {
-      state.pollTimeout = setTimeout(async () => {
-        await poll();
-        lastPollCompletedAt = Date.now();
-        if (state.pollTimeout !== null && state.pollEpoch === epoch) {
-          scheduleNextAfterForce();
-        }
-      }, state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000);
+      state.pollTimeout = setTimeout(
+        async () => {
+          await poll();
+          lastPollCompletedAt = Date.now();
+          if (state.pollTimeout !== null && state.pollEpoch === epoch) {
+            scheduleNextAfterForce();
+          }
+        },
+        state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000,
+      );
     }
     scheduleNextAfterForce();
   }
@@ -137,13 +138,16 @@ export function startScheduler(): void {
 
   // Then poll with recursive setTimeout (prevents drift/overlap)
   function scheduleNextPoll(): void {
-    state.pollTimeout = setTimeout(async () => {
-      await poll();
-      lastPollCompletedAt = Date.now();
-      if (state.pollTimeout !== null && state.pollEpoch === epoch) {
-        scheduleNextPoll();
-      }
-    }, state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000);
+    state.pollTimeout = setTimeout(
+      async () => {
+        await poll();
+        lastPollCompletedAt = Date.now();
+        if (state.pollTimeout !== null && state.pollEpoch === epoch) {
+          scheduleNextPoll();
+        }
+      },
+      state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000,
+    );
   }
   scheduleNextPoll();
 }

@@ -8,7 +8,7 @@ export const MEET_URL_ALLOWLIST = [
   "https://meet.google.com/",
   "https://calendar.google.com/",
   "https://accounts.google.com/",
-] as const satisfies readonly string[];
+] as const;
 
 /** Hostnames derived from the allowlist for strict, parser-based matching. */
 const ALLOWED_HOSTNAMES: readonly string[] = MEET_URL_ALLOWLIST.map((prefix) => {

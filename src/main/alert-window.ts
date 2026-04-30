@@ -115,10 +115,7 @@ function showAlertInternal(event: MeetingEvent): void {
         if (typeof contentHeight === "number" && contentHeight > 0) {
           const MIN_HEIGHT = 280;
           const MAX_HEIGHT = 480;
-          const clamped = Math.max(
-            MIN_HEIGHT,
-            Math.min(MAX_HEIGHT, Math.ceil(contentHeight)),
-          );
+          const clamped = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(contentHeight)));
           win.setSize(500, clamped, false);
         }
         win.show();

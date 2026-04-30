@@ -11,15 +11,15 @@ Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.han
 | File          | Exports                                                                                                                               | Lines | Role                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------- |
 | `shared.ts`   | `typedHandle`, `typedSend`, `validateSender`, `validateOnSender`, `validateSenderUrl`, `ALLOWED_ORIGINS`, `MIN_WINDOW_HEIGHT`, `MAX_WINDOW_HEIGHT` | 84    | Infrastructure: type-safe wrapper + origin validation                              |
-| `app.ts`      | `registerAppHandlers`                                                                                                                 | 36    | `APP_OPEN_EXTERNAL` (URL-validated), `APP_GET_VERSION`                             |
+| `app.ts`      | `registerAppHandlers`                                                                                                                 | 36    | `APP_OPEN_EXTERNAL` (request `{url: MeetUrl}`, URL-validated), `APP_GET_VERSION`   |
 | `calendar.ts` | `registerCalendarHandlers`                                                                                                            | 56    | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS` |
 | `settings.ts` | `registerSettingsHandlers`                                                                                                            | 50    | `SETTINGS_GET`, `SETTINGS_SET` (triggers restartScheduler + syncAutoLaunch + push); imports restartScheduler from scheduler/facade.js (not index.js, circular dep prevention) |
-| `window.ts`   | `registerWindowHandlers`                                                                                                              | 30    | `WINDOW_SET_HEIGHT` (fire-and-forget, clamped 220–480)                             |
+| `window.ts`   | `registerWindowHandlers`                                                                                                              | 30    | `WINDOW_SET_HEIGHT` (request `{height: WindowHeight}`, fire-and-forget, clamped 220–480) |
 | `scheduler.ts`| `registerSchedulerHandlers`                                                                                                           | —     | `SCHEDULER_FORCE_POLL` (fire-and-forget, `ipcMain.on`, `validateOnSender` → `void forcePoll()`) |
 
 ## PATTERNS
 
-**Invoke handlers** (all except window.ts):
+**Invoke handlers** (all except window.ts and scheduler.ts) — every invoke handler uses `validateSender()` (SETTINGS_GET previously missing, now fixed):
 
 ```
 typedHandle(channel, (e, args) => { validateSender(e); ... })
@@ -49,14 +49,14 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 
 | Channel                       | Handler File | Type                                          |
 | ----------------------------- | ------------ | --------------------------------------------- |
-| `APP_OPEN_EXTERNAL`           | app.ts       | invoke (URL validated via `isAllowedMeetUrl`) |
+| `APP_OPEN_EXTERNAL`           | app.ts       | invoke (request `{url: MeetUrl}`, URL validated via `isAllowedMeetUrl`) |
 | `APP_GET_VERSION`             | app.ts       | invoke                                        |
 | `CALENDAR_GET_EVENTS`         | calendar.ts  | invoke                                        |
 | `CALENDAR_REQUEST_PERMISSION` | calendar.ts  | invoke                                        |
 | `CALENDAR_PERMISSION_STATUS`  | calendar.ts  | invoke                                        |
 | `SETTINGS_GET`                | settings.ts  | invoke                                        |
 | `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                       |
-| `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (clamped)                     |
+| `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (request `{height: WindowHeight}`, clamped) |
 | `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`          |
 
 Push channels use `typedSend()` from `shared.ts`:
@@ -75,3 +75,4 @@ Push channels use `typedSend()` from `shared.ts`:
 - Never push to renderer without checking `win.isDestroyed()`
 - Never use raw `webContents.send()` — always use `typedSend()` from `shared.ts`
 - All `typedHandle` callbacks now have explicit `(event: IpcMainInvokeEvent)` annotation
+- Errors normalized through `AppError` taxonomy in `src/shared/errors.ts` (6 variants) — never throw raw strings from handlers

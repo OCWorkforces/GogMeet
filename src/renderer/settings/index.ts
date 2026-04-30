@@ -8,6 +8,7 @@ import {
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let isSaving = false;
+let listenersSetup = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function render(errorMessage?: string): void {
@@ -109,10 +110,13 @@ function render(errorMessage?: string): void {
     </div>
   `;
 
-  setupSelectListener();
-  setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
-  setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
-  setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
+  if (!listenersSetup) {
+    setupSelectListener();
+    setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
+    setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
+    setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
+    listenersSetup = true;
+  }
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -144,18 +148,12 @@ function clearSaveIndicatorTimers(): void {
 
 function setupSelectListener(): void {
   // DOM cast: getElementById returns HTMLElement | null; narrow to specific subtype is standard DOM practice
-  const select = document.getElementById(
-    "open-before-select",
-  ) as HTMLSelectElement | null;
+  const select = document.getElementById("open-before-select") as HTMLSelectElement | null;
   if (!select) return;
 
   select.addEventListener("change", () => {
     const value = parseInt(select.value, 10);
-    if (
-      isNaN(value) ||
-      value < OPEN_BEFORE_MINUTES_MIN ||
-      value > OPEN_BEFORE_MINUTES_MAX
-    ) {
+    if (isNaN(value) || value < OPEN_BEFORE_MINUTES_MIN || value > OPEN_BEFORE_MINUTES_MAX) {
       return;
     }
     void saveSettings({ openBeforeMinutes: value }, "save-indicator");
@@ -178,13 +176,7 @@ function setupToggleListener(
   toggle.addEventListener("change", () => {
     const previous = settings[settingKey];
     const next = toggle.checked;
-    void saveToggleSetting(
-      toggle,
-      settingKey,
-      next,
-      previous,
-      indicatorId,
-    );
+    void saveToggleSetting(toggle, settingKey, next, previous, indicatorId);
   });
 }
 
@@ -233,8 +225,7 @@ async function saveSettings(
 
     showSaveIndicator(indicatorId, "✓ Saved");
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to save settings";
+    const message = err instanceof Error ? err.message : "Failed to save settings";
     clearSaveIndicatorTimers();
     render(message);
   } finally {

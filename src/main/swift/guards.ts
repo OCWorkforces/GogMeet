@@ -41,10 +41,9 @@ export function getErrorStderr(err: unknown): string | undefined {
 }
 
 /** Build a tuple type `[string, string, …]` of length `N`. */
-type BuildStringTuple<
-  N extends number,
-  Acc extends string[] = [],
-> = Acc["length"] extends N ? Acc : BuildStringTuple<N, [...Acc, string]>;
+type BuildStringTuple<N extends number, Acc extends string[] = []> = Acc["length"] extends N
+  ? Acc
+  : BuildStringTuple<N, [...Acc, string]>;
 
 /** Fixed-length tuple of `N` strings. */
 export type StringTuple<N extends number> = BuildStringTuple<N>;

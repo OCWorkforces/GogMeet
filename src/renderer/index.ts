@@ -49,9 +49,7 @@ function formatLastUpdated(ts: number): string {
 function renderFooter(): string {
   const label = rs.lastUpdatedAt === null ? "Loading…" : formatLastUpdated(rs.lastUpdatedAt);
   const isLoading = rs.lastUpdatedAt === null;
-  const icon = isLoading
-    ? ""
-    : '<span class="footer-refresh-icon" aria-hidden="true">↻</span>';
+  const icon = isLoading ? "" : '<span class="footer-refresh-icon" aria-hidden="true">↻</span>';
   return `
     <footer class="footer">
       <span class="footer-version">v${rs.version}</span>

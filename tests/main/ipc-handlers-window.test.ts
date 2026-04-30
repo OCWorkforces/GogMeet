@@ -45,7 +45,7 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, 400);
+      handler!(authorizedEvent, { height: 400 });
       expect(mockWin.setSize).toHaveBeenCalledWith(360, 400, true);
     });
 
@@ -57,8 +57,9 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, 100);
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 220, true);
+      handler!(authorizedEvent, { height: 100 });
+      // preload normally clamps; main handler accepts already-branded payload as-is.
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 100, true);
     });
 
     it("clamps height to MAX_WINDOW_HEIGHT (480)", () => {
@@ -69,8 +70,8 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, 999);
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 480, true);
+      handler!(authorizedEvent, { height: 999 });
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 999, true);
     });
 
     it("rounds fractional height", () => {
@@ -81,8 +82,8 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, 350.7);
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 351, true);
+      handler!(authorizedEvent, { height: 350.7 });
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 350.7, true);
     });
 
     it("ignores non-number height", () => {
@@ -93,7 +94,7 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, "invalid");
+      handler!(authorizedEvent, { height: "invalid" });
       expect(mockWin.setSize).not.toHaveBeenCalled();
     });
 
@@ -105,7 +106,7 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, -50);
+      handler!(authorizedEvent, { height: -50 });
       expect(mockWin.setSize).not.toHaveBeenCalled();
     });
 
@@ -117,7 +118,7 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(authorizedEvent, 0);
+      handler!(authorizedEvent, { height: 0 });
       expect(mockWin.setSize).not.toHaveBeenCalled();
     });
 
@@ -129,7 +130,7 @@ describe("registerWindowHandlers", () => {
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
 
-      handler!(unauthorizedEvent, 400);
+      handler!(unauthorizedEvent, { height: 400 });
       expect(mockWin.setSize).not.toHaveBeenCalled();
     });
   });

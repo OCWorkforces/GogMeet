@@ -27,9 +27,7 @@ export function registerCalendarHandlers(): void {
     IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION,
     async (
       event: IpcMainInvokeEvent,
-    ): Promise<
-      IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>
-    > => {
+    ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>> => {
       if (!validateSender(event)) return "denied";
       try {
         return await requestCalendarPermission();

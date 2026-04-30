@@ -1,17 +1,18 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type {
-  CalendarPermission,
-  CalendarResult,
-} from "../shared/models.js";
+import { formatAppError } from "../shared/errors.js";
+import type { CalendarPermission, CalendarResult } from "../shared/models.js";
 import { runSwiftHelper } from "./swift/binary-manager.js";
 import { parseEvents } from "./swift/event-parser.js";
+import { SwiftHelperError } from "./swift/event-validator.js";
 import { getErrorStderr } from "./swift/guards.js";
 
 export { cleanDescription, parseEvents } from "./swift/event-parser.js";
 
 const execFileAsync = promisify(execFile);
+
+let cachedPermissionStatus: CalendarPermission | null = null;
 
 /** Fetch Google Meet events — returns structured result with events or error */
 export async function getCalendarEventsResult(): Promise<CalendarResult> {
@@ -19,16 +20,17 @@ export async function getCalendarEventsResult(): Promise<CalendarResult> {
     const output = await runSwiftHelper();
     const { events, diagnostics } = parseEvents(output);
     for (const d of diagnostics) {
-      console.warn(
-        `[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`,
-        d.raw ?? "",
-      );
+      console.warn(`[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`, d.raw ?? "");
     }
     return { kind: "ok", events: [...events] };
   } catch (err) {
+    if (err instanceof SwiftHelperError) {
+      const appErr = err.toAppError();
+      console.error("[calendar] getCalendarEventsResult error:", err);
+      return { kind: "err", error: formatAppError(appErr) };
+    }
     const stderr = getErrorStderr(err);
-    const message =
-      stderr || (err instanceof Error ? err.message : "Unknown error");
+    const message = stderr || (err instanceof Error ? err.message : "Unknown error");
     console.error("[calendar] getCalendarEventsResult error:", err);
     return { kind: "err", error: message };
   }
@@ -58,21 +60,31 @@ export async function requestCalendarPermission(): Promise<CalendarPermission> {
 
 /** Check current calendar permission state without triggering dialog */
 export async function getCalendarPermissionStatus(): Promise<CalendarPermission> {
+  if (cachedPermissionStatus !== null) return cachedPermissionStatus;
   try {
     await runAppleScript(`
       tell application "Calendar"
         get name of first calendar
       end tell
     `);
-    return "granted";
+    cachedPermissionStatus = "granted";
+    return cachedPermissionStatus;
   } catch (err) {
     const msg = String(err);
     if (msg.includes("not authorized") || msg.includes("1743")) {
-      return "denied";
+      cachedPermissionStatus = "denied";
+      return cachedPermissionStatus;
     }
     if (msg.includes("2700") || msg.includes("not determined")) {
-      return "not-determined";
+      cachedPermissionStatus = "not-determined";
+      return cachedPermissionStatus;
     }
-    return "not-determined";
+    cachedPermissionStatus = "not-determined";
+    return cachedPermissionStatus;
   }
+}
+
+/** Invalidate cached permission — call on power state resume as a safety net */
+export function invalidateCalendarPermissionCache(): void {
+  cachedPermissionStatus = null;
 }

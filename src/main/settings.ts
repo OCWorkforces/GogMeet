@@ -19,18 +19,12 @@ function getSettingsPath(): string {
 }
 
 function clampOpenBeforeMinutes(value: number): number {
-  return Math.max(
-    OPEN_BEFORE_MINUTES_MIN,
-    Math.min(OPEN_BEFORE_MINUTES_MAX, value),
-  );
+  return Math.max(OPEN_BEFORE_MINUTES_MIN, Math.min(OPEN_BEFORE_MINUTES_MAX, value));
 }
 
-function isEnoent(e: unknown): boolean {
+function isEnoent(e: unknown): e is { code: unknown } {
   return (
-    typeof e === "object" &&
-    e !== null &&
-    "code" in e &&
-    (e as { code: unknown }).code === "ENOENT"
+    typeof e === "object" && e !== null && "code" in e && (e as { code: unknown }).code === "ENOENT"
   );
 }
 
@@ -64,37 +58,36 @@ export async function loadSettings(): Promise<Result<AppSettings, string>> {
   // Migrate legacy fullScreenAlert → windowAlert
   if (
     parsed &&
-    typeof parsed.fullScreenAlert === "boolean" &&
-    typeof parsed.windowAlert !== "boolean"
+    typeof parsed["fullScreenAlert"] === "boolean" &&
+    typeof parsed["windowAlert"] !== "boolean"
   ) {
-    parsed.windowAlert = parsed.fullScreenAlert;
+    parsed["windowAlert"] = parsed["fullScreenAlert"];
   }
 
   // Validate and construct settings object
   settingsCache = {
     schemaVersion: DEFAULT_SETTINGS.schemaVersion,
     openBeforeMinutes: clampOpenBeforeMinutes(
-      typeof parsed.openBeforeMinutes === "number"
-        ? parsed.openBeforeMinutes
+      typeof parsed["openBeforeMinutes"] === "number"
+        ? parsed["openBeforeMinutes"]
         : DEFAULT_SETTINGS.openBeforeMinutes,
     ),
     launchAtLogin:
-      typeof parsed.launchAtLogin === "boolean"
-        ? parsed.launchAtLogin
+      typeof parsed["launchAtLogin"] === "boolean"
+        ? parsed["launchAtLogin"]
         : DEFAULT_SETTINGS.launchAtLogin,
     showTomorrowMeetings:
-      typeof parsed.showTomorrowMeetings === "boolean"
-        ? parsed.showTomorrowMeetings
+      typeof parsed["showTomorrowMeetings"] === "boolean"
+        ? parsed["showTomorrowMeetings"]
         : DEFAULT_SETTINGS.showTomorrowMeetings,
     windowAlert:
-      typeof parsed.windowAlert === "boolean"
-        ? parsed.windowAlert
+      typeof parsed["windowAlert"] === "boolean"
+        ? parsed["windowAlert"]
         : DEFAULT_SETTINGS.windowAlert,
   };
   settingsLoaded = true;
   return ok(settingsCache);
 }
-
 export async function saveSettings(settings: AppSettings): Promise<void> {
   const userDataPath = app.getPath("userData");
   await mkdir(userDataPath, { recursive: true });
@@ -105,14 +98,18 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 
 export function getSettings(): AppSettings {
   if (!settingsLoaded) {
-    throw new Error("Settings not loaded — loadSettings() must be called during app initialization");
+    throw new Error(
+      "Settings not loaded — loadSettings() must be called during app initialization",
+    );
   }
   return { ...settingsCache };
 }
 
 export async function updateSettings(partial: Partial<AppSettings>): Promise<AppSettings> {
   if (!settingsLoaded) {
-    throw new Error("Settings not loaded — loadSettings() must be called during app initialization");
+    throw new Error(
+      "Settings not loaded — loadSettings() must be called during app initialization",
+    );
   }
   // Merge with current cache
   const merged: AppSettings = {
@@ -121,9 +118,7 @@ export async function updateSettings(partial: Partial<AppSettings>): Promise<App
 
   // Only apply known properties
   if (typeof partial.openBeforeMinutes === "number") {
-    merged.openBeforeMinutes = clampOpenBeforeMinutes(
-      partial.openBeforeMinutes,
-    );
+    merged.openBeforeMinutes = clampOpenBeforeMinutes(partial.openBeforeMinutes);
   }
 
   if (typeof partial.launchAtLogin === "boolean") {

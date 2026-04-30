@@ -8,9 +8,10 @@ export function registerAppHandlers(): void {
     IPC_CHANNELS.APP_OPEN_EXTERNAL,
     async (
       event: IpcMainInvokeEvent,
-      url: IpcRequest<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>,
+      payload: IpcRequest<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
       if (!validateSender(event)) return;
+      const url = payload?.url;
       try {
         if (typeof url === "string" && isAllowedMeetUrl(url)) {
           await shell.openExternal(url);

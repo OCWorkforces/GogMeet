@@ -123,7 +123,9 @@ describe("preload/index.ts", () => {
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
 
     apiArg.window.setHeight(350);
-    expect(mockIpcRenderer.send).toHaveBeenCalledWith("window:set-height", 350);
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith("window:set-height", {
+      height: 350,
+    });
   });
 
   it("openExternal calls ipcRenderer.invoke with correct channel", async () => {
@@ -134,7 +136,7 @@ describe("preload/index.ts", () => {
     apiArg.app.openExternal("https://meet.google.com/abc");
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
       "app:open-external",
-      "https://meet.google.com/abc",
+      { url: "https://meet.google.com/abc" },
     );
   });
 

@@ -4,6 +4,7 @@ import {
   setActiveInMeetingEventId,
   markInMeetingDirty,
 } from "./state.js";
+import type { EventId } from "../../shared/brand.js";
 
 /**
  * Determine which event should own the tray title.
@@ -12,18 +13,14 @@ import {
  */
 export function resolveActiveTitleEvent(): void {
   // In-meeting events take priority — don't overwrite
-  if (
-    state.activeInMeetingEventId &&
-    state.inMeetingIntervals.has(state.activeInMeetingEventId)
-  ) {
+  if (state.activeInMeetingEventId && state.inMeetingIntervals.has(state.activeInMeetingEventId)) {
     return;
   }
 
   // Skip resolution when nothing changed — cached activeTitleEventId is still valid
   if (!state.titleDirty && state.activeTitleEventId !== null) return;
 
-
-  let bestId: string | null = null;
+  let bestId: EventId | null = null;
   let bestStartMs = Infinity;
 
   for (const id of state.countdownIntervals.keys()) {
@@ -58,7 +55,7 @@ export function resolveActiveInMeetingEvent(): void {
   // Skip resolution when nothing changed — cached activeInMeetingEventId is still valid
   if (!state.inMeetingDirty && state.activeInMeetingEventId !== null) return;
 
-  let bestId: string | null = null;
+  let bestId: EventId | null = null;
   let bestEndMs = Infinity;
 
   for (const id of state.inMeetingIntervals.keys()) {
@@ -88,7 +85,7 @@ export function resolveActiveInMeetingEvent(): void {
 
 /** Start per-minute countdown showing remaining time until meeting ends */
 export function startInMeetingCountdown(
-  eventId: string,
+  eventId: EventId,
   data: { title: string; endMs: number },
 ): void {
   const now = Date.now();

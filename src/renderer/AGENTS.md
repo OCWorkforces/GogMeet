@@ -40,7 +40,7 @@ src/renderer/
 
 `AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
-- `loadEvents()` fetches via `window.api.calendar.getEvents()` (reads cache; used after `CALENDAR_EVENTS_UPDATED` push delivers `MeetingEvent[]` directly via `onEventsUpdated` callback)
+- `loadEvents()` fetches via `window.api.calendar.getEvents()` (reads cache; used after `CALENDAR_EVENTS_UPDATED` push delivers `MeetingEvent[]` directly via `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` typed callback)
 - `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
 - Visibility-aware: pauses refresh when hidden, resumes on show
 - `lastPollTime = Date.now()` prevents redundant fetch on first show
@@ -69,6 +69,8 @@ src/renderer/
 - CSS lives in `styles/`, loaded via HTML link
 - DOM element casts (`as HTMLElement`) are accepted pattern for vanilla TS, documented with comments at each site (5 locations)
 - `version` in index.ts is `let` (reassigned on line 165), not `const`
+- `window.api` is typed via `import type { Api } from "../preload/index.js"` (single source of truth from preload), no manual `declare global` Window augmentation blocks
+- `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` uses an explicitly typed callback parameter (previously missing param type)
 
 ## ANTI-PATTERNS
 

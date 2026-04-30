@@ -19,6 +19,8 @@ export { BINARY_PATH, computeSwiftSourceHash } from "./binary-cache.js";
 
 const execFileAsync = promisify(execFile);
 
+let hashVerified = false;
+
 function logError(error: unknown): void {
   console.error("[binary-manager]", error);
 }
@@ -43,7 +45,6 @@ export async function ensureBinary(): Promise<void> {
   const currentHash = createHash("sha256").update(sourceBytes).digest("hex");
 
   // Check if binary exists AND hash matches
-  let needsCompile = false;
   if (await isBinaryExecutable()) {
     let storedHash = "";
     try {
@@ -61,14 +62,6 @@ export async function ensureBinary(): Promise<void> {
     } catch (err) {
       logDebug(err);
     }
-    needsCompile = true;
-  } else {
-    // Binary doesn't exist — need to compile
-    needsCompile = true;
-  }
-
-  if (!needsCompile) {
-    return;
   }
 
   await compileWithRetries(swiftSrc);
@@ -87,15 +80,16 @@ export async function ensureBinary(): Promise<void> {
 /** Run the compiled Swift EventKit helper and return raw output */
 export async function runSwiftHelper(): Promise<string> {
   await ensureBinary();
-  // Verify hash before executing — protects against tampering or partial
-  // writes. On mismatch we fall through to the recompile-and-retry path.
-  const matches = await verifyBinaryHash();
+  // Verify hash once per process lifetime — binary is cached, re-verifying
+  // every poll is redundant steady-state I/O. On mismatch we fall through
+  // to the recompile-and-retry path.
+  let matches = true;
+  if (!hashVerified) {
+    matches = await verifyBinaryHash();
+    hashVerified = true;
+  }
   if (!matches) {
-    logError(
-      new Error(
-        `Swift binary hash mismatch at ${BINARY_PATH}; will recompile`,
-      ),
-    );
+    logError(new Error(`Swift binary hash mismatch at ${BINARY_PATH}; will recompile`));
   }
   try {
     if (!matches) {
@@ -127,10 +121,7 @@ export async function runSwiftHelper(): Promise<string> {
       });
       return stdout.trim();
     } catch (retryErr) {
-      console.error(
-        "[binary-manager] Swift binary recompile failed:",
-        retryErr,
-      );
+      console.error("[binary-manager] Swift binary recompile failed:", retryErr);
       throw retryErr;
     }
   }

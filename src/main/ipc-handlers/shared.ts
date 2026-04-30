@@ -4,10 +4,7 @@ import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import type { IpcChannelMap, PushChannelMap } from "../../shared/ipc-channels.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
-const ALLOWED_ORIGINS = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-]);
+const ALLOWED_ORIGINS = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
 
 /** Acceptable height bounds for the popover window */
 export const MIN_WINDOW_HEIGHT = 220;
@@ -31,12 +28,11 @@ function validateSenderUrl(senderUrl: string): boolean {
     try {
       const parsed = new URL(senderUrl);
       // Normalize path separators (Windows-safe, though app is macOS-only)
-      const normalizedPath = path.normalize(decodeURIComponent(parsed.pathname).replace(/\\/g, "/"));
+      const normalizedPath = path.normalize(
+        decodeURIComponent(parsed.pathname).replace(/\\/g, "/"),
+      );
       // Accept only HTML files inside our renderer output directory
-      if (
-        normalizedPath.includes("/lib/renderer/") &&
-        normalizedPath.endsWith(".html")
-      ) {
+      if (normalizedPath.includes("/lib/renderer/") && normalizedPath.endsWith(".html")) {
         return true;
       }
       console.warn("[ipc] Rejected file:// IPC from unauthorized path:", normalizedPath);
@@ -83,4 +79,3 @@ export function typedSend<K extends keyof PushChannelMap>(
   if (wc.isDestroyed()) return;
   wc.send(channel, payload);
 }
-

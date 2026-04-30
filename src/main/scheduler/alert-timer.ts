@@ -1,7 +1,8 @@
 import type { MeetingEvent } from "../../shared/models.js";
+import type { EventId } from "../../shared/brand.js";
 import { showAlert } from "../alert-window.js";
 
-const ALERT_OFFSET_MS = 60 * 1000;
+const ALERT_OFFSET_MS: number = 60 * 1000;
 
 export { ALERT_OFFSET_MS };
 
@@ -12,8 +13,8 @@ export { ALERT_OFFSET_MS };
 export function scheduleAlertTimer(
   event: MeetingEvent,
   effectiveDelay: number,
-  alertTimers: Map<string, ReturnType<typeof setTimeout>>,
-  alertFiredEvents: Set<string>,
+  alertTimers: Map<EventId, ReturnType<typeof setTimeout>>,
+  alertFiredEvents: Set<EventId>,
   shouldAbort?: () => boolean,
 ): void {
   // Cancel any existing alert timer for this event
@@ -40,8 +41,8 @@ export function scheduleAlertTimer(
  * Cancel an alert timer for a specific event.
  */
 export function cancelAlertTimer(
-  eventId: string,
-  alertTimers: Map<string, ReturnType<typeof setTimeout>>,
+  eventId: EventId,
+  alertTimers: Map<EventId, ReturnType<typeof setTimeout>>,
 ): void {
   const handle = alertTimers.get(eventId);
   if (handle) {

@@ -13,21 +13,15 @@ export function registerShortcuts(): void {
   const ret = globalShortcut.register("CmdOrCtrl+Shift+M", async () => {
     log.info("[shortcuts] Cmd+Shift+M pressed — joining next meeting");
     try {
-      const result = getLastKnownEvents() ?? await getCalendarEventsResult();
+      const result = getLastKnownEvents() ?? (await getCalendarEventsResult());
       if (!isCalendarOk(result)) {
         log.warn("[shortcuts] No calendar access");
         return;
       }
       const now = Date.now();
       const nextMeeting = result.events
-        .filter(
-          (e) =>
-            !e.isAllDay && !!e.meetUrl && new Date(e.startDate).getTime() > now,
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
-        )[0];
+        .filter((e) => !e.isAllDay && !!e.meetUrl && new Date(e.startDate).getTime() > now)
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
 
       if (!nextMeeting) {
         log.info("[shortcuts] No upcoming meetings with URL");

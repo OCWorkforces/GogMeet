@@ -25,11 +25,13 @@ const api = {
   },
   window: {
     setHeight: (height: number): void =>
-      ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_HEIGHT, height),
+      // Receives raw number; preload clamps + brands to {height: WindowHeight} before invoking
+      ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_HEIGHT, { height: clampWindowHeight(height) }),
   },
   app: {
     openExternal: (url: string): Promise<void> =>
-      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+      // Receives raw string; preload brands to {url: MeetUrl} before invoking
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, { url: asMeetUrl(url) }),
     getVersion: (): Promise<string> =>
       ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
   },
@@ -68,6 +70,8 @@ contextBridge.exposeInMainWorld("api", api);
 ```typescript
 export type Api = typeof api;
 ```
+
+`export type Api = typeof api` provides the type for renderer's `window.api` (see `env.d.ts`).
 
 ## BUILD CONSTRAINT
 
