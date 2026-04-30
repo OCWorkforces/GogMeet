@@ -8,7 +8,8 @@ import { validateSender, typedHandle, typedSend } from "./shared.js";
 export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
-    (_event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
+    (event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
+      if (!validateSender(event)) return getSettings();
       return getSettings();
     },
   );

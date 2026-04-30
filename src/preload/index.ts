@@ -3,20 +3,38 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-c
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
 import type { MeetingEvent } from "../shared/models.js";
+import { asMeetUrl, clampWindowHeight, type MeetUrl } from "../shared/brand.js";
+
+/** Hostnames the renderer is permitted to ask the main process to open. */
+const MEET_URL_ALLOWED_HOSTNAMES: readonly string[] = [
+  "meet.google.com",
+  "calendar.google.com",
+  "accounts.google.com",
+];
+
+function brandMeetUrl(raw: string): MeetUrl | null {
+  const branded = asMeetUrl(raw);
+  if (!branded.ok) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(branded.value);
+  } catch {
+    return null;
+  }
+  if (!MEET_URL_ALLOWED_HOSTNAMES.includes(parsed.hostname)) return null;
+  return branded.value;
+}
 
 const api = {
   calendar: {
-    getEvents: (): Promise<
-      IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>
-    > => ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_GET_EVENTS),
+    getEvents: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_GET_EVENTS),
 
-    requestPermission: (): Promise<
-      IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>
-    > => ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION),
+    requestPermission: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION),
 
-    getPermissionStatus: (): Promise<
-      IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>
-    > => ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
+    getPermissionStatus: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
 
     onEventsUpdated: (callback: (events: MeetingEvent[]) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, events: MeetingEvent[]): void => {
@@ -30,16 +48,18 @@ const api = {
   },
 
   window: {
-    setHeight: (
-      height: IpcRequest<typeof IPC_CHANNELS.WINDOW_SET_HEIGHT>,
-    ): void => ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_HEIGHT, height),
+    setHeight: (height: number): void => {
+      const clampedHeight = clampWindowHeight(height);
+      ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_HEIGHT, { height: clampedHeight });
+    },
   },
 
   app: {
-    openExternal: (
-      url: IpcRequest<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>,
-    ): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+    openExternal: (url: string): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
+      const branded = brandMeetUrl(url);
+      if (branded === null) return Promise.resolve();
+      return ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, { url: branded });
+    },
 
     getVersion: (): Promise<IpcResponse<typeof IPC_CHANNELS.APP_GET_VERSION>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),

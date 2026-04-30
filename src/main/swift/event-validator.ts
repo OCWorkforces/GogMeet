@@ -1,4 +1,8 @@
+import type { AppError } from "../../shared/errors.js";
 import { isExecErrorLike } from "./guards.js";
+
+const TZ_Z_SUFFIX = /Z$/i;
+const TZ_OFFSET_SUFFIX = /[+-]\d{2}:?\d{2}$/;
 
 /** Structured exit codes emitted by `googlemeet-events.swift`. Keep in sync. */
 export const SWIFT_EXIT_CODES = {
@@ -8,11 +12,7 @@ export const SWIFT_EXIT_CODES = {
   OTHER: 4,
 } as const;
 
-export type SwiftErrorKind =
-  | "permission-denied"
-  | "no-calendars"
-  | "swift-error"
-  | "unknown";
+export type SwiftErrorKind = "permission-denied" | "no-calendars" | "swift-error" | "unknown";
 
 /** Error thrown by the Swift helper, classified by structured exit code. */
 export class SwiftHelperError extends Error {
@@ -32,6 +32,28 @@ export class SwiftHelperError extends Error {
     this.exitCode = exitCode;
     this.stderr = stderr;
   }
+
+  /** Map this error to a structured AppError for cross-process consumption. */
+  toAppError(): AppError {
+    switch (this.exitCode) {
+      case SWIFT_EXIT_CODES.PERMISSION_DENIED:
+        return { kind: "swift-permission-denied", message: this.message };
+      case SWIFT_EXIT_CODES.NO_CALENDARS:
+        return { kind: "swift-no-calendars", message: this.message };
+      case SWIFT_EXIT_CODES.OTHER:
+        return {
+          kind: "swift-runtime",
+          message: this.message,
+          exitCode: this.exitCode,
+        };
+      default:
+        return {
+          kind: "swift-runtime",
+          message: this.message,
+          ...(this.exitCode !== undefined ? { exitCode: this.exitCode } : {}),
+        };
+    }
+  }
 }
 
 /** Map a child_process error (with `.code` set to the exit status) to a typed
@@ -42,14 +64,9 @@ export function classifySwiftError(err: unknown): SwiftHelperError {
     return new SwiftHelperError("unknown", "Swift helper failed", undefined, undefined);
   }
   const e = err;
-  const stderr =
-    typeof e?.stderr === "string"
-      ? e.stderr.trim() || undefined
-      : undefined;
+  const stderr = typeof e?.stderr === "string" ? e.stderr.trim() || undefined : undefined;
   const baseMessage =
-    typeof e?.message === "string" && e.message.length > 0
-      ? e.message
-      : "Swift helper failed";
+    typeof e?.message === "string" && e.message.length > 0 ? e.message : "Swift helper failed";
 
   if (typeof e?.code === "number") {
     switch (e.code) {
@@ -96,23 +113,20 @@ export function classifySwiftError(err: unknown): SwiftHelperError {
 export function parseIsoUtc(raw: string): Date {
   const trimmed = raw.trim();
   // Detect existing TZ designator: trailing 'Z' or ±HH:MM / ±HHMM offset on time portion
-  const hasTz = /Z$/i.test(trimmed) || /[+-]\d{2}:?\d{2}$/.test(trimmed);
+  const hasTz = TZ_Z_SUFFIX.test(trimmed) || TZ_OFFSET_SUFFIX.test(trimmed);
   const result = new Date(hasTz ? trimmed : `${trimmed}Z`);
   // Guard: if the ±offset regex matched but produced an invalid Date (e.g. "+99:99"),
   // strip the bogus offset and reinterpret the datetime as UTC so the caller's
   // isNaN check can emit a useful diagnostic instead of propagating a silent NaN.
-  if (isNaN(result.getTime()) && hasTz && !/Z$/i.test(trimmed)) {
-    const stripped = trimmed.replace(/[+-]\d{2}:?\d{2}$/, "");
+  if (isNaN(result.getTime()) && hasTz && !TZ_Z_SUFFIX.test(trimmed)) {
+    const stripped = trimmed.replace(TZ_OFFSET_SUFFIX, "");
     return new Date(`${stripped}Z`);
   }
   return result;
 }
 
 /** Reason codes for parse diagnostics emitted by `parseEvents`. */
-export type ParseDiagnosticReason =
-  | "malformed_field_count"
-  | "invalid_iso"
-  | "invalid_id";
+export type ParseDiagnosticReason = "malformed_field_count" | "invalid_iso" | "invalid_id";
 
 /** Diagnostic record for a single malformed input line. */
 export interface ParseDiagnostic {
