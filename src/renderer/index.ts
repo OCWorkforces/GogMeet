@@ -1,5 +1,5 @@
 import "./styles/main.css";
-import type { CalendarPermission } from "../shared/models.js";
+import type { CalendarPermission, MeetingEvent } from "../shared/models.js";
 import { isCalendarOk } from "../shared/models.js";
 import type { AppSettings } from "../shared/settings.js";
 import { DEFAULT_SETTINGS } from "../shared/settings.js";
@@ -8,8 +8,6 @@ import { renderBody } from "./rendering/body.js";
 import { setupDelegatedEvents } from "./events/delegation.js";
 
 import type { AppState } from "../shared/app-state.js";
-
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Layout constants for window height calculation
 const FOOTER_H = 32;
@@ -20,7 +18,6 @@ interface RendererState {
   state: AppState;
   version: string;
   settings: AppSettings;
-  refreshTimer: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number | null;
   cachedSettings: AppSettings | null;
   cachedPermission: CalendarPermission | null;
@@ -33,7 +30,6 @@ const rs: RendererState = {
   state: { type: "loading" },
   version: "",
   settings: { ...DEFAULT_SETTINGS },
-  refreshTimer: null,
   lastUpdatedAt: null,
   cachedSettings: null,
   cachedPermission: null,
@@ -67,7 +63,6 @@ function renderFooter(): string {
   `;
 }
 
-
 function render() {
   try {
     const app = document.getElementById("app");
@@ -87,7 +82,7 @@ function render() {
       rs.lastHeight = targetH;
     }
   } catch (error) {
-    console.error('[renderer] Render error:', error);
+    console.error("[renderer] Render error:", error);
   }
 }
 
@@ -166,47 +161,53 @@ async function init() {
       window.api.scheduler.forcePoll();
       // loadEvents() will be triggered by CALENDAR_EVENTS_UPDATED push from main.
       // For error/no-permission states (no push arrives), also reload directly.
-      if (rs.state.type === 'error' || rs.state.type === 'no-permission') {
+      if (rs.state.type === "error" || rs.state.type === "no-permission") {
         void loadEvents();
       }
     },
     onGrantAccess: () => void grantAccess(),
     onOpenExternal: (url) => window.api.app.openExternal(url),
   });
-  // Listen for calendar updates pushed from main process
-  window.api.calendar.onEventsUpdated(() => void loadEvents());
+
+  // Listen for calendar updates pushed from main process — events included in push payload
+  window.api.calendar.onEventsUpdated((events: MeetingEvent[]) => {
+    // Apply showTomorrowMeetings filter (same logic as loadEvents)
+    let filtered = events;
+    if (!rs.settings.showTomorrowMeetings) {
+      filtered = events.filter((e) => !isTomorrow(e.startDate));
+    }
+
+    if (filtered.length === 0) {
+      rs.state = { type: "no-events" };
+    } else {
+      rs.lastEventsKey = filtered.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
+      rs.state = { type: "has-events", events: filtered };
+    }
+    rs.lastUpdatedAt = Date.now();
+    render();
+  });
+
   // Listen for settings changes from the settings window
   window.api.settings.onChanged((updated: AppSettings) => {
     rs.cachedSettings = updated;
-    if (rs.refreshTimer) clearInterval(rs.refreshTimer);
-    rs.refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
+    rs.settings = updated;
     void loadEvents();
   });
+
   rs.version = await window.api.app.getVersion();
 
   // Initial load
   await loadEvents();
 
-  // Auto-refresh every 5 minutes
-  if (rs.refreshTimer) clearInterval(rs.refreshTimer);
-  rs.refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
-
-  // Pause refresh when window hidden, resume when visible
+  // Resume on show with debounce to avoid rapid show/hide cycles
+  // No 5-min polling interval — main pushes updates via CALENDAR_EVENTS_UPDATED
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (rs.refreshTimer) {
-        clearInterval(rs.refreshTimer);
-        rs.refreshTimer = null;
-      }
-    } else {
-      // Resumed — debounce rapid show/hide cycles (5s minimum)
+    if (!document.hidden) {
       const now = Date.now();
       if (now - rs.lastPollTime >= 5000) {
         rs.lastPollTime = now;
         void loadEvents();
       }
-      if (rs.refreshTimer) clearInterval(rs.refreshTimer);
-      rs.refreshTimer = setInterval(() => loadEvents(), REFRESH_INTERVAL_MS);
     }
   });
 
