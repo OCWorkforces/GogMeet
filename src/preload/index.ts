@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-channels.js";
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
+import type { MeetingEvent } from "../shared/models.js";
 
 const api = {
   calendar: {
@@ -17,9 +18,9 @@ const api = {
       IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>
     > => ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
 
-    onEventsUpdated: (callback: () => void): (() => void) => {
-      const handler = (): void => {
-        callback();
+    onEventsUpdated: (callback: (events: MeetingEvent[]) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, events: MeetingEvent[]): void => {
+        callback(events);
       };
       ipcRenderer.on(IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, handler);
       return () => {
@@ -63,6 +64,7 @@ const api = {
       };
     },
   },
+
   alert: {
     onShowAlert: (callback: (data: AlertPayload) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: AlertPayload): void => {
