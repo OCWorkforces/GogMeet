@@ -30,6 +30,8 @@ describe("power", () => {
         value: true,
         configurable: true,
       });
+      // Re-initialize to refresh cachedOnBattery from mocked property
+      initPowerManagement(vi.fn());
       expect(isOnBattery()).toBe(true);
     });
   });
@@ -40,6 +42,8 @@ describe("power", () => {
         value: false,
         configurable: true,
       });
+      // Re-initialize to refresh cachedOnBattery from mocked property
+      initPowerManagement(vi.fn());
       expect(getPollInterval()).toBe(120_000);
     });
 
@@ -48,17 +52,27 @@ describe("power", () => {
         value: true,
         configurable: true,
       });
+      // Re-initialize to refresh cachedOnBattery from mocked property
+      initPowerManagement(vi.fn());
       expect(getPollInterval()).toBe(240_000);
     });
   });
 
   describe("initPowerManagement", () => {
-    it("registers on-battery and on-ac listeners", () => {
+    it("registers on-battery and on-ac listeners and updates cached state", () => {
+      Object.defineProperty(powerMonitor, "onBatteryPower", {
+        value: true,
+        configurable: true,
+      });
       const onChange = vi.fn();
       initPowerManagement(onChange);
 
-      expect(powerMonitor.on).toHaveBeenCalledWith("on-battery", onChange);
-      expect(powerMonitor.on).toHaveBeenCalledWith("on-ac", onChange);
+      // Verify cached state was read and updated
+      expect(isOnBattery()).toBe(true);
+      expect(getPollInterval()).toBe(240_000);
+      // Verify listeners were registered
+      expect(powerMonitor.on).toHaveBeenCalledWith("on-battery", expect.any(Function));
+      expect(powerMonitor.on).toHaveBeenCalledWith("on-ac", expect.any(Function));
       expect(powerMonitor.on).toHaveBeenCalledTimes(2);
     });
   });

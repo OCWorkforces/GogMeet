@@ -4,8 +4,11 @@ import { mainBus } from "./events.js";
 
 const BASE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
+/** Cached battery state — updated on powerMonitor events, avoids sync IOKit query on every poll */
+let cachedOnBattery = powerMonitor.onBatteryPower;
+
 export function isOnBattery(): boolean {
-  return powerMonitor.onBatteryPower;
+  return cachedOnBattery;
 }
 
 export function getPollInterval(): number {
@@ -13,8 +16,15 @@ export function getPollInterval(): number {
 }
 
 export function initPowerManagement(onChange: () => void): void {
-  powerMonitor.on("on-battery", onChange);
-  powerMonitor.on("on-ac", onChange);
+  cachedOnBattery = powerMonitor.onBatteryPower;
+  powerMonitor.on("on-battery", () => {
+    cachedOnBattery = true;
+    onChange();
+  });
+  powerMonitor.on("on-ac", () => {
+    cachedOnBattery = false;
+    onChange();
+  });
 }
 
 /**
