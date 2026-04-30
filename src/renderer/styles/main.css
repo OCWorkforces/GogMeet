@@ -1,6 +1,7 @@
 @import "./reset.css";
 
-html, body {
+html,
+body {
   width: 360px;
   height: 100%;
   overflow: hidden;
@@ -18,9 +19,11 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: opacity 150ms ease, transform 150ms ease, height 200ms ease;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    height 200ms ease;
 }
-
 
 /* ---- Body ---- */
 .body {
@@ -30,7 +33,9 @@ html, body {
   scrollbar-width: none;
 }
 
-.body::-webkit-scrollbar { display: none; }
+.body::-webkit-scrollbar {
+  display: none;
+}
 
 /* ---- State screens ---- */
 .state-screen {
@@ -72,12 +77,21 @@ html, body {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:active { opacity: 0.8; }
-.btn-primary:disabled { opacity: 0.5; cursor: default; }
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-primary:active {
+  opacity: 0.8;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .btn-primary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -155,13 +169,19 @@ html, body {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.1s, opacity 0.1s;
+  transition:
+    background 0.1s,
+    opacity 0.1s;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.btn-join:hover { background: var(--accent-hover); }
-.btn-join:active { opacity: 0.7; }
+.btn-join:hover {
+  background: var(--accent-hover);
+}
+.btn-join:active {
+  opacity: 0.7;
+}
 .btn-join:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -190,7 +210,11 @@ html, body {
 }
 
 /* ---- Spinner ---- */
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .spinner {
   width: 24px;
@@ -204,28 +228,32 @@ html, body {
 /* ---- Footer ---- */
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50%       { opacity: 1;   transform: scale(1);   }
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .footer {
   /* gradient rule — more atmospheric than flat border */
   background:
     linear-gradient(to bottom, transparent, transparent) padding-box,
-    linear-gradient(90deg,
-      transparent 0%,
-      var(--border) 15%,
-      var(--border) 85%,
-      transparent 100%
-    ) border-box;
+    linear-gradient(90deg, transparent 0%, var(--border) 15%, var(--border) 85%, transparent 100%)
+      border-box;
   border-top: 1px solid transparent;
-  border-image:
-    linear-gradient(90deg,
+  border-image: linear-gradient(
+      90deg,
       transparent 0%,
       var(--border) 15%,
       var(--border) 85%,
       transparent 100%
-    ) 1;
+    )
+    1;
   padding: 0 16px;
   height: 32px;
   display: flex;
@@ -262,7 +290,9 @@ html, body {
   cursor: pointer;
   padding: 3px 6px;
   border-radius: 5px;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -301,7 +331,7 @@ html, body {
 }
 
 .footer-refresh--loading::before {
-  content: '';
+  content: "";
   width: 5px;
   height: 5px;
   border-radius: 50%;

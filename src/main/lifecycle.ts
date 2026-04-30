@@ -9,10 +9,7 @@ import {
   setTrayTitleCallback,
   initPowerCallbacks,
 } from "./scheduler/facade.js";
-import {
-  getCalendarPermissionStatus,
-  requestCalendarPermission,
-} from "./calendar.js";
+import { getCalendarPermissionStatus, requestCalendarPermission } from "./calendar.js";
 import {
   initPowerManagement,
   initPowerEvents,
@@ -26,6 +23,7 @@ import { getSettings, loadSettings } from "./settings.js";
 import { syncAutoLaunch } from "./auto-launch.js";
 import { checkNotificationPermission } from "./notification.js";
 import { registerShortcuts, unregisterShortcuts } from "./shortcuts.js";
+import { ensureBinary } from "./swift/binary-manager.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -57,7 +55,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       console.error(`[lifecycle] ${label} failed:`, error);
-      throw new Error(`${label}: ${error.message}`);
+      throw new Error(`${label}: ${error.message}`, { cause: err });
     }
   };
   const tryRunAsyncCritical = async (label: string, fn: () => Promise<void>): Promise<void> => {
@@ -66,18 +64,36 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       console.error(`[lifecycle] ${label} failed:`, error);
-      throw new Error(`${label}: ${error.message}`);
+      throw new Error(`${label}: ${error.message}`, { cause: err });
     }
   };
 
   try {
-    // Ensure settings are loaded before registering IPC handlers
-    await tryRunAsyncCritical("loadSettings", async () => {
-      const result = await loadSettings();
-      if (!result.ok) {
-        console.warn("[lifecycle] Settings load warning:", result.error);
-      }
+    // Pre-warm Swift binary in background — don't block init
+    tryRun("preWarmSwiftBinary", () => {
+      ensureBinary().catch((err: unknown) => {
+        console.warn("[lifecycle] Swift binary pre-warm failed:", err);
+      });
     });
+
+    // Load settings and check calendar permission in parallel
+    // loadSettings is critical (must succeed before scheduler starts);
+    // calendarPermission is non-critical (errors collected, no throw)
+    await Promise.all([
+      tryRunAsyncCritical("loadSettings", async () => {
+        const result = await loadSettings();
+        if (!result.ok) {
+          console.warn("[lifecycle] Settings load warning:", result.error);
+        }
+      }),
+      tryRunAsync("calendarPermission", async () => {
+        const calendarPerm = await getCalendarPermissionStatus();
+        if (calendarPerm === "not-determined") {
+          console.log("[lifecycle] Calendar permission not determined — requesting...");
+          await requestCalendarPermission();
+        }
+      }),
+    ]);
 
     tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
     tryRunCritical("setupTray", () => setupTray(mainWindow));
@@ -86,16 +102,6 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     tryRun("initPowerCallbacks", () =>
       initPowerCallbacks({ getPollInterval, preventSleep, allowSleep }),
     );
-
-    // Check calendar permission before starting the scheduler
-    // If permission hasn't been determined yet, request it (triggers macOS dialog)
-    await tryRunAsync("calendarPermission", async () => {
-      const calendarPerm = await getCalendarPermissionStatus();
-      if (calendarPerm === "not-determined") {
-        console.log("[lifecycle] Calendar permission not determined — requesting...");
-        await requestCalendarPermission();
-      }
-    });
 
     tryRun("startScheduler", () => startScheduler());
     tryRun("initPowerManagement", () => initPowerManagement(() => restartScheduler()));

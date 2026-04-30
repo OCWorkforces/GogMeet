@@ -4,9 +4,9 @@
  * Eliminates duplicate file reads and provides type safety
  */
 
-import { app } from 'electron';
-import path from 'path';
-import { readFileSync } from 'fs';
+import { app } from "electron";
+import path from "path";
+import { readFileSync } from "fs";
 
 /**
  * Package.json structure with commonly used fields
@@ -36,19 +36,19 @@ let packageInfo: PackageInfo | null = null;
 export function getPackageInfo(): Readonly<PackageInfo> {
   if (!packageInfo) {
     try {
-      const pkgPath = path.join(app.getAppPath(), 'package.json');
-      const pkgContent = readFileSync(pkgPath, 'utf-8');
+      const pkgPath = path.join(app.getAppPath(), "package.json");
+      const pkgContent = readFileSync(pkgPath, "utf-8");
       const parsed = JSON.parse(pkgContent) as Partial<PackageInfo>;
       if (
-        typeof parsed.name !== 'string' ||
-        typeof parsed.productName !== 'string' ||
-        typeof parsed.version !== 'string' ||
-        typeof parsed.description !== 'string' ||
-        typeof parsed.repository !== 'string' ||
-        typeof parsed.homepage !== 'string' ||
-        typeof parsed.author !== 'string'
+        typeof parsed.name !== "string" ||
+        typeof parsed.productName !== "string" ||
+        typeof parsed.version !== "string" ||
+        typeof parsed.description !== "string" ||
+        typeof parsed.repository !== "string" ||
+        typeof parsed.homepage !== "string" ||
+        typeof parsed.author !== "string"
       ) {
-        throw new Error('package.json is missing one or more required fields');
+        throw new Error("package.json is missing one or more required fields");
       }
       packageInfo = {
         name: parsed.name,
@@ -62,16 +62,17 @@ export function getPackageInfo(): Readonly<PackageInfo> {
         ...(parsed.main !== undefined ? { main: parsed.main } : {}),
       };
     } catch (error) {
-      console.error('[PackageInfo] Failed to load package.json:', error);
+      console.error("[PackageInfo] Failed to load package.json:", error);
       // Return minimal fallback to prevent crashes
       packageInfo = {
-        name: 'gogmeet',
-        productName: 'GogMeet',
-        version: '1.0.0',
-        description: 'GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.',
-        repository: 'https://github.com/OCWorkforces/GogMeet',
-        homepage: 'https://github.com/OCWorkforces/GogMeet',
-        author: 'OCWorkforces Engineers',
+        name: "gogmeet",
+        productName: "GogMeet",
+        version: "1.0.0",
+        description:
+          "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
+        repository: "https://github.com/OCWorkforces/GogMeet",
+        homepage: "https://github.com/OCWorkforces/GogMeet",
+        author: "OCWorkforces Engineers",
       };
     }
   }

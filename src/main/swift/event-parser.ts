@@ -43,9 +43,7 @@ export function parseEvents(raw: string): ParseResult {
   const diagnostics: ParseDiagnostic[] = [];
   const events: MeetingEvent[] = [];
 
-  const lines = raw
-    .split("\n")
-    .map((line) => line.replace(/[\r\n]+$/u, ""));
+  const lines = raw.split("\n").map((line) => line.replace(/[\r\n]+$/u, ""));
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i] ?? "";
@@ -61,17 +59,8 @@ export function parseEvents(raw: string): ParseResult {
       });
       continue;
     }
-    const [
-      id,
-      title,
-      startStr,
-      endStr,
-      urlField,
-      calendarName,
-      allDayStr,
-      emailField,
-      notesField,
-    ] = fields;
+    const [id, title, startStr, endStr, urlField, calendarName, allDayStr, emailField, notesField] =
+      fields;
 
     const timestamps = parseTimestampPair(startStr, endStr);
     if (!timestamps) {
@@ -129,16 +118,11 @@ export function parseEvents(raw: string): ParseResult {
       calendarName: calendarName.trim(),
       isAllDay: allDayStr.trim() === "true",
       ...(emailField?.trim() ? { userEmail: emailField.trim() } : {}),
-      ...(notesField?.trim()
-        ? { description: cleanDescription(notesField) }
-        : {}),
+      ...(notesField?.trim() ? { description: cleanDescription(notesField) } : {}),
     });
   }
 
-  events.sort(
-    (a, b) =>
-      new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
-  );
+  events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
   return { events, diagnostics };
 }

@@ -52,11 +52,7 @@ function dismissAlert(): void {
   card.classList.add("alert-dismissing");
 }
 
-function formatTimeRange(
-  startISO: string,
-  endISO: string,
-  isAllDay: boolean,
-): string {
+function formatTimeRange(startISO: string, endISO: string, isAllDay: boolean): string {
   if (isAllDay) {
     return "All day";
   }
@@ -90,11 +86,7 @@ function render(data: AlertPayload): void {
     const title = escapeHtml(data.title);
     const calendarName = escapeHtml(data.calendarName);
     const description = escapeHtml(data.description?.trim() ?? "");
-    const timeRange = formatTimeRange(
-      data.startDate,
-      data.endDate,
-      data.isAllDay,
-    );
+    const timeRange = formatTimeRange(data.startDate, data.endDate, data.isAllDay);
 
     app.innerHTML = `
     <section class="alert-window" role="dialog" aria-live="polite" aria-label="Meeting starting alert">
@@ -138,16 +130,13 @@ function setupDelegatedEvents(): void {
 
   app.addEventListener("click", (event: MouseEvent) => {
     // DOM cast: event.target is EventTarget; cast to HTMLElement is standard delegation pattern
-    const target = (event.target as HTMLElement).closest<HTMLElement>(
-      "[data-action]",
-    );
+    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action]");
 
     if (!target) {
       return;
     }
 
     const action = target.dataset["action"];
-
 
     if (action === "dismiss") {
       dismissAlert();

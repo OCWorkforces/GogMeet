@@ -56,9 +56,7 @@ async function compileOnce(swiftSrc: string): Promise<void> {
   // -Osize: Optimize for size (same performance, smaller binary)
   // -whole-module-optimization: Enable cross-file optimizations
   const swiftTarget =
-    process.arch === "arm64"
-      ? "arm64-apple-macosx11.0"
-      : "x86_64-apple-macosx11.0";
+    process.arch === "arm64" ? "arm64-apple-macosx11.0" : "x86_64-apple-macosx11.0";
   const swiftFlags = [
     swiftSrc,
     "-target",
@@ -98,10 +96,7 @@ export async function compileWithRetries(swiftSrc: string): Promise<void> {
       if (isLastAttempt) {
         break;
       }
-      const delay = Math.min(
-        COMPILE_RETRY_BASE_MS * 2 ** attempt,
-        COMPILE_RETRY_MAX_MS,
-      );
+      const delay = Math.min(COMPILE_RETRY_BASE_MS * 2 ** attempt, COMPILE_RETRY_MAX_MS);
       console.warn(
         `[binary-manager] swiftc failed (attempt ${attempt + 1}/${MAX_COMPILE_RETRIES}); retrying in ${delay}ms`,
       );
@@ -109,8 +104,7 @@ export async function compileWithRetries(swiftSrc: string): Promise<void> {
       await sleep(delay);
     }
   }
-  const cause =
-    lastError instanceof Error ? lastError.message : String(lastError);
+  const cause = lastError instanceof Error ? lastError.message : String(lastError);
   const finalErr = new Error(
     `Failed to compile Swift helper after ${MAX_COMPILE_RETRIES} attempts: ${cause}`,
   );

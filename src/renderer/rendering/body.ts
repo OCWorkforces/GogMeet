@@ -4,10 +4,7 @@ import { isTomorrow } from "../../shared/utils/time.js";
 
 import type { AppState } from "../../shared/app-state.js";
 
-function formatRelativeTime(
-  startDate: string,
-  endDate: string,
-): { label: string; cls: string } {
+function formatRelativeTime(startDate: string, endDate: string): { label: string; cls: string } {
   const now = Date.now();
   const start = new Date(startDate).getTime();
   const end = new Date(endDate).getTime();
@@ -80,9 +77,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
 
     case "has-events": {
       const now = Date.now();
-      const upcoming = s.events.filter(
-        (e) => new Date(e.endDate).getTime() > now,
-      );
+      const upcoming = s.events.filter((e) => new Date(e.endDate).getTime() > now);
       const past = s.events.filter((e) => new Date(e.endDate).getTime() <= now);
 
       // Check if any upcoming event is tomorrow
@@ -110,8 +105,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
               </div>
             </div>
           `);
-          if (i < upcoming.length - 1)
-            parts.push(`<div class="meeting-divider"></div>`);
+          if (i < upcoming.length - 1) parts.push(`<div class="meeting-divider"></div>`);
         });
       }
 

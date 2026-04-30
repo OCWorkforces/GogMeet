@@ -1,7 +1,7 @@
 @import "../styles/reset.css";
 
 :root {
-  --bg: #0D1017;
+  --bg: #0d1017;
   --surface: rgba(44, 44, 46, 0.85);
   --surface-elevated: rgba(58, 58, 60, 0.95);
   --border: rgba(255, 255, 255, 0.09);
@@ -20,7 +20,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0D1017;
+    --bg: #0d1017;
     --surface: rgba(44, 44, 46, 0.85);
     --surface-elevated: rgba(58, 58, 60, 0.95);
     --border: rgba(255, 255, 255, 0.09);
@@ -332,11 +332,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.26) 0%,
-    rgba(255, 255, 255, 0) 62%
-  );
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0) 62%);
   opacity: 0;
   transition: opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
@@ -355,11 +351,7 @@ body {
 
 @media (prefers-color-scheme: dark) {
   .toggle-track::before {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.18) 0%,
-      rgba(255, 255, 255, 0) 62%
-    );
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 62%);
   }
 
   .toggle-input:checked + .toggle-track {

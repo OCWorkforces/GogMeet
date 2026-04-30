@@ -20,7 +20,6 @@ import { mainBus } from "./events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-
 let tray: Tray | null = null;
 let cachedMeetings: MeetingEvent[] | null = null;
 let themeListener: (() => void) | null = null;
@@ -43,9 +42,7 @@ function showAbout(mainWindow: BrowserWindow): void {
   aboutOpen = true;
   app.showAboutPanel();
   setImmediate(() => {
-    const aboutWindow = BrowserWindow.getAllWindows().find(
-      (w) => w !== mainWindow,
-    );
+    const aboutWindow = BrowserWindow.getAllWindows().find((w) => w !== mainWindow);
     if (aboutWindow) {
       aboutWindow.setAlwaysOnTop(true, "floating");
       aboutWindow.once("closed", () => {
@@ -68,14 +65,10 @@ export function setupTray(mainWindow: BrowserWindow): void {
 
   function buildIcon(isDark: boolean): Electron.NativeImage {
     const suffix = isDark ? "dark" : "light";
-    const icon1x = nativeImage.createFromPath(
-      path.join(assetsDir, `tray-icon-${suffix}.png`),
-    );
-    const icon2x = nativeImage.createFromPath(
-      path.join(assetsDir, `tray-icon-${suffix}@2x.png`),
-    );
+    const icon1x = nativeImage.createFromPath(path.join(assetsDir, `tray-icon-${suffix}.png`));
+    const icon2x = nativeImage.createFromPath(path.join(assetsDir, `tray-icon-${suffix}@2x.png`));
     if (icon1x.isEmpty() || icon2x.isEmpty()) {
-      console.error('[tray] Failed to load tray icon images');
+      console.error("[tray] Failed to load tray icon images");
       return nativeImage.createEmpty();
     }
     const icon = nativeImage.createEmpty();
@@ -177,17 +170,14 @@ export function updateTrayTitle(
     return;
   }
   const truncated =
-    title.length > TRAY_TITLE_MAX_CHARS
-      ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026"
-      : title;
+    title.length > TRAY_TITLE_MAX_CHARS ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026" : title;
   if (minsRemaining !== undefined && minsRemaining > 0) {
     if (inMeeting) {
       // In-meeting format: "Title 1h 23m" or "Title 45m"
       tray.setTitle(truncated + " " + formatRemainingTime(minsRemaining));
     } else {
       // Pre-meeting format: "Title in 15 mins"
-      const suffix =
-        minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
+      const suffix = minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
       tray.setTitle(truncated + suffix);
     }
   } else {

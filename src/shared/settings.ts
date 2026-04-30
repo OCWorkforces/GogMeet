@@ -1,4 +1,3 @@
-
 /** Application settings */
 export interface AppSettings {
   /** Schema version for migrations */
@@ -14,13 +13,13 @@ export interface AppSettings {
 }
 
 /** Default settings values */
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: AppSettings = {
   schemaVersion: 1,
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
   windowAlert: true,
-} as const satisfies AppSettings;
+};
 
 /** Valid range for openBeforeMinutes */
 export const OPEN_BEFORE_MINUTES_MIN = 1;

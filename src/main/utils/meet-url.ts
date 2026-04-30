@@ -10,9 +10,7 @@ import { isAllowedMeetUrl } from "./url-validation.js";
 export function buildMeetUrl(event: MeetingEvent): string {
   if (!event.meetUrl) return "";
 
-  const base = event.meetUrl.startsWith("https://")
-    ? event.meetUrl
-    : `https://${event.meetUrl}`;
+  const base = event.meetUrl.startsWith("https://") ? event.meetUrl : `https://${event.meetUrl}`;
 
   // Validate URL is from an allowed Google domain
   if (!isAllowedMeetUrl(base)) return "";

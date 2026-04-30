@@ -17,31 +17,22 @@ const __dirname = join(fileURLToPath(import.meta.url), "..");
  * up two levels to reach the project root, then into src/main/.
  * (The original source at src/main/swift/ had 3 levels up, but after bundling
  * into lib/main/index.cjs, only 2 are needed.) */
-const SWIFT_SRC_DEV = join(
-  __dirname,
-  "..",
-  "..",
-  "src",
-  "main",
-  "googlemeet-events.swift",
-);
+const SWIFT_SRC_DEV = join(__dirname, "..", "..", "src", "main", "googlemeet-events.swift");
 
 /** Check if running from within an ASAR archive */
 const isPackaged = __dirname.includes(".asar");
 /** Cached compiled binary location */
-export const BINARY_DIR = join(tmpdir(), "googlemeet");
-export const BINARY_PATH = join(BINARY_DIR, "googlemeet-events");
+export const BINARY_DIR: string = join(tmpdir(), "googlemeet");
+export const BINARY_PATH: string = join(BINARY_DIR, "googlemeet-events");
 
 /** Sidecar file storing the SHA-256 hash of the Swift source used for the current binary */
-export const HASH_PATH = join(BINARY_DIR, "source.hash");
+export const HASH_PATH: string = join(BINARY_DIR, "source.hash");
 
 function logError(error: unknown): void {
   console.error("[binary-manager]", error);
 }
 
-export async function computeSwiftSourceHash(
-  swiftSrc: string,
-): Promise<string> {
+export async function computeSwiftSourceHash(swiftSrc: string): Promise<string> {
   const content = await readFile(swiftSrc);
   return createHash("sha256").update(content).digest("hex");
 }
@@ -77,10 +68,12 @@ export async function readSwiftSource(swiftSrc: string): Promise<Buffer> {
     if (isPackaged) {
       throw new Error(
         `Swift source not found at ${swiftSrc}. Ensure asarUnpack is configured for googlemeet-events.swift. Cause: ${cause}`,
+        { cause: err },
       );
     }
     throw new Error(
       `Swift source not found at ${swiftSrc}. Ensure the file exists. Cause: ${cause}`,
+      { cause: err },
     );
   }
 }
@@ -126,9 +119,7 @@ export async function verifyBinaryHash(): Promise<boolean> {
   try {
     const swiftSrc = resolveSwiftSourcePath();
     const sourceBytes = await readSwiftSource(swiftSrc);
-    const expectedHash = createHash("sha256")
-      .update(sourceBytes)
-      .digest("hex");
+    const expectedHash = createHash("sha256").update(sourceBytes).digest("hex");
     const storedHash = (await readFile(HASH_PATH, "utf-8")).trim();
     return storedHash === expectedHash;
   } catch (err) {
