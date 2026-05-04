@@ -16,6 +16,10 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Package   | Bun                                       |
 | Test      | Vitest 4 (workspace)                      |
 
+## BEHAVIORAL GUIDELINES
+
+Coding agents: consult [CODING_GUIDELINES.md](./CODING_GUIDELINES.md) for behavioral guidelines to reduce common LLM coding mistakes — think before coding, simplicity first, surgical changes, and goal-driven execution.
+
 ## STRUCTURE
 
 ```
