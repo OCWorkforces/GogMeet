@@ -80,6 +80,15 @@ export function formatAppError(e: AppError): string {
  * (e.g. SwiftHelperError) should prefer their own `toAppError()` mapper before
  * falling back to this helper.
  */
+/**
+ * Type predicate: narrows an object to one bearing a string `message` property.
+ * Justified by preceding 'message' in value check narrowing to { message: unknown };
+ * typeof check then confirms string.
+ */
+function hasStringMessage(value: object): value is { message: string } {
+  return "message" in value && typeof (value as { message: unknown }).message === "string";
+}
+
 export function errFrom(e: unknown): AppError {
   if (e instanceof Error) {
     return { kind: "unknown", message: e.message };
@@ -87,13 +96,8 @@ export function errFrom(e: unknown): AppError {
   if (typeof e === "string") {
     return { kind: "unknown", message: e };
   }
-  if (
-    typeof e === "object" &&
-    e !== null &&
-    "message" in e &&
-    typeof (e as { message: unknown }).message === "string"
-  ) {
-    return { kind: "unknown", message: (e as { message: string }).message };
+  if (typeof e === "object" && e !== null && hasStringMessage(e)) {
+    return { kind: "unknown", message: e.message };
   }
   if (e === undefined || e === null) {
     return { kind: "unknown", message: "Unknown error" };

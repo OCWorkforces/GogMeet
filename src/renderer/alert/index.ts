@@ -1,6 +1,7 @@
 import "./styles.css";
 import type { AlertPayload } from "../../shared/alert.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
+import { isElementTarget } from "../utils/dom.js";
 
 const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
@@ -129,8 +130,8 @@ function setupDelegatedEvents(): void {
   if (!app) return;
 
   app.addEventListener("click", (event: MouseEvent) => {
-    // DOM cast: event.target is EventTarget; cast to HTMLElement is standard delegation pattern
-    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action]");
+    if (!isElementTarget(event.target)) return;
+    const target = event.target.closest<HTMLElement>("[data-action]");
 
     if (!target) {
       return;

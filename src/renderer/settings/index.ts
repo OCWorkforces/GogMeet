@@ -5,6 +5,7 @@ import {
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
 } from "../../shared/settings.js";
+import { queryRequiredElement } from "../utils/dom.js";
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let isSaving = false;
@@ -147,8 +148,7 @@ function clearSaveIndicatorTimers(): void {
 }
 
 function setupSelectListener(): void {
-  // DOM cast: getElementById returns HTMLElement | null; narrow to specific subtype is standard DOM practice
-  const select = document.getElementById("open-before-select") as HTMLSelectElement | null;
+  const select = queryRequiredElement("open-before-select", HTMLSelectElement);
   if (!select) return;
 
   select.addEventListener("change", () => {
@@ -169,8 +169,7 @@ function setupToggleListener(
   settingKey: ToggleSettingKey,
   indicatorId: string,
 ): void {
-  // DOM cast: getElementById returns HTMLElement | null; narrow to specific subtype is standard DOM practice
-  const toggle = document.getElementById(toggleId) as HTMLInputElement | null;
+  const toggle = queryRequiredElement(toggleId, HTMLInputElement);
   if (!toggle) return;
 
   toggle.addEventListener("change", () => {
@@ -188,12 +187,23 @@ async function saveToggleSetting(
   indicatorId: string,
 ): Promise<void> {
   try {
-    await saveSettings({ [settingKey]: next } as Partial<AppSettings>, indicatorId);
+    await saveSettings(buildTogglePatch(settingKey, next), indicatorId);
     if (settings[settingKey] !== next) {
       revertToggle(toggle, previous);
     }
   } catch {
     revertToggle(toggle, previous);
+  }
+}
+
+function buildTogglePatch(key: ToggleSettingKey, value: boolean): Partial<AppSettings> {
+  switch (key) {
+    case "launchAtLogin":
+      return { launchAtLogin: value };
+    case "showTomorrowMeetings":
+      return { showTomorrowMeetings: value };
+    case "windowAlert":
+      return { windowAlert: value };
   }
 }
 
