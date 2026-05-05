@@ -29,9 +29,9 @@ export function parseJsonObject<T>(
   }
 
   /**
-   * Justified residual cast: the preceding `typeof === "object"`, `!== null`,
-   * and `!Array.isArray` checks together establish that `parsed` is a plain
-   * object, which is structurally a `Record<string, unknown>`. TypeScript
+   * trust-boundary: justified residual cast. The preceding `typeof === "object"`,
+   * `!== null`, and `!Array.isArray` checks together establish that `parsed` is a
+   * plain object, which is structurally a `Record<string, unknown>`. TypeScript
    * cannot narrow `unknown` to this shape without an explicit assertion.
    */
   const obj = parsed as Record<string, unknown>;

@@ -82,7 +82,7 @@ export function formatAppError(e: AppError): string {
  */
 /**
  * Type predicate: narrows an object to one bearing a string `message` property.
- * Justified by preceding 'message' in value check narrowing to { message: unknown };
+ * trust-boundary: justified by preceding 'message' in value check narrowing to { message: unknown };
  * typeof check then confirms string.
  */
 function hasStringMessage(value: object): value is { message: string } {

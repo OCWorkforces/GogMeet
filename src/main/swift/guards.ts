@@ -23,6 +23,7 @@ export function isObjectRecord(value: unknown): value is Record<string, unknown>
  * via `typeof`. */
 export function isExecErrorLike(value: unknown): value is ExecErrorLike {
   if (!isObjectRecord(value)) return false;
+  // trust-boundary: narrowed by isObjectRecord() above; cast to Record<string, unknown> is required for bracket-access field validation under noPropertyAccessFromIndexSignature
   const e = value as Record<string, unknown>;
   return (
     (e["code"] === undefined || typeof e["code"] === "number" || typeof e["code"] === "string") &&

@@ -36,6 +36,7 @@ export class TypedMainEventBus extends EventEmitter {
     event: E,
     listener: (...args: MainEvents[E]) => void,
   ): this {
+    // trust-boundary: bridges typed `MainEvents[E]` listener to Node's untyped EventEmitter base class `(...args: unknown[]) => void`. Runtime function identity is unchanged — the cast exists only because Node's EventEmitter erases generics.
     return super.on(event, listener as (...args: unknown[]) => void);
   }
 
@@ -43,6 +44,7 @@ export class TypedMainEventBus extends EventEmitter {
     event: E,
     listener: (...args: MainEvents[E]) => void,
   ): this {
+    // trust-boundary: bridges typed `MainEvents[E]` listener to Node's untyped EventEmitter base class `(...args: unknown[]) => void`. Runtime function identity is unchanged — the cast exists only because Node's EventEmitter erases generics.
     return super.off(event, listener as (...args: unknown[]) => void);
   }
 
@@ -50,6 +52,7 @@ export class TypedMainEventBus extends EventEmitter {
     event: E,
     listener: (...args: MainEvents[E]) => void,
   ): this {
+    // trust-boundary: bridges typed `MainEvents[E]` listener to Node's untyped EventEmitter base class `(...args: unknown[]) => void`. Runtime function identity is unchanged — the cast exists only because Node's EventEmitter erases generics.
     return super.once(event, listener as (...args: unknown[]) => void);
   }
 }

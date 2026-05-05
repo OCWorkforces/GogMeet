@@ -28,6 +28,7 @@ function isEnoent(e: unknown): e is { code: unknown } {
   if (typeof e !== "object" || e === null || !("code" in e)) {
     return false;
   }
+  // trust-boundary: narrowed via typeof + 'code' in check above; bracket access required by noPropertyAccessFromIndexSignature
   return (e as Record<string, unknown>)["code"] === "ENOENT";
 }
 
