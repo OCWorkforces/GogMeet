@@ -107,10 +107,8 @@ export async function compileWithRetries(swiftSrc: string): Promise<void> {
   const cause = lastError instanceof Error ? lastError.message : String(lastError);
   const finalErr = new Error(
     `Failed to compile Swift helper after ${MAX_COMPILE_RETRIES} attempts: ${cause}`,
+    lastError instanceof Error ? { cause: lastError } : undefined,
   );
-  if (lastError instanceof Error) {
-    (finalErr as Error & { cause?: unknown }).cause = lastError;
-  }
   throw finalErr;
 }
 

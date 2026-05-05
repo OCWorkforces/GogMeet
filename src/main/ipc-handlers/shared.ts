@@ -63,6 +63,7 @@ export function typedHandle<K extends keyof IpcChannelMap>(
   ) => Promise<IpcChannelMap[K]["response"]> | IpcChannelMap[K]["response"],
 ): void {
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) =>
+    // trust-boundary: Electron's ipcMain.handle is structurally untyped; the channel-key generic K guarantees the request shape at all call sites of typedHandle
     handler(event, args[0] as IpcChannelMap[K]["request"]),
   );
 }

@@ -7,6 +7,9 @@
 import { app } from "electron";
 import path from "path";
 import { readFileSync } from "fs";
+import { err, type AppResult } from "../../shared/result.js";
+import { formatAppError } from "../../shared/errors.js";
+import { parseJsonObject } from "../../shared/parse-json.js";
 
 /**
  * Package.json structure with commonly used fields
@@ -33,47 +36,56 @@ let packageInfo: PackageInfo | null = null;
  * Loads once on first call, then returns cached value
  * @returns Readonly package info object
  */
+function validatePackageInfo(parsed: Record<string, unknown>): AppResult<PackageInfo> {
+  if (
+    typeof parsed["name"] !== "string" ||
+    typeof parsed["productName"] !== "string" ||
+    typeof parsed["version"] !== "string" ||
+    typeof parsed["description"] !== "string" ||
+    typeof parsed["repository"] !== "string" ||
+    typeof parsed["homepage"] !== "string" ||
+    typeof parsed["author"] !== "string"
+  ) {
+    return err({
+      kind: "validation",
+      field: "package.json",
+      message: "missing required fields",
+    });
+  }
+  const license = parsed["license"];
+  const main = parsed["main"];
+  const value: PackageInfo = {
+    name: parsed["name"],
+    productName: parsed["productName"],
+    version: parsed["version"],
+    description: parsed["description"],
+    repository: parsed["repository"],
+    homepage: parsed["homepage"],
+    author: parsed["author"],
+    ...(typeof license === "string" ? { license } : {}),
+    ...(typeof main === "string" ? { main } : {}),
+  };
+  const result: AppResult<PackageInfo> = { ok: true, value };
+  return result;
+}
+
 export function getPackageInfo(): Readonly<PackageInfo> {
   if (!packageInfo) {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    let pkgContent: string;
     try {
-      const pkgPath = path.join(app.getAppPath(), "package.json");
-      const pkgContent = readFileSync(pkgPath, "utf-8");
-      const parsed = JSON.parse(pkgContent) as Partial<PackageInfo>;
-      if (
-        typeof parsed.name !== "string" ||
-        typeof parsed.productName !== "string" ||
-        typeof parsed.version !== "string" ||
-        typeof parsed.description !== "string" ||
-        typeof parsed.repository !== "string" ||
-        typeof parsed.homepage !== "string" ||
-        typeof parsed.author !== "string"
-      ) {
-        throw new Error("package.json is missing one or more required fields");
-      }
-      packageInfo = {
-        name: parsed.name,
-        productName: parsed.productName,
-        version: parsed.version,
-        description: parsed.description,
-        repository: parsed.repository,
-        homepage: parsed.homepage,
-        author: parsed.author,
-        ...(parsed.license !== undefined ? { license: parsed.license } : {}),
-        ...(parsed.main !== undefined ? { main: parsed.main } : {}),
-      };
+      pkgContent = readFileSync(pkgPath, "utf-8");
     } catch (error) {
       console.error("[PackageInfo] Failed to load package.json:", error);
-      // Return minimal fallback to prevent crashes
-      packageInfo = {
-        name: "gogmeet",
-        productName: "GogMeet",
-        version: "1.0.0",
-        description:
-          "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
-        repository: "https://github.com/OCWorkforces/GogMeet",
-        homepage: "https://github.com/OCWorkforces/GogMeet",
-        author: "OCWorkforces Engineers",
-      };
+      packageInfo = fallbackPackageInfo();
+      return Object.freeze(packageInfo);
+    }
+    const result = parseJsonObject(pkgContent, "package.json", validatePackageInfo);
+    if (!result.ok) {
+      console.error("[PackageInfo] Failed to load package.json:", formatAppError(result.error));
+      packageInfo = fallbackPackageInfo();
+    } else {
+      packageInfo = result.value;
     }
   }
 
@@ -94,4 +106,17 @@ export function clearPackageInfoCache(): void {
  */
 export function isPackageInfoLoaded(): boolean {
   return packageInfo !== null;
+}
+
+function fallbackPackageInfo(): PackageInfo {
+  return {
+    name: "gogmeet",
+    productName: "GogMeet",
+    version: "1.0.0",
+    description:
+      "GogMeet is a desktop application that helps you keep track of your Google Meet meetings and reminds you before they start.",
+    repository: "https://github.com/OCWorkforces/GogMeet",
+    homepage: "https://github.com/OCWorkforces/GogMeet",
+    author: "OCWorkforces Engineers",
+  };
 }

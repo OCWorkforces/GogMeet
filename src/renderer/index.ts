@@ -211,19 +211,16 @@ async function init() {
 
   // Keyboard accessibility: Escape closes, Enter/Space activates focused button
   document.addEventListener("keydown", (e: KeyboardEvent) => {
-    // DOM cast: document.activeElement is Element | null; cast to HTMLElement to access .blur()
-    const active = document.activeElement as HTMLElement | null;
-    switch (e.key) {
-      case "Escape":
-        window.blur?.();
-        break;
-      case "Enter":
-      case " ":
-        if (active?.dataset["action"]) {
-          e.preventDefault();
-          active.click();
-        }
-        break;
+    if (e.key === "Escape") {
+      window.blur?.();
+      return;
+    }
+    if (e.key === "Enter" || e.key === " ") {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.dataset["action"]) {
+        e.preventDefault();
+        active.click();
+      }
     }
   });
 }

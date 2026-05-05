@@ -1,3 +1,5 @@
+import { isElementTarget } from "../utils/dom.js";
+
 export interface DelegatedEventHandlers {
   onForcePoll: () => void;
   onGrantAccess: () => void;
@@ -9,8 +11,8 @@ export function setupDelegatedEvents(handlers: DelegatedEventHandlers): void {
   if (!container) return;
 
   container.addEventListener("click", (e: MouseEvent) => {
-    // DOM cast: event.target is EventTarget; cast to HTMLElement is standard delegation pattern
-    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+    if (!isElementTarget(e.target)) return;
+    const target = e.target.closest<HTMLElement>("[data-action]");
     if (!target) return;
 
     const action = target.dataset["action"];

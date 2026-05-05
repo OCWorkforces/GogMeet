@@ -8,7 +8,9 @@ import {
 } from "../shared/settings.js";
 import type { AppSettings } from "../shared/settings.js";
 import { ok, err } from "../shared/result.js";
-import type { Result } from "../shared/result.js";
+import type { Result, AppResult } from "../shared/result.js";
+import { parseJsonObject } from "../shared/parse-json.js";
+import { formatAppError, isValidationError } from "../shared/errors.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;
@@ -23,9 +25,11 @@ function clampOpenBeforeMinutes(value: number): number {
 }
 
 function isEnoent(e: unknown): e is { code: unknown } {
-  return (
-    typeof e === "object" && e !== null && "code" in e && (e as { code: unknown }).code === "ENOENT"
-  );
+  if (typeof e !== "object" || e === null || !("code" in e)) {
+    return false;
+  }
+  // trust-boundary: narrowed via typeof + 'code' in check above; bracket access required by noPropertyAccessFromIndexSignature
+  return (e as Record<string, unknown>)["code"] === "ENOENT";
 }
 
 export async function loadSettings(): Promise<Result<AppSettings, string>> {
@@ -45,15 +49,20 @@ export async function loadSettings(): Promise<Result<AppSettings, string>> {
     return err(`Failed to read settings file: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
-  } catch (e) {
-    // Corrupted JSON - cache defaults and surface error
+  const parsedResult = parseJsonObject<Record<string, unknown>>(
+    raw,
+    "settings.json",
+    (value): AppResult<Record<string, unknown>> => ({ ok: true, value }),
+  );
+  if (!parsedResult.ok) {
     settingsCache = { ...DEFAULT_SETTINGS };
     settingsLoaded = true;
-    return err(`Failed to parse settings JSON: ${e instanceof Error ? e.message : String(e)}`);
+    const detail = isValidationError(parsedResult.error)
+      ? parsedResult.error.message
+      : formatAppError(parsedResult.error);
+    return err(`Failed to parse settings JSON: ${detail}`);
   }
+  const parsed = parsedResult.value;
 
   // Migrate legacy fullScreenAlert → windowAlert
   if (
