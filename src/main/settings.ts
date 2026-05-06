@@ -10,6 +10,7 @@ import type { AppSettings } from "../shared/settings.js";
 import { ok, err } from "../shared/result.js";
 import type { Result, AppResult } from "../shared/result.js";
 import { parseJsonObject } from "../shared/parse-json.js";
+import { isObjectRecord } from "./swift/guards.js";
 import { formatAppError, isValidationError } from "../shared/errors.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
@@ -25,11 +26,7 @@ function clampOpenBeforeMinutes(value: number): number {
 }
 
 function isEnoent(e: unknown): e is { code: unknown } {
-  if (typeof e !== "object" || e === null || !("code" in e)) {
-    return false;
-  }
-  // trust-boundary: narrowed via typeof + 'code' in check above; bracket access required by noPropertyAccessFromIndexSignature
-  return (e as Record<string, unknown>)["code"] === "ENOENT";
+  return isObjectRecord(e) && e["code"] === "ENOENT";
 }
 
 export async function loadSettings(): Promise<Result<AppSettings, string>> {
