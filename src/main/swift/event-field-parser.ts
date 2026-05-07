@@ -68,10 +68,17 @@ export function parseEventIdField(raw: string): Result<EventId, string> {
 }
 
 /** Validate and brand the optional meet URL field. Returns `undefined` when
- * the field is empty or fails brand validation (URL is non-fatal). */
+ * the field is empty or fails brand validation (URL is non-fatal).
+ *
+ * Normalizes URLs that lack a scheme prefix (e.g. `zoom.us/j/123`) by
+ * prepending `https://`, matching the behavior of `buildMeetUrl()` in meet-url.ts.
+ */
 export function parseMeetUrlField(raw: string): MeetUrl | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
-  const result = asMeetUrl(trimmed);
+  // Normalize: prepend https:// if no scheme present (calendar events may
+  // store bare URLs like "zoom.us/j/123" without a protocol prefix).
+  const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const result = asMeetUrl(normalized);
   return result.ok ? result.value : undefined;
 }

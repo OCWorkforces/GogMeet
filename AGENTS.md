@@ -123,11 +123,11 @@ src/
 - Never bypass `validateSender()` in IPC handlers
 - Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required
 - Never bundle the Swift source file inside ASAR — `swiftc` cannot read from ASAR archives
-- Never open arbitrary URLs via `shell.openExternal()` — validate against `MEET_URL_ALLOWLIST`
+- Never open arbitrary URLs via `shell.openExternal()` — validate against `MEETING_URL_ALLOWLIST`
 - Never insert user content via `innerHTML` without `escapeHtml()` — XSS protection
 - All BrowserWindows must have `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
 - `SWIFT_SRC_DEV` path uses `../..` (2 levels up from bundled `lib/main/`), NOT `../../..`
-- Never use `.startsWith()` for URL validation, use `new URL().hostname` exact match against `MEET_URL_ALLOWLIST`
+- Never use `.startsWith()` for URL validation, use `new URL().hostname` exact match against `MEETING_URL_ALLOWLIST`
 - Never use raw `webContents.send()` — use `typedSend()` from shared.ts
 - Never use `"error" in result` duck-typing — use `isCalendarOk()` or `result.kind === "ok"`
 - Never assign raw strings to branded types (EventId, MeetUrl, IsoUtc) — use validators

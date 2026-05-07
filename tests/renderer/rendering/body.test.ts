@@ -337,4 +337,61 @@ describe("renderBody", () => {
       expect(html).toContain('data-url="https://meet.google.com/xyz-abcd-efg"');
     });
   });
+
+  describe("Zoom events", () => {
+    it("renders Join button and auto-join badge for Zoom events with meetUrl", () => {
+      const event = createMockEvent({
+        id: asTestEventId("evt-zoom"),
+        title: "Zoom Standup",
+        startDate: asTestIsoUtc(isoFromNow(30)),
+        endDate: asTestIsoUtc(isoFromNow(60)),
+        meetUrl: asTestMeetUrl("https://zoom.us/j/1234567890"),
+        isAllDay: false,
+      });
+      const html = renderBody(
+        { type: "has-events", events: [event] },
+        createMockSettings({ openBeforeMinutes: 1 }),
+      );
+
+      expect(html).toContain("Zoom Standup");
+      expect(html).toContain('data-action="join-meeting"');
+      expect(html).toContain('data-url="https://zoom.us/j/1234567890"');
+      expect(html).toContain('class="badge-auto"');
+      expect(html).toContain("⚡ Auto");
+    });
+
+    it("renders Zoom event without Join button when meetUrl is undefined", () => {
+      const event = createMockEvent({
+        id: asTestEventId("evt-zoom-nourl"),
+        title: "Zoom No URL",
+        startDate: asTestIsoUtc(isoFromNow(30)),
+        endDate: asTestIsoUtc(isoFromNow(60)),
+        meetUrl: undefined,
+      });
+      const html = renderBody(
+        { type: "has-events", events: [event] },
+        createMockSettings(),
+      );
+
+      expect(html).toContain("Zoom No URL");
+      expect(html).not.toContain('data-action="join-meeting"');
+    });
+
+    it("renders Zoom subdomain URL in Join button", () => {
+      const event = createMockEvent({
+        id: asTestEventId("evt-zoom-sub"),
+        title: "Acme Sync",
+        startDate: asTestIsoUtc(isoFromNow(30)),
+        endDate: asTestIsoUtc(isoFromNow(60)),
+        meetUrl: asTestMeetUrl("https://acme.zoom.us/j/456?pwd=abc"),
+      });
+      const html = renderBody(
+        { type: "has-events", events: [event] },
+        createMockSettings(),
+      );
+
+      expect(html).toContain("Acme Sync");
+      expect(html).toContain('data-url="https://acme.zoom.us/j/456?pwd=abc"');
+    });
+  });
 });

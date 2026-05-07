@@ -50,7 +50,7 @@ tests/
 │   ├── power.test.ts                      # Power management, poll interval
 │   ├── preload.test.ts                    # Context bridge API structure
 │   ├── meet-url.test.ts                   # Meet URL building
-│   ├── url-validation.test.ts             # MEET_URL_ALLOWLIST, exact hostname match
+│   ├── url-validation.test.ts             # MEETING_URL_ALLOWLIST, exact hostname match
 │   └── time-utils.test.ts                 # Time formatting
 └── renderer/             # 9 files, jsdom environment
     ├── main-ui.test.ts                    # 523 lines, popover state machine

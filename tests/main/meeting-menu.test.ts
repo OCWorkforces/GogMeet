@@ -175,6 +175,42 @@ describe("buildMeetingMenuTemplate", () => {
     });
   });
 
+  // ─── Zoom meeting with URL ──────────────────────────────────
+  describe("Zoom meeting with meetUrl", () => {
+    it("renders enabled item for Zoom event", () => {
+      const event = makeEvent({
+        title: "Zoom Sync",
+        meetUrl: "https://zoom.us/j/1234567890",
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
+
+      const meetingItem = findItemContaining(items, "Zoom Sync");
+      expect(meetingItem).toBeDefined();
+      expect(meetingItem?.enabled).toBe(true);
+      expect(meetingItem?.click).toBeTypeOf("function");
+    });
+
+    it("click handler opens Zoom URL via openMeetingUrl", () => {
+      const event = makeEvent({
+        meetUrl: "https://us02web.zoom.us/j/789?pwd=secret",
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
+
+      const meetingItem = findItemContaining(items, "Standup");
+      meetingItem?.click?.(
+        {} as Electron.MenuItem,
+        undefined,
+        {} as Electron.KeyboardEvent,
+      );
+
+      expect(openMeetingUrl).toHaveBeenCalled();
+    });
+  });
+
   // ─── Multiple today meetings ─────────────────────────────────
   describe("multiple today meetings", () => {
     it("shows 'Today' header followed by meeting items", () => {

@@ -3,30 +3,36 @@ import { asMeetUrl } from "../../shared/brand.js";
 import type { Result } from "../../shared/result.js";
 import { err, ok } from "../../shared/result.js";
 
-/** Allowlisted Meet URL prefixes (preserved for backward-compatible exports) */
-export const MEET_URL_ALLOWLIST = [
+/** Allowlisted meeting URL prefixes for exact hostname matching. */
+export const MEETING_URL_ALLOWLIST: readonly string[] = [
   "https://meet.google.com/",
   "https://calendar.google.com/",
   "https://accounts.google.com/",
+  "https://zoom.us/",
+] as const;
+
+
+/**
+ * Hostname suffixes that allow any subdomain.
+ * e.g. ".zoom.us" accepts "acme.zoom.us", "us02web.zoom.us", etc.
+ */
+const ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [
+  ".zoom.us",
 ] as const;
 
 /** Hostnames derived from the allowlist for strict, parser-based matching. */
-const ALLOWED_HOSTNAMES: readonly string[] = MEET_URL_ALLOWLIST.map((prefix) => {
-  // Safe: prefixes are static literals validated above
+const ALLOWED_HOSTNAMES: readonly string[] = MEETING_URL_ALLOWLIST.map((prefix) => {
   return new URL(prefix).hostname;
 });
 
 /**
- * Returns true if the URL is a valid https:// URL whose hostname exactly
- * matches an entry in the allowlist. Defends against:
+ * Returns true if the URL is a valid https:// URL whose hostname passes
+ * the allowlist check (exact match or allowed subdomain suffix). Defends against:
  * - Prefix-match spoofing (e.g. https://meet.google.com.evil.com)
  * - Userinfo injection (e.g. https://evil@meet.google.com)
  * - Non-standard ports
  * - Non-https schemes (http, data, javascript, file, etc.)
  */
-export function isAllowedMeetUrl(url: string): boolean {
-  return validateMeetUrl(url).ok;
-}
 
 /**
  * Structural + allowlist validator that returns a branded {@link MeetUrl} on
@@ -40,8 +46,29 @@ export function validateMeetUrl(url: string): Result<MeetUrl, string> {
   // asMeetUrl already enforced https://, no credentials, default port.
   // We only need the hostname-allowlist check here.
   const parsed = new URL(branded.value);
-  if (!ALLOWED_HOSTNAMES.includes(parsed.hostname)) {
-    return err("MeetUrl hostname is not in the allowlist");
+  if (isAllowedHostname(parsed.hostname)) {
+    return ok(branded.value);
   }
-  return ok(branded.value);
+  return err("MeetUrl hostname is not in the allowlist");
+}
+
+/**
+ * Returns true if the URL is a valid https:// URL whose hostname passes
+ * the allowlist check (exact match or allowed subdomain suffix).
+ */
+export function isAllowedMeetUrl(url: string): boolean {
+  return validateMeetUrl(url).ok;
+}
+
+/**
+ * Check if a hostname matches the allowlist:
+ * - Exact match against ALLOWED_HOSTNAMES (meet.google.com, zoom.us, etc.)
+ * - Suffix match against ALLOWED_HOSTNAME_SUFFIXES (.zoom.us → acme.zoom.us)
+ */
+function isAllowedHostname(hostname: string): boolean {
+  if (ALLOWED_HOSTNAMES.includes(hostname)) return true;
+  for (const suffix of ALLOWED_HOSTNAME_SUFFIXES) {
+    if (hostname.endsWith(suffix)) return true;
+  }
+  return false;
 }
