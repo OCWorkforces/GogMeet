@@ -51,7 +51,7 @@ Prod:  process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift
 Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`.
 
 - `ParseDiagnostic` has `line`, `reason` (`malformed_field_count`, `invalid_iso`, etc.), `raw`
-- Diagnostics logged via `console.warn` by `calendar.ts` consumer
+- **URL extraction**: Two regex patterns in Swift (`googlemeet-events.swift`) — Google Meet (`https://meet\\.google\\.com/...`) and Zoom (`https://(?:[a-zA-Z0-9-]+\\.)*zoom\\.us/...`). Zoom tried first, then Google Meet.
 - Splits on newlines → tab-delimited fields (9 required, strict)
 - Branded outputs: `EventId`, `MeetUrl`, `IsoUtc` via validators from `shared/brand.ts`
 - Filters: valid dates, today+tomorrow only, deduplicates by UID, sorts by startDate ascending

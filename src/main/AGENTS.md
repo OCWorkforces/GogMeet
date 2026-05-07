@@ -114,7 +114,7 @@ Each domain has its own file. All exports `register*Handlers(win?)` called from 
 | ------------------- | --------------------------------------------------------------- | -------------------------------------- | ------------------------------------ |
 | `browser-window.ts` | `SECURE_WEB_PREFERENCES`, `getPreloadPath`, `loadWindowContent` | All BrowserWindow creation             | index, settings-window, alert-window |
 | `meet-url.ts`       | `buildMeetUrl`                                                  | Appends `?authuser=email`              | tray, shortcuts, scheduler           |
-| `url-validation.ts` | `isAllowedMeetUrl`, `MEET_URL_ALLOWLIST`                        | URL allowlist for `shell.openExternal` | meet-url, ipc-handlers/app           |
+| `url-validation.ts` | `isAllowedMeetUrl`, `MEETING_URL_ALLOWLIST`                        | Meeting URL allowlist for `shell.openExternal` | meet-url, ipc-handlers/app           |
 | `packageInfo.ts`    | `getPackageInfo`                                                | Read package.json (9 explicit readonly fields, runtime validation) | index                                |
 
 ## ANTI-PATTERNS

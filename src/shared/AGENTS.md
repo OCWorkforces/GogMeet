@@ -12,7 +12,7 @@ Type definitions and utilities shared across main, preload, and renderer process
 | `utils/escape-html.ts` | XSS protection utility (used by main popover + alert)                             |
 | `utils/time.ts`        | `isTomorrow`, `formatMeetingTime`, `formatRemainingTime` — shared time formatting |
 | `alert.ts`             | AlertPayload for `alert:show` push channel                                        |
-| `brand.ts`             | Branded types: EventId, MeetUrl, IsoUtc, WindowHeight with validators returning Result<T,string> |
+| `brand.ts`             | Branded types: EventId, MeetUrl (Google Meet + Zoom URLs), IsoUtc, WindowHeight with validators returning Result<T,string> |
 | `app-state.ts`         | AppState type (extracted from renderer)                                           |
 | `result.ts`            | Result<T,E> discriminated union (ok/err)                                          |
 | `errors.ts`            | AppError discriminated union (6 variants), `errFrom()`, `formatAppError()`, type guards |

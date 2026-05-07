@@ -1,8 +1,8 @@
 import EventKit
 import Foundation
 
-// GoogleMeet Swift EventKit Helper
-// Outputs Google Meet events for today+tomorrow in tab-delimited format:
+// GogMeet Swift EventKit Helper
+// Outputs meeting events for today+tomorrow in tab-delimited format:
 // uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
 //
 // Structured exit codes (consumed by event-parser.ts via err.code):
@@ -61,14 +61,26 @@ requestCalendarAccess { granted in
     ) else {
         fail("could not compile meet URL regex", code: 4)
     }
+    guard let zoomRegex = try? NSRegularExpression(
+        pattern: #"https://(?:[a-zA-Z0-9-]+\.)*zoom\.us/[^\s"'<>\\]+"#
+    ) else {
+        fail("could not compile zoom URL regex", code: 4)
+    }
     let isoFormatter = ISO8601DateFormatter()
 
     func findMeetUrl(_ text: String?) -> String? {
         guard let t = text else { return nil }
-        let range = NSRange(t.startIndex..., in: t)
-        guard let match = meetRegex.firstMatch(in: t, range: range) else { return nil }
-        guard let matchRange = Range(match.range, in: t) else { return nil }
-        return String(t[matchRange])
+        let nsRange = NSRange(t.startIndex..., in: t)
+        // Try Zoom first (more specific domain match), then Google Meet
+        if let match = zoomRegex.firstMatch(in: t, range: nsRange),
+           let matchRange = Range(match.range, in: t) {
+            return String(t[matchRange])
+        }
+        if let match = meetRegex.firstMatch(in: t, range: nsRange),
+           let matchRange = Range(match.range, in: t) {
+            return String(t[matchRange])
+        }
+        return nil
     }
 
     for event in events {

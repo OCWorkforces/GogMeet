@@ -95,10 +95,10 @@ describe("buildMeetUrl", () => {
       expect(url).toBe("");
     });
 
-    it("returns empty string for non-Google URLs", () => {
+    it("accepts Zoom URLs", () => {
       const event = makeEvent({ meetUrl: "https://zoom.us/j/123" });
       const url = buildMeetUrl(event);
-      expect(url).toBe("");
+      expect(url).toBe("https://zoom.us/j/123");
     });
 
     it("returns empty string for google.com (not allowlisted)", () => {
@@ -135,6 +135,67 @@ describe("buildMeetUrl", () => {
       const event = makeEvent({ meetUrl: "" });
       const url = buildMeetUrl(event);
       expect(url).toBe("");
+    });
+  });
+
+  describe("valid Zoom URLs", () => {
+    it("returns Zoom URL with uname when email is present", () => {
+      const event = makeEvent({
+        meetUrl: "https://zoom.us/j/1234567890",
+        userEmail: "user@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://zoom.us/j/1234567890?uname=user%40example.com",
+      );
+    });
+
+    it("returns Zoom URL without uname when email is missing", () => {
+      const event = makeEvent({ meetUrl: "https://zoom.us/j/123" });
+      const url = buildMeetUrl(event);
+      expect(url).toBe("https://zoom.us/j/123");
+    });
+
+    it("returns Zoom URL without uname when email is empty", () => {
+      const event = makeEvent({
+        meetUrl: "https://zoom.us/j/123",
+        userEmail: "",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe("https://zoom.us/j/123");
+    });
+
+    it("encodes special characters in email for Zoom", () => {
+      const event = makeEvent({
+        meetUrl: "https://zoom.us/j/123",
+        userEmail: "user+test@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://zoom.us/j/123?uname=user%2Btest%40example.com",
+      );
+    });
+
+    it("trims whitespace from email for Zoom", () => {
+      const event = makeEvent({
+        meetUrl: "https://zoom.us/j/123",
+        userEmail: "  user@example.com  ",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://zoom.us/j/123?uname=user%40example.com",
+      );
+    });
+
+    it("supports Zoom subdomain URLs", () => {
+      const event = makeEvent({
+        meetUrl: "https://us02web.zoom.us/j/123?pwd=abc",
+        userEmail: "user@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://us02web.zoom.us/j/123?pwd=abc&uname=user%40example.com",
+      );
     });
   });
 });
