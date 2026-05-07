@@ -1,4 +1,4 @@
-import { BrowserWindow, app } from "electron";
+import { BrowserWindow, app, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPackageInfo } from "./utils/packageInfo.js";
@@ -53,11 +53,16 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     margin-bottom: 16px;
     border-radius: 22px;
     box-shadow: 0 8px 32px rgba(66, 133, 244, 0.15);
+    cursor: pointer;
+  }
+  a {
+    text-decoration: none;
+    -webkit-app-region: no-drag;
   }
   h1 {
     font-size: 18px;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 14px;
   }
   .version {
     font-size: 13px;
@@ -92,7 +97,9 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 </style>
 </head>
 <body>
-  <img class="app-icon" src="${ABOUT_ICON_DATA_URI}" alt="${appName} icon" />
+  <a href="${packageJson.repository}" target="_blank">
+    <img class="app-icon" src="${ABOUT_ICON_DATA_URI}" alt="${appName} icon" />
+  </a>
   <h1>${appName}</h1>
   <div class="version">Version ${version}</div>
   <div class="copyright">${packageJson.description}</div>
@@ -117,6 +124,15 @@ export function showAbout(_mainWindow: BrowserWindow): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === packageJson.repository) {
+      shell.openExternal(url).catch((err) => {
+        console.error("[About] Failed to open repository URL:", err);
+      });
+    }
+    return { action: "deny" };
   });
 
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
