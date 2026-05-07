@@ -69,6 +69,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     color: #98989d;
     text-align: center;
     line-height: 1.5;
+    padding: 0 20px;
     margin-bottom: 24px;
   }
   button {
@@ -94,13 +95,13 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   <img class="app-icon" src="${ABOUT_ICON_DATA_URI}" alt="${appName} icon" />
   <h1>${appName}</h1>
   <div class="version">Version ${version}</div>
-  <div class="copyright">${packageJson.author ? `Developed by ${packageJson.author}` : ""}</div>
+  <div class="copyright">${packageJson.description}</div>
   <button onclick="window.close()">Close</button>
 </body>
 </html>`;
 
   const win = new BrowserWindow({
-    width: 300,
+    width: 360,
     height: 340,
     resizable: false,
     minimizable: false,
