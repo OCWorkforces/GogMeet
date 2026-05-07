@@ -1,6 +1,6 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-04-30
+**Generated:** 2026-05-07
 **Commit:** 43c6523
 **Branch:** develop
 
@@ -15,6 +15,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
 | Test      | Vitest 4 (workspace)                      |
+| Lint/Fmt  | Biome                                     |
 
 ## BEHAVIORAL GUIDELINES
 
@@ -79,6 +80,9 @@ src/
 | Window height brand   | `src/shared/brand.ts`                         | WindowHeight, clampWindowHeight()          |
 | CSP types             | `src/main/utils/browser-window.ts`            | CSPSource, CSPDirective, CSP template      |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
+| Packaging config      | `electron-builder.yml`                         | Root-level YAML, NOT in package.json    |
+| Notarization          | `build/notarize.cjs`                           | `@electron/notarize`                    |
+| Architecture rules    | `.sentrux/rules.toml`                          | Modularity, acyclicity, depth           |
 
 ## CONVENTIONS
 
@@ -97,13 +101,14 @@ src/
 - **Discriminated unions**: CalendarResult uses `kind: "ok"|"err"` tag, narrow with `isCalendarOk()`
 - **Branded types**: EventId, MeetUrl, IsoUtc — validated at trust boundaries (parser, URL validation)
 - **typedSend()**: All main→renderer push uses `typedSend()` with `isDestroyed()` guard, no raw `webContents.send()`
-- **as const satisfies**: Config objects use `as const satisfies T` for compile-time validation
+- **`as const` pattern**: Used on config objects and lookup maps for compile-time type narrowing (e.g., `IPC_CHANNELS as const`). Note: `as const satisfies` is NOT used in actual source — `isolatedDeclarations` requires explicit annotations on exports instead.
 - **Result type**: `Result<T,E>` used for fallible operations (settings load, brand validation)
 - **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
 - **Settings eager-load**: `loadSettings()` called during lifecycle init before `startScheduler()` — guarantees cache warm before scheduler polls
 - **noPropertyAccessFromIndexSignature**: Enabled — index-signature accesses use bracket notation (`obj["key"]` not `obj.key`)
 - **isolatedDeclarations**: Enabled — all exports have explicit type annotations; `satisfies` dropped in favor of explicit annotations
 - **erasableSyntaxOnly**: Enabled — no non-erasable syntax (enums, namespaces, parameter properties)
+- **Formatting**: Biome (`biome.json`) for unified linting + formatting — no separate ESLint/Prettier configs
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -138,6 +143,27 @@ Three-process build:
 3. **Renderer** (`rsbuild.config.ts`): Three environments (`main` + `settings` + `alert`) → `lib/renderer/`
 
 Production: SWC minifier with `drop_console: true`, tree-shaking, no source maps.
+
+### Packaging (electron-builder.yml)
+
+Root-level YAML (NOT in package.json):
+- Targets: DMG + ZIP for arm64 + x64, macOS 11.0+
+- `asarUnpack` for Swift source (swiftc cannot read from ASAR)
+- After-pack: `build/after-pack.cjs`
+- After-sign: `build/notarize.cjs` (Apple notarization via `@electron/notarize`)
+- Entitlements: `build/entitlements.mac.plist` (hardened-runtime, camera, calendar)
+- Release scripts: `scripts/tag-release.cjs`
+
+### CI / CD
+
+- `.github/workflows/pr-check.yml` — typecheck + test + coverage on push/PR to develop/main
+- `.github/workflows/release.yml` — `bun run package` → upload DMG/ZIP to GitHub Releases on tag push
+- Notarization secrets: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+
+### Architecture Rules
+
+`.sentrux/rules.toml` enforces architectural constraints (modularity, acyclicity, depth). Use `sentrux-mcp_health` to check.
+
 
 ## COMMANDS
 
