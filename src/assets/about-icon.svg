@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="aura-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4285F4" stop-opacity="0.25"/>
+      <stop offset="35%" stop-color="#4285F4" stop-opacity="0.12"/>
+      <stop offset="65%" stop-color="#34A853" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#1D1D1F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="128" height="128" rx="28.8" fill="#1D1D1F"/>
+  <!-- Aura glow circle -->
+  <circle cx="64" cy="64" r="53.76" fill="url(#aura-glow)"/>
+  <!-- Calendar icon -->
+  <g transform="translate(10.24, 10.24)">
+    <!-- Binding rings -->
+    <circle cx="35.309568" cy="10.752" r="3.584" fill="#FFFFFF"/>
+    <circle cx="72.210432" cy="10.752" r="3.584" fill="#FFFFFF"/>
+    <!-- Calendar body -->
+    <rect x="11.827199999999998" y="10.752" width="83.8656" height="86.016" rx="10.24" fill="#FFFFFF"/>
+    <!-- Header strip -->
+    <rect x="11.827199999999998" y="10.752" width="83.8656" height="25.8048" rx="10.24" ry="10.24" fill="#4285F4"/>
+    <rect x="11.827199999999998" y="26.3168" width="83.8656" height="10.24" fill="#4285F4"/>
+    <!-- Day number -->
+    <text x="53.76" y="82.3296"
+          font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
+          font-size="43.52"
+          font-weight="700"
+          fill="#1D1D1F"
+          text-anchor="middle">31</text>
+  </g>
+</svg>
