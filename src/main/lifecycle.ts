@@ -76,6 +76,9 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       });
     });
 
+    // Register IPC handlers before any async ops — renderer may call channels early
+    tryRunCritical("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
+
     // Load settings and check calendar permission in parallel
     // loadSettings is critical (must succeed before scheduler starts);
     // calendarPermission is non-critical (errors collected, no throw)
@@ -95,7 +98,6 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       }),
     ]);
 
-    tryRun("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
     tryRunCritical("setupTray", () => setupTray(mainWindow));
     tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
     tryRun("setSchedulerWindow", () => setSchedulerWindow(mainWindow));
