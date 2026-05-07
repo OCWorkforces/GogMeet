@@ -56,6 +56,16 @@ describe("scheduleAlertTimer", () => {
     expect(showAlert).toHaveBeenCalledWith(event);
   });
 
+  it("calls showAlert for events without meetUrl", () => {
+    const event = makeEvent({ meetUrl: undefined });
+    const delay = 120_000;
+    scheduleAlertTimer(event, delay, alertTimers, alertFiredEvents);
+
+    vi.advanceTimersByTime(delay);
+    expect(showAlert).toHaveBeenCalledWith(event);
+    expect(event.meetUrl).toBeUndefined();
+  });
+
   it("catches errors from showAlert gracefully", () => {
     vi.mocked(showAlert).mockImplementation(() => {
       throw new Error("window creation failed");

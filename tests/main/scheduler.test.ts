@@ -376,6 +376,15 @@ describe("scheduleEvents", () => {
     expect(scheduledEventData.get("b12")?.startMs).toBeCloseTo(newStartMs, -2);
   });
 
+  it("events without meetUrl still get alert timer scheduled", () => {
+    const startDate = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const event = makeEvent({ id: "no-url", meetUrl: undefined, startDate });
+
+    scheduleEvents([event]);
+
+    expect(alertTimers.has("no-url")).toBe(true);
+  });
+
   it("B13: fired event with unchanged start time is still skipped (regression guard)", () => {
     const startDate = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const event = makeEvent({

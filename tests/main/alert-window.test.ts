@@ -181,6 +181,25 @@ describe("alert-window", () => {
       );
     });
 
+    it("sends correct AlertPayload for event without meetUrl", () => {
+      const mockSend = vi.fn();
+
+      showAlert(makeEvent({ id: "no-url-event", meetUrl: undefined }));
+      const win = getWindow(1);
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+
+      fireEvent(win, "ready-to-show");
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "no-url-event" }),
+      );
+      // Verify the payload does NOT include meetUrl (AlertPayload intentionally excludes it)
+      const callArg = mockSend.mock.calls[0][1];
+      expect(callArg).not.toHaveProperty("meetUrl");
+    });
+
     it("does not crash when ready-to-show fires after window is destroyed", () => {
       const mockIsDestroyed = vi.fn(() => false);
 
