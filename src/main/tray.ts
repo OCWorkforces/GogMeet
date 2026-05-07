@@ -18,6 +18,7 @@ import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
+import { readFileSync } from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,12 @@ let beforeQuitRegistered = false;
 
 /** Reference to the singleton About BrowserWindow (null when not open). */
 let aboutWindow: BrowserWindow | null = null;
+
+const aboutIconSvg = readFileSync(
+  path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
+  "utf-8",
+);
+const ABOUT_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
 
 function showAbout(_mainWindow: BrowserWindow): void {
   // Reuse existing about window if still alive
@@ -64,17 +71,11 @@ function showAbout(_mainWindow: BrowserWindow): void {
     -webkit-user-select: none;
   }
   .app-icon {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 20px;
-    border-radius: 18px;
-    background: linear-gradient(135deg, #4285f4, #34a853, #fbbc04, #ea4335);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    color: white;
-    font-weight: 700;
+    width: 96px;
+    height: 96px;
+    margin-bottom: 16px;
+    border-radius: 22px;
+    box-shadow: 0 8px 32px rgba(66, 133, 244, 0.15);
   }
   h1 {
     font-size: 18px;
@@ -113,7 +114,7 @@ function showAbout(_mainWindow: BrowserWindow): void {
 </style>
 </head>
 <body>
-  <div class="app-icon">G</div>
+  <img class="app-icon" src="${ABOUT_ICON_DATA_URI}" alt="${appName} icon" />
   <h1>${appName}</h1>
   <div class="version">Version ${version}</div>
   <div class="copyright">${packageJson.author ? `Developed by ${packageJson.author}` : ""}</div>

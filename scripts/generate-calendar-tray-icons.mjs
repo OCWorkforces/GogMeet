@@ -196,6 +196,74 @@ async function generateIcns(png1024Buffer, outputPath) {
   }
 }
 
+/**
+ * Aura icon SVG for the About dialog (128x128).
+ * Calendar icon centered with a colored radial glow behind it.
+ */
+function auraIconSvg(size) {
+  const s = size;
+  const pad = s * 0.08;
+  const iw = s - pad * 2;
+  const ih = s - pad * 2;
+
+  // Calendar body
+  const bodyW = iw * 0.78;
+  const bodyH = ih * 0.80;
+  const bodyX = (iw - bodyW) / 2;
+  const bodyY = ih * 0.10;
+  const bodyR = s * 0.08;
+
+  // Header strip
+  const headerH = bodyH * 0.30;
+
+  // Binding rings
+  const ringR = Math.max(s * 0.028, 2);
+  const ring1X = bodyX + bodyW * 0.28;
+  const ring2X = bodyX + bodyW * 0.72;
+  const ringY = bodyY;
+
+  // Day number
+  const fontSize = s * 0.34;
+  const numX = bodyX + bodyW / 2;
+  const numBaseline = bodyY + headerH + (bodyH - headerH) / 2 + fontSize * 0.36;
+
+  const cx = s / 2;
+  const cy = s / 2;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+  <defs>
+    <radialGradient id="aura-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4285F4" stop-opacity="0.25"/>
+      <stop offset="35%" stop-color="#4285F4" stop-opacity="0.12"/>
+      <stop offset="65%" stop-color="#34A853" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#1D1D1F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="${s}" height="${s}" rx="${s * 0.225}" fill="#1D1D1F"/>
+  <!-- Aura glow circle -->
+  <circle cx="${cx}" cy="${cy}" r="${s * 0.42}" fill="url(#aura-glow)"/>
+  <!-- Calendar icon -->
+  <g transform="translate(${pad}, ${pad})">
+    <!-- Binding rings -->
+    <circle cx="${ring1X}" cy="${ringY}" r="${ringR}" fill="#FFFFFF"/>
+    <circle cx="${ring2X}" cy="${ringY}" r="${ringR}" fill="#FFFFFF"/>
+    <!-- Calendar body -->
+    <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyR}" fill="#FFFFFF"/>
+    <!-- Header strip -->
+    <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${headerH}" rx="${bodyR}" ry="${bodyR}" fill="#4285F4"/>
+    <rect x="${bodyX}" y="${bodyY + headerH - bodyR}" width="${bodyW}" height="${bodyR}" fill="#4285F4"/>
+    <!-- Day number -->
+    <text x="${numX}" y="${numBaseline}"
+          font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
+          font-size="${fontSize}"
+          font-weight="700"
+          fill="#1D1D1F"
+          text-anchor="middle">31</text>
+  </g>
+</svg>`;
+}
+
 // --- Tray icon definitions (active only) ---
 
 const ICONS = [
@@ -239,6 +307,18 @@ try {
   console.log("  OK: build/icon.icns (1024x1024 source)");
 } catch (err) {
   console.error(`  FAIL: icon.icns: ${err.message}`);
+  process.exitCode = 1;
+}
+
+console.log("\nGenerating about dialog aura icon...\n");
+
+try {
+  const auraSvg = auraIconSvg(128);
+  const outPath = join(ASSETS_DIR, "about-icon.svg");
+  writeFileSync(outPath, auraSvg);
+  console.log("  OK: about-icon.svg (128x128)");
+} catch (err) {
+  console.error(`  FAIL: about-icon.svg: ${err.message}`);
   process.exitCode = 1;
 }
 
