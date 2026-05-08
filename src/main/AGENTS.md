@@ -9,6 +9,7 @@ Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS 
 | `index.ts`           | App bootstrap, BrowserWindow factory, lifecycle events                 |
 | `lifecycle.ts`       | Subsystem init/shutdown (`initializeApp` / `shutdownApp`)              |
 | `calendar.ts`        | Swift EventKit calendar queries (delegates to `swift/`), uses `isCalendarOk()` guard for discriminated `CalendarResult` |
+| `calendar-watcher.ts` | macOS Calendar change detection via Swift `--watch` sidecar (`EKEventStoreChangedNotification`), triggers `forcePoll()` on changes |
 | `tray.ts`            | System tray icon, context menu, countdown title; subscribes to `meeting-list-updated` event bus |
 | `about-window.ts`    | About panel BrowserWindow singleton (reuses window, alwaysOnTop, hiddenInset titlebar) |
 | `events.ts`          | Typed event bus (`TypedMainEventBus`, `MainEvents`): `meeting-list-updated` + `power-state-changed`, singleton `mainBus` |
@@ -44,6 +45,7 @@ initializeApp(win):
   setSchedulerWindow(win)   → scheduler/index.ts
   calendarPermission        → calendar.ts
   startScheduler()          → scheduler/index.ts
+  startCalendarWatcher()    → calendar-watcher.ts (Swift EKEventStoreChangedNotification sidecar)
   initPowerManagement(() => restartScheduler())  → power.ts
   initPowerEvents()              → power.ts (emits power-state-changed on battery change)
   registerShortcuts()       → shortcuts.ts
@@ -53,6 +55,7 @@ initializeApp(win):
 shutdownApp():
   cleanupPowerManagement()  → power.ts
   stopScheduler()           → scheduler/index.ts
+  stopCalendarWatcher()     → calendar-watcher.ts
 ```
 
 **Error handling**: Fatal init failures wrapped via `tryRun`/`tryRunAsync`; errors normalized through `AppError` taxonomy in `shared/errors.ts` (6 variants), shown via `dialog.showErrorBox()` on fatal.
@@ -73,12 +76,16 @@ shutdownApp():
 ## SWIFT EVENTKIT PATTERNS
 
 - **Helper**: `googlemeet-events.swift` compiled to `$TMPDIR/googlemeet/` on first call
+- **Helper modes**:
+  - **One-shot** (default): fetches today+tomorrow events, outputs 9-field tab-delimited format, exits
+  - **`--watch`**: runs indefinitely, subscribes to `EKEventStoreChangedNotification`, outputs `CHANGED` on stdout (1s debounce) when Calendar data mutates
+- **Watch sidecar**: `swift/calendar-watch-sidecar.ts` — manages the long-running `--watch` process lifecycle (spawn, crash recovery with exponential backoff, graceful shutdown)
 - **Binary manager**: `swift/binary-manager.ts` — hash-based cache, architecture-aware compile, retry on failure
 - **Event parser**: `swift/event-parser.ts` — tab-delimited → `MeetingEvent[]`, Outlook artifact cleanup
 - **Compile time**: <1s (`swiftc` invoked at runtime, cached)
 - **Query time**: ~0.7s (EventKit indexed queries, no network waits)
 - **Output format**: 9 tab-delimited fields: `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`
-- **Filtering**: Skips cancelled events, declined invitations; only Google Meet URLs via regex
+- **Filtering**: Skips cancelled events, declined invitations; Google Meet + Zoom URLs via regex
 - **Type guards**: `swift/guards.ts` — runtime narrowing for Swift output fields, eliminates unsafe `as` casts
 
 ## IPC HANDLERS (`ipc-handlers/`)

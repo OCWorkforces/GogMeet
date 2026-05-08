@@ -13,6 +13,7 @@ Manages the Swift EventKit helper binary lifecycle and parses its output into ty
 | `event-field-parser.ts`| Per-field extractors (uid, title, url, dates, allDay, email, notes)    |
 | `event-validator.ts`   | ISO parsing, diagnostics, Swift error classification (`classifySwiftError`) |
 | `guards.ts`            | Runtime type guards for Swift output fields, eliminates unsafe `as` casts |
+| `calendar-watch-sidecar.ts`| Swift `--watch` mode process manager: spawn, crash recovery (exp backoff, 5 retries), graceful shutdown |
 
 ## BINARY LIFECYCLE
 
@@ -43,6 +44,25 @@ Prod:  process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift
 - Flags: `-Osize -whole-module-optimization`
 - Fallback with explicit SDK path for CI environments
 - `strip -x -S` removes debug symbols (optional)
+
+## WATCH MODE (calendar-watch-sidecar.ts)
+
+The Swift helper supports a `--watch` mode that runs indefinitely, subscribing to `EKEventStoreChangedNotification` instead of making a one-shot fetch. This replaces the legacy `fs.watch` on `~/Library/Calendars` (which is empty on modern macOS).
+
+```
+startWatchSidecar(onChange)  →  ensureBinary()  →  spawn(BINARY_PATH, [--watch])
+                                  → stdout: CHANGED (1s Swift-side debounce)
+                                  → debounce 2s → onChange()
+                                  → on crash: exponential backoff restart (1s→16s, 5 retries)
+
+stopWatchSidecar()  →  SIGTERM → 5s grace → SIGKILL
+```
+
+- **Notification**: `EKEventStoreChanged` on EKEventStore — fires for any calendar mutation (add, edit, delete)
+- **Debounce**: 1s in Swift (coalesce rapid EKEventStore bursts), 2s in Node.js (coalesce CHANGED lines)
+- **Exit**: stdin close (parent process death) → clean `exit(0)`
+- **Restart**: exponential backoff 1s→2s→4s→8s→16s, capped at 30s, max 5 retries
+- **Shutdown**: `stopped` flag suppresses restarts, SIGTERM → 5s grace → SIGKILL (timer unref'd)
 
 ## PARSING (event-parser.ts + event-field-parser.ts + event-validator.ts)
 
