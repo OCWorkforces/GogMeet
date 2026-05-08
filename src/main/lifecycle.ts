@@ -24,6 +24,7 @@ import { syncAutoLaunch } from "./auto-launch.js";
 import { checkNotificationPermission } from "./notification.js";
 import { registerShortcuts, unregisterShortcuts } from "./shortcuts.js";
 import { ensureBinary } from "./swift/binary-manager.js";
+import { startCalendarWatcher, stopCalendarWatcher } from "./calendar-watcher.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -106,6 +107,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     );
 
     tryRun("startScheduler", () => startScheduler());
+    tryRun("startCalendarWatcher", () => startCalendarWatcher());
     tryRun("initPowerManagement", () => initPowerManagement(() => restartScheduler()));
     tryRun("initPowerEvents", () => initPowerEvents());
     tryRun("registerShortcuts", () => registerShortcuts());
@@ -140,5 +142,6 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
 export function shutdownApp(): void {
   cleanupPowerManagement();
   stopScheduler();
+  stopCalendarWatcher();
   unregisterShortcuts();
 }

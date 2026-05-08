@@ -2,8 +2,13 @@ import EventKit
 import Foundation
 
 // GogMeet Swift EventKit Helper
-// Outputs meeting events for today+tomorrow in tab-delimited format:
-// uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
+//
+// Two modes:
+//   1. One-shot (default): outputs meeting events for today+tomorrow in tab-delimited format
+//      uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
+//   2. Watch mode (--watch): runs indefinitely, prints `CHANGED` to stdout whenever
+//      EKEventStore broadcasts a change notification (debounced 1000ms). Exits cleanly
+//      when stdin closes (parent process death).
 //
 // Structured exit codes (consumed by event-parser.ts via err.code):
 //   0 — success
@@ -35,6 +40,51 @@ func fail(_ message: String, code: Int32) -> Never {
     sema.signal()
     exit(code)
 }
+
+// MARK: - Watch mode
+// When invoked with --watch, register for EKEventStoreChanged notifications and emit
+// `CHANGED` on stdout (debounced). The Node.js side handles the actual event fetch via
+// its regular poll — we only signal that *something* changed.
+if CommandLine.arguments.contains("--watch") {
+    requestCalendarAccess { granted in
+        guard granted else {
+            fputs("error: calendar access denied\n", stderr)
+            exit(2)
+        }
+    }
+
+    // Debounce state — coalesce rapid consecutive change notifications into one emit.
+    let debounceMs: Int = 1000
+    var pendingEmit: DispatchWorkItem?
+
+    let observer = NotificationCenter.default.addObserver(
+        forName: .EKEventStoreChanged,
+        object: store,
+        queue: .main
+    ) { _ in
+        pendingEmit?.cancel()
+        let work = DispatchWorkItem {
+            print("CHANGED")
+            fflush(__stdoutp)
+        }
+        pendingEmit = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(debounceMs), execute: work)
+    }
+    _ = observer  // retain
+
+    // Detect parent process death via stdin EOF.
+    FileHandle.standardInput.readabilityHandler = { handle in
+        let data = handle.availableData
+        if data.count == 0 {
+            exit(0)
+        }
+    }
+
+    RunLoop.main.run()
+    exit(0)
+}
+
+// MARK: - One-shot mode (default)
 
 requestCalendarAccess { granted in
     guard granted else {
