@@ -215,3 +215,32 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
 - **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
 - **AlertPayload**: Intentionally omits `meetUrl` — narrow projection of MeetingEvent for alert display (JSDoc documented)
+- **WindowHeight brand**: Phantom-branded number type with `clampWindowHeight()` validator clamping to min/max range
+- **Scheduler branding**: All timer `Map`s and `Set`s keyed by `EventId` (branded string) — no bare `Map<string, ...>`
+- **IPC payload branding**: `APP_OPEN_EXTERNAL` uses `{url: MeetUrl}`, `WINDOW_SET_HEIGHT` uses `{height: WindowHeight}` — branded at preload boundary
+- **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
+- **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
+- **AlertPayload**: Intentionally omits `meetUrl` — narrow projection of MeetingEvent for alert display (JSDoc documented)
+
+## COMMANDS
+
+```bash
+bun run dev          # Start dev (watch + electron)
+bun run build        # Build all (main + preload + renderer)
+bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
+bun run typecheck    # TypeScript check (tsc -b)
+bun run test         # Run Vitest tests (~745 tests)
+bun run test:watch   # Watch mode
+bun run clean        # Remove lib/ dist/
+```
+
+## NOTES
+
+- Calendar permission: first access triggers macOS EventKit permission dialog
+- Swift binary cache: compiled to `/tmp/googlemeet/` on first run; hash-based recompilation
+- Scheduler polling: 2 min on AC, 4 min on battery; refresh fires `forcePoll()`
+- Popover hides on blur (dev mode exempt)
+- `forcePoll()` coalesces: skips if poll completed within last 10s
+- Swift exit codes: 0=success, 2=permission denied, 3=no calendars, 4=error
+- Binary cache: 0o700 mode, 5 retries with exponential backoff (1s→30s)
+- All BrowserWindows use `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
