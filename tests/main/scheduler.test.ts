@@ -48,12 +48,15 @@ vi.mock("../../src/main/domain/settings.js", () => ({
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
-const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback } = schedulerModule;
+const { scheduleEvents } = schedulerModule;
+const facadeModule = await import("../../src/main/scheduler/facade.js");
+const { setSchedulerWindow, setTrayTitleCallback } = facadeModule;
 const pollModule = await import("../../src/main/scheduler/poll.js");
 const { poll, _resetForTest } = pollModule;
 
 const stateModule = await import("../../src/main/scheduler/state/index.js");
-const { markTitleDirty, initPowerCallbacks, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+const { markTitleDirty, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+const { initPowerCallbacks } = facadeModule;
 // Live references to current state Maps/Sets — re-bound in each beforeEach after _resetForTest()
 let timers = getTimers();
 let alertTimers = getAlertTimers();

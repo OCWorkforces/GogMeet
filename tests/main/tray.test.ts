@@ -72,8 +72,8 @@ describe("formatRemainingTime", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const trayModule = await import("../../src/main/tray.js");
-    formatRemainingTime = trayModule.formatRemainingTime;
+    const timeModule = await import("../../src/shared/utils/time.js");
+    formatRemainingTime = timeModule.formatRemainingTime;
   });
 
   it("returns '0m' for zero or negative minutes", () => {
@@ -112,12 +112,11 @@ describe("tray module exports", () => {
     vi.resetModules();
   });
 
-  it("exports setupTray, updateTrayTitle, and formatRemainingTime functions", async () => {
+  it("exports setupTray and updateTrayTitle functions", async () => {
     const trayModule = await import("../../src/main/tray.js");
 
     expect(typeof trayModule.setupTray).toBe("function");
     expect(typeof trayModule.updateTrayTitle).toBe("function");
-    expect(typeof trayModule.formatRemainingTime).toBe("function");
   });
 
   it("setupTray creates a Tray instance", async () => {

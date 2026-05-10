@@ -32,8 +32,10 @@ const { resolveActiveTitleEvent, startInMeetingCountdown } =
   await import("../../src/main/scheduler/countdown.js");
 const { scheduleTitleCountdown, cancelTitleCountdown, TITLE_BEFORE_MS } =
   await import("../../src/main/scheduler/title-countdown.js");
-const { state, initPowerCallbacks, resetState } =
+const { state, resetState } =
   await import("../../src/main/scheduler/state/index.js");
+const { initPowerCallbacks } =
+  await import("../../src/main/scheduler/facade.js");
 
 function makeParams(
   overrides: Partial<TitleCountdownParams> = {},

@@ -36,7 +36,11 @@ vi.mock("node:fs/promises", () => ({
 
 async function loadModule() {
   vi.resetModules();
-  return await import("../../src/main/swift/binary-manager.js");
+  const [manager, cache] = await Promise.all([
+    import("../../src/main/swift/binary-manager.js"),
+    import("../../src/main/swift/binary-cache.js"),
+  ]);
+  return { ...cache, ...manager };
 }
 
 const EXPECTED_BINARY_DIR = join(tmpdir(), "googlemeet");

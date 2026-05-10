@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { parseEvents } from "../../../src/main/swift/event-parser.js";
+import { cleanDescription } from "../../../src/main/swift/event-field-parser.js";
 import {
-  parseEvents,
-  cleanDescription,
   classifySwiftError,
   SwiftHelperError,
   SWIFT_EXIT_CODES,
-} from "../../../src/main/swift/event-parser.js";
+} from "../../../src/main/swift/event-validator.js";
 import { isoFromNow } from "../../helpers/test-utils.js";
 
 /** Build a 9-field tab-delimited Swift line. */
