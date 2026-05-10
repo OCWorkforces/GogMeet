@@ -3,7 +3,7 @@ import {
   SECURE_WEB_PREFERENCES,
   getPreloadPath,
   loadWindowContent,
-} from "./utils/browser-window.js";
+} from "../utils/browser-window.js";
 
 let settingsWindow: BrowserWindow | null = null;
 

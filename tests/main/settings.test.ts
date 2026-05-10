@@ -18,7 +18,7 @@ const MOCK_USER_DATA_PATH = "/tmp/gogmeet-settings-test";
   saveSettings,
   getSettings,
   updateSettings,
-} from "../../src/main/settings.js";
+} from "../../src/main/domain/settings.js";
 import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,

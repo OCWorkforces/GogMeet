@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 

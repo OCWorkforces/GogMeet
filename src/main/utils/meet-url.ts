@@ -1,5 +1,5 @@
 import { shell } from "electron";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import { isAllowedMeetUrl } from "./url-validation.js";
 import { detectPlatform } from "./platform.js";
 

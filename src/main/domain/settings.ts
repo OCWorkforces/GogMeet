@@ -5,13 +5,13 @@ import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-} from "../shared/settings.js";
-import type { AppSettings } from "../shared/settings.js";
-import { ok, err } from "../shared/result.js";
-import type { Result, AppResult } from "../shared/result.js";
-import { parseJsonObject } from "../shared/parse-json.js";
-import { isObjectRecord } from "./swift/guards.js";
-import { formatAppError, isValidationError } from "../shared/errors.js";
+} from "../../shared/settings.js";
+import type { AppSettings } from "../../shared/settings.js";
+import { ok, err } from "../../shared/result.js";
+import type { Result, AppResult } from "../../shared/result.js";
+import { parseJsonObject } from "../../shared/parse-json.js";
+import { isObjectRecord } from "../swift/guards.js";
+import { formatAppError, isValidationError } from "../../shared/errors.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;

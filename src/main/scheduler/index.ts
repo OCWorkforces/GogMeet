@@ -1,15 +1,15 @@
-import { getSettings } from "../settings.js";
+import { getSettings } from "../domain/settings.js";
 import { scheduleAlertTimer, cancelAlertTimer } from "./alert-timer.js";
 import { scheduleBrowserTimer, cancelBrowserTimer } from "./browser-timer.js";
 import { scheduleTitleCountdown, cancelTitleCountdown } from "./title-countdown.js";
 
-import type { BrowserWindow } from "electron";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
 
-import { state, markTitleDirty, markInMeetingDirty, cancelStaleEntries } from "./state.js";
+import { state, markTitleDirty, markInMeetingDirty, cancelStaleEntries, type SchedulerState } from "./state/index.js";
 
 import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
+
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(): number {
@@ -19,29 +19,6 @@ function getOpenBeforeMs(): number {
 /** Don't schedule events that start more than this far in the future */
 const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export function setSchedulerWindow(w: BrowserWindow): void {
-  state.win = w;
-}
-
-/** Set the tray title update callback — called from main/index.ts to decouple scheduler from tray */
-export function setTrayTitleCallback(
-  fn: (title: string | null, minsRemaining?: number, inMeeting?: boolean) => void,
-): void {
-  state.onTrayTitleUpdate = fn;
-}
-
-/** Cached Proxy views over scheduler state Maps/Sets — avoids repeated Proxy property lookups. */
-interface StateLocals {
-  readonly timers: typeof state.timers;
-  readonly alertTimers: typeof state.alertTimers;
-  readonly titleTimers: typeof state.titleTimers;
-  readonly countdownIntervals: typeof state.countdownIntervals;
-  readonly clearTimers: typeof state.clearTimers;
-  readonly inMeetingIntervals: typeof state.inMeetingIntervals;
-  readonly firedEvents: typeof state.firedEvents;
-  readonly alertFiredEvents: typeof state.alertFiredEvents;
-  readonly scheduledEventData: typeof state.scheduledEventData;
-}
 
 /**
  * Handle an event whose start time is in the past.
@@ -55,7 +32,7 @@ function handleInProgressEvent(
   endMs: number,
   now: number,
   activeIds: Set<EventId>,
-  s: StateLocals,
+  s: SchedulerState,
   shouldAbort: () => boolean,
 ): boolean {
   if (shouldAbort()) return false;
@@ -99,7 +76,7 @@ function shouldSkipScheduledEvent(
   event: MeetingEvent,
   startMs: number,
   endMs: number,
-  s: StateLocals,
+  s: SchedulerState,
 ): boolean {
   // Already fired — check if start time changed
   if (s.firedEvents.has(event.id)) {
@@ -168,7 +145,7 @@ function scheduleFutureTimers(
   startMs: number,
   endMs: number,
   now: number,
-  s: StateLocals,
+  s: SchedulerState,
   shouldAbort: () => boolean,
 ): void {
   const effectiveDelay = Math.max(0, delayMs);
@@ -223,17 +200,6 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     ...state.inMeetingIntervals.keys(),
   ]);
 
-  const s: StateLocals = {
-    timers: state.timers,
-    alertTimers: state.alertTimers,
-    titleTimers: state.titleTimers,
-    countdownIntervals: state.countdownIntervals,
-    clearTimers: state.clearTimers,
-    inMeetingIntervals: state.inMeetingIntervals,
-    firedEvents: state.firedEvents,
-    alertFiredEvents: state.alertFiredEvents,
-    scheduledEventData: state.scheduledEventData,
-  };
 
   for (const event of events) {
     if (event.isAllDay) continue;
@@ -243,14 +209,14 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     const openAtMs = startMs - getOpenBeforeMs();
     const delayMs = openAtMs - now;
 
-    if (handleInProgressEvent(event, startMs, endMs, now, activeIds, s, shouldAbort)) continue;
+    if (handleInProgressEvent(event, startMs, endMs, now, activeIds, state, shouldAbort)) continue;
     if (delayMs > MAX_SCHEDULE_AHEAD_MS) continue;
 
     activeIds.add(event.id);
 
-    if (shouldSkipScheduledEvent(event, startMs, endMs, s)) continue;
+    if (shouldSkipScheduledEvent(event, startMs, endMs, state)) continue;
 
-    scheduleFutureTimers(event, delayMs, startMs, endMs, now, s, shouldAbort);
+    scheduleFutureTimers(event, delayMs, startMs, endMs, now, state, shouldAbort);
   }
 
   // Only mark dirty when the active id set actually changed — avoids

@@ -24,7 +24,7 @@ vi.mock("electron-log", () => ({
 }));
 
 // Mock calendar module
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({
     kind: "ok",
     events: [
@@ -60,7 +60,7 @@ describe("shortcuts", () => {
     vi.clearAllMocks();
     vi.resetModules();
 
-    const mod = await import("../../src/main/shortcuts.js");
+    const mod = await import("../../src/main/system/shortcuts.js");
     registerShortcuts = mod.registerShortcuts;
 
     const electron = await import("electron");
@@ -99,7 +99,7 @@ describe("shortcuts", () => {
     it("does nothing when no calendar events available", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
 
       registerShortcuts();
@@ -112,7 +112,7 @@ describe("shortcuts", () => {
     it("does nothing when calendar returns error", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "err",
         error: "no access",
@@ -146,7 +146,7 @@ describe("shortcuts", () => {
     it("filters out all-day events", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         events: [
           {
@@ -172,7 +172,7 @@ describe("shortcuts", () => {
     it("filters out events without meetUrl", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         events: [
           {
@@ -198,7 +198,7 @@ describe("shortcuts", () => {
     it("picks the earliest upcoming meeting when multiple exist", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       const { buildMeetUrl } =
         await import("../../src/main/utils/meet-url.js");
 
@@ -264,7 +264,7 @@ describe("shortcuts", () => {
     it("handles errors from getCalendarEventsResult gracefully", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockRejectedValueOnce(
         new Error("Calendar unavailable"),
       );
@@ -280,7 +280,7 @@ describe("shortcuts", () => {
     it("filters out past events", async () => {
       const { shell } = await import("electron");
       const { getCalendarEventsResult } =
-        await import("../../src/main/calendar.js");
+        await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",
         events: [

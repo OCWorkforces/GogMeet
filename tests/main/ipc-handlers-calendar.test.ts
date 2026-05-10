@@ -11,7 +11,7 @@ const {
   mockGetCalendarPermissionStatus: vi.fn(),
 }));
 
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,

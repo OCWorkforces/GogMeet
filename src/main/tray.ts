@@ -10,14 +10,14 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { MeetingEvent } from "../shared/models.js";
-import { createSettingsWindow } from "./settings-window.js";
-import { getSettings } from "./settings.js";
+import type { MeetingEvent } from "../shared/meeting-event.js";
+import { createSettingsWindow } from "./windows/settings-window.js";
+import { getSettings } from "./domain/settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";
-import { showAbout } from "./about-window.js";
+import { showAbout } from "./windows/about-window.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,8 +125,6 @@ export function destroyTray(): void {
 /** Max characters to show for the event title portion of the tray label */
 const TRAY_TITLE_MAX_CHARS = 12;
 
-/** Re-export for consumers that import from tray (e.g. tests) */
-export { formatRemainingTime } from "../shared/utils/time.js";
 
 /**
  * Update the tray status bar title next to the icon.

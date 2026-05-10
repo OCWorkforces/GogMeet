@@ -1,8 +1,8 @@
 import { globalShortcut, shell, dialog } from "electron";
-import { getCalendarEventsResult } from "./calendar.js";
-import { isCalendarOk } from "../shared/models.js";
-import { buildMeetUrl } from "./utils/meet-url.js";
-import { getLastKnownEvents } from "./scheduler/facade.js";
+import { getCalendarEventsResult } from "../domain/calendar.js";
+import { isCalendarOk } from "../../shared/calendar-result.js";
+import { buildMeetUrl } from "../utils/meet-url.js";
+import { getLastKnownEvents } from "../scheduler/facade.js";
 import log from "electron-log";
 
 let registered = false;

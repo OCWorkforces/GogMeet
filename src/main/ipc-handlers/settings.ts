@@ -1,8 +1,8 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
-import { getSettings, updateSettings } from "../settings.js";
+import { getSettings, updateSettings } from "../domain/settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
-import { syncAutoLaunch } from "../auto-launch.js";
+import { syncAutoLaunch } from "../system/auto-launch.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 export function registerSettingsHandlers(win: BrowserWindow): void {

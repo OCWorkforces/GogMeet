@@ -39,9 +39,9 @@ vi.mock("electron", () => {
   };
 });
 
-let showAlert: typeof import("../../src/main/alert-window.js").showAlert;
+let showAlert: typeof import("../../src/main/windows/alert-window.js").showAlert;
 import { BrowserWindow, app } from "electron";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
@@ -78,7 +78,7 @@ describe("alert-window", () => {
     vi.resetModules();
     vi.useFakeTimers();
     delete process.env.VITE_DEV_SERVER_URL;
-    ({ showAlert } = await import("../../src/main/alert-window.js"));
+    ({ showAlert } = await import("../../src/main/windows/alert-window.js"));
   });
 
   afterEach(() => {

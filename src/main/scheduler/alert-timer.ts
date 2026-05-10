@@ -1,6 +1,6 @@
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
-import { showAlert } from "../alert-window.js";
+import { showAlert } from "../windows/alert-window.js";
 
 const ALERT_OFFSET_MS: number = 60 * 1000;
 

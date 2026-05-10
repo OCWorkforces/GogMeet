@@ -1,5 +1,5 @@
 import { app, dialog, type BrowserWindow } from "electron";
-import { setupTray } from "./tray.js";
+import { setupTray } from "../tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import {
   startScheduler,
@@ -8,8 +8,8 @@ import {
   setSchedulerWindow,
   setTrayTitleCallback,
   initPowerCallbacks,
-} from "./scheduler/facade.js";
-import { getCalendarPermissionStatus, requestCalendarPermission } from "./calendar.js";
+} from "../scheduler/facade.js";
+import { getCalendarPermissionStatus, requestCalendarPermission } from "../domain/calendar.js";
 import {
   initPowerManagement,
   initPowerEvents,
@@ -17,14 +17,14 @@ import {
   getPollInterval,
   preventSleep,
   allowSleep,
-} from "./power.js";
-import { updateTrayTitle } from "./tray.js";
-import { getSettings, loadSettings } from "./settings.js";
-import { syncAutoLaunch } from "./auto-launch.js";
-import { checkNotificationPermission } from "./notification.js";
-import { registerShortcuts, unregisterShortcuts } from "./shortcuts.js";
-import { ensureBinary } from "./swift/binary-manager.js";
-import { startCalendarWatcher, stopCalendarWatcher } from "./calendar-watcher.js";
+} from "../system/power.js";
+import { updateTrayTitle } from "../tray.js";
+import { getSettings, loadSettings } from "../domain/settings.js";
+import { syncAutoLaunch } from "../system/auto-launch.js";
+import { checkNotificationPermission } from "../system/notification.js";
+import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
+import { ensureBinary } from "../swift/binary-manager.js";
+import { startCalendarWatcher, stopCalendarWatcher } from "../domain/calendar-watcher.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.

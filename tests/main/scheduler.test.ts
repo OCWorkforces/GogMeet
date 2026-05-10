@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron before importing scheduler
@@ -17,7 +17,7 @@ vi.mock("electron", () => {
 });
 
 // Mock calendar module
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
@@ -27,14 +27,14 @@ vi.mock("../../src/main/tray.js", () => ({
 }));
 
 // Mock power module so scheduler uses a fixed poll interval
-vi.mock("../../src/main/power.js", () => ({
+vi.mock("../../src/main/system/power.js", () => ({
   getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
   preventSleep: vi.fn(),
   allowSleep: vi.fn(),
 }));
 
 // Mock settings module — scheduler reads openBeforeMinutes via getSettings()
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({
     schemaVersion: 1,
     openBeforeMinutes: 3,
@@ -48,12 +48,15 @@ vi.mock("../../src/main/settings.js", () => ({
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
-const { scheduleEvents, setSchedulerWindow, setTrayTitleCallback } = schedulerModule;
+const { scheduleEvents } = schedulerModule;
+const facadeModule = await import("../../src/main/scheduler/facade.js");
+const { setSchedulerWindow, setTrayTitleCallback } = facadeModule;
 const pollModule = await import("../../src/main/scheduler/poll.js");
 const { poll, _resetForTest } = pollModule;
 
-const stateModule = await import("../../src/main/scheduler/state.js");
-const { markTitleDirty, initPowerCallbacks, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+const stateModule = await import("../../src/main/scheduler/state/index.js");
+const { markTitleDirty, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+const { initPowerCallbacks } = facadeModule;
 // Live references to current state Maps/Sets — re-bound in each beforeEach after _resetForTest()
 let timers = getTimers();
 let alertTimers = getAlertTimers();
@@ -551,7 +554,7 @@ describe("scheduleEvents", () => {
     expect(countdownIntervals.size).toBe(1);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
 
     // 2 errors — tray must still be showing
@@ -577,7 +580,7 @@ describe("scheduleEvents", () => {
     scheduleEvents([event]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
 
     await poll();
@@ -646,7 +649,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     setSchedulerWindow(mockWindow as never);
@@ -658,7 +661,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
 
   it("F2: poll does NOT send IPC if window is null", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     // Don't set window - it should remain null
@@ -669,7 +672,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F3: poll does NOT send IPC if window is destroyed", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
 
     mockWindow.isDestroyed.mockReturnValue(true);
@@ -680,7 +683,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F4: poll does NOT send IPC on calendar fetch error", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "Calendar access denied" });
 
     setSchedulerWindow(mockWindow as never);
@@ -691,7 +694,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F5: poll sends IPC after successful fetch with events", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+    const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     const event = makeEvent({ id: "f5-event" });
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
 

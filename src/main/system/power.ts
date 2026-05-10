@@ -1,6 +1,6 @@
 import { powerMonitor, powerSaveBlocker } from "electron";
 
-import { mainBus } from "./events.js";
+import { mainBus } from "../events.js";
 
 const BASE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 

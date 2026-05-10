@@ -1,8 +1,9 @@
 import { BrowserWindow, app, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPackageInfo } from "./utils/packageInfo.js";
+import { getPackageInfo } from "../utils/packageInfo.js";
 import { readFileSync } from "node:fs";
+import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -119,11 +120,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     vibrancy: "under-window",
     visualEffectState: "active",
     show: false,
-    webPreferences: {
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    webPreferences: { ...SECURE_WEB_PREFERENCES },
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {

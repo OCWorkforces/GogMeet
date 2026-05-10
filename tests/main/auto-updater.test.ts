@@ -38,7 +38,7 @@ vi.mock("electron-log", () => ({
   default: mockLog,
 }));
 
-import { initAutoUpdater } from "../../src/main/auto-updater.js";
+import { initAutoUpdater } from "../../src/main/system/auto-updater.js";
 
 describe("initAutoUpdater", () => {
   beforeEach(() => {

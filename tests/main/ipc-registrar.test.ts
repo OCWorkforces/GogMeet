@@ -26,7 +26,7 @@ vi.mock("../../src/main/ipc-handlers/window.js", () => ({
   registerWindowHandlers: mockRegisterWindowHandlers,
 }));
 
-import { registerIpcHandlers } from "../../src/main/ipc.js";
+import { registerIpcHandlers } from "../../src/main/app/ipc.js";
 import { validateSender } from "../../src/main/ipc-handlers/shared.js";
 
 describe("registerIpcHandlers", () => {

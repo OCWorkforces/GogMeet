@@ -1,6 +1,7 @@
-import { getCalendarEventsResult } from "../calendar.js";
+import { getCalendarEventsResult } from "../domain/calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { isCalendarOk, type MeetingEvent } from "../../shared/models.js";
+import { type MeetingEvent } from "../../shared/meeting-event.js";
+import { isCalendarOk } from "../../shared/calendar-result.js";
 import { typedSend } from "../ipc-handlers/shared.js";
 import { mainBus } from "../events.js";
 
@@ -12,7 +13,7 @@ import {
   incrementConsecutiveErrors,
   markTitleDirty,
   markInMeetingDirty,
-} from "./state.js";
+} from "./state/index.js";
 
 import { resolveActiveTitleEvent, clearAllDisplayTimers } from "./countdown.js";
 
@@ -20,12 +21,6 @@ import { scheduleEvents } from "./index.js";
 
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
-
-/** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */
-const FORCE_POLL_COALESCE_MS = 10_000;
-
-/** Timestamp of the last completed poll (used by forcePoll coalesce guard) */
-let lastPollCompletedAt = 0;
 
 /** Last sent events hash — null sentinel ensures first poll always sends */
 let lastSentEventsHash: string | null = null;
@@ -66,7 +61,7 @@ export async function poll(): Promise<void> {
       // Notify renderer of updated events — only if content actually changed
       if (state.win && !state.win.isDestroyed()) {
         const eventHash = computeEventsHash(result.events);
-        if (lastSentEventsHash === null || eventHash !== lastSentEventsHash) {
+        if (eventHash !== lastSentEventsHash) {
           lastSentEventsHash = eventHash;
           typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, result.events);
         }
@@ -79,90 +74,6 @@ export async function poll(): Promise<void> {
     console.error("[scheduler] Poll error:", err);
     handlePollFailure();
   }
-}
-
-/**
- * Force an immediate poll outside the normal schedule.
- * Cancels the pending setTimeout, runs poll() now, then re-arms the next tick.
- * Coalesces: no-ops if a poll completed within the last FORCE_POLL_COALESCE_MS.
- */
-export async function forcePoll(): Promise<void> {
-  const now = Date.now();
-  if (now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
-    console.debug("[scheduler] forcePoll skipped — last poll was <10s ago");
-    return;
-  }
-
-  // Cancel the pending background setTimeout so we don't double-poll
-  if (state.pollTimeout !== null) {
-    clearTimeout(state.pollTimeout);
-    state.pollTimeout = null;
-  }
-
-  // Bump epoch so the old rescheduled callback (if any) no-ops when it fires
-  state.pollEpoch++;
-  const epoch = state.pollEpoch;
-
-  await poll();
-  lastPollCompletedAt = Date.now();
-
-  // Re-arm the next scheduled poll from "now" if the scheduler is still running
-  // Re-arm the next scheduled poll from "now" if the scheduler is still active
-  if (state.pollEpoch === epoch) {
-    function scheduleNextAfterForce(): void {
-      state.pollTimeout = setTimeout(
-        async () => {
-          await poll();
-          lastPollCompletedAt = Date.now();
-          if (state.pollTimeout !== null && state.pollEpoch === epoch) {
-            scheduleNextAfterForce();
-          }
-        },
-        state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000,
-      );
-    }
-    scheduleNextAfterForce();
-  }
-}
-
-/** Start the scheduler — call once from app.whenReady() */
-export function startScheduler(): void {
-  if (state.pollTimeout !== null) return; // already running
-
-  // Bump epoch so any stale timer callbacks from a previous run no-op
-  state.pollEpoch++;
-  const epoch = state.pollEpoch;
-
-  // Initial poll immediately
-  void poll();
-
-  // Then poll with recursive setTimeout (prevents drift/overlap)
-  function scheduleNextPoll(): void {
-    state.pollTimeout = setTimeout(
-      async () => {
-        await poll();
-        lastPollCompletedAt = Date.now();
-        if (state.pollTimeout !== null && state.pollEpoch === epoch) {
-          scheduleNextPoll();
-        }
-      },
-      state.powerCallbacks?.getPollInterval?.() ?? 2 * 60 * 1000,
-    );
-  }
-  scheduleNextPoll();
-}
-
-/** Stop the scheduler and clear all pending timers — call on before-quit */
-export function stopScheduler(): void {
-  resetState({ preserveWindow: true });
-  state.onTrayTitleUpdate?.(null);
-  console.log("[scheduler] Stopped");
-}
-
-/** Restart the scheduler - call when settings change to apply new timing */
-export function restartScheduler(): void {
-  stopScheduler();
-  startScheduler();
 }
 
 /** Reset mutable state for tests — not for production use */

@@ -1,4 +1,5 @@
-import type { CalendarResult, CalendarPermission, MeetingEvent } from "./models.js";
+import type { MeetingEvent } from "./meeting-event.js";
+import type { CalendarResult, CalendarPermission } from "./calendar-result.js";
 import type { MeetUrl, WindowHeight } from "./brand.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";

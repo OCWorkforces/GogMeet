@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-channels.js";
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
-import type { MeetingEvent } from "../shared/models.js";
+import type { MeetingEvent } from "../shared/meeting-event.js";
 import { asMeetUrl, clampWindowHeight, type MeetUrl } from "../shared/brand.js";
 
 /** Hostnames the renderer is permitted to ask the main process to open. */

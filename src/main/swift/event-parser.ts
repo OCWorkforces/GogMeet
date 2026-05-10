@@ -1,4 +1,4 @@
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import {
   brandTimestamps,
   cleanDescription,
@@ -10,10 +10,6 @@ import type { ParseDiagnostic } from "./event-validator.js";
 import { previewLine } from "./event-validator.js";
 import { isStringTupleOfLength } from "./guards.js";
 
-// Re-exports preserve the public surface of this module.
-export { SWIFT_EXIT_CODES, SwiftHelperError, classifySwiftError } from "./event-validator.js";
-export type { ParseDiagnostic, ParseDiagnosticReason, SwiftErrorKind } from "./event-validator.js";
-export { cleanDescription } from "./event-field-parser.js";
 
 const EXPECTED_FIELD_COUNT = 9;
 

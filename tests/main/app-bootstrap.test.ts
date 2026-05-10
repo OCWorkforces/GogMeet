@@ -36,23 +36,23 @@ describe("main/index.ts", () => {
     );
 
     // index.ts delegates to lifecycle.ts for subsystem initialization
-    expect(content).toContain('from "./lifecycle.js"');
+    expect(content).toContain('from "./app/lifecycle.js"');
     expect(content).toContain('from "./utils/packageInfo.js"');
   });
 
   it("lifecycle.ts imports from all subsystem modules", async () => {
     const content = await fs.readFile(
-      path.join(root, "src/main/lifecycle.ts"),
+      path.join(root, "src/main/app/lifecycle.ts"),
       "utf-8",
     );
 
-    expect(content).toContain('from "./tray.js"');
+    expect(content).toContain('from "../tray.js"');
     expect(content).toContain('from "./ipc.js"');
-    expect(content).toContain('from "./scheduler/facade.js"');
-    expect(content).toContain('from "./settings.js"');
-    expect(content).toContain('from "./auto-launch.js"');
-    expect(content).toContain('from "./notification.js"');
-    expect(content).toContain('from "./shortcuts.js"');
+    expect(content).toContain('from "../scheduler/facade.js"');
+    expect(content).toContain('from "../domain/settings.js"');
+    expect(content).toContain('from "../system/auto-launch.js"');
+    expect(content).toContain('from "../system/notification.js"');
+    expect(content).toContain('from "../system/shortcuts.js"');
   });
 
   it("ipc-handlers/settings.ts imports scheduler from facade.js", async () => {

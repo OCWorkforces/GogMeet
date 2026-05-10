@@ -1,6 +1,7 @@
 import "./styles/main.css";
-import type { CalendarPermission, MeetingEvent } from "../shared/models.js";
-import { isCalendarOk } from "../shared/models.js";
+import type { MeetingEvent } from "../shared/meeting-event.js";
+import type { CalendarPermission } from "../shared/calendar-result.js";
+import { isCalendarOk } from "../shared/calendar-result.js";
 import type { AppSettings } from "../shared/settings.js";
 import { DEFAULT_SETTINGS } from "../shared/settings.js";
 import { isTomorrow } from "../shared/utils/time.js";

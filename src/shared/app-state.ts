@@ -1,4 +1,4 @@
-import type { MeetingEvent } from "./models.js";
+import type { MeetingEvent } from "./meeting-event.js";
 
 export type AppState =
   | { type: "loading" }

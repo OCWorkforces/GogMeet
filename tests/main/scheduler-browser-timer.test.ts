@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { MeetingEvent } from "../../src/shared/models.js";
-import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 // Override the global electron mock with a constructable Notification

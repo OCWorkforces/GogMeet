@@ -22,7 +22,7 @@ vi.mock("electron", () => ({
 const MOCK_USER_DATA_PATH = "/tmp/gogmeet-notification-test";
 
 // Import after mocking - using static imports like settings.test.ts
-import { checkNotificationPermission } from "../../src/main/notification.js";
+import { checkNotificationPermission } from "../../src/main/system/notification.js";
 import { Notification, dialog, shell } from "electron";
 
 describe("notification", () => {

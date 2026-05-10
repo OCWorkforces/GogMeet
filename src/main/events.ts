@@ -6,7 +6,7 @@
 // while keeping behavior identical.
 import { EventEmitter } from "node:events";
 
-import type { MeetingEvent } from "../shared/models.js";
+import type { MeetingEvent } from "../shared/meeting-event.js";
 
 /**
  * Strongly-typed event map for the main-process event bus.

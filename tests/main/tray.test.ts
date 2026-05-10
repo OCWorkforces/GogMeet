@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 vi.mock("electron", () => ({
@@ -37,7 +37,7 @@ vi.mock("electron", () => ({
   }),
 }));
 
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
@@ -45,7 +45,11 @@ vi.mock("../../src/main/utils/meet-url.js", () => ({
   buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl || ""),
 }));
 
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/windows/about-window.js", () => ({
+  showAbout: vi.fn(),
+}));
+
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
 }));
 
@@ -68,8 +72,8 @@ describe("formatRemainingTime", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const trayModule = await import("../../src/main/tray.js");
-    formatRemainingTime = trayModule.formatRemainingTime;
+    const timeModule = await import("../../src/shared/utils/time.js");
+    formatRemainingTime = timeModule.formatRemainingTime;
   });
 
   it("returns '0m' for zero or negative minutes", () => {
@@ -108,12 +112,11 @@ describe("tray module exports", () => {
     vi.resetModules();
   });
 
-  it("exports setupTray, updateTrayTitle, and formatRemainingTime functions", async () => {
+  it("exports setupTray and updateTrayTitle functions", async () => {
     const trayModule = await import("../../src/main/tray.js");
 
     expect(typeof trayModule.setupTray).toBe("function");
     expect(typeof trayModule.updateTrayTitle).toBe("function");
-    expect(typeof trayModule.formatRemainingTime).toBe("function");
   });
 
   it("setupTray creates a Tray instance", async () => {

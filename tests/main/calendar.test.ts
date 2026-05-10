@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseEvents, cleanDescription, requestCalendarPermission, getCalendarPermissionStatus, invalidateCalendarPermissionCache } from "../../src/main/calendar.js";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import { parseEvents } from "../../src/main/swift/event-parser.js";
+import { cleanDescription } from "../../src/main/swift/event-field-parser.js";
+import { requestCalendarPermission, getCalendarPermissionStatus, invalidateCalendarPermissionCache } from "../../src/main/domain/calendar.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 
 const { execFileAsyncMock } = vi.hoisted(() => ({
   execFileAsyncMock: vi.fn(),

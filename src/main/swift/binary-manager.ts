@@ -15,7 +15,6 @@ import {
 } from "./binary-cache.js";
 import { compileWithRetries, stripBinary } from "./binary-compiler.js";
 
-export { BINARY_PATH, computeSwiftSourceHash } from "./binary-cache.js";
 
 const execFileAsync = promisify(execFile);
 

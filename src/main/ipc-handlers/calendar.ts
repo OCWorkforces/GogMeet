@@ -4,7 +4,7 @@ import {
   getCalendarEventsResult,
   requestCalendarPermission,
   getCalendarPermissionStatus,
-} from "../calendar.js";
+} from "../domain/calendar.js";
 import { validateSender, typedHandle } from "./shared.js";
 
 export function registerCalendarHandlers(): void {

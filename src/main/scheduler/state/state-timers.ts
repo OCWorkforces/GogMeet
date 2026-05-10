@@ -1,0 +1,68 @@
+import type { EventId, MeetUrl } from "../../../shared/brand.js";
+
+export interface ScheduledEventSnapshot {
+  title: string;
+  meetUrl: MeetUrl | undefined;
+  startMs: number;
+  endMs: number;
+}
+
+export interface TimersState {
+  timers: Map<EventId, ReturnType<typeof setTimeout>>;
+  alertTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  titleTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>;
+  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  inMeetingIntervals: Map<EventId, ReturnType<typeof setInterval>>;
+  inMeetingEndTimers: Map<EventId, ReturnType<typeof setTimeout>>;
+  scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
+  firedEvents: Set<EventId>;
+  alertFiredEvents: Set<EventId>;
+  /** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
+  cancelledEvents: Set<EventId>;
+}
+
+export function createTimersState(): TimersState {
+  return {
+    timers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    alertTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    titleTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    countdownIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
+    clearTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    inMeetingIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
+    inMeetingEndTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
+    scheduledEventData: new Map<EventId, ScheduledEventSnapshot>(),
+    firedEvents: new Set<EventId>(),
+    alertFiredEvents: new Set<EventId>(),
+    cancelledEvents: new Set<EventId>(),
+  };
+}
+
+/** Clear all timer handles and reset all timer Maps/Sets on the given timers slice. */
+export function clearAllTimers(s: TimersState): void {
+  for (const handle of s.timers.values()) clearTimeout(handle);
+  s.timers.clear();
+
+  for (const handle of s.alertTimers.values()) clearTimeout(handle);
+  s.alertTimers.clear();
+
+  for (const handle of s.titleTimers.values()) clearTimeout(handle);
+  s.titleTimers.clear();
+
+  for (const handle of s.countdownIntervals.values()) clearInterval(handle);
+  s.countdownIntervals.clear();
+
+  for (const handle of s.clearTimers.values()) clearTimeout(handle);
+  s.clearTimers.clear();
+
+  for (const handle of s.inMeetingIntervals.values()) clearInterval(handle);
+  s.inMeetingIntervals.clear();
+
+  for (const handle of s.inMeetingEndTimers.values()) clearTimeout(handle);
+  s.inMeetingEndTimers.clear();
+
+  s.scheduledEventData.clear();
+  s.firedEvents.clear();
+  s.alertFiredEvents.clear();
+  s.cancelledEvents.clear();
+}

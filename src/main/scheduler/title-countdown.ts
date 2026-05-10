@@ -1,4 +1,4 @@
-import { state, setActiveTitleEventId, markTitleDirty } from "./state.js";
+import { state, setActiveTitleEventId, markTitleDirty } from "./state/index.js";
 import type { EventId } from "../../shared/brand.js";
 import { resolveActiveTitleEvent, startInMeetingCountdown } from "./countdown.js";
 

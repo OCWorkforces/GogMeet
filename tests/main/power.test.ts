@@ -9,7 +9,7 @@ import {
   allowSleep,
   isSleepPrevented,
   _resetSleepBlocker,
-} from "../../src/main/power.js";
+} from "../../src/main/system/power.js";
 
 describe("power", () => {
   beforeEach(() => {
