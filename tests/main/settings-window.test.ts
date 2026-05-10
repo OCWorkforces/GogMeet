@@ -27,7 +27,7 @@ describe("settings-window", () => {
   });
 
   async function getModule() {
-    return await import("../../src/main/settings-window.js");
+    return await import("../../src/main/windows/settings-window.js");
   }
 
   async function getElectron() {

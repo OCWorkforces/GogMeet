@@ -3,7 +3,7 @@ import {
   setActiveTitleEventId,
   setActiveInMeetingEventId,
   markInMeetingDirty,
-} from "./state.js";
+} from "./state/index.js";
 import type { EventId } from "../../shared/brand.js";
 
 /**

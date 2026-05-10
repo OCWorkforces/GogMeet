@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
-vi.mock("../../src/main/alert-window.js", () => ({
+vi.mock("../../src/main/windows/alert-window.js", () => ({
   showAlert: vi.fn(),
 }));
 
-const { showAlert } = await import("../../src/main/alert-window.js");
+const { showAlert } = await import("../../src/main/windows/alert-window.js");
 const { scheduleAlertTimer, cancelAlertTimer, ALERT_OFFSET_MS } =
   await import("../../src/main/scheduler/alert-timer.js");
 

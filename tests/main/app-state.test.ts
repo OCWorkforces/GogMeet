@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AppState } from "../../src/shared/app-state.js";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 /**

@@ -1,7 +1,7 @@
 import { app, type MenuItemConstructorOptions } from "electron";
 import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/utils/time.js";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 
 interface MenuCallbacks {
   onAbout: () => void;

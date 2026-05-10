@@ -2,13 +2,12 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { formatAppError } from "../../shared/errors.js";
-import type { CalendarPermission, CalendarResult } from "../../shared/models.js";
+import type { CalendarPermission, CalendarResult } from "../../shared/calendar-result.js";
 import { runSwiftHelper } from "../swift/binary-manager.js";
 import { parseEvents } from "../swift/event-parser.js";
 import { SwiftHelperError } from "../swift/event-validator.js";
 import { getErrorStderr } from "../swift/guards.js";
 
-export { cleanDescription, parseEvents } from "../swift/event-parser.js";
 
 const execFileAsync = promisify(execFile);
 

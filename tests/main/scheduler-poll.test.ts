@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron
@@ -8,32 +8,33 @@ vi.mock("electron", () => ({
 }));
 
 // Mock calendar module
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
 // Mock power module
-vi.mock("../../src/main/power.js", () => ({
+vi.mock("../../src/main/system/power.js", () => ({
   getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
   preventSleep: vi.fn(),
   allowSleep: vi.fn(),
 }));
 
 // Mock settings
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({ openBeforeMinutes: 1, windowAlert: true }),
 }));
 
-const { getCalendarEventsResult } = await import("../../src/main/calendar.js");
+const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
 
 // Use stateModule.state to always get the current state reference after replaceState
-const stateModule = await import("../../src/main/scheduler/state.js");
-const { initPowerCallbacks } = stateModule;
+const stateModule = await import("../../src/main/scheduler/state/index.js");
+const { initPowerCallbacks, startScheduler, stopScheduler, restartScheduler } = await import(
+  "../../src/main/scheduler/facade.js",
+);
 
-const { poll, startScheduler, stopScheduler, restartScheduler, _resetForTest } =
-  await import("../../src/main/scheduler/poll.js");
+const { poll, _resetForTest } = await import("../../src/main/scheduler/poll.js");
 
 // Live references to current state Maps — re-bound in each beforeEach after _resetForTest()
 const { getCountdownIntervals, getClearTimers, getInMeetingIntervals, getInMeetingEndTimers } = stateModule;

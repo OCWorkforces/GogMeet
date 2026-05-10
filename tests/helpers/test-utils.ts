@@ -15,7 +15,7 @@
 import type { IpcMainInvokeEvent, WebContents } from "electron";
 import type { EventId, IsoUtc, MeetUrl } from "../../src/shared/brand.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../src/shared/brand.js";
-import type { MeetingEvent } from "../../src/shared/models.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import type { AppSettings } from "../../src/shared/settings.js";
 import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 

@@ -1,7 +1,7 @@
 import { Notification } from "electron";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
-import type { ScheduledEventSnapshot } from "./state.js";
+import type { ScheduledEventSnapshot } from "./state/index.js";
 import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 
 /**

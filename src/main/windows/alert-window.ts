@@ -1,6 +1,6 @@
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import type { AlertPayload } from "../../shared/alert.js";
-import type { MeetingEvent } from "../../shared/models.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import { BrowserWindow } from "electron";
 import {
   SECURE_WEB_PREFERENCES,

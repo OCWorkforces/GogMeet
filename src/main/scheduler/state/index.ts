@@ -1,72 +1,32 @@
-import type { BrowserWindow } from "electron";
-import type { CalendarResult } from "../../shared/models.js";
-import type { EventId, MeetUrl } from "../../shared/brand.js";
+import type { EventId } from "../../../shared/brand.js";
+import {
+  type ScheduledEventSnapshot,
+  type TimersState,
+  clearAllTimers,
+  createTimersState,
+} from "./state-timers.js";
+import { type DisplayState, createDisplayState } from "./state-display.js";
+import {
+  MAX_CONSECUTIVE_ERRORS_CAP,
+  type PollState,
+  createPollState,
+} from "./state-poll.js";
+import {
+  type RuntimeState,
+  createRuntimeState,
+} from "./state-runtime.js";
 
-export interface ScheduledEventSnapshot {
-  title: string;
-  meetUrl: MeetUrl | undefined;
-  startMs: number;
-  endMs: number;
-}
+export type { ScheduledEventSnapshot } from "./state-timers.js";
+export type { PowerCallbacks } from "./state-runtime.js";
 
-export interface SchedulerState {
-  timers: Map<EventId, ReturnType<typeof setTimeout>>;
-  alertTimers: Map<EventId, ReturnType<typeof setTimeout>>;
-  titleTimers: Map<EventId, ReturnType<typeof setTimeout>>;
-  countdownIntervals: Map<EventId, ReturnType<typeof setInterval>>;
-  clearTimers: Map<EventId, ReturnType<typeof setTimeout>>;
-  inMeetingIntervals: Map<EventId, ReturnType<typeof setInterval>>;
-  inMeetingEndTimers: Map<EventId, ReturnType<typeof setTimeout>>;
-  scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
-  firedEvents: Set<EventId>;
-  alertFiredEvents: Set<EventId>;
-  /** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
-  cancelledEvents: Set<EventId>;
-  activeTitleEventId: EventId | null;
-  activeInMeetingEventId: EventId | null;
-  titleDirty: boolean;
-  inMeetingDirty: boolean;
-  consecutiveErrors: number;
-  pollTimeout: ReturnType<typeof setTimeout> | null;
-  pollEpoch: number;
-  win: BrowserWindow | null;
-  onTrayTitleUpdate?:
-    | ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void)
-    | null;
-  powerCallbacks?: PowerCallbacks | null;
-  lastKnownEvents: CalendarResult | null;
-}
-
-export interface PowerCallbacks {
-  getPollInterval: () => number;
-  preventSleep: () => void;
-  allowSleep: () => void;
-}
+export interface SchedulerState extends TimersState, DisplayState, PollState, RuntimeState {}
 
 export function createSchedulerState(): SchedulerState {
   return {
-    timers: new Map<EventId, ReturnType<typeof setTimeout>>(),
-    alertTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
-    titleTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
-    countdownIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
-    clearTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
-    inMeetingIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
-    inMeetingEndTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
-    scheduledEventData: new Map<EventId, ScheduledEventSnapshot>(),
-    firedEvents: new Set<EventId>(),
-    alertFiredEvents: new Set<EventId>(),
-    cancelledEvents: new Set<EventId>(),
-    activeTitleEventId: null,
-    activeInMeetingEventId: null,
-    titleDirty: false,
-    inMeetingDirty: false,
-    consecutiveErrors: 0,
-    pollTimeout: null,
-    pollEpoch: 0,
-    win: null,
-    onTrayTitleUpdate: null,
-    powerCallbacks: null,
-    lastKnownEvents: null,
+    ...createTimersState(),
+    ...createDisplayState(),
+    ...createPollState(),
+    ...createRuntimeState(),
   };
 }
 
@@ -92,17 +52,11 @@ export function markInMeetingDirty(): void {
   state.inMeetingDirty = true;
 }
 
-/** Cap to prevent unbounded growth after error handler has already fired */
-const MAX_CONSECUTIVE_ERRORS_CAP = 4;
-
 export function incrementConsecutiveErrors(): void {
   const next = state.consecutiveErrors + 1;
   setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));
 }
 
-export function initPowerCallbacks(callbacks: PowerCallbacks): void {
-  state.powerCallbacks = callbacks;
-}
 
 export function clearSchedulerResources(s: SchedulerState): void {
   if (s.pollTimeout !== null) {
@@ -110,31 +64,8 @@ export function clearSchedulerResources(s: SchedulerState): void {
     s.pollTimeout = null;
   }
 
-  for (const handle of s.timers.values()) clearTimeout(handle);
-  s.timers.clear();
+  clearAllTimers(s);
 
-  for (const handle of s.alertTimers.values()) clearTimeout(handle);
-  s.alertTimers.clear();
-
-  for (const handle of s.titleTimers.values()) clearTimeout(handle);
-  s.titleTimers.clear();
-
-  for (const handle of s.countdownIntervals.values()) clearInterval(handle);
-  s.countdownIntervals.clear();
-
-  for (const handle of s.clearTimers.values()) clearTimeout(handle);
-  s.clearTimers.clear();
-
-  for (const handle of s.inMeetingIntervals.values()) clearInterval(handle);
-  s.inMeetingIntervals.clear();
-
-  for (const handle of s.inMeetingEndTimers.values()) clearTimeout(handle);
-  s.inMeetingEndTimers.clear();
-
-  s.scheduledEventData.clear();
-  s.firedEvents.clear();
-  s.alertFiredEvents.clear();
-  s.cancelledEvents.clear();
   s.lastKnownEvents = null;
 }
 
@@ -323,8 +254,4 @@ export function isTitleDirty(): boolean {
 
 export function isInMeetingDirty(): boolean {
   return state.inMeetingDirty;
-}
-
-export function getLastKnownEvents(): CalendarResult | null {
-  return state.lastKnownEvents;
 }

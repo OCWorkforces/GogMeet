@@ -12,7 +12,7 @@ import {
   getAutoLaunchStatus,
   setAutoLaunch,
   syncAutoLaunch,
-} from "../../src/main/auto-launch.js";
+} from "../../src/main/system/auto-launch.js";
 
 describe("auto-launch", () => {
   beforeEach(() => {

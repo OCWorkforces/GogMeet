@@ -13,14 +13,14 @@ const {
   mockSyncAutoLaunch: vi.fn(),
 }));
 
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: mockGetSettings,
   updateSettings: mockUpdateSettings,
 }));
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   restartScheduler: mockRestartScheduler,
 }));
-vi.mock("../../src/main/auto-launch.js", () => ({
+vi.mock("../../src/main/system/auto-launch.js", () => ({
   syncAutoLaunch: mockSyncAutoLaunch,
 }));
 

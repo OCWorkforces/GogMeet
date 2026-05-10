@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog } from "electron";
 import os from "node:os";
-import { initializeApp, shutdownApp } from "./lifecycle.js";
+import { initializeApp, shutdownApp } from "./app/lifecycle.js";
 import { getPackageInfo } from "./utils/packageInfo.js";
 import {
   SECURE_WEB_PREFERENCES,

@@ -59,7 +59,7 @@ const {
 }))
 
 // Mock all subsystem modules that lifecycle.ts imports
-vi.mock("../../src/main/ipc.js", () => ({
+vi.mock("../../src/main/app/ipc.js", () => ({
   registerIpcHandlers: mockRegisterIpcHandlers,
 }));
 
@@ -68,25 +68,25 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: mockUpdateTrayTitle,
 }));
 
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: mockGetSettings,
   loadSettings: mockLoadSettings,
 }));
 
-vi.mock("../../src/main/auto-launch.js", () => ({
+vi.mock("../../src/main/system/auto-launch.js", () => ({
   syncAutoLaunch: mockSyncAutoLaunch,
 }));
 
-vi.mock("../../src/main/notification.js", () => ({
+vi.mock("../../src/main/system/notification.js", () => ({
   checkNotificationPermission: mockCheckNotificationPermission,
 }));
 
-vi.mock("../../src/main/shortcuts.js", () => ({
+vi.mock("../../src/main/system/shortcuts.js", () => ({
   registerShortcuts: mockRegisterShortcuts,
   unregisterShortcuts: mockUnregisterShortcuts,
 }));
 
-vi.mock("../../src/main/power.js", () => ({
+vi.mock("../../src/main/system/power.js", () => ({
   initPowerManagement: mockInitPowerManagement,
   cleanupPowerManagement: mockCleanupPowerManagement,
   getPollInterval: mockGetPollInterval,
@@ -94,7 +94,7 @@ vi.mock("../../src/main/power.js", () => ({
   allowSleep: mockAllowSleep,
 }));
 
-vi.mock("../../src/main/calendar.js", () => ({
+vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarEventsResult: mockGetCalendarEventsResult,
@@ -109,7 +109,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   setTrayTitleCallback: mockSetTrayTitleCallback,
 }));
 
-import { initializeApp, shutdownApp } from "../../src/main/lifecycle.js";
+import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
 
 const mockWindow = {} as unknown as import("electron").BrowserWindow;
 

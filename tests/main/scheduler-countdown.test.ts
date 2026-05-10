@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state.js";
+import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 
 // Mock power module
-vi.mock("../../src/main/power.js", () => ({
+vi.mock("../../src/main/system/power.js", () => ({
   getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
   preventSleep: vi.fn(),
   allowSleep: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
 }));
 
 // Mock settings
-vi.mock("../../src/main/settings.js", () => ({
+vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({ openBeforeMinutes: 1, windowAlert: true }),
@@ -23,7 +23,7 @@ vi.mock("../../src/main/settings.js", () => ({
 const {
   state,
   markTitleDirty,
-} = await import("../../src/main/scheduler/state.js");
+} = await import("../../src/main/scheduler/state/index.js");
 
 const {
   resolveActiveTitleEvent,
