@@ -318,3 +318,68 @@ description = "Swift bridge must have tests"
 layer = "test"
 pattern = "src/main/swift/*.ts"
 requires_test = true
+
+# ════════════════════════════════════════════════════════════════
+# 15. FACADE SURFACE RULE (added post-modularity refactor)
+# ════════════════════════════════════════════════════════════════
+[[rules]]
+name = "facade-exports-single-surface"
+description = "scheduler/facade.ts is the sole public entry point — no external consumer may import scheduler internals"
+deny = [
+  "src.main.app -> src.main.scheduler.poll",
+  "src.main.app -> src.main.scheduler.index",
+  "src.main.app -> src.main.scheduler.countdown",
+  "src.main.app -> src.main.scheduler.alert-timer",
+  "src.main.app -> src.main.scheduler.browser-timer",
+  "src.main.app -> src.main.scheduler.title-countdown",
+  "src.main.app -> src.main.scheduler.state.state-timers",
+  "src.main.app -> src.main.scheduler.state.state-display",
+  "src.main.app -> src.main.scheduler.state.state-poll",
+  "src.main.app -> src.main.scheduler.state.state-runtime",
+  "src.main.tray -> src.main.scheduler.poll",
+  "src.main.tray -> src.main.scheduler.index",
+  "src.main.tray -> src.main.scheduler.state.*",
+  "src.main.ipc-handlers -> src.main.scheduler.poll",
+  "src.main.ipc-handlers -> src.main.scheduler.index",
+  "src.main.ipc-handlers -> src.main.scheduler.state.*",
+  "src.main.domain -> src.main.scheduler.poll",
+  "src.main.domain -> src.main.scheduler.index",
+  "src.main.domain -> src.main.scheduler.state.*",
+  "src.main.auto-launch -> src.main.scheduler.*",
+  "src.main.auto-updater -> src.main.scheduler.*",
+  "src.main.notification -> src.main.scheduler.*",
+  "src.main.power -> src.main.scheduler.*",
+  "src.main.shortcuts -> src.main.scheduler.*",
+  "src.main.system -> src.main.scheduler.poll",
+  "src.main.system -> src.main.scheduler.index",
+  "src.main.system -> src.main.scheduler.state.*",
+  "src.main.windows -> src.main.scheduler.*",
+]
+
+[[rules]]
+name = "commands-via-facade-notifications-via-bus"
+description = "Inbound commands to scheduler use facade; outbound notifications from scheduler use mainBus"
+deny = [
+  "src.main.scheduler.facade -> src.main.events",
+]
+allow = [
+  "src.main.app -> src.main.scheduler.facade",
+  "src.main.tray -> src.main.scheduler.facade",
+  "src.main.ipc-handlers -> src.main.scheduler.facade",
+  "src.main.domain -> src.main.scheduler.facade",
+  "src.main.system -> src.main.scheduler.facade",
+  "src.main.shortcuts -> src.main.scheduler.facade",
+]
+# Note: scheduler internals emit to events.ts/bus, but external consumers receive via facade
+
+[[rules]]
+name = "state-internal-only"
+description = "scheduler/state/ files are internal — only consumed within scheduler/"
+deny = [
+  "src.main.app -> src.main.scheduler.state.*",
+  "src.main.tray -> src.main.scheduler.state.*",
+  "src.main.ipc-handlers -> src.main.scheduler.state.*",
+  "src.main.domain -> src.main.scheduler.state.*",
+  "src.main.system -> src.main.scheduler.state.*",
+  "src.main.windows -> src.main.scheduler.state.*",
+]
