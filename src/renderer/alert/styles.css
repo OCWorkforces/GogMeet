@@ -14,6 +14,13 @@
   --alert-dismiss-hover-bg: rgba(255, 69, 58, 0.35);
 }
 
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 html,
 body {
   margin: 0;
@@ -35,6 +42,8 @@ body {
 .alert-window {
   width: 100%;
   -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @keyframes alert-fade-zoom-in {

@@ -37,16 +37,33 @@ function processNextAlert(): void {
 }
 
 export function showAlert(event: MeetingEvent): void {
-  // Coalesce duplicates: skip if same uid is already queued or actively showing
+  const startMs = new Date(event.startDate).getTime();
+  // Coalesce duplicates: skip if same uid+startMs is already showing or queued.
+  // If same uid but different startMs, the meeting was rescheduled — replace.
   if (
     isAlertShowing &&
     alertWindow &&
     !alertWindow.isDestroyed() &&
     alertWindow.__alertUid === event.id
   ) {
+    if (alertWindow.__alertStartMs === startMs) {
+      return;
+    }
+    // Rescheduled: tear down current window and queue the new event.
+    alertWindow.close();
+    alertWindow = null;
+    isAlertShowing = false;
+    pendingAlerts.push(event);
     return;
   }
-  if (pendingAlerts.some((e) => e.id === event.id)) {
+  const queuedIndex = pendingAlerts.findIndex((e) => e.id === event.id);
+  if (queuedIndex !== -1) {
+    const existing = pendingAlerts[queuedIndex];
+    if (existing && new Date(existing.startDate).getTime() === startMs) {
+      return;
+    }
+    // Replace queued entry in-place to preserve order.
+    pendingAlerts[queuedIndex] = event;
     return;
   }
 
@@ -84,6 +101,8 @@ function showAlertInternal(event: MeetingEvent): void {
   alertWindow = win;
   // Tag the window with its uid so we can coalesce while it's actively showing
   win.__alertUid = event.id;
+  win.__alertStartMs = new Date(event.startDate).getTime();
+  win.setAlwaysOnTop(true, "floating");
 
   loadWindowContent(win, "alert");
 
@@ -137,5 +156,6 @@ function showAlertInternal(event: MeetingEvent): void {
 declare module "electron" {
   interface BrowserWindow {
     __alertUid?: string;
+    __alertStartMs?: number;
   }
 }
