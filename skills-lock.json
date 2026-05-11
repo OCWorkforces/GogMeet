@@ -10,7 +10,8 @@
     "ccc": {
       "source": "cocoindex-io/cocoindex-code",
       "sourceType": "github",
-      "computedHash": "485211ec7ef033f784261d1dba56770fea20163aebdd482950e8d4878b74c6b2"
+      "skillPath": "skills/ccc/SKILL.md",
+      "computedHash": "8816c000c28cf85fba47a7713c02bae5a7af3d69c230ba0be97db3d01ffc27a4"
     },
     "subagent-driven-development": {
       "source": "obra/superpowers",
