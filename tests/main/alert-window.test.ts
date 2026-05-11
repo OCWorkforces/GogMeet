@@ -9,6 +9,7 @@ vi.mock("electron", () => {
   const mockShow = vi.fn();
   const mockClose = vi.fn();
   const mockIsDestroyed = vi.fn(() => false);
+  const mockSetAlwaysOnTop = vi.fn();
 
   function MockBrowserWindow(this: Record<string, unknown>) {
     this.loadURL = mockLoadURL;
@@ -16,6 +17,7 @@ vi.mock("electron", () => {
     this.show = mockShow;
     this.close = mockClose;
     this.setSize = mockSetSize;
+    this.setAlwaysOnTop = mockSetAlwaysOnTop;
     this.isDestroyed = mockIsDestroyed;
     this.webContents = {
       send: mockSend,
@@ -376,5 +378,56 @@ describe("alert-window", () => {
       showAlert(makeEvent({ id: "after-close" }));
       expect(BrowserWindow).toHaveBeenCalledTimes(2);
     });
+  describe("reschedule handling", () => {
+    it("closes old window and queues new alert when same UID has different startMs", () => {
+      const oldStart = "2026-05-11T10:00:00Z";
+      showAlert(makeEvent({ id: "resched", startDate: oldStart }));
+      const win1 = getWindow(1);
+      win1.__alertStartMs = new Date(oldStart).getTime();
+      const newStart = "2026-05-11T14:00:00Z";
+      showAlert(makeEvent({ id: "resched", startDate: newStart }));
+      expect(win1.close).toHaveBeenCalled();
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      fireEvent(win1, "closed");
+      vi.runAllTimers();
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+    });
+    it("replaces queued entry when same UID with different startMs arrives", () => {
+      showAlert(makeEvent({ id: "blocker" }));
+      showAlert(makeEvent({ id: "queued", startDate: "2026-05-11T10:00:00Z" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      showAlert(makeEvent({ id: "queued", startDate: "2026-05-11T14:00:00Z" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      const win1 = getWindow(1);
+      fireEvent(win1, "closed");
+      vi.runAllTimers();
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+      const win2 = getWindow(2);
+      const mockSend = vi.fn();
+      (win2.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+      fireEvent(win2, "ready-to-show");
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "queued", startDate: "2026-05-11T14:00:00Z" }),
+      );
+    });
+    it("still coalesces when same UID and same startMs are already showing", () => {
+      const event = makeEvent({ id: "same", startDate: "2026-05-11T09:00:00Z" });
+      showAlert(event);
+      const win1 = getWindow(1);
+      win1.__alertStartMs = new Date("2026-05-11T09:00:00Z").getTime();
+      showAlert(event);
+      expect(win1.close).not.toHaveBeenCalled();
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    });
+    it("does not crash when old window is already destroyed on reschedule", () => {
+      showAlert(makeEvent({ id: "dstr", startDate: "2026-05-11T10:00:00Z" }));
+      const win1 = getWindow(1);
+      win1.__alertStartMs = new Date("2026-05-11T10:00:00Z").getTime();
+      win1.isDestroyed = vi.fn(() => true);
+      expect(() => showAlert(makeEvent({ id: "dstr", startDate: "2026-05-11T14:00:00Z" }))).not.toThrow();
+    });
+  });
+
   });
 });

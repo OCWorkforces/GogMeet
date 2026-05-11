@@ -131,6 +131,7 @@ function shouldSkipScheduledEvent(
   // Start time changed — cancel all timers and fully reschedule
   cancelBrowserTimer(event.id, s.timers);
   cancelAlertTimer(event.id, s.alertTimers);
+  cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
   s.scheduledEventData.delete(event.id);
   s.firedEvents.delete(event.id); // allow re-fire at new time
   s.alertFiredEvents.delete(event.id); // allow re-alert at new time
