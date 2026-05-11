@@ -82,6 +82,15 @@ describe("settings-window", () => {
       const options = vi.mocked(BrowserWindow).mock.calls[0][0];
       expect(options.titleBarStyle).toBe("hiddenInset");
     });
+
+    it("has alwaysOnTop enabled", async () => {
+      const { createSettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+
+      const options = vi.mocked(BrowserWindow).mock.calls[0][0];
+      expect(options.alwaysOnTop).toBe(true);
+    });
   });
 
   describe("dev vs production loading", () => {
