@@ -85,7 +85,7 @@ export async function runSwiftHelper(): Promise<string> {
   let matches = true;
   if (!hashVerified) {
     matches = await verifyBinaryHash();
-    hashVerified = true;
+    hashVerified = matches;
   }
   if (!matches) {
     logError(new Error(`Swift binary hash mismatch at ${BINARY_PATH}; will recompile`));
