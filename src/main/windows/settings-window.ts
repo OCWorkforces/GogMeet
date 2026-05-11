@@ -29,6 +29,7 @@ export function createSettingsWindow(): BrowserWindow {
     titleBarStyle: "hiddenInset",
     vibrancy: "under-window",
     visualEffectState: "active",
+    alwaysOnTop: true,
     show: false,
     webPreferences: {
       preload: getPreloadPath(),
