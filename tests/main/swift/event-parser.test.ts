@@ -250,6 +250,56 @@ describe("parseEvents — URL handling", () => {
     expect(events).toHaveLength(1);
     expect(events[0]).not.toHaveProperty("meetUrl");
   });
+
+  it("extracts Calendly URL from URL field", () => {
+    const line = makeLine(
+      "calendly-evt",
+      "Calendly Meeting",
+      isoFromNow(20),
+      isoFromNow(50),
+      "https://calendly.com/events/abc-def/google_meet",
+      "Work",
+      "false",
+    );
+    const { events, diagnostics } = parseEvents(line);
+    expect(diagnostics).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toHaveProperty("meetUrl");
+  });
+
+  it("produces event for Calendly URL field even when notes contain a Meet URL", () => {
+    const line = makeLine(
+      "calendly-mixed",
+      "Mixed",
+      isoFromNow(20),
+      isoFromNow(50),
+      "https://calendly.com/events/abc-def/google_meet",
+      "Work",
+      "false",
+      "",
+      "Join: https://meet.google.com/xyz-xyz-xyz",
+    );
+    const { events, diagnostics } = parseEvents(line);
+    expect(diagnostics).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toHaveProperty("meetUrl");
+  });
+
+  it("does not false-match google_meet substring inside Calendly URL path", () => {
+    const line = makeLine(
+      "calendly-substr",
+      "Calendly Substring",
+      isoFromNow(20),
+      isoFromNow(50),
+      "https://calendly.com/events/abc-def/google_meet",
+      "Work",
+      "false",
+    );
+    const { events, diagnostics } = parseEvents(line);
+    expect(diagnostics).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toHaveProperty("meetUrl");
+  });
 });
 
 describe("parseEvents — notes handling", () => {

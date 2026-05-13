@@ -198,4 +198,35 @@ describe("buildMeetUrl", () => {
       );
     });
   });
+
+  describe("Calendly URL handling", () => {
+    it("returns Calendly URL unchanged (no authuser appended)", () => {
+      const event = makeEvent({
+        meetUrl: "https://calendly.com/events/abc-def/google_meet",
+        userEmail: "user@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe("https://calendly.com/events/abc-def/google_meet");
+    });
+
+    it("preserves existing query params on Calendly URL", () => {
+      const event = makeEvent({
+        meetUrl: "https://calendly.com/events/abc-def/google_meet?invitee=123",
+        userEmail: "user@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://calendly.com/events/abc-def/google_meet?invitee=123",
+      );
+    });
+
+    it("returns Calendly URL without email present", () => {
+      const event = makeEvent({
+        meetUrl: "https://calendly.com/events/abc-def/google_meet",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe("https://calendly.com/events/abc-def/google_meet");
+    });
+  });
+
 });
