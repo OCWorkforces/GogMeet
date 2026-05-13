@@ -116,4 +116,40 @@ describe("url-validation", () => {
       expect(isAllowedMeetUrl("https://myzoom.us/j/123")).toBe(false);
     });
   });
+
+  describe("Calendly URL validation", () => {
+    it("allows calendly.com apex domain", () => {
+      expect(isAllowedMeetUrl("https://calendly.com/events/abc-def/google_meet")).toBe(
+        true,
+      );
+    });
+
+    it("allows calendly.com with path and query params", () => {
+      expect(isAllowedMeetUrl("https://calendly.com/events/be1d45ac-ea88-4331-a96e-5c158827157e/google_meet")).toBe(
+        true,
+      );
+    });
+
+    it("rejects subdomain spoofing (calendly.com.evil.com)", () => {
+      expect(isAllowedMeetUrl("https://calendly.com.evil.com/events/x")).toBe(false);
+    });
+
+    it("rejects userinfo injection spoofing (calendly.com@evil.com)", () => {
+      expect(isAllowedMeetUrl("https://calendly.com@evil.com/events/x")).toBe(false);
+    });
+
+    it("is case-insensitive for hostname (CALENDLY.COM)", () => {
+      // URL hostname is lowercased by the URL parser, so case-mixed hostnames pass.
+      expect(isAllowedMeetUrl("https://CALENDly.COM/events/X")).toBe(true);
+    });
+
+    it("rejects calendly.com subdomain (app.calendly.com)", () => {
+      expect(isAllowedMeetUrl("https://app.calendly.com/events/x")).toBe(false);
+    });
+
+    it("rejects evil-calendly.com (not calendly.com)", () => {
+      expect(isAllowedMeetUrl("https://evil-calendly.com/events/x")).toBe(false);
+    });
+  });
+
 });

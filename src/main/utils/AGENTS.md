@@ -7,7 +7,7 @@
 | File | Role | Key Exports |
 |------|------|-------------|
 | `browser-window.ts` | BrowserWindow config factory, CSP enforcement (typed via `CSPSource`/`CSPDirectiveName`/`CSPDirective`/`CSP` template literal types) | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()`, `_resetCspForTest()` |
-| `url-validation.ts` | URL allowlist + hostname-based validation (Google Meet + Zoom) | `MEETING_URL_ALLOWLIST`, `isAllowedMeetUrl()`, `validateMeetUrl()` → `Result<MeetUrl, string>` |
+| `url-validation.ts` | URL allowlist + hostname-based validation (Google Meet, Zoom, Calendly) | `MEETING_URL_ALLOWLIST`, `isAllowedMeetUrl()`, `validateMeetUrl()` → `Result<MeetUrl, string>` |
 | `meet-url.ts` | Multi-platform meeting URL builder + shell opener | `buildMeetUrl()`, `openMeetingUrl()` |
 | `platform.ts` | Meeting platform detection (Google Meet vs Zoom) | `detectPlatform()` → `"google-meet" \| "zoom" \| undefined` |
 | `packageInfo.ts` | Lazy-load + cache `package.json` with runtime validation | `getPackageInfo()`, `clearPackageInfoCache()`, `isPackageInfoLoaded()`, `PackageInfo` |
@@ -27,3 +27,4 @@
 - Never hard-code `localhost:5173` elsewhere — only `browser-window.ts` knows the dev server address
 - Never use `isAllowedMeetUrl()` for URL validation before `shell.openExternal()` — use `validateMeetUrl()` + check result
 - Never duplicate the allowlist — `MEETING_URL_ALLOWLIST` in `url-validation.ts` is the single source
+- Calendly meeting URLs (`https://calendly.com/`) are supported. The browser handles the 302 redirect to the underlying Meet room transparently; the main process performs no redirect resolution.

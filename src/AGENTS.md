@@ -154,4 +154,28 @@ bun run clean        # Remove lib/ dist/
 - Swift exit codes: 0=success, 2=permission denied, 3=no calendars, 4=error
 - Binary cache: 0o700 mode, 5 retries with exponential backoff (1s→30s)
 - All BrowserWindows use `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
+- Calendly meeting URLs (`https://calendly.com/`) are supported — browser handles 302 redirect to underlying Meet room; no redirect resolution in main process
 
+## RECIPE: Adding a Wrapper Provider
+
+Wrapper providers (Calendly, SavvyCal, Cal.com, etc.) proxy to underlying meeting platforms. To add support for a new wrapper:
+1. **Swift regex**: Add NSRegularExpression to `googlemeet-events.swift`, ordered LAST in `findMeetUrl()` (Zoom → Meet → wrapper)
+2. **TS allowlist**: Add exact hostname prefix to `MEETING_URL_ALLOWLIST` in `url-validation.ts` (no subdomain suffix unless the wrapper uses tenant subdomains like Zoom)
+3. **Security tests**: Add typo-squat, userinfo, and case-variation tests to `url-validation.test.ts`
+4. **Parser tests**: Add extraction test to `event-parser.test.ts`
+5. **Builder tests**: Add passthrough test to `meet-url.test.ts` (wrapper URLs must NOT get `?authuser=` appended — `detectPlatform()` returns `undefined` for unknown hosts, hit by `default` branch)
+6. **Doc**: Update `src/main/utils/AGENTS.md` and this recipe list
+
+The `parseMeetUrlField` brand validator is intentionally structural-only (`asMeetUrl`, not `validateMeetUrl`). Defense-in-depth is provided by three allowlist checks at egress time (`buildMeetUrl`, `APP_OPEN_EXTERNAL` handler, `openMeetingUrl`).
+
+
+- **Calendly wrapper URLs** (`https://calendly.com/`) are supported. Calendly `/events/{uuid}/google_meet` is a server-side 302 redirect to the underlying Google Meet room. The app opens the Calendly URL directly; the user's browser handles the redirect transparently. No main-process redirect resolution is performed.
+
+### Recipe: Adding a Wrapper Provider
+
+Wrappers (Calendly, SavvyCal, HubSpot Meetings) proxy to underlying meeting platforms via redirects or SPA embeds. Adding support requires exactly two changes:
+
+1. **Swift regex** — Add an `NSRegularExpression` to `src/main/googlemeet-events.swift` in `findMeetUrl()`. Order: Zoom → Meet → [new wrapper] LAST. Example pattern for Calendly: `https://calendly\.com/[^\s"'<>\\]+`
+2. **TS allowlist** — Add the exact hostname with `https://` prefix to `MEETING_URL_ALLOWLIST` in `src/main/utils/url-validation.ts`. Use exact hostname match (no `.example.com` suffix by default — only add suffix support if the provider requires subdomain-scoped URLs).
+
+The three-layer defense-in-depth on the open path (parser brands liberally, `buildMeetUrl` validates, `APP_OPEN_EXTERNAL` handler validates again) means parser-side changes are additive — no existing gate behavior changes.

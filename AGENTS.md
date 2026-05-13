@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-05-07
-**Commit:** 43c6523
+**Generated:** 2026-05-13
+**Commit:** e806026
 **Branch:** develop
 
 ## OVERVIEW
@@ -15,7 +15,7 @@ macOS tray-only Electron app for Google Meet calendar reminders. Fetches events 
 | Build     | Rslib (main/preload) + Rsbuild (renderer) |
 | Package   | Bun                                       |
 | Test      | Vitest 4 (workspace)                      |
-| Lint/Fmt  | Biome                                     |
+| Lint/Fmt  | ESLint + Prettier                         |
 
 ## BEHAVIORAL GUIDELINES
 
@@ -60,24 +60,26 @@ src/
 | Add IPC channel       | `src/shared/ipc-channels.ts` → `IPC_CHANNELS` | Single source of truth                  |
 | Implement IPC handler | `src/main/ipc-handlers/`                      | Add file, register with `typedHandle()` |
 | Expose to renderer    | `src/preload/index.ts`                        | Add to `api` object                     |
-| Calendar logic        | `src/main/calendar.ts`                        | Delegates to `swift/`                   |
+| App lifecycle         | `src/main/app/lifecycle.ts`                   | Subsystem init/shutdown orchestrator    |
+| IPC registration      | `src/main/app/ipc.ts`                         | Delegates to ipc-handlers/              |
+| Calendar logic        | `src/main/domain/calendar.ts`                 | Swift EventKit queries, permission      |
+| Calendar watcher      | `src/main/domain/calendar-watcher.ts`         | EKEventStoreChangedNotification sidecar |
+| Settings persistence  | `src/main/domain/settings.ts`                 | JSON in userData, legacy key migration  |
 | Swift binary          | `src/main/swift/binary-manager.ts`            | Hash-based cache, `runSwiftHelper()`    |
-| Scheduler             | `src/main/scheduler/index.ts`                 | Central timer hub                       |
+| Scheduler             | `src/main/scheduler/facade.ts`                | Sole public entry point                 |
 | Scheduler lifecycle + forcePoll | `src/main/scheduler/poll.ts`            | Start/stop/restart/forcePoll (10s coalesce) |
-| Scheduler state       | `src/main/scheduler/state.ts`                 | Getter-only API over Maps/Sets/scalars |
-| Scheduler public API  | `src/main/scheduler/facade.ts`                | Single entry point for external consumers |
+| Scheduler state       | `src/main/scheduler/state/`                   | Getter-only API over Maps/Sets/scalars  |
 | Tray title            | `src/main/tray.ts:119`                        | `updateTrayTitle()`                     |
-| Alert window          | `src/main/alert-window.ts`                    | Full-screen overlay                     |
-| Settings window       | `src/main/settings-window.ts`                 | Singleton, shows in Dock                |
-| Global shortcut       | `src/main/shortcuts.ts`                       | Cmd+Shift+M → join next                 |
+| Alert window          | `src/main/windows/alert-window.ts`            | Full-screen overlay, uid coalescing     |
+| Settings window       | `src/main/windows/settings-window.ts`         | Singleton, shows in Dock                |
+| About window          | `src/main/windows/about-window.ts`            | About panel singleton                   |
+| Global shortcut       | `src/main/system/shortcuts.ts`                | Cmd+Shift+M → join next                 |
+| Power management      | `src/main/system/power.ts`                    | Battery-aware polling, ref-counted sleep|
 | Alert payload contract | `src/shared/alert.ts` | AlertPayload for alert:show push |
 | Branded types | `src/shared/brand.ts` | EventId, MeetUrl, IsoUtc with validators |
-| Shared AppState | `src/shared/app-state.ts` | Extracted from renderer |
-| Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
-| Swift type guards | `src/main/swift/guards.ts` | Runtime type narrowing |
-| Force-poll IPC      | `src/main/ipc-handlers/scheduler.ts`          | `scheduler:force-poll` fire-and-forget → `forcePoll()` |
 | Error taxonomy        | `src/shared/errors.ts`                        | AppError union, errFrom(), formatAppError() |
-| Window height brand   | `src/shared/brand.ts`                         | WindowHeight, clampWindowHeight()          |
+| Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
+| Force-poll IPC      | `src/main/ipc-handlers/scheduler.ts`          | `scheduler:force-poll` fire-and-forget → `forcePoll()` |
 | CSP types             | `src/main/utils/browser-window.ts`            | CSPSource, CSPDirective, CSP template      |
 | Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
 | Packaging config      | `electron-builder.yml`                         | Root-level YAML, NOT in package.json    |
@@ -108,7 +110,7 @@ src/
 - **noPropertyAccessFromIndexSignature**: Enabled — index-signature accesses use bracket notation (`obj["key"]` not `obj.key`)
 - **isolatedDeclarations**: Enabled — all exports have explicit type annotations; `satisfies` dropped in favor of explicit annotations
 - **erasableSyntaxOnly**: Enabled — no non-erasable syntax (enums, namespaces, parameter properties)
-- **Formatting**: Biome (`biome.json`) for unified linting + formatting — no separate ESLint/Prettier configs
+- **Formatting**: ESLint + Prettier (`.prettierrc`, `eslint.config.js`) for unified linting + formatting — no Biome
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -214,33 +216,5 @@ rm -rf /tmp/googlemeet   # Force Swift binary recompile
 - **IPC payload branding**: `APP_OPEN_EXTERNAL` uses `{url: MeetUrl}`, `WINDOW_SET_HEIGHT` uses `{height: WindowHeight}` — branded at preload boundary
 - **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
 - **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
-- **AlertPayload**: Intentionally omits `meetUrl` — narrow projection of MeetingEvent for alert display (JSDoc documented)
-- **WindowHeight brand**: Phantom-branded number type with `clampWindowHeight()` validator clamping to min/max range
-- **Scheduler branding**: All timer `Map`s and `Set`s keyed by `EventId` (branded string) — no bare `Map<string, ...>`
-- **IPC payload branding**: `APP_OPEN_EXTERNAL` uses `{url: MeetUrl}`, `WINDOW_SET_HEIGHT` uses `{height: WindowHeight}` — branded at preload boundary
-- **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
-- **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
-- **AlertPayload**: Intentionally omits `meetUrl` — narrow projection of MeetingEvent for alert display (JSDoc documented)
 
-## COMMANDS
 
-```bash
-bun run dev          # Start dev (watch + electron)
-bun run build        # Build all (main + preload + renderer)
-bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
-bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (~745 tests)
-bun run test:watch   # Watch mode
-bun run clean        # Remove lib/ dist/
-```
-
-## NOTES
-
-- Calendar permission: first access triggers macOS EventKit permission dialog
-- Swift binary cache: compiled to `/tmp/googlemeet/` on first run; hash-based recompilation
-- Scheduler polling: 2 min on AC, 4 min on battery; refresh fires `forcePoll()`
-- Popover hides on blur (dev mode exempt)
-- `forcePoll()` coalesces: skips if poll completed within last 10s
-- Swift exit codes: 0=success, 2=permission denied, 3=no calendars, 4=error
-- Binary cache: 0o700 mode, 5 retries with exponential backoff (1s→30s)
-- All BrowserWindows use `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`

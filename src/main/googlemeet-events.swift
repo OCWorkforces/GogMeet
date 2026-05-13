@@ -111,6 +111,11 @@ requestCalendarAccess { granted in
     ) else {
         fail("could not compile meet URL regex", code: 4)
     }
+    guard let calendlyRegex = try? NSRegularExpression(
+        pattern: #"https://calendly\.com/[^\s"'<>\\]+"#
+    ) else {
+        fail("could not compile calendly URL regex", code: 4)
+    }
     guard let zoomRegex = try? NSRegularExpression(
         pattern: #"https://(?:[a-zA-Z0-9-]+\.)*zoom\.us/[^\s"'<>\\]+"#
     ) else {
@@ -121,12 +126,16 @@ requestCalendarAccess { granted in
     func findMeetUrl(_ text: String?) -> String? {
         guard let t = text else { return nil }
         let nsRange = NSRange(t.startIndex..., in: t)
-        // Try Zoom first (more specific domain match), then Google Meet
+        // Try Zoom first, then Meet, then Calendly (wrapper solves to Meet via 302)
         if let match = zoomRegex.firstMatch(in: t, range: nsRange),
            let matchRange = Range(match.range, in: t) {
             return String(t[matchRange])
         }
         if let match = meetRegex.firstMatch(in: t, range: nsRange),
+           let matchRange = Range(match.range, in: t) {
+            return String(t[matchRange])
+        }
+        if let match = calendlyRegex.firstMatch(in: t, range: nsRange),
            let matchRange = Range(match.range, in: t) {
             return String(t[matchRange])
         }

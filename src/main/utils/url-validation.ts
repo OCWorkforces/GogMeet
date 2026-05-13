@@ -9,6 +9,7 @@ export const MEETING_URL_ALLOWLIST: readonly string[] = [
   "https://calendar.google.com/",
   "https://accounts.google.com/",
   "https://zoom.us/",
+  "https://calendly.com/",
 ] as const;
 
 
