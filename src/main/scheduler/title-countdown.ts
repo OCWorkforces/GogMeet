@@ -148,3 +148,16 @@ export function cancelTitleCountdown(
     clearTimers.delete(eventId);
   }
 }
+
+/**
+ * Prune entries from state.cancelledEvents whose id is NOT in activeIds.
+ * Called from scheduleEvents() via cancelStaleEntries to prevent unbounded
+ * growth of the cancelledEvents Set across the app lifetime.
+ */
+export function pruneCancelledEvents(activeIds: ReadonlySet<EventId>): void {
+  for (const id of state.cancelledEvents) {
+    if (!activeIds.has(id)) {
+      state.cancelledEvents.delete(id);
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
-import { createMockEvent } from "../helpers/test-utils.js";
+import { createMockEvent, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
 
 // Mock electron
 vi.mock("electron", () => ({
@@ -284,6 +284,75 @@ describe("poll()", () => {
 
     // After resolution, tray was cleared
     expect(mockTrayCallback).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("computeEventsHash coverage (renderer push gating)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetForTest();
+    refreshStateRefs();
+    stateModule.state.onTrayTitleUpdate = mockTrayCallback;
+    mockTrayCallback.mockClear();
+    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
+  });
+
+  afterEach(() => {
+    _resetForTest();
+    refreshStateRefs();
+    vi.useRealTimers();
+    stateModule.state.powerCallbacks = null;
+  });
+
+  async function pushAndCount(events: MeetingEvent[]): Promise<number> {
+    const mockSend = vi.fn();
+    stateModule.state.win = {
+      isDestroyed: vi.fn().mockReturnValue(false),
+      webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
+    } as never;
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events });
+    await poll();
+    return mockSend.mock.calls.length;
+  }
+
+  const baseFields = {
+    title: "Standup",
+    startDate: asTestIsoUtc(isoFromNow(5)),
+    endDate: asTestIsoUtc(isoFromNow(35)),
+    calendarName: "Work",
+    isAllDay: false,
+    userEmail: "a@example.com",
+    description: "Notes A",
+    meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbbb-ccc"),
+  } satisfies Partial<MeetingEvent>;
+
+  const overrides: Array<[string, Partial<MeetingEvent>]> = [
+    ["meetUrl", { meetUrl: asTestMeetUrl("https://meet.google.com/zzz-yyyy-xxx") }],
+    ["userEmail", { userEmail: "b@example.com" }],
+    ["isAllDay", { isAllDay: true }],
+    ["calendarName", { calendarName: "Personal" }],
+    ["description", { description: "Notes B" }],
+  ];
+
+  it.each(overrides)("re-pushes events when %s changes", async (_field, override) => {
+    const evt1 = createMockEvent(baseFields);
+    // First poll establishes baseline hash (returns 1 send on its own mock)
+    let count = await pushAndCount([evt1]);
+    expect(count).toBe(1);
+
+    // Second poll, different field — must trigger another send (1 on the new mock)
+    const evt2 = createMockEvent({ ...baseFields, ...override });
+    count = await pushAndCount([evt2]);
+    expect(count).toBe(1);
+  });
+
+  it("does NOT re-push when no relevant fields change", async () => {
+    const evt = createMockEvent(baseFields);
+    let count = await pushAndCount([evt]);
+    expect(count).toBe(1);
+    // Identical event — hash unchanged, no extra send on the new mock
+    count = await pushAndCount([createMockEvent(baseFields)]);
+    expect(count).toBe(0);
   });
 });
 

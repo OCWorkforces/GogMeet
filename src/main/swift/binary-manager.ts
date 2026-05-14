@@ -15,7 +15,6 @@ import {
 } from "./binary-cache.js";
 import { compileWithRetries, stripBinary } from "./binary-compiler.js";
 
-
 const execFileAsync = promisify(execFile);
 
 let hashVerified = false;

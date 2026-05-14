@@ -1,6 +1,7 @@
 import { Notification } from "electron";
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
+import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import type { ScheduledEventSnapshot } from "./state/index.js";
 import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 
@@ -14,14 +15,14 @@ export function scheduleBrowserTimer(
   startMs: number,
   endMs: number,
   timers: Map<EventId, ReturnType<typeof setTimeout>>,
-  firedEvents: Set<EventId>,
+  firedEvents: Map<EventId, number>,
   scheduledEventData: Map<EventId, ScheduledEventSnapshot>,
   shouldAbort?: () => boolean,
 ): void {
   const handle = setTimeout(() => {
     if (shouldAbort?.()) return;
     timers.delete(event.id);
-    firedEvents.add(event.id);
+    firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
     // Always show notification for all meetings
     try {
       new Notification({
@@ -31,7 +32,7 @@ export function scheduleBrowserTimer(
     } catch {
       console.warn(`[scheduler] Notification denied for "${event.title}"`);
     }
-    // Open browser for meetings with a URL (alert dismiss doesn't prevent this)
+    // Open browser for meetings with a URL (suppressed when alert is dismissed via cancelPendingBrowserOpen)
     if (!event.meetUrl) {
       console.log(`[scheduler] Notification shown for "${event.title}" (no URL)`);
       return;

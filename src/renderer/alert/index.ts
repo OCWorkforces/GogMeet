@@ -14,6 +14,7 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 
 let isDismissing = false;
+let currentPayload: AlertPayload | null = null;
 
 function dismissAlert(): void {
   if (isDismissing) {
@@ -21,6 +22,10 @@ function dismissAlert(): void {
   }
 
   isDismissing = true;
+
+  if (currentPayload) {
+    window.api.alert.notifyDismissed(currentPayload.id);
+  }
 
   const card = document.querySelector<HTMLElement>(".alert-card");
   if (!card) {
@@ -154,6 +159,7 @@ function setupKeyboardDismiss(): void {
 }
 
 window.api.alert.onShowAlert((data: AlertPayload) => {
+  currentPayload = data;
   render(data);
 });
 

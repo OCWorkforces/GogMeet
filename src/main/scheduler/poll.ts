@@ -27,7 +27,22 @@ let lastSentEventsHash: string | null = null;
 
 /** Compute stable hash for event list — used to gate IPC push */
 function computeEventsHash(events: MeetingEvent[]): string {
-  return events.map((e) => `${e.id}|${e.startDate}|${e.endDate}|${e.title}`).join("|");
+  const SEP = "\x1F";
+  return events
+    .map((e) =>
+      [
+        e.id,
+        e.startDate,
+        e.endDate,
+        e.title,
+        e.meetUrl ?? "",
+        e.userEmail ?? "",
+        String(e.isAllDay),
+        e.calendarName,
+        e.description ?? "",
+      ].join(SEP),
+    )
+    .join(SEP);
 }
 
 /** Clear tray state after too many consecutive poll failures */

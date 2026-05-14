@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { EventId } from "../../src/shared/brand.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
-import { createMockEvent } from "../helpers/test-utils.js";
+import { asTestEventId, createMockEvent } from "../helpers/test-utils.js";
 
 // Override the global electron mock with a constructable Notification
 vi.mock("electron", () => {
@@ -30,7 +31,7 @@ const { scheduleBrowserTimer, cancelBrowserTimer } =
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   return createMockEvent({
-    id: "evt-1",
+    id: asTestEventId("evt-1"),
     title: "Standup",
     userEmail: "user@test.com",
     ...overrides,
@@ -38,9 +39,9 @@ function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
 }
 
 describe("scheduleBrowserTimer", () => {
-  let timers: Map<string, ReturnType<typeof setTimeout>>;
-  let firedEvents: Set<string>;
-  let scheduledEventData: Map<string, ScheduledEventSnapshot>;
+  let timers: Map<EventId, ReturnType<typeof setTimeout>>;
+  let firedEvents: Map<EventId, number>;
+  let scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
 
   const startMs = Date.now() + 5 * 60 * 1000;
   const endMs = Date.now() + 35 * 60 * 1000;
@@ -48,7 +49,7 @@ describe("scheduleBrowserTimer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     timers = new Map();
-    firedEvents = new Set();
+    firedEvents = new Map();
     scheduledEventData = new Map();
     vi.mocked(buildMeetUrl).mockClear();
     vi.mocked(shell.openExternal).mockClear();
@@ -74,7 +75,7 @@ describe("scheduleBrowserTimer", () => {
       scheduledEventData,
     );
 
-    expect(timers.has("evt-1")).toBe(true);
+    expect(timers.has(event.id)).toBe(true);
   });
 
   it("stores snapshot in scheduledEventData map", () => {
@@ -89,7 +90,7 @@ describe("scheduleBrowserTimer", () => {
       scheduledEventData,
     );
 
-    const snapshot = scheduledEventData.get("evt-1");
+    const snapshot = scheduledEventData.get(event.id);
     expect(snapshot).toEqual({
       title: "Standup",
       meetUrl: "https://meet.google.com/abc-def-ghi",
@@ -111,7 +112,7 @@ describe("scheduleBrowserTimer", () => {
     );
 
     vi.advanceTimersByTime(60_000);
-    expect(firedEvents.has("evt-1")).toBe(true);
+    expect(firedEvents.has(event.id)).toBe(true);
   });
 
   it("shows Notification when timer fires", () => {
@@ -195,15 +196,15 @@ describe("scheduleBrowserTimer", () => {
       firedEvents,
       scheduledEventData,
     );
-    expect(timers.has("evt-1")).toBe(true);
+    expect(timers.has(event.id)).toBe(true);
 
     vi.advanceTimersByTime(60_000);
-    expect(timers.has("evt-1")).toBe(false);
+    expect(timers.has(event.id)).toBe(false);
   });
 });
 
 describe("cancelBrowserTimer", () => {
-  let timers: Map<string, ReturnType<typeof setTimeout>>;
+  let timers: Map<EventId, ReturnType<typeof setTimeout>>;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -219,8 +220,8 @@ describe("cancelBrowserTimer", () => {
 
   it("clears timer and removes from map", () => {
     const event = makeEvent();
-    const firedEvents = new Set<string>();
-    const scheduledEventData = new Map<string, ScheduledEventSnapshot>();
+    const firedEvents = new Map<EventId, number>();
+    const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
     scheduleBrowserTimer(
       event,
       60_000,
@@ -230,10 +231,10 @@ describe("cancelBrowserTimer", () => {
       firedEvents,
       scheduledEventData,
     );
-    expect(timers.has("evt-1")).toBe(true);
+    expect(timers.has(event.id)).toBe(true);
 
-    cancelBrowserTimer("evt-1", timers);
-    expect(timers.has("evt-1")).toBe(false);
+    cancelBrowserTimer(event.id, timers);
+    expect(timers.has(event.id)).toBe(false);
 
     // Timer should not fire after cancellation
     vi.advanceTimersByTime(60_000);
@@ -241,7 +242,28 @@ describe("cancelBrowserTimer", () => {
   });
 
   it("is safe to call with non-existent eventId (no-op)", () => {
-    expect(() => cancelBrowserTimer("nonexistent", timers)).not.toThrow();
+    expect(() => cancelBrowserTimer(asTestEventId("nonexistent"), timers)).not.toThrow();
     expect(timers.size).toBe(0);
+  });
+});
+
+describe("scheduleBrowserTimer TTL suppression", () => {
+  const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(openMeetingUrl).mockClear();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("records expiry as endMs + 15min when timer fires", () => {
+    const timers = new Map<EventId, ReturnType<typeof setTimeout>>();
+    const firedEvents = new Map<EventId, number>();
+    const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
+    const event = makeEvent();
+    const endMs = Date.now() + 35 * 60_000;
+    scheduleBrowserTimer(event, 60_000, Date.now() + 5 * 60_000, endMs, timers, firedEvents, scheduledEventData);
+    vi.advanceTimersByTime(60_000);
+    expect(firedEvents.get(event.id)).toBe(endMs + FIFTEEN_MIN_MS);
   });
 });

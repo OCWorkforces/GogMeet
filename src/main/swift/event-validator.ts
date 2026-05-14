@@ -126,7 +126,11 @@ export function parseIsoUtc(raw: string): Date {
 }
 
 /** Reason codes for parse diagnostics emitted by `parseEvents`. */
-export type ParseDiagnosticReason = "malformed_field_count" | "invalid_iso" | "invalid_id";
+export type ParseDiagnosticReason =
+  | "malformed_field_count"
+  | "invalid_iso"
+  | "invalid_id"
+  | "duplicate_uid";
 
 /** Diagnostic record for a single malformed input line. */
 export interface ParseDiagnostic {

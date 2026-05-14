@@ -1,7 +1,7 @@
 # GogMeet — Project Knowledge Base
 
-**Generated:** 2026-05-13
-**Commit:** e806026
+**Generated:** 2026-05-14
+**Commit:** 0694592
 **Branch:** develop
 
 ## OVERVIEW
@@ -27,15 +27,17 @@ Coding agents: consult [CODING_GUIDELINES.md](./CODING_GUIDELINES.md) for behavi
 src/
 ├── main/             # Electron main process (Node.js)
 │   ├── index.ts      # App bootstrap, BrowserWindow factory
-│   ├── lifecycle.ts  # Subsystem init/shutdown orchestration
-│   ├── calendar.ts   # Swift EventKit calendar integration
 │   ├── tray.ts       # System tray icon + menu + meeting context menu
 │   ├── events.ts     # Typed event bus (TypedMainEventBus, mainBus singleton)
-│   ├── scheduler/    # Auto-launch browser before meetings (9 files)
-│   ├── ipc-handlers/ # IPC handler implementations (6 files)
-│   ├── swift/         # Swift binary management + event parsing (8 files)
-│   ├── menu/          # Tray context menu
-│   └── utils/         # Main process utilities
+│   ├── app/          # Lifecycle orchestrator + IPC registration
+│   ├── domain/       # Calendar + settings business logic
+│   ├── windows/      # BrowserWindow singletons (alert, settings, about)
+│   ├── system/       # OS integration (power, auto-launch, shortcuts, etc.)
+│   ├── scheduler/    # Auto-launch browser before meetings
+│   ├── ipc-handlers/ # IPC handler implementations
+│   ├── swift/        # Swift binary management + event parsing
+│   ├── menu/         # Tray context menu
+│   └── utils/        # Main process utilities
 ├── renderer/         # UI (web context, vanilla TS)
 │   ├── index.ts      # Main popover UI
 │   ├── events/       # Event handling delegation

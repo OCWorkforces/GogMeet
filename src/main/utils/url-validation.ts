@@ -12,14 +12,11 @@ export const MEETING_URL_ALLOWLIST: readonly string[] = [
   "https://calendly.com/",
 ] as const;
 
-
 /**
  * Hostname suffixes that allow any subdomain.
  * e.g. ".zoom.us" accepts "acme.zoom.us", "us02web.zoom.us", etc.
  */
-const ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [
-  ".zoom.us",
-] as const;
+const ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [".zoom.us"] as const;
 
 /** Hostnames derived from the allowlist for strict, parser-based matching. */
 const ALLOWED_HOSTNAMES: readonly string[] = MEETING_URL_ALLOWLIST.map((prefix) => {

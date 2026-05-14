@@ -22,6 +22,7 @@ describe("alert/index.ts", () => {
     vi.stubGlobal("api", {
       alert: {
         onShowAlert: vi.fn(),
+        notifyDismissed: vi.fn(),
       },
     });
 
@@ -164,7 +165,7 @@ async function loadAlertModule(): Promise<AlertHarness> {
 
   const onShowAlertMock = vi.fn<(cb: AlertCallback) => void>();
   vi.stubGlobal("api", {
-    alert: { onShowAlert: onShowAlertMock },
+    alert: { onShowAlert: onShowAlertMock, notifyDismissed: vi.fn() },
   });
 
   await import("../../src/renderer/alert/index.js");

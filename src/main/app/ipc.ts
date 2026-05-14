@@ -4,6 +4,7 @@ import { registerSettingsHandlers } from "../ipc-handlers/settings.js";
 import { registerAppHandlers } from "../ipc-handlers/app.js";
 import { registerWindowHandlers } from "../ipc-handlers/window.js";
 import { registerSchedulerHandlers } from "../ipc-handlers/scheduler.js";
+import { registerAlertHandlers } from "../ipc-handlers/alert.js";
 
 /**
  * Registers all IPC handlers for the application.
@@ -14,5 +15,6 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerSettingsHandlers(win);
   registerAppHandlers();
   registerWindowHandlers(win);
+  registerAlertHandlers();
   registerSchedulerHandlers();
 }

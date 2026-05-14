@@ -6,15 +6,8 @@ import {
   createTimersState,
 } from "./state-timers.js";
 import { type DisplayState, createDisplayState } from "./state-display.js";
-import {
-  MAX_CONSECUTIVE_ERRORS_CAP,
-  type PollState,
-  createPollState,
-} from "./state-poll.js";
-import {
-  type RuntimeState,
-  createRuntimeState,
-} from "./state-runtime.js";
+import { MAX_CONSECUTIVE_ERRORS_CAP, type PollState, createPollState } from "./state-poll.js";
+import { type RuntimeState, createRuntimeState } from "./state-runtime.js";
 
 export type { ScheduledEventSnapshot } from "./state-timers.js";
 export type { PowerCallbacks } from "./state-runtime.js";
@@ -57,7 +50,6 @@ export function incrementConsecutiveErrors(): void {
   setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));
 }
 
-
 export function clearSchedulerResources(s: SchedulerState): void {
   if (s.pollTimeout !== null) {
     clearTimeout(s.pollTimeout);
@@ -82,6 +74,7 @@ export function cancelStaleEntries(
     onBrowserCancel?: (id: EventId, timers: Map<EventId, ReturnType<typeof setTimeout>>) => void;
     onAlertCancel?: (id: EventId, alertTimers: Map<EventId, ReturnType<typeof setTimeout>>) => void;
     onCountdownIntervalCancel?: () => void;
+    onPruneCancelledEvents?: (activeIds: Set<EventId>) => void;
   },
 ): void {
   // Browser timers
@@ -145,16 +138,19 @@ export function cancelStaleEntries(
     }
   }
   // Prune Sets
-  for (const id of s.firedEvents) {
-    if (!activeIds.has(id)) {
+  const nowMs = Date.now();
+  for (const [id, expiresAt] of s.firedEvents) {
+    if (!activeIds.has(id) && expiresAt < nowMs) {
       s.firedEvents.delete(id);
     }
   }
-  for (const id of s.alertFiredEvents) {
-    if (!activeIds.has(id)) {
+  for (const [id, expiresAt] of s.alertFiredEvents) {
+    if (!activeIds.has(id) && expiresAt < nowMs) {
       s.alertFiredEvents.delete(id);
     }
   }
+  // Prune cancelledEvents Set (delegated to title-countdown owner)
+  callbacks?.onPruneCancelledEvents?.(activeIds);
   // Prune event data
   for (const id of s.scheduledEventData.keys()) {
     if (!activeIds.has(id)) {
@@ -164,13 +160,19 @@ export function cancelStaleEntries(
 }
 
 export function replaceState(nextState: SchedulerState): void {
+  // Snapshot critical refs BEFORE clearing — clearSchedulerResources() nulls
+  // lastKnownEvents, so we must read it (and the runtime callbacks) first.
+  const previousWin = state.win;
+  const previousCallback = state.onTrayTitleUpdate ?? null;
+  const previousPowerCallbacks = state.powerCallbacks ?? null;
+  const previousLastKnownEvents = state.lastKnownEvents;
   // Clear old timer handles to prevent stale callbacks
   clearSchedulerResources(state);
-  // Preserve critical refs that should survive state replacement
-  nextState.win = state.win;
-  nextState.onTrayTitleUpdate = state.onTrayTitleUpdate ?? null;
-  nextState.powerCallbacks = state.powerCallbacks ?? null;
-  nextState.lastKnownEvents = state.lastKnownEvents;
+  // Restore preserved refs onto the replacement state
+  nextState.win = previousWin;
+  nextState.onTrayTitleUpdate = previousCallback;
+  nextState.powerCallbacks = previousPowerCallbacks;
+  nextState.lastKnownEvents = previousLastKnownEvents;
   state = nextState;
 }
 
@@ -228,11 +230,11 @@ export function getScheduledEventData(): ReadonlyMap<EventId, ScheduledEventSnap
   return state.scheduledEventData;
 }
 
-export function getFiredEvents(): ReadonlySet<EventId> {
+export function getFiredEvents(): ReadonlyMap<EventId, number> {
   return state.firedEvents;
 }
 
-export function getAlertFiredEvents(): ReadonlySet<EventId> {
+export function getAlertFiredEvents(): ReadonlyMap<EventId, number> {
   return state.alertFiredEvents;
 }
 

@@ -1,15 +1,24 @@
 import { getSettings } from "../domain/settings.js";
 import { scheduleAlertTimer, cancelAlertTimer } from "./alert-timer.js";
 import { scheduleBrowserTimer, cancelBrowserTimer } from "./browser-timer.js";
-import { scheduleTitleCountdown, cancelTitleCountdown } from "./title-countdown.js";
+import {
+  scheduleTitleCountdown,
+  cancelTitleCountdown,
+  pruneCancelledEvents,
+} from "./title-countdown.js";
 
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
 
-import { state, markTitleDirty, markInMeetingDirty, cancelStaleEntries, type SchedulerState } from "./state/index.js";
+import {
+  state,
+  markTitleDirty,
+  markInMeetingDirty,
+  cancelStaleEntries,
+  type SchedulerState,
+} from "./state/index.js";
 
 import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
-
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(): number {
@@ -18,7 +27,6 @@ function getOpenBeforeMs(): number {
 
 /** Don't schedule events that start more than this far in the future */
 const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
-
 
 /**
  * Handle an event whose start time is in the past.
@@ -154,7 +162,14 @@ function scheduleFutureTimers(
   // Alert timer (fires 1 minute before browser timer)
   const alertSettings = getSettings();
   if (alertSettings.windowAlert && !s.alertFiredEvents.has(event.id)) {
-    scheduleAlertTimer(event, effectiveDelay, s.alertTimers, s.alertFiredEvents, shouldAbort);
+    scheduleAlertTimer(
+      event,
+      effectiveDelay,
+      endMs,
+      s.alertTimers,
+      s.alertFiredEvents,
+      shouldAbort,
+    );
   }
 
   scheduleBrowserTimer(
@@ -201,7 +216,6 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     ...state.inMeetingIntervals.keys(),
   ]);
 
-
   for (const event of events) {
     if (event.isAllDay) continue;
 
@@ -241,6 +255,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
     onBrowserCancel: cancelBrowserTimer,
     onAlertCancel: cancelAlertTimer,
     onCountdownIntervalCancel,
+    onPruneCancelledEvents: pruneCancelledEvents,
   });
 
   // After cleanup, re-resolve tray title ownership
