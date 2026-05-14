@@ -145,16 +145,19 @@ export function cancelStaleEntries(
     }
   }
   // Prune Sets
-  for (const id of s.firedEvents) {
-    if (!activeIds.has(id)) {
+  const nowMs = Date.now();
+  for (const [id, expiresAt] of s.firedEvents) {
+    if (!activeIds.has(id) && expiresAt < nowMs) {
       s.firedEvents.delete(id);
     }
   }
-  for (const id of s.alertFiredEvents) {
-    if (!activeIds.has(id)) {
+  for (const [id, expiresAt] of s.alertFiredEvents) {
+    if (!activeIds.has(id) && expiresAt < nowMs) {
       s.alertFiredEvents.delete(id);
     }
   }
+  // Prune cancelledEvents Set (delegated to title-countdown owner)
+  callbacks?.onPruneCancelledEvents?.(activeIds);
   // Prune event data
   for (const id of s.scheduledEventData.keys()) {
     if (!activeIds.has(id)) {
