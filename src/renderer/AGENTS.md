@@ -8,7 +8,7 @@ Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML stri
 
 | Entry | HTML | Window | Role |
 |-------|------|--------|------|
-| `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, 5-min auto-refresh |
+| `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
 | `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | iOS toggles, auto-save with "✓ Saved" indicator |
 | `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
 
@@ -18,7 +18,7 @@ Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML stri
 src/renderer/
 ├── index.ts          # Main popover UI
 ├── events/           # data-action event delegation
-├── rendering/        # body / header / footer renderers
+├── rendering/        # body renderer
 ├── settings/         # Settings window entry
 ├── alert/            # Full-screen alert entry
 └── styles/           # CSS reset + popover styles
@@ -26,15 +26,14 @@ src/renderer/
 
 ## RENDERING
 
-- `rendering/body.ts`, meeting list, all user content via `escapeHtml()`
-- `rendering/header.ts`, header with calendar name
-- `rendering/footer.ts`, last-updated timestamp + refresh icon
+- `rendering/body.ts` owns meeting list, permission/error/empty states, and all user content via `escapeHtml()`.
+- Header/footer markup is assembled inside the body renderer; there are no separate header/footer modules.
 - Title, description, URL: always escaped before innerHTML
 
 ## EVENT HANDLING
 
-- `events/delegate.ts`, `data-action` attribute delegation on `#app`
-- Actions: `join-meeting`, `grant-access`, `open-settings`
+- `events/delegation.ts`, `data-action` attribute delegation on `#app`
+- Actions: `refresh`, `retry`, `grant-access`, `join-meeting`
 
 ## STATE MACHINE (index.ts)
 
@@ -42,7 +41,7 @@ src/renderer/
 
 - `loadEvents()` fetches via `window.api.calendar.getEvents()` (reads cache; used after `CALENDAR_EVENTS_UPDATED` push delivers `MeetingEvent[]` directly via `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` typed callback)
 - `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
-- Visibility-aware: pauses refresh when hidden, resumes on show
+- Visibility-aware: refreshes on show when stale; push updates arrive through `onEventsUpdated()`.
 - `lastPollTime = Date.now()` prevents redundant fetch on first show
 
 ## SETTINGS WINDOW

@@ -1,91 +1,67 @@
 # Preload Script — Context Bridge
 
-Electron preload (sandboxed). Bridges main and renderer via `contextBridge`. Exposes safe API as `window.api`.
+Sandboxed Electron preload. It is the only bridge between renderer code and main IPC, and it brands raw renderer inputs before they cross process boundaries.
 
-## FILES
+## Files
 
-| File            | Role                             |
-| --------------- | -------------------------------- |
-| `index.ts`      | Context bridge API definition    |
-| `tsconfig.json` | TypeScript config (extends root) |
+| File | Role |
+| --- | --- |
+| `index.ts` | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type. |
+| `tsconfig.json` | Preload TypeScript project. |
 
-## API STRUCTURE
+## Exposed API
 
 ```typescript
-// index.ts
-const api = {
-  calendar: {
-    getEvents: (): Promise<CalendarResult> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_GET_EVENTS) as Promise<CalendarResult>,
-    requestPermission: (): Promise<CalendarPermission> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION),
-    getPermissionStatus: (): Promise<CalendarPermission> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
-    onEventsUpdated: (callback: (events: MeetingEvent[]) => void): () => void,
-  },
-  window: {
-    setHeight: (height: number): void =>
-      // Receives raw number; preload clamps + brands to {height: WindowHeight} before invoking
-      ipcRenderer.send(IPC_CHANNELS.WINDOW_SET_HEIGHT, { height: clampWindowHeight(height) }),
-  },
-  app: {
-    openExternal: (url: string): Promise<void> =>
-      // Receives raw string; preload brands to {url: MeetUrl} before invoking
-      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, { url: asMeetUrl(url) }),
-    getVersion: (): Promise<string> =>
-      ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
-  },
-  settings: {
-    get: (): Promise<AppSettings> =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
-    set: (partial: Partial<AppSettings>): Promise<AppSettings> =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, partial),
-    onChanged: (callback: (settings: AppSettings) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, (_event, settings) => callback(settings));
-  },
-  alert: {
-    onShowAlert: (callback: (data: AlertPayload) => void): () => void => {
-      // Returns cleanup function, unlike previous void return
-      const handler = (_event: IpcRendererEvent, data: AlertPayload) => callback(data);
-      ipcRenderer.on(IPC_CHANNELS.ALERT_SHOW, handler);
-      return () => ipcRenderer.off(IPC_CHANNELS.ALERT_SHOW, handler);
-    },
-  },
-  scheduler: {
-    forcePoll: (): void => ipcRenderer.send(IPC_CHANNELS.SCHEDULER_FORCE_POLL),
-  },
+window.api = {
+  calendar: { getEvents, requestPermission, getPermissionStatus, onEventsUpdated },
+  window: { setHeight },
+  app: { openExternal, getVersion },
+  settings: { get, set, onChanged },
+  alert: { onShowAlert, notifyDismissed },
+  scheduler: { forcePoll },
 };
 ```
 
-All push listeners (`onEventsUpdated`, `onChanged`, `onShowAlert`) return cleanup functions `() => void` that call `ipcRenderer.off()` to unregister the handler.
+`export type Api = typeof api` is consumed by renderer ambient typings.
 
-## EXPOSE
+## Trust-boundary branding
 
-```typescript
-contextBridge.exposeInMainWorld("api", api);
-```
+| Renderer input | Validator | Main IPC payload |
+| --- | --- | --- |
+| raw URL string | `brandMeetUrl()` → `MeetUrl | null` | `APP_OPEN_EXTERNAL: { url }` |
+| raw height number | `clampWindowHeight()` → `WindowHeight` | `WINDOW_SET_HEIGHT: { height }` |
+| alert `EventId` | passthrough from main push | `ALERT_DISMISSED: { id }` |
 
-## TYPE EXPORT
+`brandMeetUrl(raw)` first calls `asMeetUrl()` for structural validation, then checks hostname against `MEET_URL_ALLOWED_HOSTNAMES` (`meet.google.com`, `calendar.google.com`, `accounts.google.com`). Invalid URLs return `null`; `openExternal()` resolves without invoking IPC.
 
-```typescript
-export type Api = typeof api;
-```
+`clampWindowHeight(n)` clamps and rounds into `[220, 480]`; non-finite input becomes the minimum.
 
-`export type Api = typeof api` provides the type for renderer's `window.api` (see `env.d.ts`).
+`alert.notifyDismissed(id)` round-trips the branded `EventId` received from `alert.onShowAlert`.
 
-## BUILD CONSTRAINT
+## Push listener contract
 
-**CRITICAL**: Electron must NEVER be bundled in preload.
+Every push subscription returns `() => void` and removes exactly the listener it added:
 
-Handled in `rslib.config.preload.ts:22-33`:
+| Channel | Method | Payload |
+| --- | --- | --- |
+| `CALENDAR_EVENTS_UPDATED` | `calendar.onEventsUpdated` | `MeetingEvent[]` |
+| `SETTINGS_CHANGED` | `settings.onChanged` | `AppSettings` |
+| `ALERT_SHOW` | `alert.onShowAlert` | `AlertPayload` |
 
-```javascript
-// rspack externals function
-if (req === "electron" || req.startsWith("electron/")) {
-  return callback(undefined, `commonjs ${req}`);
-}
-```
+Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
 
-## CHANNEL IMPORT
+## Shared imports
 
-Channels imported from `../shared/ipc-channels.js`, `../shared/models.js`, `../shared/settings.js`, `../shared/alert.js` (single sources of truth).
+There is no `models.ts` barrel. Import concrete files:
+
+- `../shared/ipc-channels.js` — channels and `IpcRequest` / `IpcResponse` types.
+- `../shared/meeting-event.js` — `MeetingEvent`.
+- `../shared/settings.js` — `AppSettings`.
+- `../shared/alert.js` — `AlertPayload`.
+- `../shared/brand.js` — `asMeetUrl`, `clampWindowHeight`, branded types.
+
+## Build constraints
+
+- Electron must remain external in `rslib.config.preload.ts`; bundling Electron breaks `contextBridge` in the sandbox.
+- Preload must not expose Node APIs, `ipcRenderer`, or arbitrary channel senders to renderer.
+- Keep BrowserWindow assumptions aligned with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`.

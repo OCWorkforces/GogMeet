@@ -26,3 +26,5 @@ Leaf modules wrapping macOS and Electron platform APIs. No business logic, no cr
 - Never call `allowSleep()` without a matching prior `preventSleep()`. Ref count must balance
 - Never request notification permission here. `notification.ts` is probe-only, prompt lives at call site
 - Never run auto-updater outside packaged builds. Always gate on `app.isPackaged`
+- Never import renderer/preload code; communicate through lifecycle callbacks or the typed event bus.
+- Keep platform assumptions macOS-specific; do not add cross-platform fallbacks without a product decision.
