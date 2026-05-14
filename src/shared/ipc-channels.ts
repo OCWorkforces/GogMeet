@@ -1,6 +1,6 @@
 import type { MeetingEvent } from "./meeting-event.js";
 import type { CalendarResult, CalendarPermission } from "./calendar-result.js";
-import type { MeetUrl, WindowHeight } from "./brand.js";
+import type { EventId, MeetUrl, WindowHeight } from "./brand.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";
 
@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
   ALERT_SHOW: "alert:show",
   SCHEDULER_FORCE_POLL: "scheduler:force-poll",
+  ALERT_DISMISSED: "alert:dismissed",
 } as const;
 
 // ─── Type utilities for IPC ──────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export interface IpcChannelMap {
   [IPC_CHANNELS.APP_GET_VERSION]: { request: void; response: string };
   [IPC_CHANNELS.SETTINGS_GET]: { request: void; response: AppSettings };
   [IPC_CHANNELS.SETTINGS_SET]: { request: Partial<AppSettings>; response: AppSettings };
+  [IPC_CHANNELS.ALERT_DISMISSED]: { request: { id: EventId }; response: void };
 }
 
 /** Type-safe IPC request/response derived from the channel map */

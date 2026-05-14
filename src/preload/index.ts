@@ -3,7 +3,7 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-c
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
 import type { MeetingEvent } from "../shared/meeting-event.js";
-import { asMeetUrl, clampWindowHeight, type MeetUrl } from "../shared/brand.js";
+import { asMeetUrl, clampWindowHeight, type EventId, type MeetUrl } from "../shared/brand.js";
 
 /** Hostnames the renderer is permitted to ask the main process to open. */
 const MEET_URL_ALLOWED_HOSTNAMES: readonly string[] = [
@@ -94,6 +94,10 @@ const api = {
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.ALERT_SHOW, handler);
       };
+    },
+
+    notifyDismissed: (id: EventId): void => {
+      ipcRenderer.send(IPC_CHANNELS.ALERT_DISMISSED, { id });
     },
   },
 

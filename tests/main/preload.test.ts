@@ -82,12 +82,24 @@ describe("preload/index.ts", () => {
     expect(typeof settings.onChanged).toBe("function");
   });
 
-  it("alert namespace has onShowAlert method", async () => {
+  it("alert namespace has onShowAlert and notifyDismissed methods", async () => {
     await import("../../src/preload/index.js");
 
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
 
     expect(typeof apiArg.alert.onShowAlert).toBe("function");
+    expect(typeof apiArg.alert.notifyDismissed).toBe("function");
+  });
+
+  it("alert.notifyDismissed sends ipcRenderer.send with correct channel and id payload", async () => {
+    await import("../../src/preload/index.js");
+
+    const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+
+    apiArg.alert.notifyDismissed("event-123");
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith("alert:dismissed", {
+      id: "event-123",
+    });
   });
 
   it("calendar.onEventsUpdated returns unsubscribe function", async () => {
