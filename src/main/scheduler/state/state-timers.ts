@@ -1,3 +1,7 @@
+/** Time-to-live for fired-event entries (browser/alert) — keeps the suppressed flag
+ * around long enough to dedupe rapid delete-and-readd polls but allows eventual re-fire. */
+export const FIRED_EVENT_TTL_MS: number = 15 * 60 * 1000;
+
 import type { EventId, MeetUrl } from "../../../shared/brand.js";
 
 export interface ScheduledEventSnapshot {
@@ -16,8 +20,8 @@ export interface TimersState {
   inMeetingIntervals: Map<EventId, ReturnType<typeof setInterval>>;
   inMeetingEndTimers: Map<EventId, ReturnType<typeof setTimeout>>;
   scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
-  firedEvents: Set<EventId>;
-  alertFiredEvents: Set<EventId>;
+  firedEvents: Map<EventId, number>;
+  alertFiredEvents: Map<EventId, number>;
   /** Tracks events whose countdown has been cancelled to prevent clearHandle/cancel races */
   cancelledEvents: Set<EventId>;
 }
@@ -32,8 +36,8 @@ export function createTimersState(): TimersState {
     inMeetingIntervals: new Map<EventId, ReturnType<typeof setInterval>>(),
     inMeetingEndTimers: new Map<EventId, ReturnType<typeof setTimeout>>(),
     scheduledEventData: new Map<EventId, ScheduledEventSnapshot>(),
-    firedEvents: new Set<EventId>(),
-    alertFiredEvents: new Set<EventId>(),
+    firedEvents: new Map<EventId, number>(),
+    alertFiredEvents: new Map<EventId, number>(),
     cancelledEvents: new Set<EventId>(),
   };
 }

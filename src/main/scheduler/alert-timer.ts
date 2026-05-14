@@ -1,5 +1,6 @@
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
+import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import { showAlert } from "../windows/alert-window.js";
 
 const ALERT_OFFSET_MS: number = 60 * 1000;
@@ -13,8 +14,9 @@ export { ALERT_OFFSET_MS };
 export function scheduleAlertTimer(
   event: MeetingEvent,
   effectiveDelay: number,
+  endMs: number,
   alertTimers: Map<EventId, ReturnType<typeof setTimeout>>,
-  alertFiredEvents: Set<EventId>,
+  alertFiredEvents: Map<EventId, number>,
   shouldAbort?: () => boolean,
 ): void {
   // Cancel any existing alert timer for this event
@@ -24,7 +26,7 @@ export function scheduleAlertTimer(
   const alertHandle = setTimeout(() => {
     if (shouldAbort?.()) return;
     alertTimers.delete(event.id);
-    alertFiredEvents.add(event.id);
+    alertFiredEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
     try {
       showAlert(event);
     } catch {

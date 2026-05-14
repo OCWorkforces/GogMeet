@@ -7,6 +7,9 @@ import type { BrowserWindow } from "electron";
 import type { CalendarResult } from "../../shared/calendar-result.js";
 import { state, resetState, type PowerCallbacks } from "./state/index.js";
 import { poll } from "./poll.js";
+import { cancelBrowserTimer } from "./browser-timer.js";
+import type { EventId } from "../../shared/brand.js";
+import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 
 /** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */
 const FORCE_POLL_COALESCE_MS = 10_000;
@@ -144,4 +147,15 @@ export function initPowerCallbacks(callbacks: PowerCallbacks): void {
 /** Last successful calendar fetch — used by global shortcut to join next meeting without polling */
 export function getLastKnownEvents(): CalendarResult | null {
   return state.lastKnownEvents;
+}
+
+/**
+ * Cancel a pending browser-open timer for the given event and mark it as fired
+ * so subsequent polls do not re-arm it. Used when the user dismisses the alert.
+ * Idempotent — safe to call repeatedly or when no timer exists.
+ */
+export function cancelPendingBrowserOpen(id: EventId): void {
+  cancelBrowserTimer(id, state.timers);
+  const endMs = state.scheduledEventData.get(id)?.endMs ?? Date.now();
+  state.firedEvents.set(id, endMs + FIRED_EVENT_TTL_MS);
 }

@@ -138,14 +138,86 @@ describe("scheduleEvents", () => {
     expect(firedEvents.has("A")).toBe(false);
   });
 
-  it("firedEvents entries for removed events are pruned on each poll", () => {
-    firedEvents.add("B");
+  it("firedEvents entries for removed events are pruned only after TTL expiry", () => {
+    // Already-expired entry → pruned
+    firedEvents.set("B", Date.now() - 1);
     expect(firedEvents.has("B")).toBe(true);
-
-    // Call with empty list — 'B' is no longer active
     scheduleEvents([]);
+    expect(firedEvents.has("B")).toBe(false);
+  });
+
+  it("firedEvents entries for removed events are retained until TTL expires", () => {
+    // Future expiry → retained across polls (suppresses delete-and-readd re-fire)
+    firedEvents.set("B", Date.now() + 15 * 60_000);
+    expect(firedEvents.has("B")).toBe(true);
+    scheduleEvents([]);
+    expect(firedEvents.has("B")).toBe(true);
+  });
+
+  it("delete-and-readd within firedEvents TTL does not re-arm browser timer", () => {
+    const event = makeEvent({
+      id: "B",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+
+    firedEvents.set("B", Date.now() + 15 * 60_000);
+    scheduleEvents([]);
+    scheduleEvents([event]);
+
+    expect(timers.has("B")).toBe(false);
+    expect(firedEvents.has("B")).toBe(true);
+  });
+
+  it("delete-and-readd after firedEvents TTL expiry re-arms browser timer", () => {
+    const event = makeEvent({
+      id: "B",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+
+    firedEvents.set("B", Date.now() - 1);
+    scheduleEvents([]);
+    scheduleEvents([event]);
 
     expect(firedEvents.has("B")).toBe(false);
+    expect(timers.has("B")).toBe(true);
+  });
+
+  it("delete-and-readd within alertFiredEvents TTL does not re-arm alert timer", () => {
+    const event = makeEvent({
+      id: "B",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+
+    alertFiredEvents.set("B", Date.now() + 15 * 60_000);
+    scheduleEvents([]);
+    scheduleEvents([event]);
+
+    expect(alertTimers.has("B")).toBe(false);
+    expect(alertFiredEvents.has("B")).toBe(true);
+  });
+
+  it("delete-and-readd after alertFiredEvents TTL expiry re-arms alert timer", () => {
+    const event = makeEvent({
+      id: "B",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+
+    alertFiredEvents.set("B", Date.now() - 1);
+    scheduleEvents([]);
+    scheduleEvents([event]);
+
+    expect(alertFiredEvents.has("B")).toBe(false);
+    expect(alertTimers.has("B")).toBe(true);
+  });
+
+  it("cancelledEvents entries for removed events are pruned on each poll", () => {
+    stateModule.state.cancelledEvents.add("X");
+    expect(stateModule.state.cancelledEvents.has("X")).toBe(true);
+
+    // Call with empty list — 'X' is no longer active
+    scheduleEvents([]);
+
+    expect(stateModule.state.cancelledEvents.has("X")).toBe(false);
   });
 
   it("already-fired event at the same start time is not rescheduled", () => {
@@ -154,7 +226,7 @@ describe("scheduleEvents", () => {
     const startMs = new Date(startDate).getTime();
 
     // Mark as already fired
-    firedEvents.add("C");
+    firedEvents.set("C", Date.now() + 30 * 60_000 + 15 * 60_000);
     scheduledEventData.set("C", {
       title: "Test Meeting",
       meetUrl: "https://meet.google.com/abc-def-ghi",
