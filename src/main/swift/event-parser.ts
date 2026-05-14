@@ -10,7 +10,6 @@ import type { ParseDiagnostic } from "./event-validator.js";
 import { previewLine } from "./event-validator.js";
 import { isStringTupleOfLength } from "./guards.js";
 
-
 const EXPECTED_FIELD_COUNT = 9;
 
 /** Structured result of {@link parseEvents}: parsed events plus diagnostics for skipped lines. */
@@ -83,8 +82,15 @@ export function parseEvents(raw: string): ParseResult {
     }
     const uid = idResult.value;
 
-    // Deduplicate by id (silent filter)
-    if (seen.has(uid)) continue;
+    // Deduplicate by id (first-wins); record diagnostic for observability
+    if (seen.has(uid)) {
+      diagnostics.push({
+        line: lineNumber,
+        reason: "duplicate_uid",
+        raw: previewLine(line),
+      });
+      continue;
+    }
     seen.add(uid);
 
     // Brand timestamps via the validator. toISOString() always emits a

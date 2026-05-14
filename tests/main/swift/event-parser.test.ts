@@ -171,7 +171,7 @@ describe("parseEvents — malformed input", () => {
     expect(diagnostics).toEqual([]);
   });
 
-  it("deduplicates by id silently", () => {
+  it("deduplicates by id and emits duplicate_uid diagnostic for skipped lines", () => {
     const start = isoFromNow(45);
     const dup = makeLine(
       "dup-evt",
@@ -183,8 +183,10 @@ describe("parseEvents — malformed input", () => {
       "false",
     );
     const { events, diagnostics } = parseEvents(`${dup}\n${dup}`);
-    expect(diagnostics).toEqual([]);
     expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("dup-evt");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ line: 2, reason: "duplicate_uid" });
   });
 });
 
