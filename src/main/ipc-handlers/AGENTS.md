@@ -8,14 +8,15 @@ Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.han
 
 ## FILES
 
-| File          | Exports                                                                                                                               | Lines | Role                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------- |
-| `shared.ts`   | `typedHandle`, `typedSend`, `validateSender`, `validateOnSender`, `validateSenderUrl`, `ALLOWED_ORIGINS`, `MIN_WINDOW_HEIGHT`, `MAX_WINDOW_HEIGHT` | 84    | Infrastructure: type-safe wrapper + origin validation                              |
-| `app.ts`      | `registerAppHandlers`                                                                                                                 | 36    | `APP_OPEN_EXTERNAL` (request `{url: MeetUrl}`, URL-validated), `APP_GET_VERSION`   |
-| `calendar.ts` | `registerCalendarHandlers`                                                                                                            | 56    | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS` |
-| `settings.ts` | `registerSettingsHandlers`                                                                                                            | 50    | `SETTINGS_GET`, `SETTINGS_SET` (triggers restartScheduler + syncAutoLaunch + push); imports restartScheduler from scheduler/facade.js (not index.js, circular dep prevention) |
-| `window.ts`   | `registerWindowHandlers`                                                                                                              | 30    | `WINDOW_SET_HEIGHT` (request `{height: WindowHeight}`, fire-and-forget, clamped 220–480) |
-| `scheduler.ts`| `registerSchedulerHandlers`                                                                                                           | —     | `SCHEDULER_FORCE_POLL` (fire-and-forget, `ipcMain.on`, `validateOnSender` → `void forcePoll()`) |
+| File | Exports | Role |
+| --- | --- | --- |
+| `shared.ts` | `typedHandle`, `typedSend`, sender validators, window-height bounds | Type-safe IPC wrapper + origin validation. |
+| `app.ts` | `registerAppHandlers` | `APP_OPEN_EXTERNAL` (request `{url: MeetUrl}`, URL-validated), `APP_GET_VERSION`. |
+| `calendar.ts` | `registerCalendarHandlers` | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS`. |
+| `settings.ts` | `registerSettingsHandlers` | `SETTINGS_GET`, `SETTINGS_SET`; restarts scheduler, syncs auto-launch, pushes settings changes. |
+| `window.ts` | `registerWindowHandlers` | `WINDOW_SET_HEIGHT` fire-and-forget; request `{height: WindowHeight}`, clamped 220–480. |
+| `scheduler.ts` | `registerSchedulerHandlers` | `SCHEDULER_FORCE_POLL` fire-and-forget; `validateOnSender` → `void forcePoll()`. |
+| `alert.ts` | `registerAlertHandlers` | `ALERT_DISMISSED` fire-and-forget; validates sender, cancels pending browser open. |
 
 ## PATTERNS
 
@@ -43,7 +44,7 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 
 **Registration**: Each file exports `register*Handlers(win?)`. Called from `src/main/ipc.ts`.
 
-**Side effects** (settings.ts only): `SETTINGS_SET` calls `restartScheduler()`, `syncAutoLaunch()`, pushes `SETTINGS_CHANGED` to renderer via `win.webContents.send()`.
+**Side effects** (settings.ts only): `SETTINGS_SET` calls `restartScheduler()`, `syncAutoLaunch()`, pushes `SETTINGS_CHANGED` to renderer via `typedSend(win.webContents, ...)`.
 
 ## CHANNEL→HANDLER MAP
 
@@ -58,6 +59,7 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 | `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                       |
 | `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (request `{height: WindowHeight}`, clamped) |
 | `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`          |
+| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget (request `{eventId: EventId}`) |
 
 Push channels use `typedSend()` from `shared.ts`:
 

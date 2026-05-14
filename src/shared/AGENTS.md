@@ -1,175 +1,64 @@
 # Shared — Cross-Process Contracts
 
-Type definitions and utilities shared across main, preload, and renderer processes. Single source of truth for IPC channels and data models.
+Pure TypeScript contracts and utilities shared by main, preload, and renderer. This layer must not import Electron, Node process APIs, DOM globals, or project-specific runtime singletons.
 
-## FILES
+## Files
 
-| File                   | Role                                                                              |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `ipc-channels.ts`      | IPC channel constants, IpcChannelMap, IpcRequest/IpcResponse type utilities       |
-| `models.ts`            | MeetingEvent, CalendarResult, CalendarPermission                                  |
-| `settings.ts`          | AppSettings, DEFAULT_SETTINGS, min/max constants                                  |
-| `utils/escape-html.ts` | XSS protection utility (used by main popover + alert)                             |
-| `utils/time.ts`        | `isTomorrow`, `formatMeetingTime`, `formatRemainingTime` — shared time formatting |
-| `alert.ts`             | AlertPayload for `alert:show` push channel                                        |
-| `brand.ts`             | Branded types: EventId, MeetUrl (Google Meet + Zoom URLs), IsoUtc, WindowHeight with validators returning Result<T,string> |
-| `app-state.ts`         | AppState type (extracted from renderer)                                           |
-| `result.ts`            | Result<T,E> discriminated union (ok/err)                                          |
-| `errors.ts`            | AppError discriminated union (6 variants), `errFrom()`, `formatAppError()`, type guards |
+| File | Role |
+| --- | --- |
+| `ipc-channels.ts` | `IPC_CHANNELS`, `IpcChannelMap`, `PushChannelMap`, `IpcRequest`, `IpcResponse`. |
+| `meeting-event.ts` | `MeetingEvent` with branded IDs, dates, and optional meeting URL. |
+| `calendar-result.ts` | `CalendarResult` (`kind: "ok" | "err"`), `isCalendarOk()`, permission type. |
+| `brand.ts` | `EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight` and validators. |
+| `errors.ts` | `AppError` taxonomy, helpers, and type guards. |
+| `result.ts` | Generic `Result<T,E>` and `AppResult<T>`. |
+| `settings.ts` | `AppSettings`, defaults, min/max constants. |
+| `alert.ts` | Narrow `AlertPayload` for full-screen alert display. |
+| `app-state.ts` | Renderer app-state type extracted for tests and contracts. |
+| `parse-json.ts` | JSON object parser + validator bridge returning `AppResult<T>`. |
+| `utils/escape-html.ts` | XSS escaping for HTML string renderers. |
+| `utils/time.ts` | Shared date/time formatting helpers. |
 
-## IPC CHANNELS (`ipc-channels.ts`)
+## IPC contracts
 
-```typescript
-export const IPC_CHANNELS = {
-  CALENDAR_GET_EVENTS: "calendar:get-events",
-  CALENDAR_REQUEST_PERMISSION: "calendar:request-permission",
-  CALENDAR_PERMISSION_STATUS: "calendar:permission-status",
-  WINDOW_SET_HEIGHT: "window:set-height",
-  APP_OPEN_EXTERNAL: "app:open-external",
-  APP_GET_VERSION: "app:get-version",
-  SETTINGS_GET: "settings:get",
-  SETTINGS_SET: "settings:set",
-  SETTINGS_CHANGED: "settings:changed", // push: main → renderer
-  CALENDAR_EVENTS_UPDATED: "calendar:events-updated", // push: main → renderer
-  ALERT_SHOW: "alert:show", // push: main → renderer
-  SCHEDULER_FORCE_POLL: "scheduler:force-poll", // fire-and-forget: renderer → main
-} as const;
-```
+- `IPC_CHANNELS` is the single source of channel names; keep it `as const`.
+- Invoke channels map to `{ request, response }` in `IpcChannelMap`.
+- Push channels (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`) map payloads in `PushChannelMap` and are main → renderer only.
+- Fire-and-forget channels (`ALERT_DISMISSED`, `SCHEDULER_FORCE_POLL`, `WINDOW_SET_HEIGHT`) still have typed request payloads.
+- Add a channel by updating shared channel maps first, then main handler, preload API, renderer caller, and tests.
 
-`IpcChannelMap` (ipc-channels.ts) is a single lookup map from each **invoke** channel to its `request` / `response` types (no conditional chain).
+## Model shapes
 
-`PushChannelMap` sits alongside `IpcChannelMap` and types the push channels (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`) for `win.webContents.send()` payloads. Push channels are send-only, main → renderer.
+`MeetingEvent` fields: `id: EventId`, `title`, `startDate: IsoUtc`, `endDate: IsoUtc`, optional `meetUrl: MeetUrl`, `calendarName`, `isAllDay`, optional `userEmail`, optional `description`.
 
-`IpcRequest<K>` and `IpcResponse<K>` are derived from `IpcChannelMap`.
+`CalendarResult` intentionally differs from generic `Result`: use `kind: "ok" | "err"`, not `ok: boolean`. Narrow with `isCalendarOk()` or `result.kind === "ok"`; never use `'error' in result`.
 
-## DATA MODELS (`models.ts`)
+`AlertPayload` is a display-only projection: `id`, `title`, `startDate`, `endDate`, `calendarName`, `isAllDay`, optional `description`. It intentionally omits `meetUrl`; the alert renderer must not gain URL-opening capability.
 
-### MeetingEvent
+`AppSettings`: `schemaVersion`, `openBeforeMinutes` (1–5), `launchAtLogin`, `showTomorrowMeetings`, `windowAlert`. Defaults live in `DEFAULT_SETTINGS`.
 
-```typescript
-export interface MeetingEvent {
-  id: EventId;            // branded
-  title: string;
-  startDate: IsoUtc;      // branded ISO 8601 UTC
-  endDate: IsoUtc;        // branded ISO 8601 UTC
-  meetUrl?: MeetUrl;      // branded meet.google.com/xxx-xxxx-xxx
-  calendarName: string;
-  isAllDay: boolean;
-  userEmail?: string;     // Google email from EventKit attendee
-  description?: string;   // Event notes from macOS Calendar
-}
-```
+## Brands
 
-### CalendarResult
+Branded types are runtime strings/numbers with compile-time protection:
 
-```typescript
-export interface CalendarResultOk { kind: "ok"; events: MeetingEvent[]; }
-export interface CalendarResultErr { kind: "err"; error: string; }
-export type CalendarResult = CalendarResultOk | CalendarResultErr;
-export function isCalendarOk(r: CalendarResult): r is CalendarResultOk;
-```
+- `EventId` — non-empty trimmed string.
+- `MeetUrl` — structurally valid HTTPS URL, no credentials, default port. Host allowlists live in main/preload egress checks.
+- `IsoUtc` — finite date, with bare timestamps normalized as UTC.
+- `WindowHeight` — rounded/clamped number in `[220, 480]`.
 
-### CalendarPermission
+Validators return `Result<T,string>` and are used at Swift parser ingress, preload boundary, URL validation, and tests. Do not assign raw primitives to branded fields.
 
-```typescript
-export type CalendarPermission = "granted" | "denied" | "not-determined";
-```
+## Error/result rules
 
-## BRANDED TYPES (`brand.ts`)
+- Generic `Result<T,E>` uses `ok: true | false`.
+- `AppResult<T>` is `Result<T, AppError>`.
+- `AppError.kind` variants: `swift-permission-denied`, `swift-no-calendars`, `swift-runtime`, `validation`, `io`, `unknown`.
+- `errFrom()` wraps unknown thrown values; `formatAppError()` creates user-facing text.
+- `parseJsonObject(raw, field, validate)` parses JSON, requires a plain object, then delegates validation. Parse/shape failures return `validation` errors.
 
-```typescript
-declare const __brand: unique symbol;
-type Brand<T, B> = T & { readonly [__brand]: B };
-type EventId = Brand<string, "EventId">;
-type MeetUrl = Brand<string, "MeetUrl">;
-type IsoUtc = Brand<string, "IsoUtc">;
-```
+## Rules
 
-Validators: `asEventId(s)`, `asMeetUrl(s)`, `asIsoUtc(s)` — return `Result<T, string>`. Applied at Swift parser ingress and URL validation boundaries.
-
-## ALERT PAYLOAD (`alert.ts`)
-
-```typescript
-interface AlertPayload {
-  id: EventId;
-  title: string;
-  startDate: IsoUtc;
-  endDate: IsoUtc;
-  meetUrl?: MeetUrl;
-  calendarName: string;
-  isAllDay: boolean;
-  description?: string;
-}
-```
-
-Note: `AlertPayload` intentionally omits `meetUrl` — it is a narrow projection of `MeetingEvent` for alert display only (JSDoc-documented in `alert.ts`).
-
-## RESULT TYPE (`result.ts`)
-
-```typescript
-type Result<T, E = string> = { ok: true; value: T } | { ok: false; error: E };
-```
-
-`AppResult<T>` is an alias for `Result<T, AppError>` defined in `errors.ts` — preferred for fallible operations that surface taxonomy errors. Default `Result<T, E = string>` preserved for backward compat.
-
-Used by `loadSettings`, brand validators.
-
-## SETTINGS (`settings.ts`)
-
-```typescript
-export interface AppSettings {
-  schemaVersion: number; // Settings migration version
-  openBeforeMinutes: number; // 1-5, default 1
-  launchAtLogin: boolean; // macOS login item toggle
-  showTomorrowMeetings: boolean; // Show tomorrow in tray menu
-  windowAlert: boolean; // Show full-screen overlay
-}
-
-export const DEFAULT_SETTINGS: AppSettings = {
-  schemaVersion: 1,
-  openBeforeMinutes: 1,
-  launchAtLogin: false,
-  showTomorrowMeetings: true,
-  windowAlert: true,
-};
-export const OPEN_BEFORE_MINUTES_MIN = 1;
-export const OPEN_BEFORE_MINUTES_MAX = 5;
-```
-
-## TIME UTILITIES (`utils/time.ts`)
-
-| Function              | Signature                 | Role                                   |
-| --------------------- | ------------------------- | -------------------------------------- |
-| `isTomorrow`          | `(date: Date) => boolean` | Date comparison for tomorrow check     |
-| `formatMeetingTime`   | `(date: Date) => string`  | HH:MM formatting for meeting times     |
-| `formatRemainingTime` | `(ms: number) => string`  | "X min" / "Xh Ym" countdown formatting |
-
-## TYPE UTILITIES (`ipc-channels.ts`)
-
-```typescript
-export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
-export type IpcRequest<K extends IpcChannel> = IpcChannelMap[K]["request"];
-export type IpcResponse<K extends IpcChannel> = IpcChannelMap[K]["response"];
-```
-
-## USAGE PATTERN
-
-1. **Add new channel**: Add to `IPC_CHANNELS` in `ipc-channels.ts`, then add an entry to the `IpcChannelMap` lookup map (or `PushChannelMap` for push channels) with `request`/`response` types
-2. **Add new data type**: Define interface/type in `models.ts` or `settings.ts`
-3. **Use in processes**: `import { ... } from '../shared/ipc-channels.js'` (or `models.js`, `settings.js`)
-
-## IMPORT PATHS
-
-| Process  | Import Path           |
-| -------- | --------------------- |
-| main     | `../shared/<file>.js` |
-| preload  | `../shared/<file>.js` |
-| renderer | `../shared/<file>.js` |
-
-Note: `.js` extension required for ESM resolution even though source is `.ts`.
-
-## TYPESCRIPT CONSTRAINTS
-
-- **`isolatedDeclarations`**: Enabled — every export in this directory must carry an explicit type annotation (no inferred return types on exported functions, no implicit types on exported consts). Prefer explicit annotations over `satisfies` on exports.
-- **`verbatimModuleSyntax`**: Type-only imports must use `import type { ... }`.
-- **`noPropertyAccessFromIndexSignature`**: Use bracket notation for index-signature access.
+- No barrel files; import concrete shared modules.
+- No `satisfies`, `enum`, or `namespace`.
+- Keep shared modules side-effect-free and safe for all three processes.
+- User-facing strings rendered into HTML must pass through `escapeHtml()`.

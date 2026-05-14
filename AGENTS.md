@@ -1,222 +1,105 @@
-# GogMeet — Project Knowledge Base
+# GogMeet — AGENTS.md
 
-**Generated:** 2026-05-14
-**Commit:** 0694592
-**Branch:** develop
+macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swift EventKit, auto-opens Meet/Zoom/wrapper URLs 1–5 min before start, full-screen alert overlay, global shortcut (`Cmd+Shift+M`).
 
-## OVERVIEW
+## STACK
 
-macOS tray-only Electron app for Google Meet calendar reminders. Fetches events via Swift EventKit from macOS Calendar, auto-opens meetings in browser 1 min before start, displays upcoming meetings in a native popover UI. Supports full-screen meeting alerts and auto-updates.
+| Layer    | Tech                                                              |
+| -------- | ----------------------------------------------------------------- |
+| Runtime  | Electron `^42.0.1` (sandboxed BrowserWindows, contextIsolation)   |
+| Language | TypeScript `^6.0.3` (`isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`) |
+| Build    | Rslib (main + preload, CJS) + Rsbuild (renderer, ESM, 3 envs)     |
+| Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`); Node `>=20`        |
+| Calendar | Swift EventKit helper (`googlemeet-events.swift`, hash-cached)    |
+| Test     | Vitest `^4.1.6` workspace (main / renderer / shared)              |
+| Logging  | `electron-log` `^5.4.4`                                           |
+| Updates  | `electron-updater` `^6.8.3`                                       |
 
-| Layer     | Tech                                      |
-| --------- | ----------------------------------------- |
-| Runtime   | Bun 1.3.11+ / Node.js 20.0.0+             |
-| Framework | Electron 41                               |
-| Build     | Rslib (main/preload) + Rsbuild (renderer) |
-| Package   | Bun                                       |
-| Test      | Vitest 4 (workspace)                      |
-| Lint/Fmt  | ESLint + Prettier                         |
-
-## BEHAVIORAL GUIDELINES
-
-Coding agents: consult [CODING_GUIDELINES.md](./CODING_GUIDELINES.md) for behavioral guidelines to reduce common LLM coding mistakes — think before coding, simplicity first, surgical changes, and goal-driven execution.
-
-## STRUCTURE
-
-```
-src/
-├── main/             # Electron main process (Node.js)
-│   ├── index.ts      # App bootstrap, BrowserWindow factory
-│   ├── tray.ts       # System tray icon + menu + meeting context menu
-│   ├── events.ts     # Typed event bus (TypedMainEventBus, mainBus singleton)
-│   ├── app/          # Lifecycle orchestrator + IPC registration
-│   ├── domain/       # Calendar + settings business logic
-│   ├── windows/      # BrowserWindow singletons (alert, settings, about)
-│   ├── system/       # OS integration (power, auto-launch, shortcuts, etc.)
-│   ├── scheduler/    # Auto-launch browser before meetings
-│   ├── ipc-handlers/ # IPC handler implementations
-│   ├── swift/        # Swift binary management + event parsing
-│   ├── menu/         # Tray context menu
-│   └── utils/        # Main process utilities
-├── renderer/         # UI (web context, vanilla TS)
-│   ├── index.ts      # Main popover UI
-│   ├── events/       # Event handling delegation
-│   ├── rendering/    # UI rendering
-│   ├── settings/     # Settings window (separate entry)
-│   ├── alert/        # Full-screen meeting alert (separate entry)
-│   └── styles/       # CSS reset + popover styles
-├── preload/          # Context bridge (sandbox)
-├── shared/           # Types, brands, results shared across processes
-│   ├── alert.ts     # AlertPayload for alert:show push
-│   ├── brand.ts     # Branded types (EventId, MeetUrl, IsoUtc, WindowHeight)
-│   ├── errors.ts    # AppError discriminated union for error taxonomy
-│   ├── app-state.ts # AppState extracted from renderer
-│   └── result.ts    # Result<T,E> & AppResult<T> for fallible ops
-└── assets/           # Tray icons (light/dark/template, 1x/2x)
-```
-
-## WHERE TO LOOK
-
-| Task                  | Location                                      | Notes                                   |
-| --------------------- | --------------------------------------------- | --------------------------------------- |
-| Add IPC channel       | `src/shared/ipc-channels.ts` → `IPC_CHANNELS` | Single source of truth                  |
-| Implement IPC handler | `src/main/ipc-handlers/`                      | Add file, register with `typedHandle()` |
-| Expose to renderer    | `src/preload/index.ts`                        | Add to `api` object                     |
-| App lifecycle         | `src/main/app/lifecycle.ts`                   | Subsystem init/shutdown orchestrator    |
-| IPC registration      | `src/main/app/ipc.ts`                         | Delegates to ipc-handlers/              |
-| Calendar logic        | `src/main/domain/calendar.ts`                 | Swift EventKit queries, permission      |
-| Calendar watcher      | `src/main/domain/calendar-watcher.ts`         | EKEventStoreChangedNotification sidecar |
-| Settings persistence  | `src/main/domain/settings.ts`                 | JSON in userData, legacy key migration  |
-| Swift binary          | `src/main/swift/binary-manager.ts`            | Hash-based cache, `runSwiftHelper()`    |
-| Scheduler             | `src/main/scheduler/facade.ts`                | Sole public entry point                 |
-| Scheduler lifecycle + forcePoll | `src/main/scheduler/poll.ts`            | Start/stop/restart/forcePoll (10s coalesce) |
-| Scheduler state       | `src/main/scheduler/state/`                   | Getter-only API over Maps/Sets/scalars  |
-| Tray title            | `src/main/tray.ts:119`                        | `updateTrayTitle()`                     |
-| Alert window          | `src/main/windows/alert-window.ts`            | Full-screen overlay, uid coalescing     |
-| Settings window       | `src/main/windows/settings-window.ts`         | Singleton, shows in Dock                |
-| About window          | `src/main/windows/about-window.ts`            | About panel singleton                   |
-| Global shortcut       | `src/main/system/shortcuts.ts`                | Cmd+Shift+M → join next                 |
-| Power management      | `src/main/system/power.ts`                    | Battery-aware polling, ref-counted sleep|
-| Alert payload contract | `src/shared/alert.ts` | AlertPayload for alert:show push |
-| Branded types | `src/shared/brand.ts` | EventId, MeetUrl, IsoUtc with validators |
-| Error taxonomy        | `src/shared/errors.ts`                        | AppError union, errFrom(), formatAppError() |
-| Type-safe push | `src/main/ipc-handlers/shared.ts` | `typedSend()` for main→renderer |
-| Force-poll IPC      | `src/main/ipc-handlers/scheduler.ts`          | `scheduler:force-poll` fire-and-forget → `forcePoll()` |
-| CSP types             | `src/main/utils/browser-window.ts`            | CSPSource, CSPDirective, CSP template      |
-| Build config          | `rslib.config.ts`, `rsbuild.config.ts`        | Separate for each process               |
-| Packaging config      | `electron-builder.yml`                         | Root-level YAML, NOT in package.json    |
-| Notarization          | `build/notarize.cjs`                           | `@electron/notarize`                    |
-| Architecture rules    | `.sentrux/rules.toml`                          | Modularity, acyclicity, depth           |
-
-## CONVENTIONS
-
-- **ESM source → CJS output**: Source `.ts` with ESM, outputs `.cjs` for Electron
-- **Import paths**: Always `.js` extension (`from './types.js'`) even for `.ts` source
-- **Import types separately**: `import type { X }` enforced by `verbatimModuleSyntax`
-- **Type-safe IPC**: `typedHandle()` in ipc-handlers/, `IpcResponse<T>` in preload
-- **No UI framework**: Vanilla TS with `innerHTML` string templates
-- **No barrel files**: All imports use direct paths
-- **Settings window**: Shows in Dock when open, hides when closed (tray-only otherwise)
-- **Alert window**: Full-screen overlay, singleton, Escape to dismiss
-- **macOS only**: Swift EventKit, dock hiding — no cross-platform
-- **Scheduler imports**: `scheduler/facade.ts` is the sole public interface; external consumers must import from `facade.js`, not `index.js`
-- **Scheduler state access**: All state (Maps, Sets, scalars) accessed via typed getter functions (`getTimers()`, `getActiveTitleEventId()`, etc.) — no direct Proxy views or module-level `let` exports
-- **Renderer string building**: Use `parts.push()` + `.join('')` pattern for meeting list rendering — not `html +=` concatenation
-- **Discriminated unions**: CalendarResult uses `kind: "ok"|"err"` tag, narrow with `isCalendarOk()`
-- **Branded types**: EventId, MeetUrl, IsoUtc — validated at trust boundaries (parser, URL validation)
-- **typedSend()**: All main→renderer push uses `typedSend()` with `isDestroyed()` guard, no raw `webContents.send()`
-- **`as const` pattern**: Used on config objects and lookup maps for compile-time type narrowing (e.g., `IPC_CHANNELS as const`). Note: `as const satisfies` is NOT used in actual source — `isolatedDeclarations` requires explicit annotations on exports instead.
-- **Result type**: `Result<T,E>` used for fallible operations (settings load, brand validation)
-- **Error handling**: `tryRun`/`tryRunAsync` wrappers in lifecycle.ts, shows `dialog.showErrorBox()` on fatal init failure
-- **Settings eager-load**: `loadSettings()` called during lifecycle init before `startScheduler()` — guarantees cache warm before scheduler polls
-- **noPropertyAccessFromIndexSignature**: Enabled — index-signature accesses use bracket notation (`obj["key"]` not `obj.key`)
-- **isolatedDeclarations**: Enabled — all exports have explicit type annotations; `satisfies` dropped in favor of explicit annotations
-- **erasableSyntaxOnly**: Enabled — no non-erasable syntax (enums, namespaces, parameter properties)
-- **Formatting**: ESLint + Prettier (`.prettierrc`, `eslint.config.js`) for unified linting + formatting — no Biome
-
-## ANTI-PATTERNS (THIS PROJECT)
-
-```typescript
-// rslib.config.preload.ts — electron must never be bundled in preload
-// rslib.config.ts — electron external appended AFTER ElectronTargetPlugin
-```
-
-- Electron module MUST be external in preload builds
-- Electron external MUST be appended AFTER `ElectronTargetPlugin` sets its own externals
-- Never suppress type errors (`as any`, `@ts-ignore`, `@ts-expect-error`) — zero in source
-- Never bypass `validateSender()` in IPC handlers
-- Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required
-- Never bundle the Swift source file inside ASAR — `swiftc` cannot read from ASAR archives
-- Never open arbitrary URLs via `shell.openExternal()` — validate against `MEETING_URL_ALLOWLIST`
-- Never insert user content via `innerHTML` without `escapeHtml()` — XSS protection
-- All BrowserWindows must have `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`
-- `SWIFT_SRC_DEV` path uses `../..` (2 levels up from bundled `lib/main/`), NOT `../../..`
-- Never use `.startsWith()` for URL validation, use `new URL().hostname` exact match against `MEETING_URL_ALLOWLIST`
-- Never use raw `webContents.send()` — use `typedSend()` from shared.ts
-- Never use `"error" in result` duck-typing — use `isCalendarOk()` or `result.kind === "ok"`
-- Never assign raw strings to branded types (EventId, MeetUrl, IsoUtc) — use validators
-- Never use dot notation on index-signature types — use bracket notation (`parsed["key"]` not `parsed.key`)
-- Never call `allowSleep()` without a matching `preventSleep()`, ref-counted in power.ts
-
-## BUILD SYSTEM
-
-Three-process build:
-
-1. **Main** (`rslib.config.ts`): `electron-main` target → `lib/main/index.cjs`
-2. **Preload** (`rslib.config.preload.ts`): `electron-preload` target → `lib/preload/index.cjs`
-3. **Renderer** (`rsbuild.config.ts`): Three environments (`main` + `settings` + `alert`) → `lib/renderer/`
-
-Production: SWC minifier with `drop_console: true`, tree-shaking, no source maps.
-
-### Packaging (electron-builder.yml)
-
-Root-level YAML (NOT in package.json):
-- Targets: DMG + ZIP for arm64 + x64, macOS 11.0+
-- `asarUnpack` for Swift source (swiftc cannot read from ASAR)
-- After-pack: `build/after-pack.cjs`
-- After-sign: `build/notarize.cjs` (Apple notarization via `@electron/notarize`)
-- Entitlements: `build/entitlements.mac.plist` (hardened-runtime, camera, calendar)
-- Release scripts: `scripts/tag-release.cjs`
-
-### CI / CD
-
-- `.github/workflows/pr-check.yml` — typecheck + test + coverage on push/PR to develop/main
-- `.github/workflows/release.yml` — `bun run package` → upload DMG/ZIP to GitHub Releases on tag push
-- Notarization secrets: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
-
-### Architecture Rules
-
-`.sentrux/rules.toml` enforces architectural constraints (modularity, acyclicity, depth). Use `sentrux-mcp_health` to check.
-
+Three-process layout: `src/main/` (Electron main), `src/preload/` (context bridge), `src/renderer/` (UI, vanilla TS, 3 entries — popover, settings, alert), `src/shared/` (types-only, `.js` extension imports).
 
 ## COMMANDS
 
 ```bash
-bun run dev          # Start dev (watch + electron)
-bun run build        # Build all (main + preload + renderer)
-bun run package      # Build + create DMG/ZIP (macOS arm64 + x64)
-bun run typecheck    # TypeScript check (tsc -b)
-bun run test         # Run Vitest tests (745 tests, main/renderer/shared workspaces)
-bun run test:watch   # Watch mode
-bun run clean        # Remove lib/ dist/
-rm -rf /tmp/googlemeet   # Force Swift binary recompile
+bun install
+bun run dev              # Watch + electron (scripts/dev.ts)
+bun run build            # build:main && build:preload && build:renderer
+bun run build:main       # rslib build -c rslib.config.ts
+bun run build:preload    # rslib build -c rslib.config.preload.ts
+bun run build:renderer   # rsbuild build
+bun run package          # build && electron-builder --mac (DMG + ZIP)
+bun run package:dir      # build && electron-builder --mac --dir (unpacked)
+bun run typecheck        # tsc -b
+bun run test             # vitest run -c vitest.workspace.ts
+bun run test:watch       # vitest -c vitest.workspace.ts
+bun run test:coverage    # vitest run -c vitest.workspace.ts --coverage
+bun run lint             # eslint src/ --cache
+bun run format:check     # prettier --check 'src/**/*.{ts,css}'
+bun run format           # prettier --write 'src/**/*.{ts,css}'
+bun run clean            # rimraf lib dist
 ```
+
+CI (`pr-check`) runs `typecheck` → `test` → `test:coverage`. The release workflow runs `build` → `package`, then tags and uploads artifacts.
+
+## CONVENTIONS (project-wide)
+
+- **Imports use the `.js` extension** even when the source is `.ts` (CJS/ESM interop, `verbatimModuleSyntax`).
+- `import type { … }` is mandatory for type-only imports.
+- **No barrel files**. Import from concrete paths. `scheduler/index.ts` deliberately does not re-export `poll.ts`; go through `scheduler/facade.ts`.
+- **IPC: `typedHandle()` only** in main; `IpcResponse<T>` in preload; `typedSend()` for main→renderer push (never raw `webContents.send()`).
+- **Branded types** (`EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight`) validated at trust boundaries. Never assign raw strings.
+- `as const` on lookup maps and config. No `satisfies` (incompatible with `isolatedDeclarations`). No `enum` / `namespace` (`erasableSyntaxOnly`).
+- Bracket notation for index-signature objects (`obj["key"]`).
+- Errors are typed: `AppError` discriminated union (`src/shared/errors.ts`); discriminate via `result.kind === "ok"` or `isCalendarOk()`. Never duck-type.
+- All BrowserWindows: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`.
+
+## ANTI-PATTERNS
+
+- `as any`, `@ts-ignore`, `@ts-expect-error`. Banned.
+- Raw `webContents.send()` / `ipcMain.handle()`. Use `typedSend` / `typedHandle`.
+- `shell.openExternal()` directly. Use `openMeetingUrl()` (allowlist-validated).
+- `.startsWith()` for URL validation. Use `new URL(u).hostname` exact match against `MEETING_URL_ALLOWLIST`.
+- `innerHTML` without `escapeHtml()` (XSS).
+- `fs.readFileSync()` for tray icons. Use `nativeImage.createFromPath()`.
+- Bundling Electron in the preload build. Preload must keep `electron` external.
+- Bundling Swift source into ASAR. `swiftc` cannot read from ASAR. Swift sources go in `asarUnpack`.
+- `allowSleep()` without a matching `preventSleep()`. Power refs are reference-counted.
+- Bypassing `validateSender()` in IPC handlers.
+- Reaching into `scheduler/poll.ts` directly. The facade is the only public entry.
+
+## PACKAGING & RELEASE
+
+- Config: `electron-builder.yml` (root). Targets DMG + ZIP for `arm64` and `x64`, macOS 11.0+.
+- `asarUnpack` includes the Swift helper sources.
+- `afterPack`: `build/after-pack.cjs`.
+- `afterSign`: `build/notarize.cjs`. Apple notarization. Reads env vars `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`; skips with a warning if any are missing or platform isn’t `darwin`.
+- Entitlements: `build/entitlements.mac.plist`, `build/entitlements.mac.inherit.plist`.
+- App icon: `build/icon.icns`.
+- Local DMG helper: `./build-macOS-dmg.sh [--environment <name>]`.
+- Releases (DMG + ZIP) are published on GitHub Releases; `electron-updater` consumes the same feed.
+
+## TESTS
+
+Vitest workspace (`vitest.workspace.ts`) splits `tests/main/` (Node + Electron auto-mock), `tests/renderer/` (jsdom), and `tests/shared/`. Helpers in `tests/helpers/test-utils.ts`. Use `bun run test:coverage` for v8 coverage; CI gates on it.
+
+## DIRECTORY MAP
+
+- `src/` — application source (see `src/AGENTS.md`).
+- `tests/` — Vitest workspace (see `tests/AGENTS.md`).
+- `scripts/dev.ts` — dev orchestrator (rslib watch + rsbuild dev + electron).
+- `scripts/generate-calendar-tray-icons.mjs` — regenerate tray icon PNGs.
+- `build/` — packaging assets and afterPack/afterSign hooks.
+- `assets/` — README screenshots.
+- `lib/`, `dist/` — generated outputs (cleaned by `bun run clean`).
+- `.sentrux/rules.toml` — architecture constraints (modularity, acyclicity, depth).
 
 ## NOTES
 
-- **Calendar permission**: First access triggers macOS EventKit permission dialog
-- **Swift binary cache**: Compiled to OS temp dir (`/tmp/googlemeet/`) on first run; hash-based recompilation
-- **Swift output format**: 9 tab-delimited fields: uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes
-- **Auto-open**: Browser opens 1-5 min before each non-all-day meeting; `?authuser=email` appended
-- **Full-screen alert**: Fires at `openBeforeMinutes + 1` min before meeting (suppresses browser auto-open)
-- **Scheduler polling**: 2 min on AC, 4 min on battery; refresh button and tray click fire `forcePoll()` for immediate re-fetch
-- **Scheduler state**: 8 timer Maps, 2 fired-event Sets, 1 cancelledEvents Set, 5 scalars (activeTitleEventId, activeInMeetingEventId, consecutiveErrors, titleDirty, inMeetingDirty) — all in `SchedulerState` object, accessed via getter functions
-- **replaceState safety**: `replaceState()` clears old timer handles via `clearSchedulerResources()` and preserves `win`/`onTrayTitleUpdate`/`powerCallbacks` from old state
-- **ConsecutiveErrors cap**: `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4) to prevent unbounded growth after error handler fires
-- **Window hide on blur**: Popover hides when focus lost (dev mode exempt)
-- **Circular dep fixed**: `scheduler/index.ts` no longer re-exports from `poll.ts`, all external imports go through `scheduler/facade.ts`
-- **Scheduler pollEpoch**: Race condition guard, stale callbacks from previous scheduler instances are silently discarded
-- **forcePoll coalesce**: `forcePoll()` skips if a poll completed within the last 10s (`FORCE_POLL_COALESCE_MS`); prevents thrash from rapid tray clicks or wake storms
-- **Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error
-- **Binary cache**: 0o700 mode for security; 5 retries with exponential backoff (1s to 30s) on compile failure
-- **Sandbox**: `app.enableSandbox()` called before `whenReady()`, all BrowserWindows use `sandbox: true`
-- **Alert coalescing**: `alert-window.ts` uses `isAlertShowing` queue, coalesces duplicate uids on rapid `showAlert()` calls
-- **Branded types**: EventId, MeetUrl, IsoUtc — phantom brand via unique symbol, string-compatible for read, validated at parser/URL boundaries
-- **Discriminated CalendarResult**: `kind: "ok"|"err"` tag enables exhaustive narrowing
-- **ParseResult**: `parseEvents()` returns `{events, diagnostics[]}` — diagnostics logged via console.warn
-- **typedSend()**: Wraps `webContents.send()` with `isDestroyed()` check and PushChannelMap types; `CALENDAR_EVENTS_UPDATED` payload is `MeetingEvent[]` (sent only when event hash changes)
-- **AlertPayload**: Unified in shared/alert.ts — single type for alert:show across all 3 processes
-- **Test utilities**: Shared factory functions in `tests/helpers/test-utils.ts` — `createMockEvent()`, `createMockSettings()`, `createMockIpcEvent()`, `isoFromNow()`, `asTestEventId()`, `asTestMeetUrl()`, `asTestIsoUtc()`
-- **IPC channels**: 12 total (7 invoke, 2 fire-and-forget, 3 push main→renderer)
-- **Power state caching**: `power.ts` caches `onBattery` at init, updates on `powerMonitor` events — `getPollInterval()` reads cache without polling OS each time
-- **Push payload**: `calendar:events-updated` delivers `MeetingEvent[]` directly — renderer uses events from push, no extra `getEvents()` round-trip needed
-- **Renderer push-only**: Renderer has no polling timer; all updates come via `onEventsUpdated` push from main
-- **AppError taxonomy**: Unified discriminated union in shared/errors.ts — 6 variants (swift-permission-denied, swift-no-calendars, swift-runtime, validation, io, unknown) with type guards
-- **AppResult<T>**: Alias for `Result<T, AppError>` — default `Result<T, E = string>` preserved for backward compat
-- **WindowHeight brand**: Phantom-branded number type with `clampWindowHeight()` validator clamping to min/max range
-- **Scheduler branding**: All timer `Map`s and `Set`s keyed by `EventId` (branded string) — no bare `Map<string, ...>`
-- **IPC payload branding**: `APP_OPEN_EXTERNAL` uses `{url: MeetUrl}`, `WINDOW_SET_HEIGHT` uses `{height: WindowHeight}` — branded at preload boundary
-- **CSP template literals**: `CSPSource`, `CSPDirective`, `CSP` types for compile-time Content-Security-Policy validation
-- **isEnoent type predicate**: Returns `e is { code: unknown }` narrowing in settings.ts
-
-
+- Calendar permission: first access triggers the macOS EventKit permission dialog.
+- Swift binary cache: compiled to `/tmp/googlemeet/` on first run, hash-keyed; mode `0o700`; 5 retries with exponential backoff (1s → 30s).
+- Swift exit codes: `0` success, `2` permission denied, `3` no calendars, `4` error.
+- Swift output: 9 tab-delimited fields. `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`.
+- Auto-open: 1–5 min before non-all-day meetings; `?authuser=email` is appended for Google Meet only.
+- Full-screen alert: fires 60s after the browser-open offset (`openBeforeMinutes - 1` min before start, clamped at now) and dismissing it cancels browser auto-open.
+- Scheduler polling: 2 min on AC, 4 min on battery; `forcePoll()` coalesces (skips if a poll completed within the last 10 s); `consecutiveErrors` capped at 4.
+- Popover hides on blur (dev mode exempt).
+- Calendly / SavvyCal / wrapper URLs are opened directly; the browser handles the 302 redirect to the underlying Meet/Zoom room.

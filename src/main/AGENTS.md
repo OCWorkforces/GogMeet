@@ -1,174 +1,56 @@
 # Main Process — Electron Main
 
-Electron main process (Node.js). Handles app lifecycle, system tray, IPC, macOS Calendar via Swift EventKit. Subsystem init orchestrated by `app/lifecycle.ts`. Code organized by concern: `app/` (orchestration), `windows/` (BrowserWindow singletons), `system/` (OS integration), `domain/` (calendar + settings), plus subsystem dirs (`scheduler/`, `swift/`, `ipc-handlers/`, `menu/`, `utils/`).
+Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC handlers, scheduler orchestration, settings persistence, and macOS Calendar access through Swift EventKit. `app/lifecycle.ts` is the startup/shutdown coordinator.
 
-## FILES
+## Files and subsystems
 
-### Root (cross-cutting)
+| Area | Files | Responsibility |
+| --- | --- | --- |
+| Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | app bootstrap, tray, event bus, Swift source |
+| `app/` | `lifecycle.ts`, `ipc.ts` | initialization order, shutdown, IPC registration |
+| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `settings.ts` | EventKit calls, calendar watcher, settings JSON/migrations |
+| `windows/` | `about-window.ts`, `alert-window.ts`, `settings-window.ts` | secure BrowserWindow singletons |
+| `system/` | `power.ts`, `shortcuts.ts`, `auto-launch.ts`, `auto-updater.ts`, `notification.ts` | OS integration |
+| `scheduler/` | see `scheduler/AGENTS.md` | polling, timers, auto-open, alert scheduling |
+| `swift/` | see `swift/AGENTS.md` | Swift binary cache, parser, event validation |
+| `ipc-handlers/` | see `ipc-handlers/AGENTS.md` | typed IPC handlers and push helpers |
+| `menu/` | see `menu/AGENTS.md` | tray context menu template |
+| `utils/` | see `utils/AGENTS.md` | URL validation, meet URL building, secure window helpers |
 
-| File         | Role                                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| `index.ts`   | Rslib entry point, app bootstrap, BrowserWindow factory, lifecycle events                       |
-| `tray.ts`    | System tray icon, context menu, countdown title; subscribes to `meeting-list-updated` event bus |
-| `events.ts`  | Typed event bus (`TypedMainEventBus`, `MainEvents`): `meeting-list-updated` + `power-state-changed`, singleton `mainBus` |
+## Lifecycle order
 
-### `app/` — application orchestration
+`initializeApp(win)` must keep this order unless tests and startup dependencies are updated:
 
-| File           | Role                                                                                |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `lifecycle.ts` | Subsystem init/shutdown orchestrator (`initializeApp` / `shutdownApp`)              |
-| `ipc.ts`       | IPC registration (delegates to `ipc-handlers/`)                                     |
+1. `loadSettings()` warms cache and applies `fullScreenAlert` → `windowAlert` migration.
+2. `registerIpcHandlers(win)` wires invoke/on handlers.
+3. `setupTray(win)` creates the tray and menu subscriptions.
+4. `setTrayTitleCallback(updateTrayTitle)` and `setSchedulerWindow(win)` inject scheduler dependencies.
+5. `initPowerCallbacks(...)` gives scheduler polling/sleep hooks.
+6. Calendar permission check, then `startScheduler()` and `startCalendarWatcher()`.
+7. `initPowerManagement(() => restartScheduler())`, `initPowerEvents()`, `registerShortcuts()`, notification check, auto-launch sync.
 
-### `windows/` — BrowserWindow singletons
+`shutdownApp()` cleans power management, stops scheduler, then stops the calendar watcher.
 
-| File                 | Role                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `about-window.ts`    | About panel BrowserWindow singleton (reuses window, alwaysOnTop, hiddenInset titlebar) |
-| `alert-window.ts`    | Full-screen meeting alert BrowserWindow (singleton, coalesces by uid)                 |
-| `settings-window.ts` | Settings BrowserWindow singleton (shows in Dock when open)                            |
+## Architecture rules
 
-### `system/` — OS integration
+- `events.ts` is the decoupling seam. Scheduler emits `meeting-list-updated`; tray subscribes.
+- `scheduler/facade.ts` is the only scheduler import allowed outside `scheduler/`.
+- `scheduler/state/` is internal-only, enforced by `.sentrux/rules.toml` (`state-internal-only`).
+- `swift/` is a leaf dependency used by `domain/calendar.ts`; do not make Swift modules depend on app/window/scheduler code.
+- `app/` can depend on subsystems; subsystems should not depend on `app/`.
+- BrowserWindow options come from `utils/browser-window.ts` secure defaults unless a window has a documented exception.
 
-| File               | Role                                                                       |
-| ------------------ | -------------------------------------------------------------------------- |
-| `power.ts`         | Power management (battery-aware polling, ref-counted sleep prevention)     |
-| `auto-launch.ts`   | macOS login items (launch at login)                                        |
-| `auto-updater.ts`  | Electron auto-updater (packaged builds only)                               |
-| `notification.ts`  | macOS notification permission check                                        |
-| `shortcuts.ts`     | Global keyboard shortcut (Cmd+Shift+M → join next meeting)                 |
+## IPC and security
 
-### `domain/` — calendar + settings business logic
+- Use `typedHandle()` for invokes, `validateSender()` / `validateOnSender()` for every renderer-originated event.
+- Use `typedSend()` for push channels and guard destroyed windows.
+- Never call `shell.openExternal()` directly; use `openMeetingUrl()` after allowlist validation.
+- Keep `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false` on every BrowserWindow.
 
-| File                  | Role                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `calendar.ts`         | Swift EventKit calendar queries (imports directly from `swift/`, does NOT re-export); uses `isCalendarOk()` guard for discriminated `CalendarResult` |
-| `calendar-watcher.ts` | macOS Calendar change detection via Swift `--watch` sidecar (`EKEventStoreChangedNotification`), triggers `forcePoll()` on changes |
-| `settings.ts`         | Persistent app settings (JSON in userData), legacy key migration on load                                            |
+## Important invariants
 
-### Subsystem directories (own AGENTS.md)
-
-| Directory        | Role                                                                                          |
-| ---------------- | --------------------------------------------------------------------------------------------- |
-| `scheduler/`     | Auto-launch browser before meetings; `facade.ts` is the sole public entry point (see `scheduler/AGENTS.md`) |
-| `swift/`         | Swift binary management + event parsing (see `swift/AGENTS.md`)                               |
-| `ipc-handlers/`  | IPC handler implementations (see below)                                                       |
-| `menu/`          | Tray context menu (see below)                                                                 |
-| `utils/`         | Main process utilities (see below)                                                            |
-
-## ARCHITECTURE
-
-**Layered organization** (no cycles, see `.sentrux/rules.toml`):
-
-- **Root files** (`index.ts`, `tray.ts`, `events.ts`) — cross-cutting concerns; the event bus is the decoupling seam between scheduler and tray.
-- **`app/`** — orchestrates everything else; depends on all other layers, depended on by none.
-- **`windows/`, `system/`, `domain/`** — sibling concerns; cross-imports kept minimal and unidirectional.
-- **`scheduler/`** — self-contained; **`scheduler/facade.ts` is the sole public entry point**. It now contains the actual function bodies (`forcePoll`, `startScheduler`, `stopScheduler`, `restartScheduler`, `setSchedulerWindow`), no longer a re-export shim. External consumers MUST import from `scheduler/facade.js`, never from `scheduler/index.js` or internal files.
-- **`scheduler/state/`** — 5 files (`index.ts` composition root, `state-timers.ts`, `state-display.ts`, `state-poll.ts`, `state-runtime.ts`). State accessed only via typed getter functions; no module-level `let` exports.
-- **`swift/`** — leaf subsystem; `domain/calendar.ts` imports its functions directly (no re-export barrel).
-- **`ipc-handlers/`, `menu/`, `utils/`** — leaf utilities; depended on by `app/`, `windows/`, `domain/`, etc.
-
-## ENTRY POINT
-
-`index.ts:42` — `createWindow()` called on `app.whenReady()`
-
-## LIFECYCLE
-
-`app/lifecycle.ts` orchestrates all subsystem init and shutdown:
-
-```
-initializeApp(win):
-  loadSettings()             → domain/settings.ts (must be first)
-  registerIpcHandlers(win)  → ipc-handlers/ modules
-  setupTray(win)            → tray.ts (1 arg; fires forcePoll() in background on click)
-  setTrayTitleCallback      → decouples scheduler from tray
-  setSchedulerWindow(win)   → scheduler/facade.ts
-  calendarPermission        → domain/calendar.ts
-  startScheduler()          → scheduler/facade.ts
-  startCalendarWatcher()    → domain/calendar-watcher.ts (Swift EKEventStoreChangedNotification sidecar)
-  initPowerManagement(() => restartScheduler())  → system/power.ts
-  initPowerEvents()              → system/power.ts (emits power-state-changed on battery change)
-  registerShortcuts()       → system/shortcuts.ts
-  checkNotificationPermission() → system/notification.ts
-  syncAutoLaunch()          → system/auto-launch.ts
-
-shutdownApp():
-  cleanupPowerManagement()  → system/power.ts
-  stopScheduler()           → scheduler/facade.ts
-  stopCalendarWatcher()     → domain/calendar-watcher.ts
-```
-
-**Error handling**: Fatal init failures wrapped via `tryRun`/`tryRunAsync`; errors normalized through `AppError` taxonomy in `shared/errors.ts` (6 variants), shown via `dialog.showErrorBox()` on fatal.
-
-## WINDOW CONFIG
-
-```typescript
-// index.ts:42-59 — shared config in utils/browser-window.ts
-{
-  width: 360, height: 480,
-  show: false, frame: false, resizable: false, movable: false,
-  alwaysOnTop: true, skipTaskbar: true,
-  vibrancy: "popover", transparent: true, hasShadow: true,
-  webPreferences: SECURE_WEB_PREFERENCES  // sandbox + contextIsolation
-}
-```
-
-## SWIFT EVENTKIT PATTERNS
-
-- **Helper**: `googlemeet-events.swift` compiled to `$TMPDIR/googlemeet/` on first call
-- **Helper modes**:
-  - **One-shot** (default): fetches today+tomorrow events, outputs 9-field tab-delimited format, exits
-  - **`--watch`**: runs indefinitely, subscribes to `EKEventStoreChangedNotification`, outputs `CHANGED` on stdout (1s debounce) when Calendar data mutates
-- **Watch sidecar**: `swift/calendar-watch-sidecar.ts` — manages the long-running `--watch` process lifecycle (spawn, crash recovery with exponential backoff, graceful shutdown)
-- **Binary manager**: `swift/binary-manager.ts` — hash-based cache, architecture-aware compile, retry on failure
-- **Event parser**: `swift/event-parser.ts` — tab-delimited → `MeetingEvent[]`, Outlook artifact cleanup
-- **Compile time**: <1s (`swiftc` invoked at runtime, cached)
-- **Query time**: ~0.7s (EventKit indexed queries, no network waits)
-- **Output format**: 9 tab-delimited fields: `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`
-- **Filtering**: Skips cancelled events, declined invitations; Google Meet + Zoom URLs via regex
-- **Type guards**: `swift/guards.ts` — runtime narrowing for Swift output fields, eliminates unsafe `as` casts
-
-## IPC HANDLERS (`ipc-handlers/`)
-
-Each domain has its own file. All exports `register*Handlers(win?)` called from `ipc.ts`.
-
-| File          | Channels                                                                           | Notes                                                 |
-| ------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `shared.ts`   | —                                                                                  | `typedHandle()`, `validateSender()`, height constants |
-| `calendar.ts` | `calendar:get-events`, `calendar:request-permission`, `calendar:permission-status` | 3 invoke channels                                     |
-| `settings.ts` | `settings:get`, `settings:set`                                                     | + pushes `settings:changed`                           |
-| `app.ts`      | `app:open-external`, `app:get-version`                                             | 2 invoke channels; `app:open-external` payload is `{url: MeetUrl}` (branded) |
-| `window.ts`   | `window:set-height`                                                                | Fire-and-forget (`ipcMain.on`)                        |
-| `scheduler.ts`| `scheduler:force-poll`                                                             | Fire-and-forget (`ipcMain.on`), triggers `forcePoll()` |
-
-**Push channels** (main → renderer): use `typedSend()` from `ipc-handlers/shared.ts` with `isDestroyed()` guard.
-
-| Channel                   | Trigger                            |
-| ------------------------- | ---------------------------------- |
-| `settings:changed`        | After `updateSettings()`           |
-| `calendar:events-updated` | After successful `poll()`          |
-| `alert:show`              | `showAlert()` 1 min before browser |
-
-## TRAY CONTEXT MENU (`menu/`)
-
-| File              | Role                                                                         |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `meeting-menu.ts` | `buildMeetingMenuTemplate()` — Today/Tomorrow groups, Join/InProgress labels |
-
-## UTILITIES (`utils/`)
-
-| File                | Export(s)                                                       | Role                                   | Consumers                            |
-| ------------------- | --------------------------------------------------------------- | -------------------------------------- | ------------------------------------ |
-| `browser-window.ts` | `SECURE_WEB_PREFERENCES`, `getPreloadPath`, `loadWindowContent` | All BrowserWindow creation             | index, settings-window, alert-window |
-| `meet-url.ts`       | `buildMeetUrl`                                                  | Appends `?authuser=email`              | tray, shortcuts, scheduler           |
-| `url-validation.ts` | `isAllowedMeetUrl`, `MEETING_URL_ALLOWLIST`                        | Meeting URL allowlist for `shell.openExternal` | meet-url, ipc-handlers/app           |
-| `packageInfo.ts`    | `getPackageInfo`                                                | Read package.json (9 explicit readonly fields, runtime validation) | index                                |
-
-## ANTI-PATTERNS
-
-- Never use `fs.readFileSync()` for tray icons — `nativeImage.createFromPath()` required (understands ASAR paths)
-- Never bundle Swift source inside ASAR — `swiftc` cannot read from ASAR archives (see `asarUnpack` in `electron-builder.yml`)
-- Never bypass `validateSender()` in IPC handlers — every handler must check sender origin
-- Never change `SWIFT_SRC_DEV` relative path without verifying from bundled `lib/main/index.cjs` (see `swift/AGENTS.md`)
-- `index.ts` suppresses Chromium DNS sorter warnings via `app.commandLine.appendSwitch("log-level", "3")` — this filters WARNING-level Chromium messages from VPN/virtual interfaces (Chromium bug 40445828); do NOT remove
-- `domain/settings.ts` migrates legacy `fullScreenAlert` → `windowAlert` key on load — preserve this migration when adding new settings keys
-- Never use dot notation on index-signature types — use bracket notation (`obj["key"]`); `noPropertyAccessFromIndexSignature` is enabled
+- Tray icons use `nativeImage.createFromPath()`, not `fs.readFileSync()`.
+- Swift source must remain unpacked from ASAR; `swiftc` cannot compile inside ASAR.
+- `SWIFT_SRC_DEV` is relative to bundled `lib/main/index.cjs`; verify before editing.
+- `index.ts` suppresses Chromium DNS sorter warnings with `app.commandLine.appendSwitch("log-level", "3")`; do not remove casually.
+- `system/power.ts` sleep prevention is reference-counted: every `preventSleep()` needs matching `allowSleep()`.

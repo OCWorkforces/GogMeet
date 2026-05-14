@@ -1,121 +1,59 @@
 # Scheduler — Auto-Open Browser Before Meetings
 
-Core scheduling engine. Manages per-event `setTimeout` timers (8 types), calendar polling, tray title countdown, and full-screen alert timing.
+Core scheduling engine for polling Calendar, scheduling per-event timers, updating tray countdowns, showing full-screen alerts, and opening meeting URLs. External code imports only `facade.ts`; internal modules may cross-import each other directly.
 
-## FILES
+## Files
 
-| File                 | Role                                                                       |
-| -------------------- | -------------------------------------------------------------------------- |
-| `index.ts`           | Central hub: `scheduleEvents()` sets/resets per-event timers               |
-| `state.ts`           | Singleton state with typed getter functions over Maps/Sets, dirty flags               |
-| `countdown.ts`       | In-meeting countdown, title resolution                                     |
-| `poll.ts`            | Calendar polling loop, `startScheduler`/`stopScheduler`/`restartScheduler`; emits `meeting-list-updated` via `mainBus` after each successful poll |
-| `alert-timer.ts`     | `scheduleAlertTimer()` — fires 60s before browser open                     |
-| `browser-timer.ts`   | `scheduleBrowserTimer()` — browser open + Notification                     |
-| `title-countdown.ts` | `scheduleTitleCountdown()` — 30-min window title timer                     |
-| `facade.ts`          | Single public interface for external consumers (re-exports from poll.ts, index.ts, state.ts) |
+| File | Role |
+| --- | --- |
+| `facade.ts` | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
+| `index.ts` | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning. |
+| `poll.ts` | Fetches calendar, hashes event list, emits `meeting-list-updated`, pushes `CALENDAR_EVENTS_UPDATED`. |
+| `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden. |
+| `browser-timer.ts` | Browser-open timer and notification trigger. |
+| `alert-timer.ts` | Full-screen alert timer: 60s after the browser-open offset (`openBeforeMinutes - 1`, clamped at now). |
+| `title-countdown.ts` | 30-minute tray title window and cancelled-title tracking. |
+| `countdown.ts` | In-meeting title countdown and active event resolution. |
 
-## PUBLIC API
+## Public API (`facade.ts` only)
 
-| Function               | Signature                          | Role                                                    |
-| ---------------------- | ---------------------------------- | ------------------------------------------------------- |
-| `startScheduler`       | `() => void`                       | Starts poll loop (AC: 2min, battery: 4min) + first poll |
-| `stopScheduler`        | `(preserveWindow?) => void`        | Clears all timers, resets state                         |
-| `restartScheduler`     | `() => void`                       | stop + start (settings changes)                         |
-| `scheduleEvents`       | `(events: MeetingEvent[]) => void` | Central hub: sets/resets per-event timers               |
-| `poll`                 | `() => Promise<void>`              | Fetches calendar, delegates to scheduleEvents           |
-| `setSchedulerWindow`   | `(w: BrowserWindow) => void`       | Injects renderer window for IPC push                    |
-| `setTrayTitleCallback` | `(fn) => void`                     | Decouples scheduler from tray                           |
+| Function | Contract |
+| --- | --- |
+| `startScheduler()` | Bumps `pollEpoch`, runs initial `poll()`, arms recursive polling timeout. |
+| `stopScheduler()` | Cancels pending force poll, resets resources preserving window, clears tray title. |
+| `restartScheduler()` | Stop then start; used for settings changes and wake events. |
+| `forcePoll()` | Immediate poll with 10s completed-poll coalescing; deferred extra request fires once. |
+| `setSchedulerWindow(w)` | Injects BrowserWindow for typed push channels. |
+| `setTrayTitleCallback(fn)` | Injects tray title updater; scheduler never imports tray. |
+| `initPowerCallbacks(callbacks)` | Injects poll interval and sleep-prevention hooks from `system/power.ts`. |
+| `getLastKnownEvents()` | Returns last calendar result for global shortcut logic. |
+| `cancelPendingBrowserOpen(id)` | Cancels browser timer and marks event fired after alert dismissal. |
+| `_resetForceTestState()` | Test-only reset for facade coalescing timers. |
 
-| `forcePoll`            | `() => Promise<void>`              | Coalesced immediate poll: clears pending setTimeout, bumps pollEpoch, runs poll(), re-arms next tick. 10s coalesce guard prevents thrash. |
-**Import point**: External consumers should import from `facade.js`, which re-exports the public API. Avoid importing from `index.js` directly.
+## State model
 
-## CONSTANTS
+- `state/index.ts` composes state from `state-timers.ts`, `state-display.ts`, `state-poll.ts`, and `state-runtime.ts`.
+- Timer maps are keyed by branded `EventId`: browser timers, alert timers, title timers, countdown intervals, clear timers, in-meeting intervals, in-meeting end timers, scheduled snapshots.
+- Fired maps (`firedEvents`, `alertFiredEvents`) store TTLs; `cancelledEvents` prevents title timers from re-registering after dismissal.
+- Getter helpers expose readonly views; mutation goes through helpers such as `markTitleDirty()`, `incrementConsecutiveErrors()`, and `cancelStaleEntries()`.
+- `replaceState()` clears old resources but preserves runtime refs (`win`, tray callback, power callbacks, last-known events) unless explicitly reset.
 
-| Constant                 | Value   | Purpose                                 |
-| ------------------------ | ------- | --------------------------------------- |
-| `getOpenBeforeMs()`      | 1-5 min | Configurable via settings               |
-| `getPollInterval()`      | 2/4 min | 2 min AC, 4 min battery (from power.ts) |
-| `TITLE_BEFORE_MS`        | 30 min  | Tray title activation window            |
-| `MAX_SCHEDULE_AHEAD_MS`  | 24 h    | Skip events beyond this                 |
-| `MAX_CONSECUTIVE_ERRORS` | 3       | ~6 min of errors before clearing tray   |
-| `ALERT_OFFSET_MS`        | 60 s    | Alert fires 1 min before browser        |
+## Timing constants
 
-## TIMER TYPES (8 Maps)
+- Poll interval: 2 minutes on AC, 4 minutes on battery (`system/power.ts`).
+- Open-before window: settings-controlled 1–5 minutes.
+- Alert offset: 60 seconds before browser open.
+- Title countdown window: 30 minutes before start.
+- Schedule-ahead cap: 24 hours.
+- Force-poll coalesce: 10 seconds after last completed poll.
+- Consecutive error threshold is 3; stored counter caps at 4.
 
-| Map                  | Mechanism     | Fires When                              |
-| -------------------- | ------------- | --------------------------------------- |
-| `timers`             | `setTimeout`  | `startMs - openBeforeMinutes` (browser) |
-| `alertTimers`        | `setTimeout`  | `startMs - openBeforeMinutes - 60s`     |
-| `titleTimers`        | `setTimeout`  | `startMs - 30min` (title activation)    |
-| `countdownIntervals` | `setInterval` | Every 60s while in 30-min window        |
-| `clearTimers`        | `setTimeout`  | At `startMs` → switch to in-meeting     |
-| `inMeetingIntervals` | `setInterval` | Every 60s during meeting                |
-| `inMeetingEndTimers` | `setTimeout`  | At `endMs` → cleanup                    |
-| `scheduledEventData` | Map           | Snapshot for change detection, `Map<EventId, ScheduledEventSnapshot>` where `meetUrl: MeetUrl | undefined` (branded) |
+## Rules
 
-Plus 2 Sets: `firedEvents` (prevents browser re-open), `alertFiredEvents` (prevents alert re-show).
-
-**Branded keys**: All timer Maps and Sets are keyed by `EventId` (branded string), not bare `string`. Maps are `Map<EventId, ...>`, Sets are `Set<EventId>`.
-
-Plus 1 counter: `pollEpoch` (increments on restartScheduler, aborts stale callbacks).
-
-## EVENT LIFECYCLE
-
-```
-[Event appears in calendar]
-  → scheduleEvents called
-  → if >30 min out: titleTimer scheduled
-  → if <30 min: countdown starts immediately
-  → alertTimer fires → full-screen overlay (if windowAlert on)
-  → browser timer fires → Notification + shell.openExternal
-  → meeting starts → inMeetingCountdown begins
-  → meeting ends → all timers cleared
-```
-
-**Getter function pattern**: Module exports a singleton `SchedulerState` object (`state`) and typed getter functions (`getTimers()`, `getAlertTimers()`, etc.) that return the live underlying Maps/Sets. Callers like `getTimers().get(id)` always reflect current state. 14 getter functions: `getTimers`, `getAlertTimers`, `getTitleTimers`, `getCountdownIntervals`, `getClearTimers`, `getInMeetingIntervals`, `getInMeetingEndTimers`, `getScheduledEventData`, `getFiredEvents`, `getAlertFiredEvents`, `getActiveTitleEventId`, `getActiveInMeetingEventId`, `getConsecutiveErrors`, plus `isTitleDirty`, `isInMeetingDirty`.
-
-**Readonly views**: All Map getters return `ReadonlyMap<EventId, ...>` and all Set getters return `ReadonlySet<EventId>` — callers cannot mutate state directly; mutation goes through dedicated setters/primitives.
-
-**Dirty flags**: `titleDirty` and `inMeetingDirty` track when title resolution needs re-run. `markTitleDirty()` / `markInMeetingDirty()` set flags; resolvers clear them after processing.
-
-**State primitives**: `setActiveTitleEventId()`, `setActiveInMeetingEventId()`, `setConsecutiveErrors()`, `incrementConsecutiveErrors()` — mutators that directly modify `state` properties.
-
-**Reset**: `resetState({ preserveWindow? })` clears all resources via `clearSchedulerResources()`, replaces with fresh state via `replaceState()`. `replaceState()` swaps entire `state` object (testing), preserving `win`/`onTrayTitleUpdate`/`powerCallbacks`.
-
-## DESIGN DECISIONS
-
-- **Callback decoupling**: `setTrayTitleCallback` breaks scheduler→tray dependency; scheduler never imports tray
-- **Idempotent scheduling**: `scheduleEvents` safe to call repeatedly; cleans stale entries and compares snapshots
-- **Change detection**: `scheduledEventData` Map stores title/url/startMs/endMs per event; reschedules only on actual change
-- **Dirty flag resolution**: `titleDirty`/`inMeetingDirty` flags avoid redundant resolver runs when nothing changed
-- **Alert pre-fire suppression**: `alertFiredEvents` Set prevents re-showing alert on scheduler refresh
-- **Module extraction**: Timer logic split into focused files (poll, alert-timer, browser-timer, title-countdown) from monolithic index.ts
-- **Facade pattern**: `facade.ts` is the sole public interface for scheduler module. External consumers (`lifecycle.ts`, `ipc-handlers/settings.ts`) import from `facade.js`, never from `index.js` directly
-- **Poll epoch guard**: `pollEpoch` counter incremented on `restartScheduler()`. Stale callbacks from previous scheduler instances check epoch before executing, preventing overlapping poll chains (C3 fix)
-- **Cancelled events tracking**: `cancelledEvents` Set in `title-countdown.ts` prevents cleared timers from re-registering. Cleaned up on `startCountdown()`
-
-## INTERNAL DEPENDENCIES
-
-```
-index.ts
-  ├── state.ts          (state maps, scalars, dirty flags, reset primitives)
-  ├── alert-timer.ts    (→ alert-window.ts showAlert)
-  ├── browser-timer.ts  (→ utils/meet-url.ts buildMeetUrl)
-  ├── title-countdown.ts (→ countdown.ts, state.ts, power.ts)
-  ├── countdown.ts      (in-meeting resolution, dirty flag consumers)
-  └── settings.ts       (openBeforeMinutes, windowAlert)
-
-countdown.ts
-  └── title-countdown.ts (clearHandle, tickCountdown, cancelledEvents)
-
-poll.ts (uses `typedSend()` instead of raw `webContents.send()` for push channels)
-  ├── index.ts          (scheduleEvents)
-  ├── calendar.ts       (event fetch)
-  └── state.ts          (consecutive errors, scheduled snapshot)
-
-facade.ts
-  ├── poll.ts           (re-exports startScheduler/stopScheduler/restartScheduler/forcePoll)
-  ├── index.ts          (re-exports scheduleEvents/setSchedulerWindow/setTrayTitleCallback)
-  └── state.ts          (re-exports state primitives as needed)
-```
+- Outside scheduler, import from `scheduler/facade.js` only.
+- Inside scheduler, do not import from `facade.js`; that creates cycles.
+- Do not expose raw mutable Maps/Sets outside `state/`.
+- `pollEpoch` guards stale async callbacks after restart/force-poll.
+- `poll.ts` must push renderer event updates only when the event-list hash changes.
+- Browser open goes through `openMeetingUrl()` / `buildMeetUrl()`, never direct shell calls.
+- Alert dismissal must call `cancelPendingBrowserOpen()` so browser auto-open does not still fire.

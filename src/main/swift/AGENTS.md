@@ -1,104 +1,65 @@
-# Swift — Binary Management & Event Parsing
+# Swift Integration
 
-Manages the Swift EventKit helper binary lifecycle and parses its output into typed data structures.
+Runtime compilation and parsing layer for the macOS EventKit helper. Source lives at `src/main/googlemeet-events.swift`; TypeScript in this directory finds, compiles, caches, executes, and validates its tab-delimited output.
 
-## FILES
+## Files
 
-| File                   | Role                                                                   |
-| ---------------------- | ---------------------------------------------------------------------- |
-| `binary-manager.ts`    | Orchestration: `ensureBinary()`, `runSwiftHelper()`, re-exports        |
-| `binary-cache.ts`      | Cache paths, hash compute/verify, Swift source resolution, secure dir  |
-| `binary-compiler.ts`   | swiftc invocation, retry with exponential backoff (5 retries, 1s→30s)  |
-| `event-parser.ts`      | `parseEvents()`, `ParseResult`, re-exports from sub-modules            |
-| `event-field-parser.ts`| Per-field extractors (uid, title, url, dates, allDay, email, notes)    |
-| `event-validator.ts`   | ISO parsing, diagnostics, Swift error classification (`classifySwiftError`) |
-| `guards.ts`            | Runtime type guards for Swift output fields, eliminates unsafe `as` casts |
-| `calendar-watch-sidecar.ts`| Swift `--watch` mode process manager: spawn, crash recovery (exp backoff, 5 retries), graceful shutdown |
+| File | Role |
+| --- | --- |
+| `binary-manager.ts` | Locate Swift source, coordinate cache/compile, run helper. |
+| `binary-cache.ts` | Hash Swift source and manage `/tmp/googlemeet/` binary/cache paths. |
+| `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
+| `calendar-watch-sidecar.ts` | Sidecar process used by calendar change watching. |
+| `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
+| `event-field-parser.ts` | Parse individual tab-delimited fields and optional values. |
+| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `AppError`. |
+| `guards.ts` | Swift helper type guards and validation helpers. |
 
-## BINARY LIFECYCLE
+## Binary cache
 
-```
-runSwiftHelper()  →  ensureBinary()  →  binary-cache: check hash
-                                      → binary-compiler: compile if needed (5 retries, exp backoff)
-                                      → execute binary, verify stdout
-```
+- Cache dir: `/tmp/googlemeet/` with mode `0o700`.
+- Binary: `/tmp/googlemeet/googlemeet-events`.
+- Hash sidecar: `/tmp/googlemeet/source.hash`.
+- Recompile when source hash changes or binary is missing.
+- Compile with arch-aware target and optimization flags (`-Osize`, `-whole-module-optimization`); optional strip after compile.
+- Compile/run retries use exponential backoff, 5 attempts, up to 30s.
 
-1. Cache directory created with mode `0o700` (owner-only)
-2. Hash stored alongside binary (`source.hash`) — recompiles on source change only
-3. Binary hash verified before execution; recompiled on mismatch
-4. On compile timeout: SIGTERM → 5s grace → SIGKILL
-5. 5 retries with exponential backoff (1s→30s)
+## Source paths
 
-### Path Resolution
+- Development/bundled main path: `SWIFT_SRC_DEV` resolves `../..` from `lib/main/index.cjs` back to project root, then `src/main/googlemeet-events.swift`.
+- Packaged path: `process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift`.
+- `electron-builder.yml` must keep Swift source in `asarUnpack`; `swiftc` cannot read from ASAR.
 
-```
-Dev:   lib/main/index.cjs → __dirname → ../../src/main/googlemeet-events.swift
-Prod:  process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift
-```
+Do not change these paths without verifying both `bun run dev` and packaged `electron-builder --mac --dir` layout.
 
-**CRITICAL**: `SWIFT_SRC_DEV` uses `../..` (2 levels up from `lib/main/`), NOT `../../..`. The rslib bundler flattens `src/main/swift/` into `lib/main/index.cjs`, reducing directory depth by 1 level.
+## Swift protocol
 
-### Compilation (binary-compiler.ts)
-
-- Architecture-aware target: `arm64-apple-macosx11.0` or `x86_64-apple-macosx11.0`
-- Flags: `-Osize -whole-module-optimization`
-- Fallback with explicit SDK path for CI environments
-- `strip -x -S` removes debug symbols (optional)
-
-## WATCH MODE (calendar-watch-sidecar.ts)
-
-The Swift helper supports a `--watch` mode that runs indefinitely, subscribing to `EKEventStoreChangedNotification` instead of making a one-shot fetch. This replaces the legacy `fs.watch` on `~/Library/Calendars` (which is empty on modern macOS).
+Output is one event per line, 9 tab-delimited fields:
 
 ```
-startWatchSidecar(onChange)  →  ensureBinary()  →  spawn(BINARY_PATH, [--watch])
-                                  → stdout: CHANGED (1s Swift-side debounce)
-                                  → debounce 2s → onChange()
-                                  → on crash: exponential backoff restart (1s→16s, 5 retries)
-
-stopWatchSidecar()  →  SIGTERM → 5s grace → SIGKILL
+uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes
 ```
 
-- **Notification**: `EKEventStoreChanged` on EKEventStore — fires for any calendar mutation (add, edit, delete)
-- **Debounce**: 1s in Swift (coalesce rapid EKEventStore bursts), 2s in Node.js (coalesce CHANGED lines)
-- **Exit**: stdin close (parent process death) → clean `exit(0)`
-- **Restart**: exponential backoff 1s→2s→4s→8s→16s, capped at 30s, max 5 retries
-- **Shutdown**: `stopped` flag suppresses restarts, SIGTERM → 5s grace → SIGKILL (timer unref'd)
+Exit codes:
 
-## PARSING (event-parser.ts + event-field-parser.ts + event-validator.ts)
+| Code | Meaning |
+| --- | --- |
+| `0` | Success. |
+| `2` | Calendar permission denied. |
+| `3` | No calendars. |
+| `4` | Runtime/helper error. |
 
-`parseEvents(raw: string): ParseResult`
+## Parsing rules
 
-Where `ParseResult = { events: MeetingEvent[]; diagnostics: ParseDiagnostic[] }`.
+- `uid` → `EventId` via `asEventId()`.
+- `startISO` / `endISO` → `IsoUtc` via `asIsoUtc()`.
+- `url` → `MeetUrl` via structural `asMeetUrl()` only; host allowlist is enforced later at egress.
+- Empty optional fields become `undefined`; all-day field parses to boolean.
+- Invalid lines are rejected through typed errors; do not silently drop malformed rows unless existing parser tests specify that behavior.
 
-- `ParseDiagnostic` has `line`, `reason` (`malformed_field_count`, `invalid_iso`, etc.), `raw`
-- **URL extraction**: Two regex patterns in Swift (`googlemeet-events.swift`) — Google Meet (`https://meet\\.google\\.com/...`) and Zoom (`https://(?:[a-zA-Z0-9-]+\\.)*zoom\\.us/...`). Zoom tried first, then Google Meet.
-- Splits on newlines → tab-delimited fields (9 required, strict)
-- Branded outputs: `EventId`, `MeetUrl`, `IsoUtc` via validators from `shared/brand.ts`
-- Filters: valid dates, today+tomorrow only, deduplicates by UID, sorts by startDate ascending
+## Rules
 
-`cleanDescription(notes: string): string`
-
-- Strips HTML tags from CalDAV-synced event notes via `stripHtmlTags()`
-- Strips Outlook/Exchange HTML-to-plaintext border artifacts
-- Removes long separator lines (underscores, dashes, asterisks)
-
-**Swift exit codes**: 0=success, 2=permission denied, 3=no calendars, 4=error. `classifySwiftError()` in `event-validator.ts` maps exit codes to typed `SwiftHelperError`.
-
-**AppError mapping**: `SwiftHelperError.toAppError()` maps exit codes 2/3/4 to `AppError` discriminated union variants (`swift-permission-denied`, `swift-no-calendars`, `swift-runtime`). See `src/shared/errors.ts` for the full AppError taxonomy.
-
-## TYPE GUARDS (guards.ts)
-
-Runtime narrowing functions:
-
-- `isObjectRecord(v)`: validates plain object
-- `isExecErrorLike(v)`: validates exec error shape
-- `getErrorStderr(v)`: safe stderr extraction
-- `isStringTupleOfLength<N>(arr, n)`: recursive `BuildStringTuple` for `noUncheckedIndexedAccess`
-
-Eliminates unsafe `as` casts from `event-parser.ts` and `calendar.ts`.
-
-## ANTI-PATTERNS
-
-- Never bundle Swift source inside ASAR — `swiftc` cannot read from ASAR archives (`asarUnpack` in electron-builder.yml)
-- Never change `SWIFT_SRC_DEV` relative path without verifying bundled output resolution from `lib/main/index.cjs`
-- Never silently suppress `.catch(() => {})` on binary operations, log or propagate errors
+- Do not import Electron/window/scheduler modules here; this is a leaf used by `domain/calendar.ts`.
+- Keep Swift stdout/stderr and exit-code handling mapped into `CalendarResult` / `AppError` taxonomy.
+- Do not suppress compile/run errors with empty catches.
+- Tests must mock `node:child_process` with `promisify.custom` because production uses promisified `execFile`.
