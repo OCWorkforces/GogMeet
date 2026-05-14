@@ -8,7 +8,6 @@ import { parseEvents } from "../swift/event-parser.js";
 import { SwiftHelperError } from "../swift/event-validator.js";
 import { getErrorStderr } from "../swift/guards.js";
 
-
 const execFileAsync = promisify(execFile);
 
 let cachedPermissionStatus: CalendarPermission | null = null;

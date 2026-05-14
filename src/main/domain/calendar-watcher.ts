@@ -1,9 +1,5 @@
 import { forcePoll } from "../scheduler/facade.js";
-import {
-  startWatchSidecar,
-  stopWatchSidecar,
-} from "../swift/calendar-watch-sidecar.js";
-
+import { startWatchSidecar, stopWatchSidecar } from "../swift/calendar-watch-sidecar.js";
 
 let started = false;
 

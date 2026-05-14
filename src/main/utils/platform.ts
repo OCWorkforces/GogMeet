@@ -9,11 +9,7 @@
 export type MeetingPlatform = "google-meet" | "zoom";
 
 /** Google Meet hostnames (exact match — from MEETING_URL_ALLOWLIST). */
-const GOOGLE_HOSTNAMES = new Set([
-  "meet.google.com",
-  "calendar.google.com",
-  "accounts.google.com",
-]);
+const GOOGLE_HOSTNAMES = new Set(["meet.google.com", "calendar.google.com", "accounts.google.com"]);
 
 /** Zoom hostname suffix for wildcard subdomain matching. */
 const ZOOM_HOSTNAME_SUFFIX = ".zoom.us";
@@ -43,10 +39,7 @@ export function detectPlatform(url: string): MeetingPlatform | undefined {
   }
 
   // Zoom: apex or wildcard subdomain
-  if (
-    hostname === ZOOM_APEX_HOSTNAME ||
-    hostname.endsWith(ZOOM_HOSTNAME_SUFFIX)
-  ) {
+  if (hostname === ZOOM_APEX_HOSTNAME || hostname.endsWith(ZOOM_HOSTNAME_SUFFIX)) {
     return "zoom";
   }
 

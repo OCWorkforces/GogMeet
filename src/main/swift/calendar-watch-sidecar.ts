@@ -20,9 +20,7 @@ let onChangeCallback: (() => void) | null = null;
 function scheduleRestart(): void {
   if (stopped) return;
   if (retryCount >= MAX_RETRIES) {
-    console.error(
-      `[calendar-watch-sidecar] Giving up after ${MAX_RETRIES} restart attempts`,
-    );
+    console.error(`[calendar-watch-sidecar] Giving up after ${MAX_RETRIES} restart attempts`);
     return;
   }
   const delay = Math.min(1000 * 2 ** retryCount, BACKOFF_MAX_MS);
@@ -99,9 +97,7 @@ function spawnChild(): void {
     if (code === 0) {
       console.warn("[calendar-watch-sidecar] Process exited cleanly (code 0) — restarting");
     } else {
-      console.error(
-        `[calendar-watch-sidecar] Process exited with code=${code} signal=${signal}`,
-      );
+      console.error(`[calendar-watch-sidecar] Process exited with code=${code} signal=${signal}`);
     }
     scheduleRestart();
   });

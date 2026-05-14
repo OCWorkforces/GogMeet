@@ -1,6 +1,6 @@
+import type { BrowserWindow } from "electron";
 import {
   Tray,
-  BrowserWindow,
   nativeImage,
   nativeTheme,
   Menu,
@@ -27,7 +27,6 @@ let themeListener: (() => void) | null = null;
 let meetingsListener: ((events: MeetingEvent[]) => void) | null = null;
 
 let beforeQuitRegistered = false;
-
 
 export function setupTray(mainWindow: BrowserWindow): void {
   // In dev:      __dirname = lib/main/   → ../../src/assets
@@ -124,7 +123,6 @@ export function destroyTray(): void {
 
 /** Max characters to show for the event title portion of the tray label */
 const TRAY_TITLE_MAX_CHARS = 12;
-
 
 /**
  * Update the tray status bar title next to the icon.
