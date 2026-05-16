@@ -1,147 +1,201 @@
 # GogMeet
 
-It's a macOS tray app for Google Meet calendar reminders. Fetches events from macOS Calendar via EventKit and auto-opens meetings in your browser 1 minute before they start.
+GogMeet is a macOS menu bar app that watches your macOS Calendar for online meetings and helps you join on time. It reads Calendar events through a Swift EventKit helper, shows upcoming meetings from the tray, auto-opens meeting links before start time, and can show a dedicated alert window for imminent meetings.
 
 ## Features
 
-- **Tray-native** — Lives in the menu bar, no Dock icon
-- **Calendar integration** — Reads Google Meet events from macOS Calendar via Swift EventKit
-- **Auto-launch** — Opens meeting URLs automatically (configurable 1-5 minutes before start)
-- **Launch at Login** — Optionally start GogMeet automatically when you log in to macOS
-- **Settings UI** — Configure auto-open timing, login preferences, and display options via native macOS settings window
-- **Popover UI** — Click the tray icon to see upcoming meetings
-- **Tomorrow's Meetings** — Toggle to show or hide tomorrow's meetings in the popover
-- **Full-screen Alerts** — Shows full-screen overlay before meeting (configurable via windowAlert setting)
-- **Auto-updates** — Automatically updates the app when new versions are released
-- **Global Shortcut** — Press Cmd+Shift+M to join the next upcoming meeting
+- **Menu bar first** — runs as a tray-only macOS app with no Dock icon during normal use.
+- **macOS Calendar integration** — fetches today's and tomorrow's events from EventKit and ignores cancelled or declined meetings.
+- **Meeting link detection** — extracts Google Meet, Zoom, and Calendly links from event URL, location, or notes fields.
+- **Safe URL opening** — only opens allowlisted HTTPS meeting hosts; Google Meet receives `authuser=<email>` and Zoom receives `uname=<email>` when the Calendar account email is available.
+- **Configurable auto-open** — opens browser links 1–5 minutes before non-all-day meetings.
+- **Alert window** — optionally shows a secure alert window shortly before a meeting; dismissing the alert cancels that meeting's pending browser auto-open.
+- **Tray meeting list** — click the tray icon to view cached upcoming meetings, manually refresh, open settings, or view app info.
+- **Tray countdowns** — displays pre-meeting and in-meeting countdown text beside the tray icon.
+- **Tomorrow toggle** — show or hide tomorrow's meetings in the tray popover.
+- **Launch at login** — optional macOS login item support.
+- **Global shortcut** — press `Cmd+Shift+M` to join the next upcoming meeting with a URL.
+- **Auto-updates** — packaged builds check GitHub Releases through `electron-updater` and install downloaded updates on quit.
 
 ## Screenshots
 
 ![Settings](assets/setting-page.png)
 
-_Configure how many minutes before a meeting to auto-open the browser (1-5 minutes)_
+_Configure auto-open timing, launch at login, tomorrow's meetings, and alert behavior._
 
 ## Download
 
-Download the latest release from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
+Download the latest packaged build from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
 
 ## Requirements
 
-- macOS (Apple Silicon)
-- Bun 1.3.11+ or Node.js 20.0.0+
+### Running the app
+
+- macOS 11.0 or newer.
+- Calendar access permission for GogMeet.
+- A Calendar account that contains Google Meet, Zoom, or Calendly URLs.
+
+### Developing or packaging
+
+- macOS with Xcode Command Line Tools available (`swiftc`, `codesign`).
+- Node.js `>=20.0.0`.
+- Bun `>=1.3.12` (`packageManager: bun@1.3.14`).
 
 ## Development
 
+Install dependencies:
+
 ```bash
 bun install
-bun run dev          # Start dev server + Electron
-bun run build        # Build all processes
-bun run test         # Run test suite (125 tests)
-bun run typecheck    # TypeScript check
 ```
 
-## Build & Installation
-
-### Build DMG
+Common commands:
 
 ```bash
-# Build DMG with environment suffix
-./build-macOS-dmg.sh --environment stable
+bun run dev              # Watch main/preload + run renderer dev server + Electron
+bun run build            # Build main, preload, and renderer outputs
+bun run build:main       # Build Electron main process with Rslib
+bun run build:preload    # Build sandboxed preload bundle with Rslib
+bun run build:renderer   # Build renderer pages with Rsbuild
+bun run typecheck        # TypeScript project references check
+bun run test             # Vitest workspace test run
+bun run test:watch       # Vitest watch/UI workflow
+bun run test:coverage    # Vitest coverage with v8
+bun run lint             # ESLint over src/
+bun run format:check     # Prettier check for src/**/*.{ts,css}
+bun run format           # Prettier write for src/**/*.{ts,css}
+bun run clean            # Remove lib/ and dist/
+```
 
-# Build DMG without suffix (default)
-./build-macOS-dmg.sh
+## Architecture
 
-# Show help
+GogMeet is an Electron app split into strict process boundaries:
+
+| Area     | Source                 | Output                  | Purpose                                                                                     |
+| -------- | ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| Main     | `src/main/index.ts`    | `lib/main/index.cjs`    | App lifecycle, tray, scheduler, secure windows, IPC handlers, Calendar/EventKit integration |
+| Preload  | `src/preload/index.ts` | `lib/preload/index.cjs` | Sandboxed `window.api` context bridge                                                       |
+| Renderer | `src/renderer/`        | `lib/renderer/`         | Vanilla TypeScript UI for popover, settings, and alert pages                                |
+| Shared   | `src/shared/`          | Bundled into consumers  | Branded types, settings, IPC contracts, errors, and pure utilities                          |
+
+Key runtime pieces:
+
+- `src/main/domain/calendar.ts` calls the Swift integration and returns typed `CalendarResult` values.
+- `src/main/googlemeet-events.swift` queries EventKit for a two-day range starting today and prints 9 tab-delimited fields per event.
+- `src/main/swift/` compiles and caches the Swift helper in `/tmp/googlemeet/`, keyed by the Swift source hash.
+- `src/main/scheduler/facade.ts` is the public scheduler API. Polling runs every 2 minutes on AC power and every 4 minutes on battery; force polls coalesce within 10 seconds.
+- `src/main/scheduler/` schedules browser-open timers, alert timers, and tray countdowns.
+- `src/main/utils/url-validation.ts` owns the meeting URL allowlist.
+- `src/main/utils/browser-window.ts` centralizes secure BrowserWindow defaults (`sandbox`, `contextIsolation`, no Node integration).
+
+## Settings
+
+Defaults live in `src/shared/settings.ts`:
+
+| Setting                | Default | Notes                                                      |
+| ---------------------- | ------- | ---------------------------------------------------------- |
+| `openBeforeMinutes`    | `1`     | Browser auto-open offset, clamped to 1–5 minutes           |
+| `launchAtLogin`        | `false` | Syncs to macOS login items                                 |
+| `showTomorrowMeetings` | `true`  | Controls whether tomorrow's events appear in the tray list |
+| `windowAlert`          | `true`  | Enables the pre-meeting alert window                       |
+
+## Calendar and permissions
+
+On first use, GogMeet requests Calendar access. If permission is denied, meeting fetching will return a typed Calendar error and the UI will show the permission state.
+
+The Swift helper protocol is intentionally simple:
+
+```text
+uid<TAB>title<TAB>startISO<TAB>endISO<TAB>url<TAB>calName<TAB>allDay<TAB>email<TAB>notes
+```
+
+Swift helper exit codes:
+
+| Code | Meaning                    |
+| ---- | -------------------------- |
+| `0`  | Success                    |
+| `2`  | Calendar permission denied |
+| `3`  | No calendars available     |
+| `4`  | Runtime/helper error       |
+
+## Packaging
+
+Build packaged macOS artifacts with Electron Builder:
+
+```bash
+bun run package      # Build + package DMG and ZIP targets
+bun run package:dir  # Build + create unpacked macOS app directory
+```
+
+`electron-builder.yml` packages DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it.
+
+There is also a local Apple Silicon DMG helper:
+
+```bash
+./build-macOS-dmg.sh                    # Build an arm64 DMG
+./build-macOS-dmg.sh --environment beta  # Append an environment suffix to the DMG filename
 ./build-macOS-dmg.sh --help
 ```
 
-The script will:
+The helper script installs dependencies, cleans `dist/`, builds the app, packages an arm64 DMG, signs with a Developer ID certificate when available, and falls back to ad-hoc signing otherwise.
 
-1. Clean the `dist/` directory
-2. Build all TypeScript sources (main, preload, renderer)
-3. Package the app into a DMG for macOS arm64
-4. Sign the app (Developer ID if available, otherwise ad-hoc)
-5. Append environment suffix to filename (if `--environment` provided)
+## Release and CI
 
-Output examples:
+- PR checks run on macOS for pushes and pull requests to `develop` and `main`:
+  - `bun run typecheck`
+  - `bun run test`
+  - `bun run test:coverage`
+- Releases run on pushes to `main` and `v*` tags. The workflow builds, creates a version tag from `package.json` when needed, packages the app, and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases.
+- Notarization reads `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_PASSWORD` when present.
 
-- With `--environment stable`: `dist/GogMeet-1.6.1-arm64-stable.dmg`
-- Without flag: `dist/GogMeet-1.6.1-arm64.dmg`
+## Troubleshooting
 
-### Install to Applications
+### macOS blocks the app
 
-1. Open the DMG file from `dist/`
-2. Drag **GogMeet.app** to the **Applications** folder
-3. Eject the DMG
-
-### Troubleshooting Security Warnings
-
-If macOS blocks the app with "cannot be opened because it is from an unidentified developer":
-
-**Option 1: Remove quarantine (recommended for ad-hoc signed builds)**
+Ad-hoc signed local builds can be blocked by Gatekeeper. After copying the app to `/Applications`, either use **System Settings → Privacy & Security → Open Anyway** or remove quarantine:
 
 ```bash
 sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 ```
 
-**Option 2: System Settings**
+### Calendar events do not appear
 
-1. Open **System Settings** → **Privacy & Security**
-2. Scroll down to find the security warning
-3. Click **Open Anyway**
-4. Confirm by clicking **Open** in the dialog
-
-**Option 3: Right-click open**
-
-1. Right-click (or Control-click) on **GogMeet.app**
-2. Select **Open** from the context menu
-3. Click **Open** in the confirmation dialog
-
-### App Won't Start / Crashes on Launch
-
-If the app crashes or won't start:
-
-1. **Check Console logs:**
+1. Confirm Calendar permission in **System Settings → Privacy & Security → Calendars**.
+2. Make sure the event contains a supported meeting URL in the event URL, location, or notes field.
+3. Click the tray icon and use refresh/retry to force a poll.
+4. Check logs:
 
    ```bash
    log stream --predicate 'process == "GogMeet"' --level debug
    ```
 
-2. **Verify architecture:** Ensure you're on Apple Silicon (arm64)
+### Local packaged build crashes on launch
 
-   ```bash
-   uname -m  # should output "arm64"
-   ```
-
-3. **Re-sign the app bundle:**
+1. Confirm Xcode Command Line Tools are installed for `swiftc` and `codesign`.
+2. If the build was ad-hoc signed, re-sign the copied app bundle:
 
    ```bash
    codesign --force --deep --sign - "/Applications/GogMeet.app"
    ```
 
-4. **Check Calendar permissions:** On first launch, macOS will prompt for Calendar access. Grant permission for the app to function.
-
-5. **Remove and reinstall:**
-   ```bash
-   rm -rf "/Applications/GogMeet.app"
-   # Reinstall from DMG
-   ```
+3. Remove and reinstall the app from a fresh DMG if needed.
 
 ## Tech Stack
 
-| Layer    | Tech            |
-| -------- | --------------- |
-| Runtime  | Electron 41     |
-| Language | TypeScript 6.0  |
-| Build    | Rslib + Rsbuild |
-| Package  | Bun             |
-| Calendar | Swift EventKit  |
-| Test     | Vitest 4        |
+| Layer           | Tech                      |
+| --------------- | ------------------------- |
+| Runtime         | Electron `^42.1.0`        |
+| Language        | TypeScript `^6.0.3`       |
+| Build           | Rslib + Rsbuild           |
+| Package manager | Bun `1.3.14`              |
+| Calendar        | Swift EventKit helper     |
+| Tests           | Vitest `^4.1.6` workspace |
+| Logging         | `electron-log`            |
+| Updates         | `electron-updater`        |
 
 ## Contact
 
-If you have any questions or encounter issues, feel free to reach out to [kennydizi@ocworkforces.com](mailto:kennydizi@ocworkforces.com)
-
+For questions or issues, contact [kennydizi@ocworkforces.com](mailto:kennydizi@ocworkforces.com).
 
 ## License
 
