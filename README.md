@@ -1,31 +1,31 @@
 # GogMeet
 
-GogMeet is a macOS menu bar app that watches your macOS Calendar for online meetings and helps you join on time. It reads Calendar events through a Swift EventKit helper, shows upcoming meetings from the tray, auto-opens meeting links before start time, and can show a dedicated alert window for imminent meetings.
+GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your macOS Calendar through a Swift EventKit helper, lists upcoming meetings from the tray, opens meeting links before they start, and can show a focused alert window when a meeting is close.
 
 ## Features
 
-- **Menu bar first** — runs as a tray-only macOS app with no Dock icon during normal use.
-- **macOS Calendar integration** — fetches today's and tomorrow's events from EventKit and ignores cancelled or declined meetings.
-- **Meeting link detection** — extracts Google Meet, Zoom, and Calendly links from event URL, location, or notes fields.
-- **Safe URL opening** — only opens allowlisted HTTPS meeting hosts; Google Meet receives `authuser=<email>` and Zoom receives `uname=<email>` when the Calendar account email is available.
-- **Configurable auto-open** — opens browser links 1–5 minutes before non-all-day meetings.
-- **Alert window** — optionally shows a secure alert window shortly before a meeting; dismissing the alert cancels that meeting's pending browser auto-open.
-- **Tray meeting list** — click the tray icon to view cached upcoming meetings, manually refresh, open settings, or view app info.
-- **Tray countdowns** — displays pre-meeting and in-meeting countdown text beside the tray icon.
-- **Tomorrow toggle** — show or hide tomorrow's meetings in the tray popover.
-- **Launch at login** — optional macOS login item support.
-- **Global shortcut** — press `Cmd+Shift+M` to join the next upcoming meeting with a URL.
-- **Auto-updates** — packaged builds check GitHub Releases through `electron-updater` and install downloaded updates on quit.
+- Runs from the macOS menu bar without a Dock icon during normal use.
+- Reads today's and tomorrow's Calendar events from EventKit, skipping cancelled and declined meetings.
+- Finds Google Meet, Zoom, and Calendly links in an event's URL, location, or notes.
+- Opens only allowlisted HTTPS meeting hosts. Google Meet gets `authuser=<email>` and Zoom gets `uname=<email>` when the Calendar account email is available.
+- Opens browser links 1 to 5 minutes before non-all-day meetings.
+- Shows an optional secure alert window shortly before a meeting. Dismissing the alert cancels that meeting's pending browser auto-open.
+- Shows cached upcoming meetings from the tray popover, with manual refresh, settings, and app info.
+- Displays pre-meeting and in-meeting countdown text beside the tray icon.
+- Lets you show or hide tomorrow's meetings in the tray popover.
+- Can register itself as a macOS login item.
+- Opens the next upcoming meeting with a URL when you press `Cmd+Shift+M`.
+- Checks GitHub Releases for packaged app updates through `electron-updater` and installs downloaded updates on quit.
 
 ## Screenshots
 
 ![Settings](assets/setting-page.png)
 
-_Configure auto-open timing, launch at login, tomorrow's meetings, and alert behavior._
+_Settings for auto-open timing, launch at login, tomorrow's meetings, and alert behavior._
 
 ## Download
 
-Download the latest packaged build from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
+Grab the latest packaged build from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
 
 ## Requirements
 
@@ -33,7 +33,7 @@ Download the latest packaged build from the [GitHub Releases page](https://githu
 
 - macOS 11.0 or newer.
 - Calendar access permission for GogMeet.
-- A Calendar account that contains Google Meet, Zoom, or Calendly URLs.
+- A Calendar account with Google Meet, Zoom, or Calendly URLs.
 
 ### Developing or packaging
 
@@ -69,7 +69,7 @@ bun run clean            # Remove lib/ and dist/
 
 ## Architecture
 
-GogMeet is an Electron app split into strict process boundaries:
+GogMeet keeps Electron's main, preload, renderer, and shared code separate:
 
 | Area     | Source                 | Output                  | Purpose                                                                                     |
 | -------- | ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
@@ -78,7 +78,7 @@ GogMeet is an Electron app split into strict process boundaries:
 | Renderer | `src/renderer/`        | `lib/renderer/`         | Vanilla TypeScript UI for popover, settings, and alert pages                                |
 | Shared   | `src/shared/`          | Bundled into consumers  | Branded types, settings, IPC contracts, errors, and pure utilities                          |
 
-Key runtime pieces:
+Runtime files worth knowing:
 
 - `src/main/domain/calendar.ts` calls the Swift integration and returns typed `CalendarResult` values.
 - `src/main/googlemeet-events.swift` queries EventKit for a two-day range starting today and prints 9 tab-delimited fields per event.
@@ -101,9 +101,9 @@ Defaults live in `src/shared/settings.ts`:
 
 ## Calendar and permissions
 
-On first use, GogMeet requests Calendar access. If permission is denied, meeting fetching will return a typed Calendar error and the UI will show the permission state.
+GogMeet asks for Calendar access the first time it needs events. If macOS denies permission, the fetch returns a typed Calendar error and the UI shows the permission state.
 
-The Swift helper protocol is intentionally simple:
+The Swift helper prints one event per line with tab-delimited fields:
 
 ```text
 uid<TAB>title<TAB>startISO<TAB>endISO<TAB>url<TAB>calName<TAB>allDay<TAB>email<TAB>notes
@@ -127,7 +127,7 @@ bun run package      # Build + package DMG and ZIP targets
 bun run package:dir  # Build + create unpacked macOS app directory
 ```
 
-`electron-builder.yml` packages DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it.
+`electron-builder.yml` creates DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it.
 
 There is also a local Apple Silicon DMG helper:
 
@@ -137,7 +137,7 @@ There is also a local Apple Silicon DMG helper:
 ./build-macOS-dmg.sh --help
 ```
 
-The helper script installs dependencies, cleans `dist/`, builds the app, packages an arm64 DMG, signs with a Developer ID certificate when available, and falls back to ad-hoc signing otherwise.
+The helper script installs dependencies, cleans `dist/`, builds the app, packages an arm64 DMG, signs with a Developer ID certificate when one is available, and uses ad-hoc signing otherwise.
 
 ## Release and CI
 
@@ -145,14 +145,14 @@ The helper script installs dependencies, cleans `dist/`, builds the app, package
   - `bun run typecheck`
   - `bun run test`
   - `bun run test:coverage`
-- Releases run on pushes to `main` and `v*` tags. The workflow builds, creates a version tag from `package.json` when needed, packages the app, and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases.
+- Releases run on pushes to `main` and `v*` tags. The workflow builds the app, creates a version tag from `package.json` when needed, packages the app, and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases.
 - Notarization reads `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_PASSWORD` when present.
 
 ## Troubleshooting
 
 ### macOS blocks the app
 
-Ad-hoc signed local builds can be blocked by Gatekeeper. After copying the app to `/Applications`, either use **System Settings → Privacy & Security → Open Anyway** or remove quarantine:
+Gatekeeper can block ad-hoc signed local builds. After copying the app to `/Applications`, use **System Settings → Privacy & Security → Open Anyway** or remove quarantine:
 
 ```bash
 sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
@@ -180,7 +180,7 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 
 3. Remove and reinstall the app from a fresh DMG if needed.
 
-## Tech Stack
+## Tech stack
 
 | Layer           | Tech                      |
 | --------------- | ------------------------- |
