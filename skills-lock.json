@@ -13,6 +13,12 @@
       "skillPath": "skills/ccc/SKILL.md",
       "computedHash": "8816c000c28cf85fba47a7713c02bae5a7af3d69c230ba0be97db3d01ffc27a4"
     },
+    "humanizer": {
+      "source": "blader/humanizer",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "b813857f183da05d08d5a80adac671df94c139f855809bd47ab8b7bb245546a2"
+    },
     "subagent-driven-development": {
       "source": "obra/superpowers",
       "sourceType": "github",
