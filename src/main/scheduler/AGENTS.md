@@ -4,31 +4,31 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 
 ## Files
 
-| File | Role |
-| --- | --- |
-| `facade.ts` | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
-| `index.ts` | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning. |
-| `poll.ts` | Fetches calendar, hashes event list, emits `meeting-list-updated`, pushes `CALENDAR_EVENTS_UPDATED`. |
-| `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden. |
-| `browser-timer.ts` | Browser-open timer and notification trigger. |
-| `alert-timer.ts` | Full-screen alert timer: 60s after the browser-open offset (`openBeforeMinutes - 1`, clamped at now). |
-| `title-countdown.ts` | 30-minute tray title window and cancelled-title tracking. |
-| `countdown.ts` | In-meeting title countdown and active event resolution. |
+| File                 | Role                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `facade.ts`          | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
+| `index.ts`           | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning.                                                                                                      |
+| `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, pushes `CALENDAR_EVENTS_UPDATED`.                                                                           |
+| `state/`             | Internal sliced state; see `state/AGENTS.md`. External imports forbidden.                                                                                                      |
+| `browser-timer.ts`   | Browser-open timer and notification trigger.                                                                                                                                   |
+| `alert-timer.ts`     | Full-screen alert timer: 60s after the browser-open offset (`openBeforeMinutes - 1`, clamped at now).                                                                          |
+| `title-countdown.ts` | 30-minute tray title window and cancelled-title tracking.                                                                                                                      |
+| `countdown.ts`       | In-meeting title countdown and active event resolution.                                                                                                                        |
 
 ## Public API (`facade.ts` only)
 
-| Function | Contract |
-| --- | --- |
-| `startScheduler()` | Bumps `pollEpoch`, runs initial `poll()`, arms recursive polling timeout. |
-| `stopScheduler()` | Cancels pending force poll, resets resources preserving window, clears tray title. |
-| `restartScheduler()` | Stop then start; used for settings changes and wake events. |
-| `forcePoll()` | Immediate poll with 10s completed-poll coalescing; deferred extra request fires once. |
-| `setSchedulerWindow(w)` | Injects BrowserWindow for typed push channels. |
-| `setTrayTitleCallback(fn)` | Injects tray title updater; scheduler never imports tray. |
-| `initPowerCallbacks(callbacks)` | Injects poll interval and sleep-prevention hooks from `system/power.ts`. |
-| `getLastKnownEvents()` | Returns last calendar result for global shortcut logic. |
-| `cancelPendingBrowserOpen(id)` | Cancels browser timer and marks event fired after alert dismissal. |
-| `_resetForceTestState()` | Test-only reset for facade coalescing timers. |
+| Function                        | Contract                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| `startScheduler()`              | Bumps `pollEpoch`, runs initial `poll()`, arms recursive polling timeout.             |
+| `stopScheduler()`               | Cancels pending force poll, resets resources preserving window, clears tray title.    |
+| `restartScheduler()`            | Stop then start; used for settings changes and wake events.                           |
+| `forcePoll()`                   | Immediate poll with 10s completed-poll coalescing; deferred extra request fires once. |
+| `setSchedulerWindow(w)`         | Injects BrowserWindow for typed push channels.                                        |
+| `setTrayTitleCallback(fn)`      | Injects tray title updater; scheduler never imports tray.                             |
+| `initPowerCallbacks(callbacks)` | Injects poll interval and sleep-prevention hooks from `system/power.ts`.              |
+| `getLastKnownEvents()`          | Returns last calendar result for global shortcut logic.                               |
+| `cancelPendingBrowserOpen(id)`  | Cancels browser timer and marks event fired after alert dismissal.                    |
+| `_resetForceTestState()`        | Test-only reset for facade coalescing timers.                                         |
 
 ## State model
 
@@ -46,7 +46,7 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 - Title countdown window: 30 minutes before start.
 - Schedule-ahead cap: 24 hours.
 - Force-poll coalesce: 10 seconds after last completed poll.
-- Consecutive error threshold is 3; stored counter caps at 4.
+- Consecutive errors trigger handling at threshold 3; stored counter caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4).
 
 ## Rules
 

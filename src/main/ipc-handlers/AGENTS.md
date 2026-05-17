@@ -8,15 +8,15 @@ Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.han
 
 ## FILES
 
-| File | Exports | Role |
-| --- | --- | --- |
-| `shared.ts` | `typedHandle`, `typedSend`, sender validators, window-height bounds | Type-safe IPC wrapper + origin validation. |
-| `app.ts` | `registerAppHandlers` | `APP_OPEN_EXTERNAL` (request `{url: MeetUrl}`, URL-validated), `APP_GET_VERSION`. |
-| `calendar.ts` | `registerCalendarHandlers` | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS`. |
-| `settings.ts` | `registerSettingsHandlers` | `SETTINGS_GET`, `SETTINGS_SET`; restarts scheduler, syncs auto-launch, pushes settings changes. |
-| `window.ts` | `registerWindowHandlers` | `WINDOW_SET_HEIGHT` fire-and-forget; request `{height: WindowHeight}`, clamped 220–480. |
-| `scheduler.ts` | `registerSchedulerHandlers` | `SCHEDULER_FORCE_POLL` fire-and-forget; `validateOnSender` → `void forcePoll()`. |
-| `alert.ts` | `registerAlertHandlers` | `ALERT_DISMISSED` fire-and-forget; validates sender, cancels pending browser open. |
+| File           | Exports                                                             | Role                                                                                                                   |
+| -------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `shared.ts`    | `typedHandle`, `typedSend`, sender validators, window-height bounds | Type-safe IPC wrapper + origin validation.                                                                             |
+| `app.ts`       | `registerAppHandlers`                                               | `APP_OPEN_EXTERNAL` (request `{url: MeetUrl}`, URL-validated), `APP_GET_VERSION`.                                      |
+| `calendar.ts`  | `registerCalendarHandlers`                                          | `CALENDAR_GET_EVENTS`, `CALENDAR_REQUEST_PERMISSION`, `CALENDAR_PERMISSION_STATUS`.                                    |
+| `settings.ts`  | `registerSettingsHandlers`                                          | `SETTINGS_GET`, `SETTINGS_SET`; restarts scheduler, syncs auto-launch, pushes settings changes.                        |
+| `window.ts`    | `registerWindowHandlers`                                            | `WINDOW_SET_HEIGHT` fire-and-forget; request `{height: WindowHeight}` (branded bounded type; clamp remains defensive). |
+| `scheduler.ts` | `registerSchedulerHandlers`                                         | `SCHEDULER_FORCE_POLL` fire-and-forget; `validateOnSender` → `void forcePoll()`.                                       |
+| `alert.ts`     | `registerAlertHandlers`                                             | `ALERT_DISMISSED` fire-and-forget; validates sender, cancels pending browser open.                                     |
 
 ## PATTERNS
 
@@ -48,26 +48,26 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 
 ## CHANNEL→HANDLER MAP
 
-| Channel                       | Handler File | Type                                          |
-| ----------------------------- | ------------ | --------------------------------------------- |
+| Channel                       | Handler File | Type                                                                    |
+| ----------------------------- | ------------ | ----------------------------------------------------------------------- |
 | `APP_OPEN_EXTERNAL`           | app.ts       | invoke (request `{url: MeetUrl}`, URL validated via `isAllowedMeetUrl`) |
-| `APP_GET_VERSION`             | app.ts       | invoke                                        |
-| `CALENDAR_GET_EVENTS`         | calendar.ts  | invoke                                        |
-| `CALENDAR_REQUEST_PERMISSION` | calendar.ts  | invoke                                        |
-| `CALENDAR_PERMISSION_STATUS`  | calendar.ts  | invoke                                        |
-| `SETTINGS_GET`                | settings.ts  | invoke                                        |
-| `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                       |
-| `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (request `{height: WindowHeight}`, clamped) |
-| `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`          |
-| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget (request `{eventId: EventId}`) |
+| `APP_GET_VERSION`             | app.ts       | invoke                                                                  |
+| `CALENDAR_GET_EVENTS`         | calendar.ts  | invoke                                                                  |
+| `CALENDAR_REQUEST_PERMISSION` | calendar.ts  | invoke                                                                  |
+| `CALENDAR_PERMISSION_STATUS`  | calendar.ts  | invoke                                                                  |
+| `SETTINGS_GET`                | settings.ts  | invoke                                                                  |
+| `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                                                 |
+| `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (request `{height: WindowHeight}`, bounded 220–480)     |
+| `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`                                    |
+| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget (request `{eventId: EventId}`)                          |
 
 Push channels use `typedSend()` from `shared.ts`:
 
-| Channel                    | Source           | Payload                              |
-| -------------------------- | ---------------- | ------------------------------------ |
-| `SETTINGS_CHANGED`         | settings.ts      | push via `typedSend` (`AppSettings`) |
-| `CALENDAR_EVENTS_UPDATED`  | poll.ts          | push via `typedSend` (`MeetingEvent[]`, hash-gated) |
-| `ALERT_SHOW`               | alert-window.ts  | push via `typedSend` (`AlertPayload`)|
+| Channel                   | Source          | Payload                                             |
+| ------------------------- | --------------- | --------------------------------------------------- |
+| `SETTINGS_CHANGED`        | settings.ts     | push via `typedSend` (`AppSettings`)                |
+| `CALENDAR_EVENTS_UPDATED` | poll.ts         | push via `typedSend` (`MeetingEvent[]`, hash-gated) |
+| `ALERT_SHOW`              | alert-window.ts | push via `typedSend` (`AlertPayload`)               |
 
 ## ANTI-PATTERNS
 

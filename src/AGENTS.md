@@ -4,12 +4,12 @@ Application source is split by Electron process. Keep process boundaries strict:
 
 ## Build outputs
 
-| Source | Entry | Output | Runtime |
-| --- | --- | --- | --- |
-| `main/` | `src/main/index.ts` | `lib/main/index.cjs` | Electron main (CJS) |
-| `preload/` | `src/preload/index.ts` | `lib/preload/index.cjs` | sandboxed preload (CJS) |
-| `renderer/` | 3 entries | `lib/renderer/` | BrowserWindow pages (ESM) |
-| `shared/` | imported modules | bundled into consumers | no runtime side effects |
+| Source      | Entry                  | Output                  | Runtime                   |
+| ----------- | ---------------------- | ----------------------- | ------------------------- |
+| `main/`     | `src/main/index.ts`    | `lib/main/index.cjs`    | Electron main (CJS)       |
+| `preload/`  | `src/preload/index.ts` | `lib/preload/index.cjs` | sandboxed preload (CJS)   |
+| `renderer/` | 3 entries              | `lib/renderer/`         | BrowserWindow pages (ESM) |
+| `shared/`   | imported modules       | bundled into consumers  | no runtime side effects   |
 
 ## Directory map
 
@@ -21,15 +21,16 @@ Application source is split by Electron process. Keep process boundaries strict:
 
 ## Where to change things
 
-| Task | Files |
-| --- | --- |
-| Add IPC channel | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer caller |
-| Calendar query/parsing | `main/domain/calendar.ts`, `main/swift/*`, `main/googlemeet-events.swift` |
-| Scheduler behavior | `main/scheduler/facade.ts` and internal scheduler modules only |
-| Settings schema | `shared/settings.ts`, `main/domain/settings.ts`, settings renderer/tests |
-| URL allowlist | `main/utils/url-validation.ts` plus security tests |
-| Browser windows | `main/windows/*` and `main/utils/browser-window.ts` |
-| Renderer HTML | `renderer/rendering/*`, `renderer/utils/escape-html.ts` |
+| Task                       | Files                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| Add IPC channel            | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer caller |
+| Calendar query/parsing     | `main/domain/calendar.ts`, `main/swift/*`, `main/googlemeet-events.swift`               |
+| Scheduler behavior         | `main/scheduler/facade.ts` and internal scheduler modules only                          |
+| Settings schema            | `shared/settings.ts`, `main/domain/settings.ts`, settings renderer/tests                |
+| URL allowlist              | `main/utils/url-validation.ts` plus security tests                                      |
+| Meeting platform detection | `main/utils/platform.ts` → `main/utils/meet-url.ts` branching/tests                     |
+| Browser windows            | `main/windows/*` and `main/utils/browser-window.ts`                                     |
+| Renderer HTML              | `renderer/rendering/*`, `renderer/utils/escape-html.ts`                                 |
 
 ## src-local rules
 
