@@ -25,6 +25,7 @@ tests/main/
 ## KEY TEST FILES
 
 ### Scheduler Tests (5 files, ~3000 lines)
+
 `scheduler.test.ts` — 806 lines, state machine A-F groups. Tests timer creation, deduplication, cancellation via `setupSchedulerForEvent`/`teardownEvent`.
 `scheduler-poll.test.ts` — 480 lines, `startScheduler`/`stopScheduler`/`restartScheduler`/`forcePoll`. `FORCE_POLL_COALESCE_MS` = 10s coalescing.
 `scheduler-title-countdown.test.ts` — 802 lines, tray title countdown. `MAX_CONSECUTIVE_ERRORS_CAP` = 4.
@@ -33,18 +34,22 @@ tests/main/
 `scheduler-alert-timer.test.ts` — alert timer, auto-open suppression.
 
 ### Calendar Tests
+
 `calendar.test.ts` — 603 lines. Tests `parseEvents()` with 9-field tab-delimited Swift output, `CalendarResult` discriminated union, `isCalendarOk()`, diagnostics. Swift exit codes: 0=success, 2=permission, 3=no calendars, 4=error.
 
 ### Swift Tests
+
 `swift-binary-manager.test.ts` — 454 lines. Hash-based binary cache in `/tmp/googlemeet/`, architecture-aware compile, retry on failure (5 retries, exp backoff). Mode 0o700.
 `tests/main/swift/event-parser.test.ts` — 358 lines, tab-delimited field parsing, `cleanDescription`, `classifySwiftError`.
 
 ### IPC Tests (9 files)
+
 `ipc.test.ts` — `IpcResponse<T>` discriminated union, `kind: "ok"|"err"` tag.
 `ipc-handlers-*.test.ts` — 6 files, each domain handler tested with `mockIpcInvoke`/`mockIpcSend`.
 `ipc-registrar.test.ts` — `registerIpcHandlers()` calls all register functions.
 
 ### Other Notable
+
 `brand.test.ts` — EventId, MeetUrl, IsoUtc, WindowHeight validators.
 `settings.test.ts` — 204 lines, persistent settings CRUD. `settings-defaults.test.ts` for schema.
 `tray.test.ts` — tray icon rendering, context menu.
@@ -57,20 +62,21 @@ tests/main/
 ## TEST UTILITIES
 
 `tests/helpers/test-utils.ts` — shared factories:
+
 - `createMockEvent()`, `createMockIpcEvent()`
 - `createMockSettings()`, `isoFromNow()`, `asTestEventId()`, `asTestMeetUrl()`, `asTestIsoUtc()`
 
 ## CONVENTIONS
 
 - Each test file mirrors its source file's structure
-- `mockIpcInvoke`/`mockIpcSend` wrappers used instead of raw `ipcMain` manipulation
-- `vi.useFakeTimers()` for scheduler tests; advance with `vi.advanceTimersByTime()`
+- IPC handler tests use `vi.hoisted()` mock objects plus `getRegisteredHandler(channel)` helpers to pull callbacks from `ipcMain.handle` / `ipcMain.on` calls.
+- `mockIpcInvoke`/`mockIpcSend` wrappers used instead of raw `ipcMain` manipulation.
+- Scheduler state-heavy tests rebind live Map/Set refs after `_resetForTest()` via local `refreshStateRefs()`; title-countdown tests instead mutate Maps directly in `beforeEach`.
+- `vi.useFakeTimers()` for scheduler tests; advance with `vi.advanceTimersByTimeAsync()` when promise callbacks may flush.
 - `FORCE_POLL_COALESCE_MS` (10s) factored into poll timing tests
 
 ## ANTI-PATTERNS
 
-- Never mock Electron APIs inline — use `setup.main.ts`
+- Prefer the central Electron mock in `setup.main.ts`; inline `vi.mock("electron", ...)` is only for suites that need isolated module-import behavior.
 - Never skip `validateSender()` verification in IPC handler tests
 - Never test implementation details of `setTimeout` — test observable state changes
-
-

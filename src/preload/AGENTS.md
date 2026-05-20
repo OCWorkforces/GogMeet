@@ -4,10 +4,10 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 
 ## Files
 
-| File | Role |
-| --- | --- |
-| `index.ts` | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type. |
-| `tsconfig.json` | Preload TypeScript project. |
+| File            | Role                                                                   |
+| --------------- | ---------------------------------------------------------------------- |
+| `index.ts`      | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type. |
+| `tsconfig.json` | Preload TypeScript project.                                            |
 
 ## Exposed API
 
@@ -26,13 +26,13 @@ window.api = {
 
 ## Trust-boundary branding
 
-| Renderer input | Validator | Main IPC payload |
-| --- | --- | --- |
-| raw URL string | `brandMeetUrl()` → `MeetUrl | null` | `APP_OPEN_EXTERNAL: { url }` |
+| Renderer input    | Validator                              | Main IPC payload                |
+| ----------------- | -------------------------------------- | ------------------------------- |
+| raw URL string    | `brandMeetUrl()` → `MeetUrl \| null`   | `APP_OPEN_EXTERNAL: { url }`    |
 | raw height number | `clampWindowHeight()` → `WindowHeight` | `WINDOW_SET_HEIGHT: { height }` |
-| alert `EventId` | passthrough from main push | `ALERT_DISMISSED: { id }` |
+| alert `EventId`   | passthrough from main push             | `ALERT_DISMISSED: { id }`       |
 
-`brandMeetUrl(raw)` first calls `asMeetUrl()` for structural validation, then checks hostname against `MEET_URL_ALLOWED_HOSTNAMES` (`meet.google.com`, `calendar.google.com`, `accounts.google.com`). Invalid URLs return `null`; `openExternal()` resolves without invoking IPC.
+`brandMeetUrl(raw)` first calls `asMeetUrl()` for structural validation, then checks hostname against `MEET_URL_ALLOWED_HOSTNAMES` (Google Meet/Calendar/Accounts, Calendly, and Zoom hosts including `.zoom.us` subdomains). Invalid URLs return `null`; `openExternal()` resolves without invoking IPC.
 
 `clampWindowHeight(n)` clamps and rounds into `[220, 480]`; non-finite input becomes the minimum.
 
@@ -42,11 +42,11 @@ window.api = {
 
 Every push subscription returns `() => void` and removes exactly the listener it added:
 
-| Channel | Method | Payload |
-| --- | --- | --- |
+| Channel                   | Method                     | Payload          |
+| ------------------------- | -------------------------- | ---------------- |
 | `CALENDAR_EVENTS_UPDATED` | `calendar.onEventsUpdated` | `MeetingEvent[]` |
-| `SETTINGS_CHANGED` | `settings.onChanged` | `AppSettings` |
-| `ALERT_SHOW` | `alert.onShowAlert` | `AlertPayload` |
+| `SETTINGS_CHANGED`        | `settings.onChanged`       | `AppSettings`    |
+| `ALERT_SHOW`              | `alert.onShowAlert`        | `AlertPayload`   |
 
 Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
 

@@ -1,19 +1,23 @@
 # GogMeet — AGENTS.md
 
+**Generated:** 2026-05-17
+**Commit:** c7dfe57
+**Branch:** develop
+
 macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swift EventKit, auto-opens Meet/Zoom/wrapper URLs 1–5 min before start, full-screen alert overlay, global shortcut (`Cmd+Shift+M`).
 
 ## STACK
 
-| Layer    | Tech                                                              |
-| -------- | ----------------------------------------------------------------- |
-| Runtime  | Electron `^42.0.1` (sandboxed BrowserWindows, contextIsolation)   |
+| Layer    | Tech                                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Electron `^42.1.0` (sandboxed BrowserWindows, contextIsolation)                                                                  |
 | Language | TypeScript `^6.0.3` (`isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`) |
-| Build    | Rslib (main + preload, CJS) + Rsbuild (renderer, ESM, 3 envs)     |
-| Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`); Node `>=20`        |
-| Calendar | Swift EventKit helper (`googlemeet-events.swift`, hash-cached)    |
-| Test     | Vitest `^4.1.6` workspace (main / renderer / shared)              |
-| Logging  | `electron-log` `^5.4.4`                                           |
-| Updates  | `electron-updater` `^6.8.3`                                       |
+| Build    | Rslib (main + preload, CJS) + Rsbuild (renderer, ESM, 3 envs)                                                                    |
+| Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`); Node `>=20`                                                                       |
+| Calendar | Swift EventKit helper (`googlemeet-events.swift`, hash-cached)                                                                   |
+| Test     | Vitest `^4.1.6` workspace (main / renderer / shared)                                                                             |
+| Logging  | `electron-log` `^5.4.4`                                                                                                          |
+| Updates  | `electron-updater` `^6.8.3`                                                                                                      |
 
 Three-process layout: `src/main/` (Electron main), `src/preload/` (context bridge), `src/renderer/` (UI, vanilla TS, 3 entries — popover, settings, alert), `src/shared/` (types-only, `.js` extension imports).
 
@@ -71,7 +75,8 @@ CI (`pr-check`) runs `typecheck` → `test` → `test:coverage`. The release wor
 - Config: `electron-builder.yml` (root). Targets DMG + ZIP for `arm64` and `x64`, macOS 11.0+.
 - `asarUnpack` includes the Swift helper sources.
 - `afterPack`: `build/after-pack.cjs`.
-- `afterSign`: `build/notarize.cjs`. Apple notarization. Reads env vars `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`; skips with a warning if any are missing or platform isn’t `darwin`.
+- `hardenedRuntime: false`, `gatekeeperAssess: false`, `mac.notarize: false`; DMG `sign: false`. Local/CI builds are development-oriented unless signing config changes.
+- `afterSign`: `build/notarize.cjs`. Notarization helper reads `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` and skips with a warning if any are missing or platform isn’t `darwin`; it will not run while `mac.notarize: false` disables notarization in `electron-builder.yml`.
 - Entitlements: `build/entitlements.mac.plist`, `build/entitlements.mac.inherit.plist`.
 - App icon: `build/icon.icns`.
 - Local DMG helper: `./build-macOS-dmg.sh [--environment <name>]`.
