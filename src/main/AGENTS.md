@@ -21,12 +21,12 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 `initializeApp(win)` must keep this order unless tests and startup dependencies are updated:
 
-1. `loadSettings()` warms cache and applies `fullScreenAlert` → `windowAlert` migration.
-2. `registerIpcHandlers(win)` wires invoke/on handlers.
-3. `setupTray(win)` creates the tray and menu subscriptions.
-4. `setTrayTitleCallback(updateTrayTitle)` and `setSchedulerWindow(win)` inject scheduler dependencies.
-5. `initPowerCallbacks(...)` gives scheduler polling/sleep hooks.
-6. Calendar permission check, then `startScheduler()` and `startCalendarWatcher()`.
+1. `ensureBinary()` pre-warms the Swift helper in the background; init does not block on it.
+2. `registerIpcHandlers(win)` wires invoke/on handlers before renderer calls can arrive.
+3. `loadSettings()` and the calendar permission check run in parallel; settings load is critical, permission errors are collected.
+4. `setupTray(win)` creates the tray and menu subscriptions.
+5. `setTrayTitleCallback(updateTrayTitle)`, `setSchedulerWindow(win)`, and `initPowerCallbacks(...)` inject scheduler dependencies.
+6. `startScheduler()` starts polling, then `startCalendarWatcher()` starts the EventKit sidecar.
 7. `initPowerManagement(() => restartScheduler())`, `initPowerEvents()`, `registerShortcuts()`, notification check, auto-launch sync.
 
 `shutdownApp()` cleans power management, stops scheduler, then stops the calendar watcher.
