@@ -28,5 +28,5 @@ Core domain modules: calendar access, change watching, and persistent settings.
 - `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change events. macOS only; no-op elsewhere.
 - `settings.ts` is eager-loaded during lifecycle init **before** `startScheduler()` so the scheduler reads a warm cache on first poll.
 - `loadSettings()` returns `Result<AppSettings, AppError>`; missing file returns `DEFAULT_SETTINGS` via `isEnoent` predicate.
-- `saveSettings()` writes atomically (tmp + rename) to avoid partial JSON.
+- `saveSettings()` writes formatted JSON to the app `userData` settings path and updates the in-memory cache after successful writes.
 - All three files moved here from `src/main/` during the modularity refactor; update import paths accordingly when touching legacy callers.

@@ -1,7 +1,7 @@
 # GogMeet — AGENTS.md
 
-**Generated:** 2026-05-17
-**Commit:** c7dfe57
+**Generated:** 2026-05-21
+**Commit:** 3840808
 **Branch:** develop
 
 macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swift EventKit, auto-opens Meet/Zoom/wrapper URLs 1–5 min before start, full-screen alert overlay, global shortcut (`Cmd+Shift+M`).
@@ -10,12 +10,12 @@ macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swif
 
 | Layer    | Tech                                                                                                                             |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Electron `^42.1.0` (sandboxed BrowserWindows, contextIsolation)                                                                  |
+| Runtime  | Electron `^42.2.0` (sandboxed BrowserWindows, contextIsolation)                                                                  |
 | Language | TypeScript `^6.0.3` (`isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`) |
-| Build    | Rslib (main + preload, CJS) + Rsbuild (renderer, ESM, 3 envs)                                                                    |
+| Build    | Rslib `^0.21.5` (main + preload, CJS) + Rsbuild `^2.0.7` (renderer, ESM, 3 envs)                                                 |
 | Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`); Node `>=20`                                                                       |
 | Calendar | Swift EventKit helper (`googlemeet-events.swift`, hash-cached)                                                                   |
-| Test     | Vitest `^4.1.6` workspace (main / renderer / shared)                                                                             |
+| Test     | Vitest `^4.1.7` workspace (main / renderer / shared)                                                                             |
 | Logging  | `electron-log` `^5.4.4`                                                                                                          |
 | Updates  | `electron-updater` `^6.8.3`                                                                                                      |
 
