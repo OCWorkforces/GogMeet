@@ -146,3 +146,5 @@ opencode.json
 .sisyphus/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+.omo/
+.mnemonics/
