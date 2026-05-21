@@ -18,6 +18,7 @@ vi.mock("electron", () => {
     this.close = mockClose;
     this.setSize = mockSetSize;
     this.setAlwaysOnTop = mockSetAlwaysOnTop;
+    this.setVisibleOnAllWorkspaces = vi.fn();
     this.isDestroyed = mockIsDestroyed;
     this.webContents = {
       send: mockSend,

@@ -108,7 +108,8 @@ function showAlertInternal(event: MeetingEvent): void {
   // Tag the window with its uid so we can coalesce while it's actively showing
   win.__alertUid = event.id;
   win.__alertStartMs = new Date(event.startDate).getTime();
-  win.setAlwaysOnTop(true, "floating");
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   loadWindowContent(win, "alert");
 
