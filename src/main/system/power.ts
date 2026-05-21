@@ -25,6 +25,15 @@ export function initPowerManagement(onChange: () => void): void {
     cachedOnBattery = false;
     onChange();
   });
+  // F4: re-fetch calendar + reschedule timers after sleep/wake or screen unlock.
+  // System timers do not fire reliably across sleep, and screen-lock can suppress
+  // alert visibility — force a poll on resume/unlock so missed meetings surface.
+  powerMonitor.on("resume", () => {
+    onChange();
+  });
+  powerMonitor.on("unlock-screen", () => {
+    onChange();
+  });
 }
 
 /**
@@ -46,6 +55,8 @@ export function initPowerEvents(): void {
 export function cleanupPowerManagement(): void {
   powerMonitor.removeAllListeners("on-battery");
   powerMonitor.removeAllListeners("on-ac");
+  powerMonitor.removeAllListeners("resume");
+  powerMonitor.removeAllListeners("unlock-screen");
 }
 
 let blockerId: number | null = null;
