@@ -42,8 +42,8 @@ export function createTimersState(): TimersState {
   };
 }
 
-/** Clear all timer handles and reset all timer Maps/Sets on the given timers slice. */
-export function clearAllTimers(s: TimersState): void {
+/** Clear only timer handles and reset timer Maps; does not touch fired/cancelled state. */
+export function clearTimerHandles(s: TimersState): void {
   for (const handle of s.timers.values()) clearTimeout(handle);
   s.timers.clear();
 
@@ -66,7 +66,17 @@ export function clearAllTimers(s: TimersState): void {
   s.inMeetingEndTimers.clear();
 
   s.scheduledEventData.clear();
+}
+
+/** Clear fired/cancelled suppression Maps/Set. Use to fully reset suppression on hard stop. */
+export function clearFiredState(s: TimersState): void {
   s.firedEvents.clear();
   s.alertFiredEvents.clear();
   s.cancelledEvents.clear();
+}
+
+/** Clear all timer handles AND fired/cancelled state on the given timers slice. */
+export function clearAllTimers(s: TimersState): void {
+  clearTimerHandles(s);
+  clearFiredState(s);
 }
