@@ -70,22 +70,44 @@ describe("power", () => {
       // Verify cached state was read and updated
       expect(isOnBattery()).toBe(true);
       expect(getPollInterval()).toBe(240_000);
-      // Verify listeners were registered
+      // Verify listeners were registered (F4: resume + unlock-screen added)
       expect(powerMonitor.on).toHaveBeenCalledWith("on-battery", expect.any(Function));
       expect(powerMonitor.on).toHaveBeenCalledWith("on-ac", expect.any(Function));
-      expect(powerMonitor.on).toHaveBeenCalledTimes(2);
+      expect(powerMonitor.on).toHaveBeenCalledWith("resume", expect.any(Function));
+      expect(powerMonitor.on).toHaveBeenCalledWith("unlock-screen", expect.any(Function));
+      expect(powerMonitor.on).toHaveBeenCalledTimes(4);
+    });
+
+    it("invokes onChange when resume event fires (F4: post-sleep poll)", () => {
+      const onChange = vi.fn();
+      initPowerManagement(onChange);
+      const resumeCall = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "resume");
+      expect(resumeCall).toBeDefined();
+      const handler = resumeCall![1] as () => void;
+      handler();
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("invokes onChange when unlock-screen event fires (F4: post-lock poll)", () => {
+      const onChange = vi.fn();
+      initPowerManagement(onChange);
+      const unlockCall = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "unlock-screen");
+      expect(unlockCall).toBeDefined();
+      const handler = unlockCall![1] as () => void;
+      handler();
+      expect(onChange).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("cleanupPowerManagement", () => {
-    it("removes all on-battery and on-ac listeners", () => {
+    it("removes all power listeners (F4: includes resume + unlock-screen)", () => {
       cleanupPowerManagement();
 
-      expect(powerMonitor.removeAllListeners).toHaveBeenCalledWith(
-        "on-battery",
-      );
+      expect(powerMonitor.removeAllListeners).toHaveBeenCalledWith("on-battery");
       expect(powerMonitor.removeAllListeners).toHaveBeenCalledWith("on-ac");
-      expect(powerMonitor.removeAllListeners).toHaveBeenCalledTimes(2);
+      expect(powerMonitor.removeAllListeners).toHaveBeenCalledWith("resume");
+      expect(powerMonitor.removeAllListeners).toHaveBeenCalledWith("unlock-screen");
+      expect(powerMonitor.removeAllListeners).toHaveBeenCalledTimes(4);
     });
   });
 

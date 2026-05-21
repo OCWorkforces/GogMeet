@@ -3,6 +3,7 @@ import {
   type ScheduledEventSnapshot,
   type TimersState,
   clearAllTimers,
+  clearTimerHandles,
   createTimersState,
 } from "./state-timers.js";
 import { type DisplayState, createDisplayState } from "./state-display.js";
@@ -50,13 +51,20 @@ export function incrementConsecutiveErrors(): void {
   setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));
 }
 
-export function clearSchedulerResources(s: SchedulerState): void {
+export function clearSchedulerResources(
+  s: SchedulerState,
+  options?: { preserveFiredState?: boolean },
+): void {
   if (s.pollTimeout !== null) {
     clearTimeout(s.pollTimeout);
     s.pollTimeout = null;
   }
 
-  clearAllTimers(s);
+  if (options?.preserveFiredState === true) {
+    clearTimerHandles(s);
+  } else {
+    clearAllTimers(s);
+  }
 
   s.lastKnownEvents = null;
 }
@@ -159,30 +167,68 @@ export function cancelStaleEntries(
   }
 }
 
-export function replaceState(nextState: SchedulerState): void {
+export function replaceState(
+  nextState: SchedulerState,
+  options?: { preserveFiredState?: boolean },
+): void {
   // Snapshot critical refs BEFORE clearing — clearSchedulerResources() nulls
   // lastKnownEvents, so we must read it (and the runtime callbacks) first.
   const previousWin = state.win;
   const previousCallback = state.onTrayTitleUpdate ?? null;
   const previousPowerCallbacks = state.powerCallbacks ?? null;
   const previousLastKnownEvents = state.lastKnownEvents;
+  // Snapshot suppression Maps/Set before clearing if asked to preserve them
+  const preserveFiredState = options?.preserveFiredState === true;
+  const previousFiredEvents = preserveFiredState
+    ? new Map<EventId, number>(state.firedEvents)
+    : null;
+  const previousAlertFiredEvents = preserveFiredState
+    ? new Map<EventId, number>(state.alertFiredEvents)
+    : null;
+  const previousCancelledEvents = preserveFiredState
+    ? new Set<EventId>(state.cancelledEvents)
+    : null;
   // Clear old timer handles to prevent stale callbacks
-  clearSchedulerResources(state);
+  clearSchedulerResources(state, { preserveFiredState });
   // Restore preserved refs onto the replacement state
   nextState.win = previousWin;
   nextState.onTrayTitleUpdate = previousCallback;
   nextState.powerCallbacks = previousPowerCallbacks;
   nextState.lastKnownEvents = previousLastKnownEvents;
+  if (previousFiredEvents !== null) {
+    nextState.firedEvents = previousFiredEvents;
+  }
+  if (previousAlertFiredEvents !== null) {
+    nextState.alertFiredEvents = previousAlertFiredEvents;
+  }
+  if (previousCancelledEvents !== null) {
+    nextState.cancelledEvents = previousCancelledEvents;
+  }
   state = nextState;
 }
 
-export function resetState(options?: { preserveWindow?: boolean }): void {
+export function resetState(options?: {
+  preserveWindow?: boolean;
+  preserveFiredState?: boolean;
+}): void {
   const preserveWindow = options?.preserveWindow ?? false;
+  const preserveFiredState = options?.preserveFiredState ?? false;
   const previousWindow = preserveWindow ? state.win : null;
   const previousCallback = state.onTrayTitleUpdate;
   const previousPowerCallbacks = state.powerCallbacks;
 
-  clearSchedulerResources(state);
+  // Snapshot suppression state if requested — clearSchedulerResources will wipe it
+  const previousFiredEvents = preserveFiredState
+    ? new Map<EventId, number>(state.firedEvents)
+    : null;
+  const previousAlertFiredEvents = preserveFiredState
+    ? new Map<EventId, number>(state.alertFiredEvents)
+    : null;
+  const previousCancelledEvents = preserveFiredState
+    ? new Set<EventId>(state.cancelledEvents)
+    : null;
+
+  clearSchedulerResources(state, { preserveFiredState });
 
   const nextState = createSchedulerState();
   replaceState(nextState);
@@ -190,6 +236,15 @@ export function resetState(options?: { preserveWindow?: boolean }): void {
   state.win = previousWindow;
   state.onTrayTitleUpdate = previousCallback ?? null;
   state.powerCallbacks = previousPowerCallbacks ?? null;
+  if (previousFiredEvents !== null) {
+    state.firedEvents = previousFiredEvents;
+  }
+  if (previousAlertFiredEvents !== null) {
+    state.alertFiredEvents = previousAlertFiredEvents;
+  }
+  if (previousCancelledEvents !== null) {
+    state.cancelledEvents = previousCancelledEvents;
+  }
 }
 
 // ---------------------------------------------------------------------------

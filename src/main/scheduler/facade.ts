@@ -102,12 +102,12 @@ export function startScheduler(): void {
 }
 
 /** Stop the scheduler and clear all pending timers — call on before-quit */
-export function stopScheduler(): void {
+export function stopScheduler(options?: { preserveFiredState?: boolean }): void {
   if (pendingForcePollTimer !== null) {
     clearTimeout(pendingForcePollTimer);
     pendingForcePollTimer = null;
   }
-  resetState({ preserveWindow: true });
+  resetState({ preserveWindow: true, preserveFiredState: options?.preserveFiredState ?? false });
   state.onTrayTitleUpdate?.(null);
   console.log("[scheduler] Stopped");
 }
@@ -121,9 +121,11 @@ export function _resetForceTestState(): void {
   lastPollCompletedAt = 0;
 }
 
-/** Restart the scheduler - call when settings change to apply new timing */
+/** Restart the scheduler - call when settings change to apply new timing.
+ * Preserves firedEvents/alertFiredEvents/cancelledEvents so suppression state survives
+ * the stop/start cycle (prevents duplicate browser opens / alerts after wake or settings change). */
 export function restartScheduler(): void {
-  stopScheduler();
+  stopScheduler({ preserveFiredState: true });
   startScheduler();
 }
 

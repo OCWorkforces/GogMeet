@@ -18,6 +18,7 @@ vi.mock("electron", () => {
     this.close = mockClose;
     this.setSize = mockSetSize;
     this.setAlwaysOnTop = mockSetAlwaysOnTop;
+    this.setVisibleOnAllWorkspaces = vi.fn();
     this.isDestroyed = mockIsDestroyed;
     this.webContents = {
       send: mockSend,
@@ -40,6 +41,13 @@ vi.mock("electron", () => {
     app: { isPackaged: false },
   };
 });
+
+// Mock scheduler facade — alert-window calls cancelPendingBrowserOpen on user-dismissal
+const mockCancelPendingBrowserOpen = vi.fn();
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  cancelPendingBrowserOpen: mockCancelPendingBrowserOpen,
+}));
+
 
 let showAlert: typeof import("../../src/main/windows/alert-window.js").showAlert;
 import { BrowserWindow, app } from "electron";
@@ -426,6 +434,27 @@ describe("alert-window", () => {
       win1.__alertStartMs = new Date("2026-05-11T10:00:00Z").getTime();
       win1.isDestroyed = vi.fn(() => true);
       expect(() => showAlert(makeEvent({ id: "dstr", startDate: "2026-05-11T14:00:00Z" }))).not.toThrow();
+    });
+
+    describe("closed-handler cancels pending browser-open (F1)", () => {
+      it("cancels pending browser-open when user dismisses alert (no __replacing flag)", () => {
+        showAlert(makeEvent({ id: "dismiss-me" }));
+        const win = getWindow(1);
+        fireEvent(win, "closed");
+        expect(mockCancelPendingBrowserOpen).toHaveBeenCalledTimes(1);
+        expect(mockCancelPendingBrowserOpen).toHaveBeenCalledWith("dismiss-me");
+      });
+
+      it("does NOT cancel browser-open when window is closed due to reschedule replacement", () => {
+        showAlert(makeEvent({ id: "resched", startDate: "2026-05-11T10:00:00Z" }));
+        const win1 = getWindow(1);
+        win1.__alertStartMs = new Date("2026-05-11T10:00:00Z").getTime();
+        // Reschedule — alert-window sets __replacing=true and closes win1
+        showAlert(makeEvent({ id: "resched", startDate: "2026-05-11T14:00:00Z" }));
+        // Fire the deferred closed handler on win1
+        fireEvent(win1, "closed");
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
     });
   });
 

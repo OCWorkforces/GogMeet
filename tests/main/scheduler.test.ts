@@ -890,3 +890,108 @@ describe("Wave 2: Dirty flag for title resolution", () => {
     expect(stateModule.state.activeInMeetingEventId).toBeNull();
   });
 });
+
+describe("F5: late-fire grace (in-progress events missed during sleep/lock/late-poll)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetForTest();
+    refreshStateRefs();
+    setSchedulerWindow(null);
+    setTrayTitleCallback(mockUpdateTrayTitle);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("fires browser-open when in-progress event is within grace and not fired/cancelled", () => {
+    // Started 30s ago, well within 120s grace, ends in 30 min
+    const event = makeEvent({
+      id: "f5-grace",
+      startDate: new Date(Date.now() - 30 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-defg-hij",
+    });
+
+    expect(firedEvents.has("f5-grace")).toBe(false);
+    scheduleEvents([event]);
+
+    // Grace-fire scheduled scheduleBrowserTimer with delay=0 — advance to flush
+    vi.advanceTimersByTime(50);
+
+    expect(firedEvents.has("f5-grace")).toBe(true);
+    // In-meeting countdown should also be running (grace + in-meeting coexist)
+    expect(inMeetingIntervals.has("f5-grace")).toBe(true);
+  });
+
+  it("does NOT fire when event is cancelled (alert dismissed via Cmd+W or X)", () => {
+    // Pre-mark the event as cancelled (simulates user dismissing alert before sleep)
+    const event = makeEvent({
+      id: "f5-cancelled",
+      startDate: new Date(Date.now() - 30 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/cancelled-test",
+    });
+    stateModule.state.cancelledEvents.add(event.id);
+
+    scheduleEvents([event]);
+    vi.advanceTimersByTime(50);
+
+    // Suppression honored — no fire, no browser timer
+    expect(firedEvents.has("f5-cancelled")).toBe(false);
+    expect(timers.has("f5-cancelled")).toBe(false);
+    // In-meeting countdown still runs (independent of browser auto-open)
+    expect(inMeetingIntervals.has("f5-cancelled")).toBe(true);
+  });
+
+  it("does NOT fire when event started outside the grace window", () => {
+    // Started 3 minutes ago — exceeds 2-min LATE_FIRE_GRACE_MS
+    const event = makeEvent({
+      id: "f5-stale",
+      startDate: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 27 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/stale-test",
+    });
+
+    scheduleEvents([event]);
+    vi.advanceTimersByTime(50);
+
+    expect(firedEvents.has("f5-stale")).toBe(false);
+    expect(timers.has("f5-stale")).toBe(false);
+    // In-meeting countdown still expected for in-progress events
+    expect(inMeetingIntervals.has("f5-stale")).toBe(true);
+  });
+
+  it("does NOT fire when event has no meetUrl", () => {
+    const event = makeEvent({
+      id: "f5-nourl",
+      startDate: new Date(Date.now() - 30 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      meetUrl: undefined,
+    });
+
+    scheduleEvents([event]);
+    vi.advanceTimersByTime(50);
+
+    expect(firedEvents.has("f5-nourl")).toBe(false);
+    expect(timers.has("f5-nourl")).toBe(false);
+  });
+
+  it("does NOT re-fire when event is already in firedEvents (alert path fired earlier)", () => {
+    // Simulate: browser-open already fired pre-meeting (e.g., before sleep)
+    const event = makeEvent({
+      id: "f5-already",
+      startDate: new Date(Date.now() - 30 * 1000).toISOString(),
+      endDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/already-fired",
+    });
+    stateModule.state.firedEvents.set(event.id, Date.now());
+
+    scheduleEvents([event]);
+    vi.advanceTimersByTime(50);
+
+    // firedEvents still has it; no new browser timer scheduled
+    expect(firedEvents.has("f5-already")).toBe(true);
+    expect(timers.has("f5-already")).toBe(false);
+  });
+});

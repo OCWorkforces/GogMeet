@@ -29,6 +29,12 @@ function getOpenBeforeMs(): number {
 const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * F5: late-fire grace window. If a meeting started within this many ms but the
+ * browser-open timer never fired (sleep/wake, lock, missed poll), open it now.
+ */
+const LATE_FIRE_GRACE_MS = 2 * 60 * 1000; // 2 minutes
+
+/**
  * Handle an event whose start time is in the past.
  * If the meeting is still in progress, starts the in-meeting countdown
  * and cleans up any pending future timers.
@@ -49,13 +55,40 @@ function handleInProgressEvent(
   // Meeting already ended
   if (endMs <= now) return true;
 
-  // Meeting in progress — start in-meeting countdown
-  activeIds.add(event.id);
-
-  // Clean up any pending future timers (e.g., event rescheduled to past)
+  // Clean up any pending future timers (e.g., event rescheduled to past).
+  // Done BEFORE F5 grace so the grace timer is not nuked by cleanup.
   cancelBrowserTimer(event.id, s.timers);
   cancelAlertTimer(event.id, s.alertTimers);
   cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
+
+  // F5: late-fire grace — if the meeting started recently and we never fired the
+  // browser-open (system was asleep, alert was missed, late poll, etc.), open it now.
+  // Suppressed if the user already dismissed via cancelPendingBrowserOpen() or the
+  // meeting already fired previously.
+  const lateBy = now - startMs;
+  if (
+    lateBy <= LATE_FIRE_GRACE_MS &&
+    !s.firedEvents.has(event.id) &&
+    !s.cancelledEvents.has(event.id) &&
+    event.meetUrl !== undefined
+  ) {
+    console.log(
+      `[scheduler] Late-fire grace: opening "${event.title}" (started ${Math.round(lateBy / 1000)}s ago)`,
+    );
+    scheduleBrowserTimer(
+      event,
+      0,
+      startMs,
+      endMs,
+      s.timers,
+      s.firedEvents,
+      s.scheduledEventData,
+      shouldAbort,
+    );
+  }
+
+  // Meeting in progress — start in-meeting countdown
+  activeIds.add(event.id);
 
   // Only clear fired flags if event hasn't fired yet — preserve if already fired
   if (!s.firedEvents.has(event.id)) {
