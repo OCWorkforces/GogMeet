@@ -111,8 +111,17 @@ export function startInMeetingCountdown(
 
   console.log(`[scheduler] In-meeting countdown started for "${data.title}"`);
 
-  // Set timer to clear at meeting end
+  // Set timer to clear at meeting end. Capture endMs so a stale end timer
+  // (from a previous occurrence of this id) cannot delete a newer snapshot.
+  const capturedEndMs = data.endMs;
   const endHandle = setTimeout(() => {
+    const currentData = state.scheduledEventData.get(eventId);
+    // Guard: if the snapshot has been replaced with a newer occurrence (different endMs),
+    // this timer is stale — do not touch in-meeting state or the snapshot.
+    if (currentData && currentData.endMs !== capturedEndMs) {
+      state.inMeetingEndTimers.delete(eventId);
+      return;
+    }
     const interval = state.inMeetingIntervals.get(eventId);
     if (interval) {
       clearInterval(interval);

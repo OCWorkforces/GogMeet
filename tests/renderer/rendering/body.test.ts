@@ -34,10 +34,7 @@ describe("renderBody", () => {
 
   describe("no-permission state", () => {
     it("renders grant-access button when not retrying", () => {
-      const html = renderBody(
-        { type: "no-permission", retrying: false },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "no-permission", retrying: false }, createMockSettings());
       expect(html).toContain("Calendar Access Needed");
       expect(html).toContain('data-action="grant-access"');
       expect(html).toContain("Grant Access");
@@ -45,10 +42,7 @@ describe("renderBody", () => {
     });
 
     it("renders disabled button with 'Requesting...' label when retrying", () => {
-      const html = renderBody(
-        { type: "no-permission", retrying: true },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "no-permission", retrying: true }, createMockSettings());
       expect(html).toContain("Requesting...");
       expect(html).toContain("disabled");
     });
@@ -95,10 +89,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(30)),
         endDate: asTestIsoUtc(isoFromNow(60)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain('class="section-header"');
       expect(html).toContain("Today");
@@ -115,10 +106,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(-60)),
         endDate: asTestIsoUtc(isoFromNow(-30)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("All done for today!");
       expect(html).toContain("No more upcoming meetings.");
@@ -138,14 +126,54 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(30)),
         endDate: asTestIsoUtc(isoFromNow(60)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [past, future] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [past, future] }, createMockSettings());
 
       expect(html).toContain("Future Meeting");
       expect(html).not.toContain("Past Meeting");
       expect(html).not.toContain("All done for today!");
+    });
+
+    it("REGRESSION: renders 'Today & Tomorrow' header when an upcoming event is tomorrow", () => {
+      // Compute tomorrow at local noon from FIXED_NOW so isTomorrow() is
+      // deterministic regardless of the runner timezone.
+      const localTomorrowNoon = new Date(FIXED_NOW);
+      localTomorrowNoon.setHours(0, 0, 0, 0);
+      localTomorrowNoon.setDate(localTomorrowNoon.getDate() + 1);
+      localTomorrowNoon.setHours(12, 0, 0, 0);
+      const startMs = localTomorrowNoon.getTime();
+      const endMs = startMs + 30 * 60_000;
+
+      const tomorrowEvent = createMockEvent({
+        id: asTestEventId("evt-tomorrow"),
+        title: "Tomorrow Sync",
+        startDate: asTestIsoUtc(new Date(startMs).toISOString()),
+        endDate: asTestIsoUtc(new Date(endMs).toISOString()),
+      });
+      const html = renderBody(
+        { type: "has-events", events: [tomorrowEvent] },
+        createMockSettings({ showTomorrowMeetings: true }),
+      );
+
+      expect(html).toContain('class="section-header"');
+      expect(html).toContain("Today & Tomorrow");
+      expect(html).not.toMatch(/<p class="section-header">Today<\/p>/);
+      expect(html).toContain("Tomorrow Sync");
+    });
+
+    it("REGRESSION: renders plain 'Today' header when no upcoming event is tomorrow", () => {
+      const todayEvent = createMockEvent({
+        id: asTestEventId("evt-today"),
+        title: "Today Sync",
+        startDate: asTestIsoUtc(isoFromNow(30)),
+        endDate: asTestIsoUtc(isoFromNow(60)),
+      });
+      const html = renderBody(
+        { type: "has-events", events: [todayEvent] },
+        createMockSettings({ showTomorrowMeetings: true }),
+      );
+
+      expect(html).toContain('<p class="section-header">Today</p>');
+      expect(html).not.toContain("Today & Tomorrow");
     });
 
     it("escapes special characters in meeting titles", () => {
@@ -155,10 +183,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(30)),
         endDate: asTestIsoUtc(isoFromNow(60)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("&lt;img src=x onerror=");
       expect(html).toContain("&amp;");
@@ -206,10 +231,7 @@ describe("renderBody", () => {
         endDate: asTestIsoUtc(isoFromNow(60)),
         isAllDay: true,
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).not.toContain('class="badge-auto"');
     });
@@ -222,10 +244,7 @@ describe("renderBody", () => {
         endDate: asTestIsoUtc(isoFromNow(60)),
         meetUrl: undefined,
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).not.toContain('data-action="join-meeting"');
       expect(html).not.toContain('class="badge-auto"');
@@ -239,10 +258,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(30)),
         endDate: asTestIsoUtc(isoFromNow(60)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain('class="meeting-title"');
       // Empty title produces an empty span body, but the structure is intact.
@@ -281,9 +297,7 @@ describe("renderBody", () => {
       expect(idx3).toBeGreaterThan(idx2);
 
       // 3 meetings → 2 dividers between them.
-      const dividerCount = (
-        html.match(/class="meeting-divider"/g) ?? []
-      ).length;
+      const dividerCount = (html.match(/class="meeting-divider"/g) ?? []).length;
       expect(dividerCount).toBe(2);
     });
 
@@ -294,10 +308,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(-5)),
         endDate: asTestIsoUtc(isoFromNow(25)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("In progress");
       expect(html).toContain('class="meeting-time now"');
@@ -310,10 +321,7 @@ describe("renderBody", () => {
         startDate: asTestIsoUtc(isoFromNow(10)),
         endDate: asTestIsoUtc(isoFromNow(40)),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("In 10 min");
       expect(html).toContain('class="meeting-time soon"');
@@ -328,10 +336,7 @@ describe("renderBody", () => {
         calendarName: 'Work & "Home"',
         meetUrl: asTestMeetUrl("https://meet.google.com/xyz-abcd-efg"),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("Work &amp; &quot;Home&quot;");
       expect(html).toContain('data-url="https://meet.google.com/xyz-abcd-efg"');
@@ -368,10 +373,7 @@ describe("renderBody", () => {
         endDate: asTestIsoUtc(isoFromNow(60)),
         meetUrl: undefined,
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("Zoom No URL");
       expect(html).not.toContain('data-action="join-meeting"');
@@ -385,10 +387,7 @@ describe("renderBody", () => {
         endDate: asTestIsoUtc(isoFromNow(60)),
         meetUrl: asTestMeetUrl("https://acme.zoom.us/j/456?pwd=abc"),
       });
-      const html = renderBody(
-        { type: "has-events", events: [event] },
-        createMockSettings(),
-      );
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("Acme Sync");
       expect(html).toContain('data-url="https://acme.zoom.us/j/456?pwd=abc"');

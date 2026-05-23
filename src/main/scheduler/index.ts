@@ -15,6 +15,7 @@ import {
   markTitleDirty,
   markInMeetingDirty,
   cancelStaleEntries,
+  clearInMeetingState,
   type SchedulerState,
 } from "./state/index.js";
 
@@ -131,9 +132,9 @@ function shouldSkipScheduledEvent(
     }
   }
 
-  // Not yet scheduled — nothing to compare
-  if (!s.timers.has(event.id)) return false;
-
+  // Not yet scheduled and no prior snapshot — nothing to compare.
+  // (In-progress events have a snapshot but no entry in s.timers, so we must
+  // check scheduledEventData independently to catch reschedules from in-progress.)
   const prevData = s.scheduledEventData.get(event.id);
   if (!prevData) return false;
 
@@ -173,6 +174,9 @@ function shouldSkipScheduledEvent(
   cancelBrowserTimer(event.id, s.timers);
   cancelAlertTimer(event.id, s.alertTimers);
   cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
+  // If the event was in-progress under the old start, clear stale in-meeting state
+  // so its interval/end timer cannot keep ticking or delete the new snapshot.
+  clearInMeetingState(s, event.id);
   s.scheduledEventData.delete(event.id);
   s.firedEvents.delete(event.id); // allow re-fire at new time
   s.alertFiredEvents.delete(event.id); // allow re-alert at new time
