@@ -46,6 +46,35 @@ export function markInMeetingDirty(): void {
   state.inMeetingDirty = true;
 }
 
+/**
+ * Clear in-meeting timer state for a specific event id.
+ * Used when an in-progress event is rescheduled to a future start, so stale
+ * intervals/end timers do not keep mutating tray state or delete the new snapshot.
+ * Marks in-meeting state dirty if anything changed so resolvers re-run.
+ */
+export function clearInMeetingState(s: SchedulerState, eventId: EventId): void {
+  let changed = false;
+  const interval = s.inMeetingIntervals.get(eventId);
+  if (interval !== undefined) {
+    clearInterval(interval);
+    s.inMeetingIntervals.delete(eventId);
+    changed = true;
+  }
+  const endTimer = s.inMeetingEndTimers.get(eventId);
+  if (endTimer !== undefined) {
+    clearTimeout(endTimer);
+    s.inMeetingEndTimers.delete(eventId);
+    changed = true;
+  }
+  if (s.activeInMeetingEventId === eventId) {
+    s.activeInMeetingEventId = null;
+    changed = true;
+  }
+  if (changed) {
+    s.inMeetingDirty = true;
+  }
+}
+
 export function incrementConsecutiveErrors(): void {
   const next = state.consecutiveErrors + 1;
   setConsecutiveErrors(Math.min(next, MAX_CONSECUTIVE_ERRORS_CAP));

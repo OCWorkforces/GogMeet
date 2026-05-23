@@ -45,6 +45,11 @@ vi.mock("../../src/main/domain/settings.js", () => ({
   loadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
 }));
 
+// Mock alert window so we can assert showAlert was invoked by the alert timer
+vi.mock("../../src/main/windows/alert-window.js", () => ({
+  showAlert: vi.fn(),
+}));
+
 const mockUpdateTrayTitle = vi.fn();
 // Import directly from actual export locations (not re-exports)
 const schedulerModule = await import("../../src/main/scheduler/index.js");
@@ -53,9 +58,23 @@ const facadeModule = await import("../../src/main/scheduler/facade.js");
 const { setSchedulerWindow, setTrayTitleCallback } = facadeModule;
 const pollModule = await import("../../src/main/scheduler/poll.js");
 const { poll, _resetForTest } = pollModule;
+const { showAlert: mockShowAlert } = await import("../../src/main/windows/alert-window.js");
 
 const stateModule = await import("../../src/main/scheduler/state/index.js");
-const { markTitleDirty, getTimers, getAlertTimers, getTitleTimers, getCountdownIntervals, getClearTimers, getInMeetingIntervals, getFiredEvents, getAlertFiredEvents, getScheduledEventData } = stateModule;
+const {
+  markTitleDirty,
+  getTimers,
+  getAlertTimers,
+  getTitleTimers,
+  getCountdownIntervals,
+  getClearTimers,
+  getInMeetingIntervals,
+  getInMeetingEndTimers,
+  getActiveInMeetingEventId,
+  getFiredEvents,
+  getAlertFiredEvents,
+  getScheduledEventData,
+} = stateModule;
 const { initPowerCallbacks } = facadeModule;
 // Live references to current state Maps/Sets — re-bound in each beforeEach after _resetForTest()
 let timers = getTimers();
@@ -64,6 +83,7 @@ let titleTimers = getTitleTimers();
 let countdownIntervals = getCountdownIntervals();
 let clearTimers = getClearTimers();
 let inMeetingIntervals = getInMeetingIntervals();
+let inMeetingEndTimers = getInMeetingEndTimers();
 let firedEvents = getFiredEvents();
 let alertFiredEvents = getAlertFiredEvents();
 let scheduledEventData = getScheduledEventData();
@@ -74,6 +94,7 @@ function refreshStateRefs(): void {
   countdownIntervals = getCountdownIntervals();
   clearTimers = getClearTimers();
   inMeetingIntervals = getInMeetingIntervals();
+  inMeetingEndTimers = getInMeetingEndTimers();
   firedEvents = getFiredEvents();
   alertFiredEvents = getAlertFiredEvents();
   scheduledEventData = getScheduledEventData();
@@ -81,12 +102,10 @@ function refreshStateRefs(): void {
 const countdownModule = await import("../../src/main/scheduler/countdown.js");
 const { resolveActiveTitleEvent, resolveActiveInMeetingEvent } = countdownModule;
 
-
 // Inject mock tray callback into scheduler
 setTrayTitleCallback(mockUpdateTrayTitle);
 
 const { updateTrayTitle } = await import("../../src/main/tray.js");
-
 
 const makeEvent = (overrides: Partial<MeetingEvent> = {}): MeetingEvent =>
   createMockEvent(overrides);
@@ -101,7 +120,11 @@ describe("scheduleEvents", () => {
     _resetForTest();
     refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
-    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep: vi.fn(),
+    });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -257,8 +280,16 @@ describe("scheduleEvents", () => {
   });
 
   it("A5: second event is promoted when the earliest countdown event is deleted", () => {
-    const first = makeEvent({ id: "first", title: "First Meeting", startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString() });
-    const second = makeEvent({ id: "second", title: "Second Meeting", startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString() });
+    const first = makeEvent({
+      id: "first",
+      title: "First Meeting",
+      startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString(),
+    });
+    const second = makeEvent({
+      id: "second",
+      title: "Second Meeting",
+      startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([first, second]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
@@ -271,8 +302,16 @@ describe("scheduleEvents", () => {
   });
 
   it("A6: tray is unchanged when the non-active second event is deleted", () => {
-    const first = makeEvent({ id: "first", title: "First Meeting", startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString() });
-    const second = makeEvent({ id: "second", title: "Second Meeting", startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString() });
+    const first = makeEvent({
+      id: "first",
+      title: "First Meeting",
+      startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString(),
+    });
+    const second = makeEvent({
+      id: "second",
+      title: "Second Meeting",
+      startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([first, second]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
@@ -287,8 +326,16 @@ describe("scheduleEvents", () => {
   });
 
   it("A7: tray clears when all countdown events are deleted simultaneously", () => {
-    const e1 = makeEvent({ id: "e1", title: "Meeting 1", startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
-    const e2 = makeEvent({ id: "e2", title: "Meeting 2", startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString() });
+    const e1 = makeEvent({
+      id: "e1",
+      title: "Meeting 1",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+    const e2 = makeEvent({
+      id: "e2",
+      title: "Meeting 2",
+      startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([e1, e2]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
@@ -300,8 +347,16 @@ describe("scheduleEvents", () => {
   // ─── Group D: Multiple concurrent countdowns ─────────────────────────────
 
   it("D14: earliest-starting event owns the tray — later event never overwrites", () => {
-    const earlier = makeEvent({ id: "earlier", title: "Early Meeting", startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
-    const later = makeEvent({ id: "later", title: "Late Meeting", startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString() });
+    const earlier = makeEvent({
+      id: "earlier",
+      title: "Early Meeting",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
+    const later = makeEvent({
+      id: "later",
+      title: "Late Meeting",
+      startDate: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([earlier, later]);
 
     // Advance 1 min to trigger per-minute ticks on both countdowns
@@ -315,12 +370,20 @@ describe("scheduleEvents", () => {
   });
 
   it("D15: a new closer event entering the window takes tray ownership", () => {
-    const far = makeEvent({ id: "far", title: "Far Meeting", startDate: new Date(Date.now() + 25 * 60 * 1000).toISOString() });
+    const far = makeEvent({
+      id: "far",
+      title: "Far Meeting",
+      startDate: new Date(Date.now() + 25 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([far]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Second poll: closer event enters window alongside far
-    const close = makeEvent({ id: "close", title: "Close Meeting", startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
+    const close = makeEvent({
+      id: "close",
+      title: "Close Meeting",
+      startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([far, close]);
 
     const calls = vi.mocked(mockUpdateTrayTitle).mock.calls;
@@ -351,13 +414,23 @@ describe("scheduleEvents", () => {
 
   it("B9: URL change reschedules browser-open timer while keeping countdown", () => {
     const startDate = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    const event = makeEvent({ id: "b9", title: "Meeting", meetUrl: "https://meet.google.com/old-url", startDate });
+    const event = makeEvent({
+      id: "b9",
+      title: "Meeting",
+      meetUrl: "https://meet.google.com/old-url",
+      startDate,
+    });
     scheduleEvents([event]);
     const timerHandleBefore = timers.get("b9");
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Next poll — same event, same time, only URL changed
-    const urlChanged = makeEvent({ id: "b9", title: "Meeting", meetUrl: "https://meet.google.com/new-url", startDate });
+    const urlChanged = makeEvent({
+      id: "b9",
+      title: "Meeting",
+      meetUrl: "https://meet.google.com/new-url",
+      startDate,
+    });
     scheduleEvents([urlChanged]);
 
     // Browser-open timer MUST have been rescheduled (new handle)
@@ -478,7 +551,6 @@ describe("scheduleEvents", () => {
     expect(firedEvents.has("b13")).toBe(true);
   });
 
-
   // ─── Group A continued: Rescheduled-time edge cases ───────────────────────
 
   it("A2: event rescheduled beyond 30-min window clears tray and schedules future title timer", () => {
@@ -489,7 +561,10 @@ describe("scheduleEvents", () => {
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     // Rescheduled to 45 min away (outside 30-min window)
-    const rescheduled = makeEvent({ id: "a2", startDate: new Date(Date.now() + 45 * 60 * 1000).toISOString() });
+    const rescheduled = makeEvent({
+      id: "a2",
+      startDate: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([rescheduled]);
 
     // Tray must clear (no more active countdown)
@@ -583,11 +658,17 @@ describe("scheduleEvents", () => {
     expect(timers.size).toBe(1);
 
     // First reschedule
-    const r1 = makeEvent({ id: "c12", startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString() });
+    const r1 = makeEvent({
+      id: "c12",
+      startDate: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([r1]);
 
     // Second reschedule (only final state matters)
-    const r2 = makeEvent({ id: "c12", startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString() });
+    const r2 = makeEvent({
+      id: "c12",
+      startDate: new Date(Date.now() + 8 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([r2]);
 
     // Must have exactly 1 timer, 1 countdown, 1 scheduledEventData entry
@@ -627,7 +708,10 @@ describe("scheduleEvents", () => {
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "err",
+      error: "permission denied",
+    });
 
     // 2 errors — tray must still be showing
     await poll();
@@ -653,7 +737,10 @@ describe("scheduleEvents", () => {
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "permission denied" });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "err",
+      error: "permission denied",
+    });
 
     await poll();
     await poll();
@@ -685,7 +772,10 @@ describe("scheduleEvents", () => {
 
 describe("setSchedulerWindow and poll IPC notification", () => {
   let mockWebContentsSend: ReturnType<typeof vi.fn>;
-  let mockWindow: { isDestroyed: ReturnType<typeof vi.fn>; webContents: { send: ReturnType<typeof vi.fn> } };
+  let mockWindow: {
+    isDestroyed: ReturnType<typeof vi.fn>;
+    webContents: { send: ReturnType<typeof vi.fn> };
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -696,7 +786,11 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     _resetForTest();
     refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
-    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep: vi.fn(),
+    });
 
     // Create mock window with webContents.send
     mockWebContentsSend = vi.fn();
@@ -731,7 +825,6 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated", []);
   });
 
-
   it("F2: poll does NOT send IPC if window is null", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
@@ -756,7 +849,10 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F4: poll does NOT send IPC on calendar fetch error", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "err", error: "Calendar access denied" });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "err",
+      error: "Calendar access denied",
+    });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
@@ -778,14 +874,17 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 });
 
-
 describe("Wave 2: Dirty flag for title resolution", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
-    initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep: vi.fn(),
+    });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -797,7 +896,10 @@ describe("Wave 2: Dirty flag for title resolution", () => {
 
   it("resolveActiveTitleEvent returns cached value when !titleDirty", () => {
     // Schedule an event so countdown starts and activeTitleEventId is set
-    const event = makeEvent({ id: "dirty-t1", startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+    const event = makeEvent({
+      id: "dirty-t1",
+      startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([event]);
 
     // After scheduleEvents, titleDirty was set and resolved, so now titleDirty is false
@@ -813,7 +915,10 @@ describe("Wave 2: Dirty flag for title resolution", () => {
   });
 
   it("resolveActiveTitleEvent re-resolves after markTitleDirty()", () => {
-    const event = makeEvent({ id: "dirty-t2", startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+    const event = makeEvent({
+      id: "dirty-t2",
+      startDate: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
     scheduleEvents([event]);
 
     expect(stateModule.state.activeTitleEventId).toBe("dirty-t2");
@@ -835,7 +940,7 @@ describe("Wave 2: Dirty flag for title resolution", () => {
     const event = makeEvent({
       id: "dirty-im1",
       startDate: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // started 5 min ago
-      endDate: new Date(Date.now() + 25 * 60 * 1000).toISOString(),  // ends in 25 min
+      endDate: new Date(Date.now() + 25 * 60 * 1000).toISOString(), // ends in 25 min
     });
     scheduleEvents([event]);
 
@@ -993,5 +1098,189 @@ describe("F5: late-fire grace (in-progress events missed during sleep/lock/late-
     // firedEvents still has it; no new browser timer scheduled
     expect(firedEvents.has("f5-already")).toBe(true);
     expect(timers.has("f5-already")).toBe(false);
+  });
+});
+
+describe("REGRESSION: same-id reschedule from in-progress to future start", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetForTest();
+    refreshStateRefs();
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+    vi.mocked(mockShowAlert).mockClear();
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep: vi.fn(),
+    });
+    setTrayTitleCallback(mockUpdateTrayTitle);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetForTest();
+    refreshStateRefs();
+    stateModule.state.powerCallbacks = null;
+    vi.mocked(mockUpdateTrayTitle).mockClear();
+  });
+
+  it("R1: clears in-meeting interval, end timer, and active id when same id moves to future start", () => {
+    const baseNow = new Date("2026-05-23T12:00:00.000Z").getTime();
+    vi.setSystemTime(baseNow);
+
+    // First poll: event is already in progress (started 5 min ago, ends in 25 min)
+    const inProgress = makeEvent({
+      id: "rs1",
+      startDate: new Date(baseNow - 5 * 60 * 1000).toISOString(),
+      endDate: new Date(baseNow + 25 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([inProgress]);
+
+    // Pre-conditions: in-meeting state is set
+    expect(inMeetingIntervals.has("rs1")).toBe(true);
+    expect(inMeetingEndTimers.has("rs1")).toBe(true);
+    expect(getActiveInMeetingEventId()).toBe("rs1");
+    const oldEndMs = baseNow + 25 * 60 * 1000;
+    expect(scheduledEventData.get("rs1")?.endMs).toBe(oldEndMs);
+
+    // Second poll: same id, but moved to future (e.g. organizer rescheduled to tomorrow)
+    const futureStartMs = baseNow + 23 * 60 * 60 * 1000;
+    const futureEndMs = futureStartMs + 30 * 60 * 1000;
+    const future = makeEvent({
+      id: "rs1",
+      startDate: new Date(futureStartMs).toISOString(),
+      endDate: new Date(futureEndMs).toISOString(),
+      meetUrl: "https://meet.google.com/abc-def-ghi",
+    });
+    scheduleEvents([future]);
+
+    // Expected: in-meeting state cleared, snapshot reflects future start
+    expect(inMeetingIntervals.has("rs1")).toBe(false);
+    expect(inMeetingEndTimers.has("rs1")).toBe(false);
+    expect(getActiveInMeetingEventId()).toBeNull();
+    expect(scheduledEventData.get("rs1")?.startMs).toBe(futureStartMs);
+    expect(scheduledEventData.get("rs1")?.endMs).toBe(futureEndMs);
+    // Browser timer should now exist for the future schedule
+    expect(timers.has("rs1")).toBe(true);
+  });
+
+  it("R2: advancing past the old endMs does not delete the future scheduledEventData snapshot", () => {
+    const baseNow = new Date("2026-05-23T12:00:00.000Z").getTime();
+    vi.setSystemTime(baseNow);
+
+    // In-progress event ending in 10 min
+    const inProgress = makeEvent({
+      id: "rs2",
+      startDate: new Date(baseNow - 5 * 60 * 1000).toISOString(),
+      endDate: new Date(baseNow + 10 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/zzz-zzz-zzz",
+    });
+    scheduleEvents([inProgress]);
+    const oldEndMs = baseNow + 10 * 60 * 1000;
+
+    // Reschedule same id to tomorrow
+    const futureStartMs = baseNow + 24 * 60 * 60 * 1000;
+    const futureEndMs = futureStartMs + 30 * 60 * 1000;
+    const future = makeEvent({
+      id: "rs2",
+      startDate: new Date(futureStartMs).toISOString(),
+      endDate: new Date(futureEndMs).toISOString(),
+      meetUrl: "https://meet.google.com/zzz-zzz-zzz",
+    });
+    scheduleEvents([future]);
+
+    // Snapshot the future state
+    expect(scheduledEventData.get("rs2")?.startMs).toBe(futureStartMs);
+
+    // Advance past the OLD endMs — the stale in-meeting end timer (if not cleared)
+    // would fire here and delete scheduledEventData for "rs2".
+    vi.advanceTimersByTime(oldEndMs - baseNow + 1000);
+
+    // The future snapshot must survive
+    expect(scheduledEventData.has("rs2")).toBe(true);
+    expect(scheduledEventData.get("rs2")?.startMs).toBe(futureStartMs);
+    expect(scheduledEventData.get("rs2")?.endMs).toBe(futureEndMs);
+  });
+
+  it("R3: characterization — browser-open timer fires at the NEW future time, not the old in-progress moment", () => {
+    const baseNow = new Date("2026-05-23T12:00:00.000Z").getTime();
+    vi.setSystemTime(baseNow);
+
+    const inProgress = makeEvent({
+      id: "rs3",
+      startDate: new Date(baseNow - 2 * 60 * 1000).toISOString(),
+      endDate: new Date(baseNow + 28 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/aaa-bbb-ccc",
+    });
+    scheduleEvents([inProgress]);
+
+    // Reschedule same id to 15 min from now (well within MAX_SCHEDULE_AHEAD)
+    const futureStartMs = baseNow + 15 * 60 * 1000;
+    const futureEndMs = futureStartMs + 30 * 60 * 1000;
+    const future = makeEvent({
+      id: "rs3",
+      startDate: new Date(futureStartMs).toISOString(),
+      endDate: new Date(futureEndMs).toISOString(),
+      meetUrl: "https://meet.google.com/aaa-bbb-ccc",
+    });
+    scheduleEvents([future]);
+
+    // Browser timer must be armed for the future schedule
+    expect(timers.has("rs3")).toBe(true);
+    expect(firedEvents.has("rs3")).toBe(false);
+
+    // With openBeforeMinutes=3, browser opens at futureStartMs - 3min = baseNow + 12min
+    // Advance past that point
+    vi.advanceTimersByTime(12 * 60 * 1000 + 1000);
+    expect(firedEvents.has("rs3")).toBe(true);
+  });
+
+  it("R4: alert timer is armed for the future event and fires at the new alert time, not suppressed by stale in-meeting state", () => {
+    const baseNow = new Date("2026-05-23T12:00:00.000Z").getTime();
+    vi.setSystemTime(baseNow);
+
+    // First poll: in-progress event with an active in-meeting countdown
+    const inProgress = makeEvent({
+      id: "rs4",
+      startDate: new Date(baseNow - 2 * 60 * 1000).toISOString(),
+      endDate: new Date(baseNow + 28 * 60 * 1000).toISOString(),
+      meetUrl: "https://meet.google.com/ddd-eee-fff",
+    });
+    scheduleEvents([inProgress]);
+
+    // Sanity: in-progress events do not arm an alert timer (alert is pre-meeting)
+    expect(alertTimers.has("rs4")).toBe(false);
+    expect(inMeetingIntervals.has("rs4")).toBe(true);
+    expect(alertFiredEvents.has("rs4")).toBe(false);
+
+    // Reschedule same id to 15 min from now
+    const futureStartMs = baseNow + 15 * 60 * 1000;
+    const futureEndMs = futureStartMs + 30 * 60 * 1000;
+    const future = makeEvent({
+      id: "rs4",
+      startDate: new Date(futureStartMs).toISOString(),
+      endDate: new Date(futureEndMs).toISOString(),
+      meetUrl: "https://meet.google.com/ddd-eee-fff",
+    });
+    scheduleEvents([future]);
+
+    // Stale in-meeting state must be cleared by the reschedule
+    expect(inMeetingIntervals.has("rs4")).toBe(false);
+    expect(inMeetingEndTimers.has("rs4")).toBe(false);
+    expect(getActiveInMeetingEventId()).toBeNull();
+
+    // Alert timer is now armed for the future event
+    expect(alertTimers.has("rs4")).toBe(true);
+    expect(alertFiredEvents.has("rs4")).toBe(false);
+
+    // With openBeforeMinutes=3 and ALERT_OFFSET_MS=60s, alert fires at
+    // futureStartMs - 3min - 60s = baseNow + 11min. Advance past that point.
+    vi.advanceTimersByTime(11 * 60 * 1000 + 1000);
+
+    // Alert path actually ran for the future event (not suppressed by stale state)
+    expect(alertFiredEvents.has("rs4")).toBe(true);
+    expect(alertTimers.has("rs4")).toBe(false);
+    expect(mockShowAlert).toHaveBeenCalledTimes(1);
+    expect(mockShowAlert).toHaveBeenCalledWith(expect.objectContaining({ id: "rs4" }));
   });
 });
