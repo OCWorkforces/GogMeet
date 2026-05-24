@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
-import { readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, writeFile, unlink, stat } from "node:fs/promises";
 
 import {
   BINARY_PATH,
@@ -18,6 +18,52 @@ import { compileWithRetries, stripBinary } from "./binary-compiler.js";
 const execFileAsync = promisify(execFile);
 
 let hashVerified = false;
+
+interface SourceHashCacheEntry {
+  readonly path: string;
+  readonly mtimeMs: number;
+  readonly hash: string;
+}
+let sourceHashCache: SourceHashCacheEntry | null = null;
+
+/**
+ * Compute and memoize the SHA-256 hash of the Swift source. Cache key is the
+ * source path + mtimeMs reported by `stat()`. When mtime is unchanged we reuse
+ * the previously-hashed digest and skip both the source read and re-hash.
+ * The cache is process-local; the on-disk hash sidecar is unchanged.
+ */
+async function getSourceHash(swiftSrc: string): Promise<string> {
+  // Try to stat first for the mtime cache key. If stat fails (e.g. ENOENT),
+  // fall through to readSwiftSource so the caller sees the clear
+  // "Swift source not found at ..." error rather than a raw ENOENT.
+  let mtimeMs: number | null = null;
+  try {
+    const stats = await stat(swiftSrc);
+    mtimeMs = stats.mtimeMs;
+  } catch (err) {
+    logDebug(err);
+  }
+  if (
+    mtimeMs !== null &&
+    sourceHashCache !== null &&
+    sourceHashCache.path === swiftSrc &&
+    sourceHashCache.mtimeMs === mtimeMs
+  ) {
+    return sourceHashCache.hash;
+  }
+  const sourceBytes = await readSwiftSource(swiftSrc);
+  const hash = createHash("sha256").update(sourceBytes).digest("hex");
+  if (mtimeMs !== null) {
+    sourceHashCache = { path: swiftSrc, mtimeMs, hash };
+  } else {
+    sourceHashCache = null;
+  }
+  return hash;
+}
+
+function invalidateSourceHashCache(): void {
+  sourceHashCache = null;
+}
 
 function logError(error: unknown): void {
   console.error("[binary-manager]", error);
@@ -38,9 +84,9 @@ export async function ensureBinary(): Promise<void> {
 
   await ensureSecureCacheDir();
 
-  // Compute hash of current Swift source (throws clear error if missing)
-  const sourceBytes = await readSwiftSource(swiftSrc);
-  const currentHash = createHash("sha256").update(sourceBytes).digest("hex");
+  // Compute hash of current Swift source (memoized by mtime). Throws clear
+  // error if source missing via readSwiftSource on cache miss.
+  const currentHash = await getSourceHash(swiftSrc);
 
   // Check if binary exists AND hash matches
   if (await isBinaryExecutable()) {
@@ -60,6 +106,9 @@ export async function ensureBinary(): Promise<void> {
     } catch (err) {
       logDebug(err);
     }
+    // Stale binary path also means any in-process cache should be re-validated
+    // on the next ensureBinary cycle.
+    invalidateSourceHashCache();
   }
 
   await compileWithRetries(swiftSrc);
@@ -113,6 +162,8 @@ export async function runSwiftHelper(): Promise<string> {
       } catch (cleanupErr) {
         logDebug(cleanupErr);
       }
+      // Forget cached source hash so the retry recompile re-reads the source.
+      invalidateSourceHashCache();
       await ensureBinary();
       const { stdout } = await execFileAsync(BINARY_PATH, [], {
         timeout: 15_000,

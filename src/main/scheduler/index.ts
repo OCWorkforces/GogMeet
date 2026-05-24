@@ -9,6 +9,7 @@ import {
 
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { EventId } from "../../shared/brand.js";
+import type { AppSettings } from "../../shared/settings.js";
 
 import {
   state,
@@ -22,8 +23,8 @@ import {
 import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
-function getOpenBeforeMs(): number {
-  return getSettings().openBeforeMinutes * 60 * 1000;
+function getOpenBeforeMs(settings: AppSettings): number {
+  return settings.openBeforeMinutes * 60 * 1000;
 }
 
 /** Don't schedule events that start more than this far in the future */
@@ -192,13 +193,13 @@ function scheduleFutureTimers(
   endMs: number,
   now: number,
   s: SchedulerState,
+  settings: AppSettings,
   shouldAbort: () => boolean,
 ): void {
   const effectiveDelay = Math.max(0, delayMs);
 
   // Alert timer (fires 1 minute before browser timer)
-  const alertSettings = getSettings();
-  if (alertSettings.windowAlert && !s.alertFiredEvents.has(event.id)) {
+  if (settings.windowAlert && !s.alertFiredEvents.has(event.id)) {
     scheduleAlertTimer(
       event,
       effectiveDelay,
@@ -235,6 +236,7 @@ function scheduleFutureTimers(
  */
 export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
+  const settings = getSettings();
   const activeIds = new Set<EventId>();
 
   // Capture pollEpoch so timer callbacks scheduled here can detect a
@@ -258,7 +260,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     const startMs = new Date(event.startDate).getTime();
     const endMs = new Date(event.endDate).getTime();
-    const openAtMs = startMs - getOpenBeforeMs();
+    const openAtMs = startMs - getOpenBeforeMs(settings);
     const delayMs = openAtMs - now;
 
     if (handleInProgressEvent(event, startMs, endMs, now, activeIds, state, shouldAbort)) continue;
@@ -268,7 +270,7 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     if (shouldSkipScheduledEvent(event, startMs, endMs, state)) continue;
 
-    scheduleFutureTimers(event, delayMs, startMs, endMs, now, state, shouldAbort);
+    scheduleFutureTimers(event, delayMs, startMs, endMs, now, state, settings, shouldAbort);
   }
 
   // Only mark dirty when the active id set actually changed — avoids

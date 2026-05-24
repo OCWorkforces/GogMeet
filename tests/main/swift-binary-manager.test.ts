@@ -19,12 +19,14 @@ const {
   readFileMock,
   writeFileMock,
   unlinkMock,
+  statMock,
 } = vi.hoisted(() => ({
   accessMock: vi.fn(),
   mkdirMock: vi.fn(),
   readFileMock: vi.fn(),
   writeFileMock: vi.fn(),
   unlinkMock: vi.fn(),
+  statMock: vi.fn(),
 }));
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
@@ -32,6 +34,7 @@ vi.mock("node:fs/promises", () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
   unlink: unlinkMock,
+  stat: statMock,
 }));
 
 async function loadModule() {
@@ -76,6 +79,10 @@ beforeEach(() => {
   readFileMock.mockReset();
   writeFileMock.mockReset();
   unlinkMock.mockReset();
+  statMock.mockReset();
+
+  // Default stat: mtime stable across calls so memoization tests are deterministic.
+  statMock.mockResolvedValue({ mtimeMs: 1_000 });
 
   mkdirMock.mockResolvedValue(undefined);
   writeFileMock.mockResolvedValue(undefined);
@@ -323,6 +330,62 @@ describe("ensureBinary", () => {
     await mod.ensureBinary();
 
     expect(execFileAsyncMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ensureBinary source-hash memoization", () => {
+  it("reuses cached source hash across calls when mtime is unchanged (no repeated source read)", async () => {
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+    statMock.mockResolvedValue({ mtimeMs: 12_345 });
+
+    const mod = await loadModule();
+    await mod.ensureBinary();
+    await mod.ensureBinary();
+    await mod.ensureBinary();
+
+    const sourceReads = readFileMock.mock.calls.filter(
+      (c) => c[0] !== EXPECTED_HASH_PATH,
+    );
+    expect(sourceReads.length).toBe(1);
+    expect(execFileAsyncMock).not.toHaveBeenCalled();
+    expect(unlinkMock).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the memoized source hash when mtime changes", async () => {
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+    statMock
+      .mockResolvedValueOnce({ mtimeMs: 1_000 })
+      .mockResolvedValueOnce({ mtimeMs: 2_000 });
+
+    const mod = await loadModule();
+    await mod.ensureBinary();
+    await mod.ensureBinary();
+
+    const sourceReads = readFileMock.mock.calls.filter(
+      (c) => c[0] !== EXPECTED_HASH_PATH,
+    );
+    expect(sourceReads.length).toBe(2);
+  });
+
+  it("surfaces the clear readSwiftSource error when the source file is missing", async () => {
+    // Both stat and readFile fail with ENOENT for the source path; readFile
+    // for the hash sidecar should never be reached.
+    statMock.mockRejectedValue(
+      Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" }),
+    );
+    readFileMock.mockImplementation(async (path: string) => {
+      if (path === EXPECTED_HASH_PATH) {
+        throw new Error("hash sidecar should not be read when source missing");
+      }
+      throw Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" });
+    });
+
+    const mod = await loadModule();
+    await expect(mod.ensureBinary()).rejects.toThrow(/Swift source not found at/);
   });
 });
 

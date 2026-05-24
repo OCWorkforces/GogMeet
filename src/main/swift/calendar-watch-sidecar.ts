@@ -7,11 +7,18 @@ const DEBOUNCE_MS = 2000;
 const MAX_RETRIES = 5;
 const BACKOFF_MAX_MS = 30_000;
 const KILL_GRACE_MS = 5000;
+// A child that has been alive for this long is considered "stable". When the
+// stability timer fires we reset retryCount so that later, isolated failures
+// after a long healthy run do not inherit a stale exhausted retry budget.
+// The timer is cancelled on every exit so immediate crash-on-start loops
+// still bound at MAX_RETRIES.
+const STABLE_RUNTIME_MS = 60_000;
 
 let child: ChildProcess | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let killTimer: ReturnType<typeof setTimeout> | null = null;
+let stableTimer: ReturnType<typeof setTimeout> | null = null;
 let stdoutBuffer = "";
 let retryCount = 0;
 let stopped = false;
@@ -31,8 +38,10 @@ function scheduleRestart(): void {
   if (restartTimer !== null) clearTimeout(restartTimer);
   restartTimer = setTimeout(() => {
     restartTimer = null;
-    spawnChild();
+    ensureThenSpawn();
   }, delay);
+  // Don't keep the event loop alive solely for the restart timer.
+  restartTimer.unref?.();
 }
 
 function handleStdoutChunk(chunk: Buffer): void {
@@ -74,6 +83,15 @@ function spawnChild(): void {
   child = proc;
   stdoutBuffer = "";
 
+  // Arm the stability timer: if the child stays alive for STABLE_RUNTIME_MS,
+  // reset retryCount so a later isolated crash gets a fresh retry budget.
+  if (stableTimer !== null) clearTimeout(stableTimer);
+  stableTimer = setTimeout(() => {
+    stableTimer = null;
+    retryCount = 0;
+  }, STABLE_RUNTIME_MS);
+  stableTimer.unref?.();
+
   proc.stdout?.on("data", (chunk: Buffer) => {
     handleStdoutChunk(chunk);
   });
@@ -85,11 +103,22 @@ function spawnChild(): void {
   proc.on("error", (err: Error) => {
     console.error("[calendar-watch-sidecar] Process error:", err.message);
     if (child === proc) child = null;
+    // Cancel any pending stability reset; a failed-spawn / error child must
+    // not later reset retryCount as if it had run stably.
+    if (stableTimer !== null) {
+      clearTimeout(stableTimer);
+      stableTimer = null;
+    }
     scheduleRestart();
   });
 
   proc.on("exit", (code, signal) => {
     if (child === proc) child = null;
+    // Cancel any pending stability reset; the child did not survive long enough.
+    if (stableTimer !== null) {
+      clearTimeout(stableTimer);
+      stableTimer = null;
+    }
     if (stopped) {
       console.log("[calendar-watch-sidecar] Process exited during shutdown");
       return;
@@ -119,6 +148,11 @@ export function startWatchSidecar(onChange: () => void): void {
   retryCount = 0;
   onChangeCallback = onChange;
 
+  ensureThenSpawn();
+}
+
+function ensureThenSpawn(): void {
+  if (stopped) return;
   ensureBinary()
     .then(() => {
       if (stopped) return;
@@ -129,6 +163,11 @@ export function startWatchSidecar(onChange: () => void): void {
         "[calendar-watch-sidecar] ensureBinary failed:",
         err instanceof Error ? err.message : err,
       );
+      // Treat ensureBinary failure as a transient failure: schedule a backoff
+      // restart so the watcher can recover instead of remaining inert with
+      // domain-level started=true but no underlying process. The restart path
+      // re-runs ensureBinary so transient compile/cache failures can clear.
+      scheduleRestart();
     });
 }
 
@@ -154,6 +193,11 @@ export function stopWatchSidecar(): void {
   if (killTimer !== null) {
     clearTimeout(killTimer);
     killTimer = null;
+  }
+
+  if (stableTimer !== null) {
+    clearTimeout(stableTimer);
+    stableTimer = null;
   }
 
   const proc = child;

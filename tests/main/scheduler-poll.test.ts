@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
-import { createMockEvent, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
+import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
 
 // Mock electron
 vi.mock("electron", () => ({
@@ -170,6 +170,25 @@ describe("poll()", () => {
     expect(inMeetingEndTimers.size).toBe(0);
   });
 
+  it("fires threshold cleanup exactly once across consecutive errors past MAX (one-shot)", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      error: "permission denied",
+    } as never);
+
+    await poll();
+    await poll();
+    await poll(); // crosses threshold — cleanup fires
+    await poll(); // already past threshold — must NOT re-fire
+    await poll();
+
+    const thresholdLogs = errSpy.mock.calls.filter(([msg]) =>
+      typeof msg === "string" && msg.includes("consecutive errors \u2014 cleared tray title"),
+    );
+    expect(thresholdLogs).toHaveLength(1);
+    errSpy.mockRestore();
+  });
+
   it("resets activeInMeetingEventId after MAX_CONSECUTIVE_ERRORS", async () => {
     stateModule.setActiveInMeetingEventId("im-1");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
@@ -287,7 +306,7 @@ describe("poll()", () => {
   });
 });
 
-describe("computeEventsHash coverage (renderer push gating)", () => {
+describe("event list signature gating (renderer push)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
@@ -331,7 +350,6 @@ describe("computeEventsHash coverage (renderer push gating)", () => {
     ["userEmail", { userEmail: "b@example.com" }],
     ["isAllDay", { isAllDay: true }],
     ["calendarName", { calendarName: "Personal" }],
-    ["description", { description: "Notes B" }],
   ];
 
   it.each(overrides)("re-pushes events when %s changes", async (_field, override) => {
@@ -350,8 +368,37 @@ describe("computeEventsHash coverage (renderer push gating)", () => {
     const evt = createMockEvent(baseFields);
     let count = await pushAndCount([evt]);
     expect(count).toBe(1);
-    // Identical event — hash unchanged, no extra send on the new mock
+    // Identical event — signature unchanged, no extra send on the new mock
     count = await pushAndCount([createMockEvent(baseFields)]);
+    expect(count).toBe(0);
+  });
+
+  it("does NOT re-push when only description changes", async () => {
+    // description is excluded from the signature: notes churn often and
+    // never affects tray-list rendering.
+    let count = await pushAndCount([createMockEvent(baseFields)]);
+    expect(count).toBe(1);
+    count = await pushAndCount([
+      createMockEvent({ ...baseFields, description: "Different notes" }),
+    ]);
+    expect(count).toBe(0);
+  });
+
+  it("does NOT re-push when only event order changes", async () => {
+    const evtA = createMockEvent({
+      ...baseFields,
+      id: asTestEventId("evt-a"),
+      title: "A",
+    });
+    const evtB = createMockEvent({
+      ...baseFields,
+      id: asTestEventId("evt-b"),
+      title: "B",
+    });
+    let count = await pushAndCount([evtA, evtB]);
+    expect(count).toBe(1);
+    // Same set, reordered — signature is order-independent
+    count = await pushAndCount([evtB, evtA]);
     expect(count).toBe(0);
   });
 });

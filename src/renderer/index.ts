@@ -4,9 +4,9 @@ import type { CalendarPermission } from "../shared/calendar-result.js";
 import { isCalendarOk } from "../shared/calendar-result.js";
 import type { AppSettings } from "../shared/settings.js";
 import { DEFAULT_SETTINGS } from "../shared/settings.js";
-import { isTomorrow } from "../shared/utils/time.js";
 import { renderBody } from "./rendering/body.js";
 import { setupDelegatedEvents } from "./events/delegation.js";
+import { applyEventsPush } from "./lib/apply-events-push.js";
 
 import type { AppState } from "../shared/app-state.js";
 
@@ -23,7 +23,7 @@ interface RendererState {
   cachedSettings: AppSettings | null;
   cachedPermission: CalendarPermission | null;
   lastHeight: number;
-  lastEventsKey: string;
+  lastEventsSignature: string;
   lastPollTime: number;
 }
 
@@ -35,7 +35,7 @@ const rs: RendererState = {
   cachedSettings: null,
   cachedPermission: null,
   lastHeight: 0,
-  lastEventsKey: "",
+  lastEventsSignature: "",
   lastPollTime: Date.now(),
 };
 
@@ -100,7 +100,7 @@ async function grantAccess() {
 }
 
 async function loadEvents() {
-  const prevStateType = rs.state.type;
+  const prevState = rs.state;
   rs.state = { type: "loading" };
   render();
 
@@ -125,23 +125,18 @@ async function loadEvents() {
     if (!isCalendarOk(result)) {
       rs.state = { type: "error", message: result.error };
     } else {
-      // Filter events based on settings
-      let events = result.events;
-      if (!rs.settings.showTomorrowMeetings) {
-        events = events.filter((e) => !isTomorrow(e.startDate));
+      const applied = applyEventsPush({
+        events: result.events,
+        settings: rs.settings,
+        prevState,
+        prevSignature: rs.lastEventsSignature,
+      });
+      if (!applied.didChange) {
+        rs.lastUpdatedAt = Date.now();
+        return;
       }
-
-      if (events.length === 0) {
-        rs.state = { type: "no-events" };
-      } else {
-        const key = events.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
-        if (key === rs.lastEventsKey && prevStateType === "has-events") {
-          rs.lastUpdatedAt = Date.now();
-          return;
-        }
-        rs.lastEventsKey = key;
-        rs.state = { type: "has-events", events };
-      }
+      rs.lastEventsSignature = applied.signature;
+      rs.state = applied.state;
     }
   } catch (err) {
     rs.state = {
@@ -170,18 +165,18 @@ async function init() {
 
   // Listen for calendar updates pushed from main process — events included in push payload
   window.api.calendar.onEventsUpdated((events: MeetingEvent[]) => {
-    // Apply showTomorrowMeetings filter (same logic as loadEvents)
-    let filtered = events;
-    if (!rs.settings.showTomorrowMeetings) {
-      filtered = events.filter((e) => !isTomorrow(e.startDate));
+    const applied = applyEventsPush({
+      events,
+      settings: rs.settings,
+      prevState: rs.state,
+      prevSignature: rs.lastEventsSignature,
+    });
+    if (!applied.didChange) {
+      rs.lastUpdatedAt = Date.now();
+      return;
     }
-
-    if (filtered.length === 0) {
-      rs.state = { type: "no-events" };
-    } else {
-      rs.lastEventsKey = filtered.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
-      rs.state = { type: "has-events", events: filtered };
-    }
+    rs.lastEventsSignature = applied.signature;
+    rs.state = applied.state;
     rs.lastUpdatedAt = Date.now();
     render();
   });
