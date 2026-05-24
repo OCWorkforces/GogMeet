@@ -1,6 +1,6 @@
 import { getCalendarEventsResult } from "../domain/calendar.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { type MeetingEvent } from "../../shared/meeting-event.js";
+import { eventListSignature } from "../../shared/event-signature.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";
 import { typedSend } from "../ipc-handlers/shared.js";
 import { mainBus } from "../events.js";
@@ -22,28 +22,8 @@ import { scheduleEvents } from "./index.js";
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
-/** Last sent events hash — null sentinel ensures first poll always sends */
-let lastSentEventsHash: string | null = null;
-
-/** Compute stable hash for event list — used to gate IPC push */
-function computeEventsHash(events: MeetingEvent[]): string {
-  const SEP = "\x1F";
-  return events
-    .map((e) =>
-      [
-        e.id,
-        e.startDate,
-        e.endDate,
-        e.title,
-        e.meetUrl ?? "",
-        e.userEmail ?? "",
-        String(e.isAllDay),
-        e.calendarName,
-        e.description ?? "",
-      ].join(SEP),
-    )
-    .join(SEP);
-}
+/** Last sent events signature — null sentinel ensures first poll always sends */
+let lastSentEventsSignature: string | null = null;
 
 /** Clear tray state after too many consecutive poll failures */
 function handleMaxConsecutiveErrors(): void {
@@ -55,10 +35,11 @@ function handleMaxConsecutiveErrors(): void {
   console.error(`[scheduler] ${MAX_CONSECUTIVE_ERRORS} consecutive errors — cleared tray title`);
 }
 
-/** Increment error counter and clear tray if threshold reached */
+/** Increment error counter and clear tray exactly once when threshold is crossed */
 function handlePollFailure(): void {
+  const wasBelow = state.consecutiveErrors < MAX_CONSECUTIVE_ERRORS;
   incrementConsecutiveErrors();
-  if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+  if (wasBelow && state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
     handleMaxConsecutiveErrors();
   }
 }
@@ -75,9 +56,9 @@ export async function poll(): Promise<void> {
       mainBus.emit("meeting-list-updated", result.events);
       // Notify renderer of updated events — only if content actually changed
       if (state.win && !state.win.isDestroyed()) {
-        const eventHash = computeEventsHash(result.events);
-        if (eventHash !== lastSentEventsHash) {
-          lastSentEventsHash = eventHash;
+        const signature = eventListSignature(result.events);
+        if (signature !== lastSentEventsSignature) {
+          lastSentEventsSignature = signature;
           typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, result.events);
         }
       }
@@ -94,5 +75,5 @@ export async function poll(): Promise<void> {
 /** Reset mutable state for tests — not for production use */
 export function _resetForTest(): void {
   resetState();
-  lastSentEventsHash = null;
+  lastSentEventsSignature = null;
 }
