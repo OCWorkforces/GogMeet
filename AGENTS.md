@@ -1,7 +1,7 @@
 # GogMeet — AGENTS.md
 
-**Generated:** 2026-05-21
-**Commit:** 3840808
+**Generated:** 2026-05-24
+**Commit:** 0f40e5b
 **Branch:** develop
 
 macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swift EventKit, auto-opens Meet/Zoom/wrapper URLs 1–5 min before start, full-screen alert overlay, global shortcut (`Cmd+Shift+M`).
@@ -90,9 +90,8 @@ Vitest workspace (`vitest.workspace.ts`) splits `tests/main/` (Node + Electron a
 
 - `src/` — application source (see `src/AGENTS.md`).
 - `tests/` — Vitest workspace (see `tests/AGENTS.md`).
-- `scripts/dev.ts` — dev orchestrator (rslib watch + rsbuild dev + electron).
-- `scripts/generate-calendar-tray-icons.mjs` — regenerate tray icon PNGs.
-- `build/` — packaging assets and afterPack/afterSign hooks.
+- `scripts/` — dev orchestrator and icon generation (see `scripts/AGENTS.md`).
+- `build/` — packaging assets and afterPack/afterSign hooks (see `build/AGENTS.md`).
 - `assets/` — README screenshots.
 - `lib/`, `dist/` — generated outputs (cleaned by `bun run clean`).
 - `.sentrux/rules.toml` — architecture constraints (modularity, acyclicity, depth).
