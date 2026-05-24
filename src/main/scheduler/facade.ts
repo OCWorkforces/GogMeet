@@ -20,6 +20,47 @@ let lastPollCompletedAt = 0;
 /** Pending deferred forcePoll timer scheduled when a forcePoll is coalesced */
 let pendingForcePollTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** In-flight poll guard — set while a guarded poll() is awaiting completion */
+let inFlightPoll: Promise<void> | null = null;
+
+/** Set when a guarded poll is requested while one is already in flight — bounded to one */
+let queuedPollRequested = false;
+
+/**
+ * Run poll() with concurrency guard + at-most-one queued follow-up.
+ * - If no poll is in flight, runs poll() and updates lastPollCompletedAt on completion.
+ * - If a poll is already in flight, sets queuedPollRequested = true (bounded to one) and
+ *   returns the in-flight promise so the caller awaits through the queued follow-up.
+ * - The guard clears in finally so a thrown poll does not leave the scheduler stuck.
+ */
+async function runGuardedPoll(): Promise<void> {
+  if (inFlightPoll !== null) {
+    queuedPollRequested = true;
+    return inFlightPoll;
+  }
+  const run = (async (): Promise<void> => {
+    try {
+      await poll();
+    } finally {
+      lastPollCompletedAt = Date.now();
+    }
+    while (queuedPollRequested) {
+      queuedPollRequested = false;
+      try {
+        await poll();
+      } finally {
+        lastPollCompletedAt = Date.now();
+      }
+    }
+  })();
+  inFlightPoll = run;
+  try {
+    await run;
+  } finally {
+    inFlightPoll = null;
+  }
+}
+
 /**
  * Force an immediate poll outside the normal schedule.
  * Cancels the pending setTimeout, runs poll() now, then re-arms the next tick.
@@ -52,17 +93,14 @@ export async function forcePoll(): Promise<void> {
   state.pollEpoch++;
   const epoch = state.pollEpoch;
 
-  await poll();
-  lastPollCompletedAt = Date.now();
+  await runGuardedPoll();
 
-  // Re-arm the next scheduled poll from "now" if the scheduler is still running
   // Re-arm the next scheduled poll from "now" if the scheduler is still active
   if (state.pollEpoch === epoch) {
     function scheduleNextAfterForce(): void {
       state.pollTimeout = setTimeout(
         async () => {
-          await poll();
-          lastPollCompletedAt = Date.now();
+          await runGuardedPoll();
           if (state.pollTimeout !== null && state.pollEpoch === epoch) {
             scheduleNextAfterForce();
           }
@@ -83,14 +121,13 @@ export function startScheduler(): void {
   const epoch = state.pollEpoch;
 
   // Initial poll immediately
-  void poll();
+  void runGuardedPoll();
 
   // Then poll with recursive setTimeout (prevents drift/overlap)
   function scheduleNextPoll(): void {
     state.pollTimeout = setTimeout(
       async () => {
-        await poll();
-        lastPollCompletedAt = Date.now();
+        await runGuardedPoll();
         if (state.pollTimeout !== null && state.pollEpoch === epoch) {
           scheduleNextPoll();
         }
@@ -119,6 +156,8 @@ export function _resetForceTestState(): void {
     pendingForcePollTimer = null;
   }
   lastPollCompletedAt = 0;
+  inFlightPoll = null;
+  queuedPollRequested = false;
 }
 
 /** Restart the scheduler - call when settings change to apply new timing.
