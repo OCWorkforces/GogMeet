@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
-import { createMockEvent } from "../helpers/test-utils.js";
+import { asTestEventId, asTestIsoUtc, createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron before importing scheduler
 vi.mock("electron", () => {
@@ -59,6 +59,7 @@ const { setSchedulerWindow, setTrayTitleCallback } = facadeModule;
 const pollModule = await import("../../src/main/scheduler/poll.js");
 const { poll, _resetForTest } = pollModule;
 const { showAlert: mockShowAlert } = await import("../../src/main/windows/alert-window.js");
+const { getSettings: mockGetSettings } = await import("../../src/main/domain/settings.js");
 
 const stateModule = await import("../../src/main/scheduler/state/index.js");
 const {
@@ -125,6 +126,7 @@ describe("scheduleEvents", () => {
       preventSleep: vi.fn(),
       allowSleep: vi.fn(),
     });
+    vi.mocked(mockGetSettings).mockClear();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -136,6 +138,20 @@ describe("scheduleEvents", () => {
     refreshStateRefs();
     vi.mocked(mockUpdateTrayTitle).mockClear();
     stateModule.state.powerCallbacks = null;
+  });
+  it("reads settings once per scheduling pass", () => {
+    const first = makeEvent({
+      id: asTestEventId("settings-a"),
+      startDate: asTestIsoUtc(new Date(Date.now() + 5 * 60 * 1000).toISOString()),
+    });
+    const second = makeEvent({
+      id: asTestEventId("settings-b"),
+      startDate: asTestIsoUtc(new Date(Date.now() + 10 * 60 * 1000).toISOString()),
+    });
+
+    scheduleEvents([first, second]);
+
+    expect(vi.mocked(mockGetSettings)).toHaveBeenCalledTimes(1);
   });
   it("rescheduled event gets a new timer at the new start time", () => {
     const originalStart = new Date(Date.now() + 5 * 60 * 1000);
