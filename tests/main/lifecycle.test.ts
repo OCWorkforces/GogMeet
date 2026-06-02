@@ -25,6 +25,7 @@ const {
   mockGetCalendarPermissionStatus,
   mockRequestCalendarPermission,
   mockGetCalendarEventsResult,
+  mockInvalidateCalendarPermissionCache,
   mockInitPowerCallbacks,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
@@ -55,6 +56,7 @@ const {
   mockGetCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   mockRequestCalendarPermission: vi.fn().mockResolvedValue("granted"),
   mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
 }))
 
@@ -98,6 +100,7 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarEventsResult: mockGetCalendarEventsResult,
+  invalidateCalendarPermissionCache: mockInvalidateCalendarPermissionCache,
 }))
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
@@ -193,6 +196,26 @@ describe("lifecycle", () => {
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(true);
     });
   })
+
+  describe("power callback", () => {
+    it("invalidates calendar permission cache before restarting scheduler on wake/unlock", async () => {
+      await initializeApp(mockWindow);
+
+      expect(mockInitPowerManagement).toHaveBeenCalledOnce();
+      const callback = mockInitPowerManagement.mock.calls[0]?.[0] as (() => void) | undefined;
+      expect(typeof callback).toBe("function");
+
+      const callOrder: string[] = [];
+      mockInvalidateCalendarPermissionCache.mockImplementation(() => callOrder.push("invalidate"));
+      mockRestartScheduler.mockImplementation(() => callOrder.push("restart"));
+
+      callback!();
+
+      expect(mockInvalidateCalendarPermissionCache).toHaveBeenCalledOnce();
+      expect(mockRestartScheduler).toHaveBeenCalledOnce();
+      expect(callOrder).toEqual(["invalidate", "restart"]);
+    });
+  });
 
   describe("fail-fast", () => {
     it("aborts init when setupTray throws (startScheduler not called)", async () => {
