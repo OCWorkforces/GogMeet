@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import type { EventId } from "../../shared/brand.js";
+import { asEventId } from "../../shared/brand.js";
 import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
 import { validateOnSender } from "./shared.js";
 
@@ -12,8 +12,13 @@ import { validateOnSender } from "./shared.js";
  * for the event and marks it as fired so refresh polls do not re-arm it.
  */
 export function registerAlertHandlers(): void {
-  ipcMain.on(IPC_CHANNELS.ALERT_DISMISSED, (event, payload: { id: EventId }) => {
+  ipcMain.on(IPC_CHANNELS.ALERT_DISMISSED, (event, payload: unknown) => {
     if (!validateOnSender(event)) return;
-    cancelPendingBrowserOpen(payload.id);
+    if (typeof payload !== "object" || payload === null) return;
+    const rawId: unknown = (payload as { id?: unknown }).id;
+    if (typeof rawId !== "string") return;
+    const result = asEventId(rawId);
+    if (!result.ok) return;
+    cancelPendingBrowserOpen(result.value);
   });
 }
