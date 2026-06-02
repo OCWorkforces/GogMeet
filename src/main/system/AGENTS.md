@@ -10,7 +10,7 @@ Leaf modules wrapping macOS and Electron platform APIs. No business logic, no cr
 | `auto-launch.ts` | macOS login items: `enableAutoLaunch(enable)` via `app.setLoginItemSettings()` |
 | `auto-updater.ts` | `electron-updater` bootstrap. `initAutoUpdater()`. No-op when `app.isPackaged` is false |
 | `notification.ts` | macOS notification permission probe: `checkNotificationPermission()`. Read-only, does not request |
-| `shortcuts.ts` | Global shortcut Cmd+Shift+M → join next meeting. `registerShortcuts()`. Imports scheduler facade for `getLastKnownEvents` |
+| `shortcuts.ts` | Global shortcut Cmd+Shift+M opens the next upcoming meeting via `openMeetingUrl()` (allowlist-validated egress). Imports `scheduler/facade.js` for `getLastKnownEvents`. `registerShortcuts()` |
 
 ## CONVENTIONS
 
@@ -28,3 +28,4 @@ Leaf modules wrapping macOS and Electron platform APIs. No business logic, no cr
 - Never run auto-updater outside packaged builds. Always gate on `app.isPackaged`
 - Never import renderer/preload code; communicate through lifecycle callbacks or the typed event bus.
 - Keep platform assumptions macOS-specific; do not add cross-platform fallbacks without a product decision.
+- Never call `shell.openExternal()` directly from `shortcuts.ts`. Route every meeting URL through `openMeetingUrl()` so the URL allowlist gate is enforced before egress.

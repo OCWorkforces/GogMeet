@@ -11,7 +11,7 @@ tests/main/
 ├── swift/              # Swift binary + event parsing tests
 │   ├── event-parser.test.ts
 │   └── ...
-├── scheduler*.test.ts  # 5 files, state machine tests (A-F groups)
+├── scheduler*.test.ts  # 10 files, state machine + facade + poll race probes
 ├── calendar.test.ts    # 603 lines, Swift output parsing
 ├── alert-window.test.ts
 ├── lifecycle.test.ts   # 248 lines, init/shutdown
@@ -24,13 +24,16 @@ tests/main/
 
 ## KEY TEST FILES
 
-### Scheduler Tests (5 files, ~3000 lines)
+### Scheduler Tests (10 files)
 
-`scheduler.test.ts` — 806 lines, state machine A-F groups. Tests timer creation, deduplication, cancellation via `setupSchedulerForEvent`/`teardownEvent`.
-`scheduler-poll.test.ts` — 480 lines, `startScheduler`/`stopScheduler`/`restartScheduler`/`forcePoll`. `FORCE_POLL_COALESCE_MS` = 10s coalescing.
-`scheduler-title-countdown.test.ts` — 802 lines, tray title countdown. `MAX_CONSECUTIVE_ERRORS_CAP` = 4.
-`scheduler-countdown.test.ts` — 491 lines, countdown timer per event.
-`scheduler-browser-timer.test.ts` — 251 lines, browser auto-open timer.
+`scheduler.test.ts` — state machine A-F groups. Timer creation, deduplication, cancellation via `setupSchedulerForEvent`/`teardownEvent`.
+`scheduler-poll.test.ts` — `startScheduler`/`stopScheduler`/`restartScheduler`/`forcePoll`. Covers `FORCE_POLL_COALESCE_MS` (10s) coalescing and `pollEpoch` race probes: stale poll callbacks resolving after `restartScheduler()` must not push results or reschedule under the old epoch's timer.
+`scheduler-facade-force-poll.test.ts` — facade-level `forcePoll` race probes. Coalesced concurrent calls share one in-flight poll; a request that arrives while a poll is running is deferred and re-fires once after completion.
+`scheduler-facade-cancel-browser-open.test.ts` — alert-dismissal path: cancels the matching browser-open timer without touching unrelated events.
+`scheduler-state-replace.test.ts` / `scheduler-restart-preserves-suppression.test.ts` — state singleton swap and suppression carry-over across restart.
+`scheduler-title-countdown.test.ts` — tray title countdown. `MAX_CONSECUTIVE_ERRORS_CAP` = 4.
+`scheduler-countdown.test.ts` — countdown timer per event.
+`scheduler-browser-timer.test.ts` — browser auto-open timer.
 `scheduler-alert-timer.test.ts` — alert timer, auto-open suppression.
 
 ### Calendar Tests

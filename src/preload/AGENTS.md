@@ -32,9 +32,13 @@ window.api = {
 | raw height number | `clampWindowHeight()` → `WindowHeight` | `WINDOW_SET_HEIGHT: { height }` |
 | alert `EventId`   | passthrough from main push             | `ALERT_DISMISSED: { id }`       |
 
-`brandMeetUrl(raw)` first calls `asMeetUrl()` for structural validation, then checks hostname against `MEET_URL_ALLOWED_HOSTNAMES` (Google Meet/Calendar/Accounts, Calendly, and Zoom hosts including `.zoom.us` subdomains). Invalid URLs return `null`; `openExternal()` resolves without invoking IPC.
+`brandMeetUrl(raw)` first calls `asMeetUrl()` for structural validation, then checks the hostname against exact entries in `MEET_URL_ALLOWED_HOSTNAMES` (Google Meet/Calendar/Accounts, Calendly, and Zoom root hosts) plus suffix matches in `MEET_URL_ALLOWED_HOSTNAME_SUFFIXES` (currently `.zoom.us` for tenant subdomains). Invalid URLs return `null`; `openExternal()` resolves without invoking IPC.
 
 `clampWindowHeight(n)` clamps and rounds into `[220, 480]`; non-finite input becomes the minimum.
+
+### Allowlist parity invariant
+
+The preload allowlist (`MEET_URL_ALLOWED_HOSTNAMES` + `MEET_URL_ALLOWED_HOSTNAME_SUFFIXES`) must mirror `MEETING_URL_ALLOWLIST` in `src/main/utils/url-validation.ts`. Because the sandboxed preload cannot import main, the mirror is intentional duplicate state, not a leak. When changing either list, update both in the same commit; main remains the authoritative egress gate (`APP_OPEN_EXTERNAL` re-validates), and the preload mirror only suppresses obvious bad URLs before IPC.
 
 `alert.notifyDismissed(id)` round-trips the branded `EventId` received from `alert.onShowAlert`.
 

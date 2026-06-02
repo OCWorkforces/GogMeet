@@ -8,7 +8,7 @@ Core domain modules: calendar access, change watching, and persistent settings.
 
 | File                  | Exports                                                                                  | Purpose                                          |
 | --------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `calendar.ts`         | `getCalendarEventsResult()`, `requestCalendarPermission()`, `getCalendarPermissionStatus()` | Swift EventKit queries, returns `CalendarResult` |
+| `calendar.ts`         | `getCalendarEventsResult()`, `requestCalendarPermission()`, `getCalendarPermissionStatus()`, `invalidateCalendarPermissionCache()` | Swift EventKit queries, returns `CalendarResult`; exposes cache invalidation hook |
 | `calendar-watcher.ts` | `startCalendarWatcher(onChange)`, `stopCalendarWatcher()`                                | Sidecar `swift --watch` for EKEventStoreChangedNotification |
 | `settings.ts`         | `AppSettings`, `DEFAULT_SETTINGS`, `loadSettings()`, `saveSettings()`, `getSettings()`   | JSON-persisted settings in `userData/`           |
 
@@ -30,3 +30,4 @@ Core domain modules: calendar access, change watching, and persistent settings.
 - `loadSettings()` returns `Result<AppSettings, AppError>`; missing file returns `DEFAULT_SETTINGS` via `isEnoent` predicate.
 - `saveSettings()` writes formatted JSON to the app `userData` settings path and updates the in-memory cache after successful writes.
 - All three files moved here from `src/main/` during the modularity refactor; update import paths accordingly when touching legacy callers.
+- `calendar.ts` caches the EventKit permission status across calls. The cache is invalidated via `invalidateCalendarPermissionCache()`; lifecycle calls it on power resume/unlock before `restartScheduler()` so the next poll re-reads EventKit authorization.

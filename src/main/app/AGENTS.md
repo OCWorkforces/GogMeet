@@ -29,3 +29,4 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 - Fatal init failures surface via `dialog.showErrorBox()`; non-fatal errors are logged and aggregated.
 - Settings must be loaded before `startScheduler()` so the scheduler reads warm cache on first poll.
 - Both files are imported only by `index.ts`; no other consumers should reach in here.
+- `initPowerManagement`'s resume/unlock callback calls `invalidateCalendarPermissionCache()` before `restartScheduler()`, so the first post-wake poll re-reads EventKit authorization instead of trusting the cached status across sleep/lock boundaries.
