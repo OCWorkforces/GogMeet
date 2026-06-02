@@ -531,6 +531,25 @@ describe("restartScheduler", () => {
     expect(stateModule.state.pollTimeout).not.toBeNull();
     expect(stateModule.state.pollTimeout).not.toBe(firstTimeout);
   });
+
+  it("does not fire a stale poll from a prior epoch after restart", async () => {
+    const callMock = vi.mocked(getCalendarEventsResult);
+    callMock.mockClear();
+
+    startScheduler();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callMock).toHaveBeenCalledTimes(1);
+
+    // Restart immediately — old epoch's pending re-arm must not survive.
+    restartScheduler();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callMock).toHaveBeenCalledTimes(2);
+
+    // Advance a full poll interval (2 min on AC). If a stale epoch timer
+    // survived, we would see >1 additional poll fire here.
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    expect(callMock).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("_resetForTest", () => {

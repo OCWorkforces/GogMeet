@@ -106,6 +106,54 @@ describe("forcePoll() deferred coalesce", () => {
     // Deferred poll must NOT have fired after stopScheduler
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
   });
+
+  it("deferred forcePoll firing + concurrent request yields exactly one follow-up", async () => {
+    // Poll #1: fast (resolves via default mock)
+    await forcePoll();
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
+
+    // Cancel re-armed scheduled poll so it doesn't pollute the count
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
+
+    // Poll #2 (deferred): make it slow so we can race a request during its run
+    let resolveSecond: (v: { kind: "ok"; events: never[] }) => void = () => {};
+    const secondPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+      resolveSecond = r;
+    });
+    vi.mocked(getCalendarEventsResult).mockReturnValueOnce(secondPromise);
+
+    // Within coalesce window — schedules deferred timer
+    await forcePoll();
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
+
+    // Fire the deferred timer; deferred fires recursive forcePoll which starts poll #2
+    await vi.advanceTimersByTimeAsync(FORCE_POLL_COALESCE_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+
+    // Request arrives DURING the deferred poll's run — must not be dropped,
+    // must queue exactly one follow-up via the in-flight guard.
+    const racer1 = forcePoll();
+    const racer2 = forcePoll();
+    const racer3 = forcePoll();
+    await Promise.resolve();
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+
+    // Resolve poll #2 — exactly one follow-up poll #3 fires for all racers
+    resolveSecond({ kind: "ok", events: [] });
+    await Promise.all([racer1, racer2, racer3]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(3);
+
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
+  });
 });
 
 describe("facade in-flight poll guard", () => {
