@@ -3,13 +3,14 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ip
 import { getSettings, updateSettings } from "../domain/settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
+import { DEFAULT_SETTINGS } from "../../shared/settings.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
     (event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
-      if (!validateSender(event)) return getSettings();
+      if (!validateSender(event)) return { ...DEFAULT_SETTINGS };
       return getSettings();
     },
   );
@@ -20,7 +21,7 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       event: IpcMainInvokeEvent,
       partial: IpcRequest<typeof IPC_CHANNELS.SETTINGS_SET>,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET>> => {
-      if (!validateSender(event)) return getSettings();
+      if (!validateSender(event)) return { ...DEFAULT_SETTINGS };
       try {
         const updated = await updateSettings(partial);
         restartScheduler(); // Apply new timing immediately
