@@ -188,6 +188,24 @@ describe("parseEvents — malformed input", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({ line: 2, reason: "duplicate_uid" });
   });
+
+  it("emits invalid_iso diagnostic when end is before start", () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(30); // end < start
+    const bad = makeLine(
+      "evt-reverse",
+      "Reverse",
+      start,
+      end,
+      "https://meet.google.com/abc-defg-hij",
+      "Work",
+      "false",
+    );
+    const { events, diagnostics } = parseEvents(bad);
+    expect(events).toEqual([]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ line: 1, reason: "invalid_iso" });
+  });
 });
 
 describe("parseEvents — all-day events", () => {
