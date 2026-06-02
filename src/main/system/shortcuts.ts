@@ -1,7 +1,7 @@
-import { globalShortcut, shell, dialog } from "electron";
+import { globalShortcut, dialog } from "electron";
 import { getCalendarEventsResult } from "../domain/calendar.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";
-import { buildMeetUrl } from "../utils/meet-url.js";
+import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 import { getLastKnownEvents } from "../scheduler/facade.js";
 import log from "electron-log";
 
@@ -33,7 +33,7 @@ export function registerShortcuts(): void {
         dialog.showErrorBox("GogMeet", "No meeting URL available");
         return;
       }
-      void shell.openExternal(url);
+      void openMeetingUrl(url);
     } catch (err) {
       log.error("[shortcuts] Failed to join meeting:", err);
     }
