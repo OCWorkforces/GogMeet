@@ -20,6 +20,7 @@
 - **`ALLOWED_HOSTNAMES`** in `url-validation.ts` — derived at module load from `MEETING_URL_ALLOWLIST` via `new URL(prefix).hostname`; never hard-coded separately
 - **`packageInfo.ts` uses `readFileSync`** — only sync file I/O in the main process; acceptable because it's a one-time lazy load at startup, result is frozen (`Object.freeze`)
 - **`validateMeetUrl()`** returns `Result<MeetUrl, string>` — prefer this over `isAllowedMeetUrl()` when you need the branded type back
+- **`buildMeetUrl()` identity params** — uses `URL.searchParams.set()` for the identity hint (`authuser` for Google Meet, `uname` for Zoom). This replaces any existing duplicates and preserves the URL fragment. Do not return to manual `?`/`&` string concatenation; that path produced duplicate keys and dropped fragments.
 
 ## ANTI-PATTERNS
 

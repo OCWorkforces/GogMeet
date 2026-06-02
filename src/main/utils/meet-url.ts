@@ -22,22 +22,22 @@ export function buildMeetUrl(event: MeetingEvent): string {
   if (!email || !email.includes("@")) return base;
 
   const platform = detectPlatform(base);
-  const param = (() => {
+  const identity = (() => {
     switch (platform) {
       case "google-meet":
-        return `authuser=${encodeURIComponent(email)}`;
+        return { name: "authuser", value: email };
       case "zoom":
-        return `uname=${encodeURIComponent(email)}`;
+        return { name: "uname", value: email };
       default:
         return null;
     }
   })();
 
-  if (!param) return base;
+  if (!identity) return base;
 
-  // Preserve existing query parameters: use & if URL already contains ?
-  const separator = base.includes("?") ? "&" : "?";
-  return `${base}${separator}${param}`;
+  const parsed = new URL(base);
+  parsed.searchParams.set(identity.name, identity.value);
+  return parsed.toString();
 }
 
 /**

@@ -10,7 +10,20 @@ const MEET_URL_ALLOWED_HOSTNAMES: readonly string[] = [
   "meet.google.com",
   "calendar.google.com",
   "accounts.google.com",
+  "zoom.us",
+  "calendly.com",
 ];
+
+/** Hostname suffixes (any subdomain) the renderer may ask main to open. */
+const MEET_URL_ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [".zoom.us"];
+
+function isAllowedMeetHostname(hostname: string): boolean {
+  if (MEET_URL_ALLOWED_HOSTNAMES.includes(hostname)) return true;
+  for (const suffix of MEET_URL_ALLOWED_HOSTNAME_SUFFIXES) {
+    if (hostname.endsWith(suffix)) return true;
+  }
+  return false;
+}
 
 function brandMeetUrl(raw: string): MeetUrl | null {
   const branded = asMeetUrl(raw);
@@ -21,7 +34,7 @@ function brandMeetUrl(raw: string): MeetUrl | null {
   } catch {
     return null;
   }
-  if (!MEET_URL_ALLOWED_HOSTNAMES.includes(parsed.hostname)) return null;
+  if (!isAllowedMeetHostname(parsed.hostname)) return null;
   return branded.value;
 }
 

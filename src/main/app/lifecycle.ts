@@ -9,7 +9,11 @@ import {
   setTrayTitleCallback,
   initPowerCallbacks,
 } from "../scheduler/facade.js";
-import { getCalendarPermissionStatus, requestCalendarPermission } from "../domain/calendar.js";
+import {
+  getCalendarPermissionStatus,
+  requestCalendarPermission,
+  invalidateCalendarPermissionCache,
+} from "../domain/calendar.js";
 import {
   initPowerManagement,
   initPowerEvents,
@@ -108,7 +112,12 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
 
     tryRun("startScheduler", () => startScheduler());
     tryRun("startCalendarWatcher", () => startCalendarWatcher());
-    tryRun("initPowerManagement", () => initPowerManagement(() => restartScheduler()));
+    tryRun("initPowerManagement", () =>
+      initPowerManagement(() => {
+        invalidateCalendarPermissionCache();
+        restartScheduler();
+      }),
+    );
     tryRun("initPowerEvents", () => initPowerEvents());
     tryRun("registerShortcuts", () => registerShortcuts());
 

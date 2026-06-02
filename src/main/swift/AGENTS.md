@@ -56,6 +56,7 @@ Exit codes:
 - `url` → `MeetUrl` via structural `asMeetUrl()` only; host allowlist is enforced later at egress.
 - Empty optional fields become `undefined`; all-day field parses to boolean.
 - Invalid lines are rejected through typed errors; do not silently drop malformed rows unless existing parser tests specify that behavior.
+- `parseTimestampPair(startStr, endStr)` rejects `end < start` by returning `null`, so the row is treated as malformed and dropped rather than producing a `MeetingEvent` with a negative duration.
 
 ## Rules
 

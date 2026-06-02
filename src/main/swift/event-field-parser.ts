@@ -51,6 +51,7 @@ export function parseTimestampPair(startStr: string, endStr: string): ParsedTime
   const start = parseIsoUtc(startStr);
   const end = parseIsoUtc(endStr);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  if (end.getTime() < start.getTime()) return null;
   return { start, end };
 }
 

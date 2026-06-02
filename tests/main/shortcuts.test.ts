@@ -12,6 +12,9 @@ vi.mock("electron", () => ({
   shell: {
     openExternal: vi.fn().mockResolvedValue(undefined),
   },
+  dialog: {
+    showErrorBox: vi.fn(),
+  },
 }));
 
 // Mock electron-log
@@ -42,19 +45,24 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
   }),
 }));
 
-// Mock meet-url module
+// Mock scheduler facade
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  getLastKnownEvents: vi.fn().mockReturnValue(null),
+}));
+
+// Mock meet-url module — expose buildMeetUrl AND openMeetingUrl
 vi.mock("../../src/main/utils/meet-url.js", () => ({
   buildMeetUrl: vi
     .fn()
     .mockReturnValue(
       "https://meet.google.com/abc-def-ghi?authuser=user%40example.com",
     ),
+  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("shortcuts", () => {
   let registerShortcuts: () => void;
   let globalShortcut: { register: ReturnType<typeof vi.fn>; unregister: ReturnType<typeof vi.fn> };
-  let app: { on: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -65,7 +73,6 @@ describe("shortcuts", () => {
 
     const electron = await import("electron");
     globalShortcut = electron.globalShortcut as unknown as typeof globalShortcut;
-    app = electron.app as unknown as typeof app;
   });
 
   it("registers global shortcut on first call", () => {
@@ -83,21 +90,28 @@ describe("shortcuts", () => {
   });
 
   describe("shortcut handler", () => {
-    it("joins the next upcoming meeting when pressed", async () => {
+    it("routes the built meeting URL through openMeetingUrl when pressed", async () => {
       const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       registerShortcuts();
 
       // Get the handler function passed to globalShortcut.register
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).toHaveBeenCalledWith(
+      expect(openMeetingUrl).toHaveBeenCalledWith(
         "https://meet.google.com/abc-def-ghi?authuser=user%40example.com",
       );
+      // The shortcut must NOT call shell.openExternal directly anymore
+      expect(shell.openExternal).not.toHaveBeenCalled();
     });
 
     it("does nothing when no calendar events available", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
@@ -106,11 +120,13 @@ describe("shortcuts", () => {
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
     it("does nothing when calendar returns error", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
@@ -122,7 +138,7 @@ describe("shortcuts", () => {
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
   describe("registration failure", () => {
@@ -144,10 +160,13 @@ describe("shortcuts", () => {
 
   describe("shortcut handler — edge cases", () => {
     it("filters out all-day events", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "ok",
         events: [
           {
             id: "evt-allday",
@@ -166,14 +185,17 @@ describe("shortcuts", () => {
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
     it("filters out events without meetUrl", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "ok",
         events: [
           {
             id: "evt-no-url",
@@ -192,11 +214,13 @@ describe("shortcuts", () => {
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
     it("picks the earliest upcoming meeting when multiple exist", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       const { buildMeetUrl } =
@@ -243,26 +267,28 @@ describe("shortcuts", () => {
       expect(vi.mocked(buildMeetUrl).mock.calls[0][0]).toMatchObject({
         id: "evt-early",
       });
-      expect(shell.openExternal).toHaveBeenCalledWith(
+      expect(openMeetingUrl).toHaveBeenCalledWith(
         "https://meet.google.com/early-mtg-url?authuser=early%40example.com",
       );
     });
 
-    it("does nothing when buildMeetUrl returns null", async () => {
-      const { shell } = await import("electron");
-      const { buildMeetUrl } =
-        await import("../../src/main/utils/meet-url.js");
-      vi.mocked(buildMeetUrl).mockReturnValueOnce(null as never);
+    it("does nothing when buildMeetUrl returns empty string", async () => {
+      const { openMeetingUrl, buildMeetUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
+      vi.mocked(buildMeetUrl).mockReturnValueOnce("");
 
       registerShortcuts();
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
     it("handles errors from getCalendarEventsResult gracefully", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockRejectedValueOnce(
@@ -274,11 +300,13 @@ describe("shortcuts", () => {
 
       // Should not throw
       await expect(handler()).resolves.toBeUndefined();
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
 
     it("filters out past events", async () => {
-      const { shell } = await import("electron");
+      const { openMeetingUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
       const { getCalendarEventsResult } =
         await import("../../src/main/domain/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
@@ -301,7 +329,7 @@ describe("shortcuts", () => {
       const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
       await handler();
 
-      expect(shell.openExternal).not.toHaveBeenCalled();
+      expect(openMeetingUrl).not.toHaveBeenCalled();
     });
   });
   });

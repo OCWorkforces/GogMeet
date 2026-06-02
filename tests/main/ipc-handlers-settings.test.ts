@@ -66,7 +66,7 @@ describe("registerSettingsHandlers", () => {
       expect(result).toEqual(DEFAULT_SETTINGS);
     });
 
-    it("returns settings even for unauthorized sender", async () => {
+    it("returns fresh DEFAULT_SETTINGS without calling getSettings for unauthorized sender", async () => {
       registerSettingsHandlers(
         {} as unknown as import("electron").BrowserWindow,
       );
@@ -75,8 +75,9 @@ describe("registerSettingsHandlers", () => {
       const result = await handler!({
         senderFrame: { url: "https://evil.com/" },
       } as unknown as import("electron").IpcMainInvokeEvent);
-      // Settings handler returns settings regardless (validateSender returns false but still returns getSettings())
-      expect(mockGetSettings).toHaveBeenCalled();
+      expect(mockGetSettings).not.toHaveBeenCalled();
+      expect(result).toEqual(DEFAULT_SETTINGS);
+      expect(result).not.toBe(DEFAULT_SETTINGS);
     });
   });
 
@@ -139,7 +140,7 @@ describe("registerSettingsHandlers", () => {
       );
     });
 
-    it("returns settings for unauthorized sender", async () => {
+    it("returns fresh DEFAULT_SETTINGS and performs no side effects for unauthorized sender", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
@@ -153,8 +154,13 @@ describe("registerSettingsHandlers", () => {
         { openBeforeMinutes: 2 },
       );
       expect(mockUpdateSettings).not.toHaveBeenCalled();
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
+      expect(mockSyncAutoLaunch).not.toHaveBeenCalled();
+      expect(mockWin.webContents.send).not.toHaveBeenCalled();
+      expect(mockGetSettings).not.toHaveBeenCalled();
       expect(result).toEqual(DEFAULT_SETTINGS);
+      expect(result).not.toBe(DEFAULT_SETTINGS);
+    });
   });
-});
 
 });

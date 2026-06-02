@@ -98,5 +98,64 @@ describe("registerAlertHandlers", () => {
       handler!(badFileEvent, { id: asTestEventId("evt-1") });
       expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
     });
+
+    describe("malformed payload (runtime validation at IPC boundary)", () => {
+      it("ignores undefined payload — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, undefined)).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores null payload — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, null)).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores empty object payload — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, {})).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores payload with numeric id — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, { id: 123 })).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores payload with empty-string id — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, { id: "" })).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores payload with whitespace-only id — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(authorizedEvent, { id: "   " })).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+
+      it("ignores unauthorized sender with malformed payload — does not throw, does not cancel", () => {
+        registerAlertHandlers();
+        const handler = getRegisteredHandler("alert:dismissed");
+
+        expect(() => handler!(unauthorizedHttpsEvent, undefined)).not.toThrow();
+        expect(() => handler!(unauthorizedHttpsEvent, { id: 123 })).not.toThrow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -229,4 +229,39 @@ describe("buildMeetUrl", () => {
     });
   });
 
+  describe("existing identity params (regression)", () => {
+    it("replaces existing authuser on Google Meet rather than duplicating", () => {
+      const event = makeEvent({
+        meetUrl: "https://meet.google.com/abc-def-ghi?authuser=old@example.com",
+        userEmail: "new@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://meet.google.com/abc-def-ghi?authuser=new%40example.com",
+      );
+    });
+
+    it("replaces existing uname on Zoom while preserving other params", () => {
+      const event = makeEvent({
+        meetUrl: "https://zoom.us/j/123?pwd=abc&uname=Old",
+        userEmail: "new@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://zoom.us/j/123?pwd=abc&uname=new%40example.com",
+      );
+    });
+
+    it("places authuser before fragment on Google Meet URL with fragment", () => {
+      const event = makeEvent({
+        meetUrl: "https://meet.google.com/abc-def-ghi#section",
+        userEmail: "user@example.com",
+      });
+      const url = buildMeetUrl(event);
+      expect(url).toBe(
+        "https://meet.google.com/abc-def-ghi?authuser=user%40example.com#section",
+      );
+    });
+  });
+
 });
