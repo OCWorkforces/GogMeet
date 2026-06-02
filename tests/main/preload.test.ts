@@ -192,4 +192,52 @@ describe("preload/index.ts", () => {
       expect.any(Function),
     );
   });
+
+  describe("openExternal allowlist parity", () => {
+    const ALLOWED = [
+      "https://meet.google.com/abc",
+      "https://calendar.google.com/event?eid=x",
+      "https://accounts.google.com/signin",
+      "https://zoom.us/j/1234567890",
+      "https://us02web.zoom.us/j/1234567890",
+      "https://acme.zoom.us/my/room",
+      "https://calendly.com/someone/30min",
+    ];
+
+    const REJECTED = [
+      "https://zoom.us.evil.com/j/1",
+      "https://evil-zoom.us/j/1",
+      "https://calendly.com.evil.com/x",
+      "https://app.calendly.com/x",
+      "http://meet.google.com/abc",
+      "https://evil.example/whatever",
+    ];
+
+    for (const url of ALLOWED) {
+      it(`forwards allowed URL ${url} to IPC`, async () => {
+        await import("../../src/preload/index.js");
+        const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+        mockIpcRenderer.invoke.mockClear();
+
+        await apiArg.app.openExternal(url);
+
+        expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
+          "app:open-external",
+          { url },
+        );
+      });
+    }
+
+    for (const url of REJECTED) {
+      it(`drops rejected URL ${url} without IPC`, async () => {
+        await import("../../src/preload/index.js");
+        const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+        mockIpcRenderer.invoke.mockClear();
+
+        await apiArg.app.openExternal(url);
+
+        expect(mockIpcRenderer.invoke).not.toHaveBeenCalled();
+      });
+    }
+  });
 });
