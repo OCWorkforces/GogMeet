@@ -1,6 +1,6 @@
 # GogMeet Tests — Knowledge Base
 
-Vitest workspace with three projects. `main` runs in Node with Electron mocks, `renderer` runs in jsdom, and `shared` runs in plain Node.
+Vitest workspace with four projects. `main` runs in Node with Electron mocks, `renderer` runs in jsdom, `shared` runs in plain Node, and `scripts` covers repository automation helpers.
 
 ## Projects
 
@@ -9,6 +9,7 @@ Vitest workspace with three projects. `main` runs in Node with Electron mocks, `
 | `main` | Node | `tests/setup.main.ts` | Electron main process, scheduler, Swift, IPC, windows, utilities. |
 | `renderer` | jsdom | none | Browser-only UI rendering and interaction tests. |
 | `shared` | Node | none | Process-neutral shared contracts/utilities. |
+| `scripts` | Node | none | Repository automation scripts under `scripts/`; no Electron mocks. |
 
 Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`.
 
@@ -20,7 +21,8 @@ tests/
 ├── helpers/test-utils.ts  # shared factories and brand wrappers
 ├── main/                  # Node + Electron mock suites
 ├── renderer/              # jsdom suites, no Electron mock
-└── shared/                # Node-only shared suites
+├── shared/                # Node-only shared suites
+└── scripts/               # Node-only repository script suites
 ```
 
 Total test count changes often; run `bun run test` for authoritative numbers.
