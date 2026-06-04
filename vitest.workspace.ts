@@ -44,6 +44,13 @@ export default defineConfig({
           },
         },
       },
+      {
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['tests/scripts/**/*.test.ts'],
+        },
+      },
     ],
   },
 });

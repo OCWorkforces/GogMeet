@@ -53,6 +53,7 @@
     "package": "bun run build && electron-builder --mac",
     "package:dir": "bun run build && electron-builder --mac --dir",
     "typecheck": "tsc -b",
+    "validate:node": "node scripts/validate-node.mjs",
     "test": "vitest run -c vitest.workspace.ts",
     "test:watch": "vitest -c vitest.workspace.ts",
     "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
