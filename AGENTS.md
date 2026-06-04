@@ -13,9 +13,9 @@ macOS tray app for Google Meet calendar reminders. Reads macOS Calendar via Swif
 | Runtime  | Electron `^42.2.0` (sandboxed BrowserWindows, contextIsolation)                                                                  |
 | Language | TypeScript `^6.0.3` (`isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`) |
 | Build    | Rslib `^0.21.5` (main + preload, CJS) + Rsbuild `^2.0.7` (renderer, ESM, 3 envs)                                                 |
-| Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`); Node `>=20`                                                                       |
+| Package  | Bun `>=1.3.12` (`packageManager: bun@1.3.14`) — primary runtime for dev/build/test/lint/package. Host Node `>=20` (engines floor); recommended and CI-validated host Node `26` (see `.nvmrc`). Electron 42 embeds Node 24.15.0 at runtime, independent of host Node. |
 | Calendar | Swift EventKit helper (`googlemeet-events.swift`, hash-cached)                                                                   |
-| Test     | Vitest `^4.1.7` workspace (main / renderer / shared)                                                                             |
+| Test     | Vitest `^4.1.7` workspace (main / renderer / shared / scripts)                                                                   |
 | Logging  | `electron-log` `^5.4.4`                                                                                                          |
 | Updates  | `electron-updater` `^6.8.3`                                                                                                      |
 
@@ -39,10 +39,11 @@ bun run test:coverage    # vitest run -c vitest.workspace.ts --coverage
 bun run lint             # eslint src/ --cache
 bun run format:check     # prettier --check 'src/**/*.{ts,css}'
 bun run format           # prettier --write 'src/**/*.{ts,css}'
+bun run validate:node    # node scripts/validate-node.mjs — enforce host Node major >= 26 and run icon generator under host Node
 bun run clean            # rimraf lib dist
 ```
 
-CI (`pr-check`) runs `typecheck` → `test` → `test:coverage`. The release workflow runs `build` → `package`, then tags and uploads artifacts.
+CI (`pr-check`) runs two jobs: `check` (Bun: `typecheck` → `test` → `test:coverage`) and `validate-node` (Bun install + explicit Node 26 via `actions/setup-node` + `bun run validate:node` + icon-diff guard). The release workflow sets up Bun and Node 26, then runs `build`, tags from `package.json` via `node -p`, packages, and uploads artifacts.
 
 ## CONVENTIONS (project-wide)
 
