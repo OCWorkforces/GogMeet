@@ -1012,7 +1012,7 @@ describe("Wave 2: Dirty flag for title resolution", () => {
   });
 });
 
-describe("F5: late-fire grace (in-progress events missed during sleep/lock/late-poll)", () => {
+describe("F5: post-start no auto-open (in-progress events do not open after start)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
@@ -1025,24 +1025,28 @@ describe("F5: late-fire grace (in-progress events missed during sleep/lock/late-
     vi.useRealTimers();
   });
 
-  it("fires browser-open when in-progress event is within grace and not fired/cancelled", () => {
-    // Started 30s ago, well within 120s grace, ends in 30 min
+  it("does NOT auto-open in-progress event after start (browser auto-open only fires BEFORE start)", () => {
+    // Contract: GogMeet only auto-opens BEFORE start by openBeforeMinutes.
+    // For an event already in progress, no delay=0 browser-open must be scheduled;
+    // only the in-meeting countdown should run.
     const event = makeEvent({
-      id: "f5-grace",
+      id: "f5-no-late-open",
       startDate: new Date(Date.now() - 30 * 1000).toISOString(),
       endDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       meetUrl: "https://meet.google.com/abc-defg-hij",
     });
 
-    expect(firedEvents.has("f5-grace")).toBe(false);
+    expect(firedEvents.has("f5-no-late-open")).toBe(false);
     scheduleEvents([event]);
 
-    // Grace-fire scheduled scheduleBrowserTimer with delay=0 — advance to flush
+    // Flush microtasks; no delay=0 browser-open timer should have been queued.
     vi.advanceTimersByTime(50);
 
-    expect(firedEvents.has("f5-grace")).toBe(true);
-    // In-meeting countdown should also be running (grace + in-meeting coexist)
-    expect(inMeetingIntervals.has("f5-grace")).toBe(true);
+    // Browser auto-open must NOT have fired and must NOT have left a timer.
+    expect(firedEvents.has("f5-no-late-open")).toBe(false);
+    expect(timers.has("f5-no-late-open")).toBe(false);
+    // In-meeting countdown must still run for in-progress events.
+    expect(inMeetingIntervals.has("f5-no-late-open")).toBe(true);
   });
 
   it("does NOT fire when event is cancelled (alert dismissed via Cmd+W or X)", () => {
@@ -1065,8 +1069,8 @@ describe("F5: late-fire grace (in-progress events missed during sleep/lock/late-
     expect(inMeetingIntervals.has("f5-cancelled")).toBe(true);
   });
 
-  it("does NOT fire when event started outside the grace window", () => {
-    // Started 3 minutes ago — exceeds 2-min LATE_FIRE_GRACE_MS
+  it("does NOT fire for an event that started well before now (no post-start auto-open)", () => {
+    // Started 3 minutes ago — post-start auto-open is unconditionally disabled.
     const event = makeEvent({
       id: "f5-stale",
       startDate: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
