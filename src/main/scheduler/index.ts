@@ -30,6 +30,9 @@ function getOpenBeforeMs(settings: AppSettings): number {
 /** Don't schedule events that start more than this far in the future */
 const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** Window after start during which a first-discovery in-progress event still triggers an auto-open */
+const CATCHUP_WINDOW_MS = 2 * 60 * 1000;
+
 /**
  * Handle an event whose start time is in the past.
  * If the meeting is still in progress, starts the in-meeting countdown
@@ -72,6 +75,26 @@ function handleInProgressEvent(
       endMs,
     });
     startInMeetingCountdown(event.id, { title: event.title, endMs });
+  }
+
+  // Catch-up: if this is a first-discovery in-progress event within the catch-up
+  // window, fire the browser-open via the existing path (delay=0).
+  if (
+    event.meetUrl &&
+    !s.firedEvents.has(event.id) &&
+    !s.cancelledEvents.has(event.id) &&
+    now - startMs <= CATCHUP_WINDOW_MS
+  ) {
+    scheduleBrowserTimer(
+      event,
+      0,
+      startMs,
+      endMs,
+      s.timers,
+      s.firedEvents,
+      s.scheduledEventData,
+      shouldAbort,
+    );
   }
 
   return true;
