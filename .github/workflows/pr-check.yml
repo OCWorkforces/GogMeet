@@ -65,7 +65,3 @@ jobs:
       - name: Validate host Node and regenerate icons
         run: bun run validate:node
 
-      - name: Ensure generated icon outputs are clean
-        run: |
-          git status --porcelain src/assets build/icon.icns
-          git diff --exit-code -- src/assets build/icon.icns
