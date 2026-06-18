@@ -22,8 +22,8 @@ export function scheduleBrowserTimer(
   const handle = setTimeout(() => {
     if (shouldAbort?.()) return;
     timers.delete(event.id);
+    if (Date.now() >= startMs) return;
     firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
-    // Always show notification for all meetings
     try {
       new Notification({
         title: event.title,
