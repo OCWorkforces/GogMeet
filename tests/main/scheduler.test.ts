@@ -1012,7 +1012,7 @@ describe("Wave 2: Dirty flag for title resolution", () => {
   });
 });
 
-describe("F5: in-progress catch-up auto-open within 2-minute window", () => {
+describe("F5: in-progress auto-open suppression after meeting start", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
@@ -1025,12 +1025,7 @@ describe("F5: in-progress catch-up auto-open within 2-minute window", () => {
     vi.useRealTimers();
   });
 
-  it("catches up an in-progress event first discovered within the 2-minute window", () => {
-    // Contract: when an event is FIRST discovered already in progress, started
-    // within the 2-minute catch-up window, has a valid meetUrl, is not cancelled,
-    // and has not already fired, the scheduler MUST auto-open the browser
-    // immediately (delay=0 via scheduleBrowserTimer). The in-meeting countdown
-    // still runs in parallel.
+  it("does not auto-open an in-progress event first discovered after start", () => {
     const event = makeEvent({
       id: "f5-catchup",
       title: "Late-discovered Meeting",
@@ -1042,11 +1037,10 @@ describe("F5: in-progress catch-up auto-open within 2-minute window", () => {
     expect(firedEvents.has("f5-catchup")).toBe(false);
     scheduleEvents([event]);
 
-    // Flush the delay=0 catch-up browser-open timer.
     vi.advanceTimersByTime(50);
 
-    // Browser auto-open must have fired via the catch-up path.
-    expect(firedEvents.has("f5-catchup")).toBe(true);
+    expect(firedEvents.has("f5-catchup")).toBe(false);
+    expect(timers.has("f5-catchup")).toBe(false);
     // In-meeting countdown still runs in parallel.
     expect(inMeetingIntervals.has("f5-catchup")).toBe(true);
   });
@@ -1071,8 +1065,7 @@ describe("F5: in-progress catch-up auto-open within 2-minute window", () => {
     expect(inMeetingIntervals.has("f5-cancelled")).toBe(true);
   });
 
-  it("does NOT fire for an event that started outside the 2-minute catch-up window", () => {
-    // Started 3 minutes ago — past the 2-minute catch-up window, so no auto-open.
+  it("does NOT fire for an in-progress event first discovered after start", () => {
     const event = makeEvent({
       id: "f5-stale",
       startDate: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
