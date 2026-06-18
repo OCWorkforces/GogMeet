@@ -64,4 +64,3 @@ jobs:
 
       - name: Validate host Node and regenerate icons
         run: bun run validate:node
-
