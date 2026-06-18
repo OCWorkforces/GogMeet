@@ -30,7 +30,7 @@ Application source is split by Electron process. Keep process boundaries strict:
 | URL allowlist              | `main/utils/url-validation.ts` plus security tests                                      |
 | Meeting platform detection | `main/utils/platform.ts` → `main/utils/meet-url.ts` branching/tests                     |
 | Browser windows            | `main/windows/*` and `main/utils/browser-window.ts`                                     |
-| Renderer HTML              | `renderer/rendering/*`, `renderer/utils/escape-html.ts`                                 |
+| Renderer HTML              | `renderer/rendering/*`, `shared/utils/escape-html.ts`                                   |
 
 ## src-local rules
 
@@ -45,7 +45,7 @@ Application source is split by Electron process. Keep process boundaries strict:
 
 ## Wrapper provider recipe
 
-Wrapper meeting providers (Calendly, SavvyCal, Cal.com, HubSpot Meetings, etc.) are opened directly; the user browser follows redirects.
+Calendly wrapper URLs are opened directly; the user browser follows redirects. Add other wrapper providers only after updating Swift extraction, main/preload allowlists, and tests together.
 
 1. Add the Swift regex to `findMeetUrl()` in `main/googlemeet-events.swift`, ordered after Zoom and Meet patterns.
 2. Add the exact hostname to `MEETING_URL_ALLOWLIST` in `main/utils/url-validation.ts`.

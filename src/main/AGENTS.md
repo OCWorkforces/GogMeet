@@ -44,7 +44,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 - Use `typedHandle()` for invokes, `validateSender()` / `validateOnSender()` for every renderer-originated event.
 - Use `typedSend()` for push channels and guard destroyed windows.
-- Never call `shell.openExternal()` directly; use `openMeetingUrl()` after allowlist validation.
+- Meeting URL egress uses `openMeetingUrl()` after allowlist validation; non-meeting external links need an exact documented guard before `shell.openExternal()`.
 - Keep `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false` on every BrowserWindow.
 
 ## Important invariants

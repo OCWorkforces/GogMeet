@@ -11,7 +11,7 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 | `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, pushes `CALENDAR_EVENTS_UPDATED`.                                                                           |
 | `state/`             | Internal sliced state; see `state/AGENTS.md`. External imports forbidden.                                                                                                      |
 | `browser-timer.ts`   | Browser-open timer and notification trigger.                                                                                                                                   |
-| `alert-timer.ts`     | Full-screen alert timer: 60s after the browser-open offset (`openBeforeMinutes - 1`, clamped at now).                                                                          |
+| `alert-timer.ts`     | Full-screen alert timer: 60s before browser auto-open, clamped to now when the browser-open time is already near.                                                             |
 | `title-countdown.ts` | 30-minute tray title window and cancelled-title tracking.                                                                                                                      |
 | `countdown.ts`       | In-meeting title countdown and active event resolution.                                                                                                                        |
 
@@ -42,7 +42,7 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 
 - Poll interval: 2 minutes on AC, 4 minutes on battery (`system/power.ts`).
 - Open-before window: settings-controlled 1–5 minutes.
-- Alert offset: 60 seconds before browser open.
+- Alert offset: 60 seconds before browser auto-open, not after it.
 - Title countdown window: 30 minutes before start.
 - Schedule-ahead cap: 24 hours.
 - Force-poll coalesce: 10 seconds after last completed poll.

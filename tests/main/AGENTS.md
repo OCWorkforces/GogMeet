@@ -2,84 +2,66 @@
 
 ## OVERVIEW
 
-Tests for `src/main/` (30+ files, ~7000 lines). Uses Vitest with `setup.main.ts` which auto-mocks Electron APIs (`app`, `BrowserWindow`, `ipcMain`, `Tray`, etc.). All `vi.mock()` calls go in `setup.main.ts`, not inline.
+Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock. Covers Electron main, scheduler, Swift bridge, IPC, windows, tray/menu, system adapters, settings, preload, and shared contracts used by main.
 
 ## STRUCTURE
 
 ```
 tests/main/
-├── swift/              # Swift binary + event parsing tests
-│   ├── event-parser.test.ts
-│   └── ...
-├── scheduler*.test.ts  # 10 files, state machine + facade + poll race probes
-├── calendar.test.ts    # 603 lines, Swift output parsing
-├── alert-window.test.ts
-├── lifecycle.test.ts   # 248 lines, init/shutdown
-├── ipc*.test.ts        # 9 files, IPC registrar + handlers
-├── settings.test.ts
-├── tray.test.ts
-├── shortcuts.test.ts
-└── ...
+├── scheduler*.test.ts       # scheduler state, timers, facade, poll races, auto-open deadlines
+├── swift/                   # parser-focused Swift output tests
+├── ipc*.test.ts             # channel constants, typed wrappers, handlers, registrar
+├── calendar*.test.ts        # calendar domain and watch sidecar boundaries
+├── *-window.test.ts         # BrowserWindow factories and alert/settings windows
+└── system/util suites       # power, shortcuts, notification, auto-launch, updater, URL helpers
 ```
 
-## KEY TEST FILES
+## SCHEDULER SUITES
 
-### Scheduler Tests (10 files)
+| Area | Files |
+| --- | --- |
+| State machine | `scheduler.test.ts`, `scheduler-state-replace.test.ts` |
+| Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts`, `scheduler-restart-preserves-suppression.test.ts` |
+| Browser/alert timers | `scheduler-browser-timer.test.ts`, `scheduler-alert-timer.test.ts`, `scheduler-auto-open-deadline.test.ts`, `scheduler-facade-cancel-browser-open.test.ts` |
+| Tray countdown | `scheduler-title-countdown.test.ts`, `scheduler-countdown.test.ts` |
 
-`scheduler.test.ts` — state machine A-F groups. Timer creation, deduplication, cancellation via `setupSchedulerForEvent`/`teardownEvent`.
-`scheduler-poll.test.ts` — `startScheduler`/`stopScheduler`/`restartScheduler`/`forcePoll`. Covers `FORCE_POLL_COALESCE_MS` (10s) coalescing and `pollEpoch` race probes: stale poll callbacks resolving after `restartScheduler()` must not push results or reschedule under the old epoch's timer.
-`scheduler-facade-force-poll.test.ts` — facade-level `forcePoll` race probes. Coalesced concurrent calls share one in-flight poll; a request that arrives while a poll is running is deferred and re-fires once after completion.
-`scheduler-facade-cancel-browser-open.test.ts` — alert-dismissal path: cancels the matching browser-open timer without touching unrelated events.
-`scheduler-state-replace.test.ts` / `scheduler-restart-preserves-suppression.test.ts` — state singleton swap and suppression carry-over across restart.
-`scheduler-title-countdown.test.ts` — tray title countdown. `MAX_CONSECUTIVE_ERRORS_CAP` = 4.
-`scheduler-countdown.test.ts` — countdown timer per event.
-`scheduler-browser-timer.test.ts` — browser auto-open timer.
-`scheduler-alert-timer.test.ts` — alert timer, auto-open suppression.
+Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
 
-### Calendar Tests
+## CALENDAR / SWIFT
 
-`calendar.test.ts` — 603 lines. Tests `parseEvents()` with 9-field tab-delimited Swift output, `CalendarResult` discriminated union, `isCalendarOk()`, diagnostics. Swift exit codes: 0=success, 2=permission, 3=no calendars, 4=error.
+- `calendar.test.ts` covers `CalendarResult`, 9-field tab-delimited Swift output, diagnostics, and permission status/request cache behavior.
+- `swift/event-parser.test.ts` covers field parsing, diagnostics, sorting, URL/note cleanup, and `classifySwiftError()`.
+- `swift-binary-manager.test.ts` covers `/tmp/googlemeet` cache paths, source hash, compile target flags, retry/recompile behavior, and `promisify.custom` exec mocks.
+- `calendar-watch-sidecar.test.ts` covers the Node-managed `swift --watch` sidecar restart, debounce, stable-runtime reset, and stop behavior.
 
-### Swift Tests
+## IPC / PRELOAD
 
-`swift-binary-manager.test.ts` — 454 lines. Hash-based binary cache in `/tmp/googlemeet/`, architecture-aware compile, retry on failure (5 retries, exp backoff). Mode 0o700.
-`tests/main/swift/event-parser.test.ts` — 358 lines, tab-delimited field parsing, `cleanDescription`, `classifySwiftError`.
+- Channel contracts: `ipc-channels.test.ts`, `ipc-types.test.ts`.
+- Boundary helpers: `ipc-handlers-shared.test.ts` for `validateSender`, `validateOnSender`, `typedHandle`, `typedSend`.
+- Domain handlers: `ipc-handlers-calendar/settings/app/window/scheduler/alert.test.ts`.
+- Registrar: `ipc-registrar.test.ts` must track every handler registered by `src/main/app/ipc.ts`.
+- Preload API: `preload.test.ts` covers `contextBridge` exposure, invoke/send/listener wiring, and preload URL allowlist behavior.
 
-### IPC Tests (9 files)
+## WINDOWS / SYSTEM / UTILS
 
-`ipc.test.ts` — `IpcResponse<T>` discriminated union, `kind: "ok"|"err"` tag.
-`ipc-handlers-*.test.ts` — 6 files, each domain handler tested with `mockIpcInvoke`/`mockIpcSend`.
-`ipc-registrar.test.ts` — `registerIpcHandlers()` calls all register functions.
+- Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts`.
+- Tray/menu/windows: `tray.test.ts`, `meeting-menu.test.ts`, `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts`.
+- System adapters: `power.test.ts`, `shortcuts.test.ts`, `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
+- Domain/utils: `settings.test.ts`, `settings-defaults.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
 
-### Other Notable
+## MOCKING RULES
 
-`brand.test.ts` — EventId, MeetUrl, IsoUtc, WindowHeight validators.
-`settings.test.ts` — 204 lines, persistent settings CRUD. `settings-defaults.test.ts` for schema.
-`tray.test.ts` — tray icon rendering, context menu.
-`shortcuts.test.ts` — 308 lines, Cmd+Shift+M shortcut.
-`preload.test.ts` — preload context bridge API.
-`power.test.ts`, `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`, `about-window.test.ts`.
-`url-validation.test.ts` — allowlist validation, `validateMeetUrl()`, `Result<MeetUrl, string>`.
-`time-utils.test.ts` — shared time formatting.
+- `tests/setup.main.ts` is the default Electron mock: `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`.
+- Inline `vi.mock("electron", ...)` is allowed when a suite needs isolated import-time behavior or a narrower Electron surface.
+- Mock source modules with `.js` specifiers, matching production imports.
+- Dynamic import tests use `vi.resetModules()` before `await import(...)`.
 
 ## TEST UTILITIES
 
-`tests/helpers/test-utils.ts` — shared factories:
-
-- `createMockEvent()`, `createMockIpcEvent()`
-- `createMockSettings()`, `isoFromNow()`, `asTestEventId()`, `asTestMeetUrl()`, `asTestIsoUtc()`
-
-## CONVENTIONS
-
-- Each test file mirrors its source file's structure
-- IPC handler tests use `vi.hoisted()` mock objects plus `getRegisteredHandler(channel)` helpers to pull callbacks from `ipcMain.handle` / `ipcMain.on` calls.
-- `mockIpcInvoke`/`mockIpcSend` wrappers used instead of raw `ipcMain` manipulation.
-- Scheduler state-heavy tests rebind live Map/Set refs after `_resetForTest()` via local `refreshStateRefs()`; title-countdown tests instead mutate Maps directly in `beforeEach`.
-- `vi.useFakeTimers()` for scheduler tests; advance with `vi.advanceTimersByTimeAsync()` when promise callbacks may flush.
-- `FORCE_POLL_COALESCE_MS` (10s) factored into poll timing tests
+Use `tests/helpers/test-utils.ts` for shared factories: `createMockEvent`, `createMockSettings`, `createMockIpcEvent`, `isoFromNow`, `asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc`. For validator failure paths, call production validators and inspect the returned `Result`.
 
 ## ANTI-PATTERNS
 
-- Prefer the central Electron mock in `setup.main.ts`; inline `vi.mock("electron", ...)` is only for suites that need isolated module-import behavior.
-- Never skip `validateSender()` verification in IPC handler tests
-- Never test implementation details of `setTimeout` — test observable state changes
+- Never skip sender validation coverage for IPC handlers.
+- Never assert raw `setTimeout` implementation details when observable state changes can be tested.
+- Never import renderer code into main tests; preload tests are the documented bridge exception.

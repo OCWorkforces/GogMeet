@@ -22,7 +22,7 @@ Runtime compilation and parsing layer for the macOS EventKit helper. Source live
 - Hash sidecar: `/tmp/googlemeet/source.hash`.
 - Recompile when source hash changes or binary is missing.
 - Compile with arch-aware target and optimization flags (`-Osize`, `-whole-module-optimization`); optional strip after compile.
-- Compile/run retries use exponential backoff, 5 attempts, up to 30s.
+- Compile retries use 5 attempts with 1s/2s/4s/8s sleeps; the 30s cap is present but not reached with the current attempt count.
 
 ## Source paths
 
@@ -49,6 +49,8 @@ Exit codes:
 | `3` | No calendars. |
 | `4` | Runtime/helper error. |
 
+`SwiftHelperError` helpers classify these codes, but verify the production call path before assuming every helper exit reaches `CalendarResult` as a structured `AppError`.
+
 ## Parsing rules
 
 - `uid` → `EventId` via `asEventId()`.
@@ -64,3 +66,4 @@ Exit codes:
 - Keep Swift stdout/stderr and exit-code handling mapped into `CalendarResult` / `AppError` taxonomy.
 - Do not suppress compile/run errors with empty catches.
 - Tests must mock `node:child_process` with `promisify.custom` because production uses promisified `execFile`.
+- Watch sidecar retries sleep 1s/2s/4s/8s/16s, resets retry budget after 60s stable runtime, and escalates SIGTERM to SIGKILL after 5s.

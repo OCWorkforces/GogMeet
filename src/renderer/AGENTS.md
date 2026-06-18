@@ -18,6 +18,7 @@ Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML stri
 src/renderer/
 ├── index.ts          # Main popover UI
 ├── events/           # data-action event delegation
+├── lib/              # pure event-push filtering/signature helpers
 ├── rendering/        # body renderer
 ├── settings/         # Settings window entry
 ├── alert/            # Full-screen alert entry
@@ -27,7 +28,7 @@ src/renderer/
 ## RENDERING
 
 - `rendering/body.ts` owns meeting list, permission/error/empty states, and all user content via `escapeHtml()`.
-- Header/footer markup is assembled inside the body renderer; there are no separate header/footer modules.
+- `index.ts` owns the outer dialog/footer; `body.ts` owns body states/list only.
 - Title, description, URL: always escaped before innerHTML
 
 ## EVENT HANDLING
@@ -53,10 +54,10 @@ src/renderer/
 
 ## ALERT WINDOW
 
-- Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent. Returns cleanup function `() => void`.
+- Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent.
 - Shows meeting title, time, description (all escaped)
 - Title uses `-webkit-line-clamp: 2` with `overflow-wrap: anywhere` — allows up to 2 lines, no truncation for long/Vietnamese titles
-- Keyboard: Escape or any key dismisses
+- Keyboard: Escape dismisses; non-Escape keys do not dismiss.
 - Error boundary: try/catch around rendering with fallback DOM
 
 ## CONVENTIONS
@@ -66,14 +67,14 @@ src/renderer/
 - `data-action` event delegation, no inline handlers
 - State changes trigger full re-render, no diffing
 - CSS lives in `styles/`, loaded via HTML link
-- DOM element casts (`as HTMLElement`) are accepted pattern for vanilla TS, documented with comments at each site (5 locations)
-- `version` in index.ts is `let` (reassigned on line 165), not `const`
-- `window.api` is typed via `import type { Api } from "../preload/index.js"` (single source of truth from preload), no manual `declare global` Window augmentation blocks
-- `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` uses an explicitly typed callback parameter (previously missing param type)
+- DOM element casts (`as HTMLElement`) are accepted for freshly queried elements in vanilla TS.
+- `RendererState.version` starts empty and is populated from `window.api.app.getVersion()` during init.
+- `window.api` is typed in `env.d.ts` via `import type { Api } from "../preload/index.js"`.
+- `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` receives pushed event arrays directly.
+- User-facing branded string fields remain string-compatible for rendering.
 
 ## ANTI-PATTERNS
 
 - Never bypass `escapeHtml()` for any user-controlled string in innerHTML
 - Never store DOM references across renders, full re-render replaces innerHTML
 - Never use `onclick` inline handlers, use `data-action` delegation
-- All user-facing string fields (title, calendarName, description, meetUrl) arrive as branded types from shared but are string-compatible for rendering
