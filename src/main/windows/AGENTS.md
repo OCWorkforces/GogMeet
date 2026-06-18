@@ -25,7 +25,7 @@ Auxiliary BrowserWindow factories beyond the main popover. Each is a singleton w
 ## NOTES
 
 - All three windows load via `loadWindowContent(win, page)` and use `getPreloadPath()` from `utils/browser-window.js`. See `utils/AGENTS.md` for security defaults.
-- About window reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. External links go through `shell.openExternal()` which is allowlist-validated upstream.
+- About window reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. Repository links are exact-match guarded against `packageJson.repository` before `shell.openExternal()`.
 - Alert window is tagged with `win.__alertUid = event.id` so rapid `showAlert()` calls with the same uid are dropped (active or queued). Different uids queue and fire sequentially after the prior window closes.
 - Alert payload omits `meetUrl` by design, the alert UI does not join meetings, dismissal only.
 - Settings window is the only window that toggles Dock visibility, the app is tray-only otherwise. IPC settings updates trigger `restartScheduler()` from the handler side, not from this file.

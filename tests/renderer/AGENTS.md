@@ -9,6 +9,7 @@ Tests for `src/renderer/` under Vitest with `jsdom` environment. No Electron moc
 ```
 tests/renderer/
 ├── alert.test.ts                  # Alert overlay state machine, formatTimeRange, AlertPayload push
+├── apply-events-push.test.ts      # Push event filtering/signature gating
 ├── delegation.test.ts             # data-action event delegation
 ├── escape-html.test.ts            # XSS protection (top-level)
 ├── main-ui.test.ts                # Main popover state machine + meeting list render

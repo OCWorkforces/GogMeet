@@ -4,7 +4,7 @@
 
 ## OVERVIEW
 
-Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.handle` / `ipcMain.on` listeners with sender validation.
+Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-forget handlers use `ipcMain.on()` with sender validation.
 
 ## FILES
 
@@ -20,7 +20,7 @@ Type-safe IPC handler registry. Each domain file registers Electron `ipcMain.han
 
 ## PATTERNS
 
-**Invoke handlers** (all except window.ts and scheduler.ts) — every invoke handler uses `validateSender()` (SETTINGS_GET previously missing, now fixed):
+**Invoke handlers** (all except `window.ts`, `scheduler.ts`, `alert.ts`) — every invoke handler uses `validateSender()`:
 
 ```
 typedHandle(channel, (e, args) => { validateSender(e); ... })
@@ -28,7 +28,7 @@ typedHandle(channel, (e, args) => { validateSender(e); ... })
 
 → Returns `IpcResponse<T>` to renderer via `ipcRenderer.invoke`.
 
-**Fire-and-forget** (window.ts):
+**Fire-and-forget** (`window.ts`, `scheduler.ts`, `alert.ts`):
 
 ```
 ipcMain.on(channel, (e, h) => { validateOnSender(e, ...); ... })
@@ -42,7 +42,7 @@ ipcMain.on(channel, (e, h) => { validateOnSender(e, ...); ... })
 typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChannelMap types
 ```
 
-**Registration**: Each file exports `register*Handlers(win?)`. Called from `src/main/ipc.ts`.
+**Registration**: Each file exports `register*Handlers(win?)`. Called from `src/main/app/ipc.ts`.
 
 **Side effects** (settings.ts only): `SETTINGS_SET` calls `restartScheduler()`, `syncAutoLaunch()`, pushes `SETTINGS_CHANGED` to renderer via `typedSend(win.webContents, ...)`.
 
@@ -59,7 +59,7 @@ typedSend(win.webContents, channel, payload) — isDestroyed() guard, PushChanne
 | `SETTINGS_SET`                | settings.ts  | invoke (+ side effects)                                                 |
 | `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget (request `{height: WindowHeight}`, bounded 220–480)     |
 | `SCHEDULER_FORCE_POLL`        | scheduler.ts | fire-and-forget → `void forcePoll()`                                    |
-| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget (request `{eventId: EventId}`)                          |
+| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget (request `{ id: EventId }`)                              |
 
 Push channels use `typedSend()` from `shared.ts`:
 
@@ -76,6 +76,5 @@ Push channels use `typedSend()` from `shared.ts`:
 - Never open URLs without `isAllowedMeetUrl` check
 - Never push to renderer without checking `win.isDestroyed()`
 - Never use raw `webContents.send()` — always use `typedSend()` from `shared.ts`
-- All `typedHandle` callbacks now have explicit `(event: IpcMainInvokeEvent)` annotation
 - Errors normalized through `AppError` taxonomy in `src/shared/errors.ts` (6 variants) — never throw raw strings from handlers
 - Never trust preload-side branded payload typing in fire-and-forget handlers. The renderer/preload boundary can ship arbitrary shapes; re-validate the payload and re-brand (e.g. `asEventId`) at the main trust boundary before acting (see `ALERT_DISMISSED`).

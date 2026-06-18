@@ -11,6 +11,7 @@ Pure TypeScript contracts and utilities shared by main, preload, and renderer. T
 | `calendar-result.ts` | `CalendarResult` (`kind: "ok" | "err"`), `isCalendarOk()`, permission type. |
 | `brand.ts` | `EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight` and validators. |
 | `errors.ts` | `AppError` taxonomy, helpers, and type guards. |
+| `event-signature.ts` | Stable event/list signatures for scheduler push and renderer rerender gating. |
 | `result.ts` | Generic `Result<T,E>` and `AppResult<T>`. |
 | `settings.ts` | `AppSettings`, defaults, min/max constants. |
 | `alert.ts` | Narrow `AlertPayload` for full-screen alert display. |

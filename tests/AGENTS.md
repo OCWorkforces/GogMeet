@@ -11,7 +11,7 @@ Vitest workspace with four projects. `main` runs in Node with Electron mocks, `r
 | `shared` | Node | none | Process-neutral shared contracts/utilities. |
 | `scripts` | Node | none | Repository automation scripts under `scripts/`; no Electron mocks. |
 
-Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`.
+Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` is small and covered here.
 
 ## Structure
 
