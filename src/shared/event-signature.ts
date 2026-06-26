@@ -55,7 +55,7 @@ function encodeField(value: unknown): string {
 export function eventSignature(event: MeetingEvent): string {
   const parts: string[] = [];
   for (const field of EVENT_SIGNATURE_FIELDS) {
-    parts.push(field, encodeField(event[field]));
+    parts.push(encodeField(event[field]));
   }
   return parts.join(FIELD_SEPARATOR);
 }
