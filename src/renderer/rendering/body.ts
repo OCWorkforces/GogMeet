@@ -1,4 +1,5 @@
 import type { AppSettings } from "../../shared/settings.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
 import { isTomorrow } from "../../shared/utils/time.js";
 
@@ -77,8 +78,15 @@ export function renderBody(s: AppState, settings: AppSettings): string {
 
     case "has-events": {
       const now = Date.now();
-      const upcoming = s.events.filter((e) => new Date(e.endDate).getTime() > now);
-      const past = s.events.filter((e) => new Date(e.endDate).getTime() <= now);
+      const upcoming: MeetingEvent[] = [];
+      let hasPastEvents = false;
+      for (const event of s.events) {
+        if (new Date(event.endDate).getTime() > now) {
+          upcoming.push(event);
+        } else {
+          hasPastEvents = true;
+        }
+      }
 
       // Check if any upcoming event is tomorrow
       const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
@@ -109,7 +117,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
         });
       }
 
-      if (past.length > 0 && upcoming.length === 0) {
+      if (hasPastEvents && upcoming.length === 0) {
         parts.push(`
           <div class="state-screen">
             <div class="state-icon">✅</div>
