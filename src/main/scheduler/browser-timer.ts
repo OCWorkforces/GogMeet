@@ -12,6 +12,7 @@ import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 export function scheduleBrowserTimer(
   event: MeetingEvent,
   effectiveDelay: number,
+  openAtMs: number,
   startMs: number,
   endMs: number,
   timers: Map<EventId, ReturnType<typeof setTimeout>>,
@@ -46,6 +47,7 @@ export function scheduleBrowserTimer(
   scheduledEventData.set(event.id, {
     title: event.title,
     meetUrl: event.meetUrl,
+    openAtMs,
     startMs,
     endMs,
   });

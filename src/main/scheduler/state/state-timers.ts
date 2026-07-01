@@ -7,6 +7,7 @@ import type { EventId, MeetUrl } from "../../../shared/brand.js";
 export interface ScheduledEventSnapshot {
   title: string;
   meetUrl: MeetUrl | undefined;
+  openAtMs: number;
   startMs: number;
   endMs: number;
 }

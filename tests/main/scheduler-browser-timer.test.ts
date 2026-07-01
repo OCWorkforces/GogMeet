@@ -43,7 +43,9 @@ describe("scheduleBrowserTimer", () => {
   let firedEvents: Map<EventId, number>;
   let scheduledEventData: Map<EventId, ScheduledEventSnapshot>;
 
+  const effectiveDelay = 60_000;
   const startMs = Date.now() + 5 * 60 * 1000;
+  const openAtMs = startMs - effectiveDelay;
   const endMs = Date.now() + 35 * 60 * 1000;
 
   beforeEach(() => {
@@ -63,37 +65,35 @@ describe("scheduleBrowserTimer", () => {
     vi.useRealTimers();
   });
 
-  it("creates a timer and stores it in timers map", () => {
-    const event = makeEvent();
+  function schedule(event: MeetingEvent): void {
     scheduleBrowserTimer(
       event,
-      60_000,
+      effectiveDelay,
+      openAtMs,
       startMs,
       endMs,
       timers,
       firedEvents,
       scheduledEventData,
     );
+  }
+
+  it("creates a timer and stores it in timers map", () => {
+    const event = makeEvent();
+    schedule(event);
 
     expect(timers.has(event.id)).toBe(true);
   });
 
   it("stores snapshot in scheduledEventData map", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     const snapshot = scheduledEventData.get(event.id);
     expect(snapshot).toEqual({
       title: "Standup",
       meetUrl: "https://meet.google.com/abc-def-ghi",
+      openAtMs,
       startMs,
       endMs,
     });
@@ -101,15 +101,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("adds event to firedEvents when timer fires", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     vi.advanceTimersByTime(60_000);
     expect(firedEvents.has(event.id)).toBe(true);
@@ -117,15 +109,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("shows Notification when timer fires", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     vi.advanceTimersByTime(60_000);
     expect(Notification).toHaveBeenCalledWith({
@@ -136,15 +120,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("with meetUrl: opens browser via openMeetingUrl", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     vi.advanceTimersByTime(60_000);
     expect(openMeetingUrl).toHaveBeenCalledWith(
@@ -154,15 +130,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("without meetUrl: does NOT open browser, just logs", () => {
     const event = makeEvent({ meetUrl: undefined });
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     vi.advanceTimersByTime(60_000);
     expect(openMeetingUrl).not.toHaveBeenCalled();
@@ -171,15 +139,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("builds correct URL via buildMeetUrl()", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
 
     vi.advanceTimersByTime(60_000);
     expect(buildMeetUrl).toHaveBeenCalledWith(event);
@@ -187,15 +147,7 @@ describe("scheduleBrowserTimer", () => {
 
   it("removes timer from map when timer fires", () => {
     const event = makeEvent();
-    scheduleBrowserTimer(
-      event,
-      60_000,
-      startMs,
-      endMs,
-      timers,
-      firedEvents,
-      scheduledEventData,
-    );
+    schedule(event);
     expect(timers.has(event.id)).toBe(true);
 
     vi.advanceTimersByTime(60_000);
@@ -222,11 +174,14 @@ describe("cancelBrowserTimer", () => {
     const event = makeEvent();
     const firedEvents = new Map<EventId, number>();
     const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
+    const startMs = Date.now();
+    const openAtMs = startMs - 60_000;
     scheduleBrowserTimer(
       event,
       60_000,
-      Date.now(),
-      Date.now() + 30 * 60_000,
+      openAtMs,
+      startMs,
+      startMs + 30 * 60_000,
       timers,
       firedEvents,
       scheduledEventData,
@@ -261,8 +216,19 @@ describe("scheduleBrowserTimer TTL suppression", () => {
     const firedEvents = new Map<EventId, number>();
     const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
     const event = makeEvent();
+    const startMs = Date.now() + 5 * 60_000;
+    const openAtMs = startMs - 60_000;
     const endMs = Date.now() + 35 * 60_000;
-    scheduleBrowserTimer(event, 60_000, Date.now() + 5 * 60_000, endMs, timers, firedEvents, scheduledEventData);
+    scheduleBrowserTimer(
+      event,
+      60_000,
+      openAtMs,
+      startMs,
+      endMs,
+      timers,
+      firedEvents,
+      scheduledEventData,
+    );
     vi.advanceTimersByTime(60_000);
     expect(firedEvents.get(event.id)).toBe(endMs + FIFTEEN_MIN_MS);
   });
