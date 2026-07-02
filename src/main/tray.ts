@@ -28,6 +28,28 @@ let meetingsListener: ((events: MeetingEvent[]) => void) | null = null;
 
 let beforeQuitRegistered = false;
 
+function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructorOptions[] {
+  const cachedEvents = cachedMeetings;
+  if (cachedEvents) {
+    return buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
+      onAbout: () => showAbout(mainWindow),
+      onOpenSettings: () => createSettingsWindow(),
+    });
+  }
+
+  return [
+    { label: "Loading…", enabled: false },
+    { type: "separator" },
+    { label: "Settings...", click: () => createSettingsWindow() },
+    { label: "About GogMeet", click: () => showAbout(mainWindow) },
+    { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
+  ];
+}
+
+function refreshContextMenu(mainWindow: BrowserWindow): void {
+  tray?.setContextMenu(Menu.buildFromTemplate(buildContextMenuTemplate(mainWindow)));
+}
+
 export function setupTray(mainWindow: BrowserWindow): void {
   // In dev:      __dirname = lib/main/   → ../../src/assets
   // In packaged: __dirname = app.asar/lib/main/ → ../../src/assets (inside asar)
@@ -70,32 +92,14 @@ export function setupTray(mainWindow: BrowserWindow): void {
   if (!meetingsListener) {
     meetingsListener = (events: MeetingEvent[]): void => {
       cachedMeetings = events;
+      refreshContextMenu(mainWindow);
     };
     mainBus.on("meeting-list-updated", meetingsListener);
   }
 
-  // Left-click → show cached events immediately, then force-poll in background
+  refreshContextMenu(mainWindow);
+
   tray.on("click", () => {
-    // Show cached events immediately if available
-    const cachedEvents = cachedMeetings;
-    if (cachedEvents) {
-      const template = buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
-        onAbout: () => showAbout(mainWindow),
-        onOpenSettings: () => createSettingsWindow(),
-      });
-      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
-    } else {
-      // No cache — show minimal placeholder menu while polling
-      const template: MenuItemConstructorOptions[] = [
-        { label: "Loading…", enabled: false },
-        { type: "separator" },
-        { label: "Settings...", click: () => createSettingsWindow() },
-        { label: "About GogMeet", click: () => showAbout(mainWindow) },
-        { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
-      ];
-      if (tray) tray.popUpContextMenu(Menu.buildFromTemplate(template));
-    }
-    // Fire force-poll in background — CALENDAR_EVENTS_UPDATED push will refresh the open popover
     void forcePoll();
   });
 }
