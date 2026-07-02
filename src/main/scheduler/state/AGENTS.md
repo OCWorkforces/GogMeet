@@ -8,7 +8,7 @@ Internal state for the scheduler subsystem, split into 4 slices composed by `ind
 | ------------------ | ------------------------------------------------------------------------------------- |
 | `index.ts`         | Composition root: `SchedulerState` interface, `createSchedulerState()` factory, singleton, `replaceState()`, getters/setters |
 | `state-cleanup.ts` | Scheduler state cleanup helpers: stale timer pruning, bulk resource cleanup, in-meeting timer cleanup |
-| `state-timers.ts`  | 8 timer Maps (timers, alertTimers, titleTimers, countdownIntervals, clearTimers, inMeetingIntervals, inMeetingEndTimers, scheduledEventData) + `clearAllTimers()`, `createTimersState()` |
+| `state-timers.ts`  | 7 timer-handle Maps, `scheduledEventData` snapshots, fired/cancelled suppression state + `clearTimerHandles()`, `clearFiredState()`, `clearAllTimers()` |
 | `state-display.ts` | Tray display scalars: `activeTitleEventId`, `activeInMeetingEventId`, `titleDirty`, `inMeetingDirty` + `createDisplayState()` |
 | `state-poll.ts`    | Poll metadata: `pollTimeout`, `pollEpoch`, `consecutiveErrors`, `lastKnownEvents` + `createPollState()` |
 | `state-runtime.ts` | Runtime callbacks: `win` (BrowserWindow \| null), `onTrayTitleUpdate`, `powerCallbacks` + `createRuntimeState()` |
@@ -26,7 +26,8 @@ Internal state for the scheduler subsystem, split into 4 slices composed by `ind
 ## NOTES
 
 - Slices compose via spread in `createSchedulerState()`: `{ ...createTimersState(), ...createDisplayState(), ...createPollState(), ...createRuntimeState() }`. `SchedulerState` extends all 4 slice interfaces.
-- `replaceState()` calls `clearAllTimers()` and resets snapshot, but **preserves** `win`, `onTrayTitleUpdate`, and `powerCallbacks` from the old state per the parent AGENTS.md contract.
+- `replaceState()` snapshots refs, calls `clearSchedulerResources(state, { preserveFiredState })`, and restores `win`, `onTrayTitleUpdate`, `powerCallbacks`, and `lastKnownEvents`; with `preserveFiredState`, it also restores `firedEvents`, `alertFiredEvents`, and `cancelledEvents`.
+- `scheduledEventData` stores event snapshots for cancellation/dismissal logic; it is cleared with timer handles but is not itself a timeout/interval map.
 - `pollEpoch` is a race-condition guard. Stale callbacks from previous scheduler instances must check the current epoch via the getter before executing, otherwise they're silently discarded.
 - `incrementConsecutiveErrors()` caps `consecutiveErrors` at `MAX_CONSECUTIVE_ERRORS_CAP` (4) to prevent unbounded growth after the error handler fires.
 - All external access goes through getter/setter functions exported from `index.ts`. Never reach into raw Maps from outside `scheduler/`.
