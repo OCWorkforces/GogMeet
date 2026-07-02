@@ -41,7 +41,7 @@ src/renderer/
 
 `AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
-- `loadEvents()` fetches via `window.api.calendar.getEvents()` (reads cache; used after `CALENDAR_EVENTS_UPDATED` push delivers `MeetingEvent[]` directly via `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` typed callback)
+- `loadEvents()` fetches cached events via `window.api.calendar.getEvents()`; pushes deliver `MeetingEvent[]` directly through `onEventsUpdated(callback: (events: MeetingEvent[]) => void)`.
 - `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
 - Visibility-aware: refreshes on show when stale; push updates arrive through `onEventsUpdated()`.
 - `lastPollTime = Date.now()` prevents redundant fetch on first show
@@ -57,7 +57,7 @@ src/renderer/
 
 - Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent.
 - Shows meeting title, time, description (all escaped)
-- Title uses `-webkit-line-clamp: 2` with `overflow-wrap: anywhere` — allows up to 2 lines, no truncation for long/Vietnamese titles
+- Title uses `-webkit-line-clamp: 2` with `overflow-wrap: anywhere` — 2-line ellipsis; wrapping prevents clipping for long/Vietnamese titles
 - Keyboard: Escape dismisses; non-Escape keys do not dismiss.
 - Error boundary: try/catch around rendering with fallback DOM
 
