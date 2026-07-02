@@ -192,7 +192,6 @@ function scheduleFutureTimers(
     s.timers,
     s.firedEvents,
     s.scheduledEventData,
-    shouldAbort,
   );
 
   // 30-min tray title countdown

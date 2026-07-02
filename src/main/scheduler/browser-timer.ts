@@ -18,10 +18,9 @@ export function scheduleBrowserTimer(
   timers: Map<EventId, ReturnType<typeof setTimeout>>,
   firedEvents: Map<EventId, number>,
   scheduledEventData: Map<EventId, ScheduledEventSnapshot>,
-  shouldAbort?: () => boolean,
 ): void {
   const handle = setTimeout(() => {
-    if (shouldAbort?.()) return;
+    if (timers.get(event.id) !== handle) return;
     timers.delete(event.id);
     if (Date.now() >= startMs) return;
     firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
