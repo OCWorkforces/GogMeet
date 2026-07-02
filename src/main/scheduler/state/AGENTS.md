@@ -7,6 +7,7 @@ Internal state for the scheduler subsystem, split into 4 slices composed by `ind
 | File               | Role                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------- |
 | `index.ts`         | Composition root: `SchedulerState` interface, `createSchedulerState()` factory, singleton, `replaceState()`, getters/setters |
+| `state-cleanup.ts` | Scheduler state cleanup helpers: stale timer pruning, bulk resource cleanup, in-meeting timer cleanup |
 | `state-timers.ts`  | 8 timer Maps (timers, alertTimers, titleTimers, countdownIntervals, clearTimers, inMeetingIntervals, inMeetingEndTimers, scheduledEventData) + `clearAllTimers()`, `createTimersState()` |
 | `state-display.ts` | Tray display scalars: `activeTitleEventId`, `activeInMeetingEventId`, `titleDirty`, `inMeetingDirty` + `createDisplayState()` |
 | `state-poll.ts`    | Poll metadata: `pollTimeout`, `pollEpoch`, `consecutiveErrors`, `lastKnownEvents` + `createPollState()` |
