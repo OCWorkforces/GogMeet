@@ -33,7 +33,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 ## Architecture rules
 
-- `events.ts` is the decoupling seam. Scheduler emits `meeting-list-updated`; tray subscribes.
+- `events.ts` is the decoupling seam. Scheduler emits `meeting-list-updated`; tray subscribes and refreshes its installed native context menu.
 - `scheduler/facade.ts` is the only scheduler import allowed outside `scheduler/`.
 - `scheduler/state/` is internal-only, enforced by `.sentrux/rules.toml` (`state-internal-only`).
 - `swift/` is a leaf dependency used by `domain/calendar.ts`; do not make Swift modules depend on app/window/scheduler code.
@@ -50,6 +50,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 ## Important invariants
 
 - Tray icons use `nativeImage.createFromPath()`, not `fs.readFileSync()`.
+- Tray setup must install a native context menu with `tray.setContextMenu()` before the first click; refresh that menu when cached meetings change, and keep click handlers limited to explicit refresh work such as `forcePoll()`.
 - Swift source must remain unpacked from ASAR; `swiftc` cannot compile inside ASAR.
 - `SWIFT_SRC_DEV` is relative to bundled `lib/main/index.cjs`; verify before editing.
 - `index.ts` suppresses Chromium DNS sorter warnings with `app.commandLine.appendSwitch("log-level", "3")`; do not remove casually.

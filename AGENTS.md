@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Generated:** 2026-07-02
-**Commit:** cf39c35
+**Commit:** 6dc9a78
 **Branch:** develop
 
 macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift helper, lists upcoming Google Meet/Zoom/Calendly events, auto-opens meeting URLs before start, shows optional full-screen alerts, and exposes `Cmd+Shift+M` to join the next meeting.
@@ -19,7 +19,7 @@ macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift he
 | Package build | electron-builder `^26.15.3`; DMG + ZIP for `arm64` and `x64` |
 | Updates/logging | `electron-updater` `^6.8.9`, `electron-log` `^5.4.4` |
 
-Tooling note from this init pass: TypeScript LSP symbols were unavailable (`lsp_symbols` returned `Method not found`; TS server missing), but codegraph was available. CODE MAP refs below combine codegraph blast-radius data with `rg`-derived hints.
+Tooling note: TypeScript LSP symbols are unavailable (`lsp_symbols` returned `Method not found`; TS server missing), but codegraph is available. CODE MAP refs below combine codegraph blast-radius data with `rg`-derived hints.
 
 ## STRUCTURE
 
@@ -49,6 +49,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Calendar change watch | `src/main/domain/calendar-watcher.ts`, `src/main/swift/calendar-watch-sidecar.ts` | Swift `--watch` emits `CHANGED`; domain calls `forcePoll()` |
 | Scheduler behavior | `src/main/scheduler/facade.ts`, `src/main/scheduler/AGENTS.md` | facade is the only public scheduler entry |
 | Scheduler state | `src/main/scheduler/state/AGENTS.md` | state files are internal-only |
+| Tray native menu | `src/main/tray.ts`, `src/main/menu/meeting-menu.ts`, `tests/main/tray.test.ts` | install with `tray.setContextMenu()` during setup; refresh on `meeting-list-updated` |
 | URL allowlist/egress | `src/main/utils/url-validation.ts`, `src/main/utils/meet-url.ts`, `src/preload/index.ts` | preload mirror is intentional; main is authoritative |
 | BrowserWindow security/loading | `src/main/utils/browser-window.ts`, `src/main/windows/*` | dev/prod renderer loading belongs here |
 | Renderer popover | `src/renderer/index.ts`, `src/renderer/rendering/body.ts`, `src/renderer/lib/apply-events-push.ts` | push signature gates DOM re-render |
@@ -72,6 +73,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | `swift/binary-manager.ts` | boundary | calendar | cache/compile/run helper, retry once after exec failure |
 | `utils/browser-window.ts` | facade | 4 direct prod importers, rg-derived | secure web prefs, preload path, content loading, CSP |
 | `events.ts` | bus | 3 direct prod importers, rg-derived | scheduler/power -> tray decoupling |
+| `tray.ts` | status item | runtime | creates native Tray, pre-installs context menu, refreshes menu cache from `meeting-list-updated` |
 | `renderer/index.ts` | page entry | Rsbuild main | popover state machine, push handling, resize IPC |
 | `renderer/settings/index.ts` | page entry | Rsbuild settings | settings form, auto-save, save indicators |
 | `renderer/alert/index.ts` | page entry | Rsbuild alert | alert render/dismiss, Escape-only keyboard dismiss |
@@ -87,6 +89,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - `CalendarResult` narrows via `result.kind === "ok"` or `isCalendarOk()`. Generic `Result` narrows via `result.ok`.
 - Renderer HTML uses string templates/full rerender; any user-controlled string going into `innerHTML` passes through `escapeHtml()`.
 - Swift parsing is structural; meeting host allowlisting happens at egress (`buildMeetUrl`, `openMeetingUrl`, `APP_OPEN_EXTERNAL`).
+- Native tray menus are installed ahead of first activation with `tray.setContextMenu()`; click handlers may trigger refresh work such as `forcePoll()`, but must not be the only place the menu is built.
 
 ## ANTI-PATTERNS
 
@@ -99,6 +102,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Bundling Electron into preload; `electron` and `electron/*` stay external in `rslib.config.preload.ts`.
 - Bundling Swift source only inside ASAR; `swiftc` needs `asarUnpack`.
 - Reaching into `scheduler/poll.ts`, `scheduler/index.ts`, or `scheduler/state/*` from outside scheduler.
+- Building the tray context menu only inside `tray.on("click")`; macOS needs an installed menu before the first status-item activation.
 - `allowSleep()` without a matching prior `preventSleep()`; power refs are reference-counted.
 - Hand-editing generated tray/app icon assets; regenerate through `scripts/generate-calendar-tray-icons.mjs`.
 
