@@ -145,6 +145,7 @@ export function startInMeetingCountdown(
  * Used when clearing tray title after consecutive errors.
  */
 export function clearAllDisplayTimers(): void {
+  // Only pre-meeting countdown intervals own display sleep blockers.
   for (const handle of state.countdownIntervals.values()) {
     clearInterval(handle);
     state.powerCallbacks?.allowSleep?.();
