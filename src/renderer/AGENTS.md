@@ -22,7 +22,8 @@ src/renderer/
 ├── rendering/        # body renderer
 ├── settings/         # Settings window entry
 ├── alert/            # Full-screen alert entry
-└── styles/           # CSS reset + popover styles
+├── styles/           # CSS reset + popover styles
+└── utils/            # DOM query helpers shared by renderer entries/delegation
 ```
 
 ## RENDERING
@@ -48,7 +49,7 @@ src/renderer/
 ## SETTINGS WINDOW
 
 - Auto-save: toggle change → `window.api.settings.set()` → "✓ Saved" indicator
-- `setupToggleListener(key, checkbox, indicator, saveIndicatorTimers)` generic for all toggles
+- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle and closes over `saveIndicatorTimers`
 - `saveIndicatorTimers` Map cleaned on re-render, prevents leaks
 - Save failure reverts toggle + shows error message
 
@@ -66,12 +67,11 @@ src/renderer/
 - All UI is string template concatenation, no framework
 - `data-action` event delegation, no inline handlers
 - State changes trigger full re-render, no diffing
-- CSS lives in `styles/`, loaded via HTML link
+- Popover CSS lives in `styles/`; settings and alert use entry-local `styles.css` imported by their entry points
 - DOM element casts (`as HTMLElement`) are accepted for freshly queried elements in vanilla TS.
 - `RendererState.version` starts empty and is populated from `window.api.app.getVersion()` during init.
 - `window.api` is typed in `env.d.ts` via `import type { Api } from "../preload/index.js"`.
 - `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` receives pushed event arrays directly.
-- User-facing branded string fields remain string-compatible for rendering.
 
 ## ANTI-PATTERNS
 

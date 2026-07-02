@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
+import { asTestEventId } from "../helpers/test-utils.js";
 
 // Mock power module
 vi.mock("../../src/main/system/power.js", () => ({
@@ -443,6 +444,7 @@ describe("startInMeetingCountdown", () => {
 describe("clearAllDisplayTimers", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    state.powerCallbacks = null;
   });
 
   afterEach(() => {
@@ -450,7 +452,75 @@ describe("clearAllDisplayTimers", () => {
     state.clearTimers.clear();
     state.inMeetingIntervals.clear();
     state.inMeetingEndTimers.clear();
+    state.powerCallbacks = null;
     vi.useRealTimers();
+  });
+
+  it("releases pre-meeting sleep blocker when clearing active countdown timers", () => {
+    const allowSleep = vi.fn();
+    const eventId = asTestEventId("a");
+    state.powerCallbacks = {
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep,
+    };
+    state.countdownIntervals.set(
+      eventId,
+      setInterval(() => {}, 60_000),
+    );
+    state.clearTimers.set(
+      eventId,
+      setTimeout(() => {}, 60_000),
+    );
+
+    clearAllDisplayTimers();
+
+    expect(allowSleep).toHaveBeenCalledTimes(1);
+    expect(state.countdownIntervals.size).toBe(0);
+    expect(state.clearTimers.size).toBe(0);
+  });
+
+  it("does not release sleep when no countdown interval was active", () => {
+    const allowSleep = vi.fn();
+    const eventId = asTestEventId("a");
+    state.powerCallbacks = {
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep,
+    };
+    state.clearTimers.set(
+      eventId,
+      setTimeout(() => {}, 60_000),
+    );
+
+    clearAllDisplayTimers();
+
+    expect(allowSleep).not.toHaveBeenCalled();
+    expect(state.clearTimers.size).toBe(0);
+  });
+
+  it("clears in-meeting timers without touching pre-meeting sleep state", () => {
+    const allowSleep = vi.fn();
+    const eventId = asTestEventId("c");
+    state.powerCallbacks = {
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep,
+    };
+    state.inMeetingIntervals.set(
+      eventId,
+      setInterval(() => {}, 60_000),
+    );
+    state.inMeetingEndTimers.set(
+      eventId,
+      setTimeout(() => {}, 60_000),
+    );
+
+    clearAllDisplayTimers();
+
+    expect(allowSleep).not.toHaveBeenCalled();
+    expect(state.inMeetingIntervals.size).toBe(0);
+    expect(state.inMeetingEndTimers.size).toBe(0);
   });
 
   it("clears all countdown and in-meeting timer maps", () => {

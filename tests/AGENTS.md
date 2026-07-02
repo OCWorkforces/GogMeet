@@ -11,7 +11,7 @@ Vitest workspace with four projects. `main` runs in Node with Electron mocks, `r
 | `shared` | Node | none | Process-neutral shared contracts/utilities. |
 | `scripts` | Node | none | Repository automation scripts under `scripts/`; no Electron mocks. |
 
-Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` is small and covered here.
+Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` is small and covered here; `tests/bench/` is benchmark-only and not part of the normal Vitest workspace.
 
 ## Structure
 
@@ -22,7 +22,8 @@ tests/
 ├── main/                  # Node + Electron mock suites
 ├── renderer/              # jsdom suites, no Electron mock
 ├── shared/                # Node-only shared suites
-└── scripts/               # Node-only repository script suites
+├── scripts/               # Node-only repository script suites
+└── bench/                 # benchmark suites, not included by vitest.workspace.ts
 ```
 
 Total test count changes often; run `bun run test` for authoritative numbers.

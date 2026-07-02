@@ -107,6 +107,25 @@ describe("scheduler browser auto-open deadline", () => {
     expect(stateModule.state.timers.has(event.id)).toBe(true);
   });
 
+  it("reschedules when openBeforeMinutes changes between polls", () => {
+    const startMs = BASE_NOW + 10 * MINUTE_MS;
+    const event = makeEvent("deadline-settings-change", startMs, startMs + 30 * MINUTE_MS);
+
+    setOpenBeforeMinutes(1);
+    scheduleEvents([event]);
+
+    setOpenBeforeMinutes(3);
+    scheduleEvents([event]);
+
+    vi.advanceTimersByTime(7 * MINUTE_MS - 1);
+    expect(openMeetingUrl).not.toHaveBeenCalled();
+    expect(stateModule.state.firedEvents.has(event.id)).toBe(false);
+
+    vi.advanceTimersByTime(1);
+    expect(openMeetingUrl).toHaveBeenCalledTimes(1);
+    expect(stateModule.state.firedEvents.has(event.id)).toBe(true);
+  });
+
   it("does not auto-open an in-progress meeting first discovered after start", () => {
     const startMs = BASE_NOW - 30_000;
     const event = makeEvent("deadline-started", startMs, BASE_NOW + 30 * MINUTE_MS);
@@ -124,6 +143,7 @@ describe("scheduler browser auto-open deadline", () => {
     const startMs = BASE_NOW + MINUTE_MS;
     const endMs = startMs + 30 * MINUTE_MS;
     const event = makeEvent("deadline-late-callback", startMs, endMs);
+    const openAtMs = startMs - 2 * MINUTE_MS;
     const timers = new Map<EventId, ReturnType<typeof setTimeout>>();
     const firedEvents = new Map<EventId, number>();
     const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
@@ -131,6 +151,7 @@ describe("scheduler browser auto-open deadline", () => {
     scheduleBrowserTimer(
       event,
       2 * MINUTE_MS,
+      openAtMs,
       startMs,
       endMs,
       timers,

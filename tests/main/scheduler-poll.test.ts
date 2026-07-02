@@ -170,6 +170,36 @@ describe("poll()", () => {
     expect(inMeetingEndTimers.size).toBe(0);
   });
 
+  it("releases pre-meeting sleep blocker when error cleanup clears countdown timers", async () => {
+    const allowSleep = vi.fn();
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep,
+    });
+    const eventId = asTestEventId("a");
+    stateModule.state.countdownIntervals.set(
+      eventId,
+      setInterval(() => {}, 60_000),
+    );
+    stateModule.state.clearTimers.set(
+      eventId,
+      setTimeout(() => {}, 60_000),
+    );
+
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      error: "permission denied",
+    } as never);
+
+    await poll();
+    await poll();
+    await poll();
+
+    expect(allowSleep).toHaveBeenCalledTimes(1);
+    expect(countdownIntervals.size).toBe(0);
+    expect(clearTimers.size).toBe(0);
+  });
+
   it("fires threshold cleanup exactly once across consecutive errors past MAX (one-shot)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getCalendarEventsResult).mockResolvedValue({

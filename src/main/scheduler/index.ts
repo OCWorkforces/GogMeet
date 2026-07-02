@@ -68,6 +68,7 @@ function handleInProgressEvent(
     s.scheduledEventData.set(event.id, {
       title: event.title,
       meetUrl: event.meetUrl,
+      openAtMs: startMs,
       startMs,
       endMs,
     });
@@ -86,6 +87,7 @@ function shouldSkipScheduledEvent(
   event: MeetingEvent,
   startMs: number,
   endMs: number,
+  openAtMs: number,
   s: SchedulerState,
 ): boolean {
   // Already fired — check if start time changed
@@ -109,22 +111,25 @@ function shouldSkipScheduledEvent(
   const timeChanged = prevData.startMs !== startMs;
   const titleChanged = prevData.title !== event.title;
   const urlChanged = prevData.meetUrl !== event.meetUrl;
+  const openAtChanged = prevData.openAtMs !== openAtMs;
 
-  if (!timeChanged && !titleChanged && !urlChanged) return true; // nothing changed
+  if (!timeChanged && !titleChanged && !urlChanged && !openAtChanged) return true; // nothing changed
 
   if (!timeChanged) {
     // Only metadata changed — update snapshot in-place
     s.scheduledEventData.set(event.id, {
       title: event.title,
       meetUrl: event.meetUrl,
+      openAtMs,
       startMs,
       endMs,
     });
 
-    if (urlChanged) {
+    if (urlChanged || openAtChanged) {
       cancelBrowserTimer(event.id, s.timers);
       cancelAlertTimer(event.id, s.alertTimers);
-      console.log(`[scheduler] URL changed for "${event.title}" — rescheduling browser open`);
+      const reason = openAtChanged ? "Browser open time changed" : "URL changed";
+      console.log(`[scheduler] ${reason} for "${event.title}" — rescheduling browser open`);
       // fall through — caller will schedule new timers
       return false;
     }
@@ -156,6 +161,7 @@ function shouldSkipScheduledEvent(
 function scheduleFutureTimers(
   event: MeetingEvent,
   delayMs: number,
+  openAtMs: number,
   startMs: number,
   endMs: number,
   now: number,
@@ -180,6 +186,7 @@ function scheduleFutureTimers(
   scheduleBrowserTimer(
     event,
     effectiveDelay,
+    openAtMs,
     startMs,
     endMs,
     s.timers,
@@ -235,9 +242,9 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     activeIds.add(event.id);
 
-    if (shouldSkipScheduledEvent(event, startMs, endMs, state)) continue;
+    if (shouldSkipScheduledEvent(event, startMs, endMs, openAtMs, state)) continue;
 
-    scheduleFutureTimers(event, delayMs, startMs, endMs, now, state, settings, shouldAbort);
+    scheduleFutureTimers(event, delayMs, openAtMs, startMs, endMs, now, state, settings, shouldAbort);
   }
 
   // Only mark dirty when the active id set actually changed — avoids

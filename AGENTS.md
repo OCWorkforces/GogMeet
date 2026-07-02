@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
-**Generated:** 2026-06-18
-**Commit:** db5e10e
+**Generated:** 2026-07-02
+**Commit:** cf39c35
 **Branch:** develop
 
 macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift helper, lists upcoming Google Meet/Zoom/Calendly events, auto-opens meeting URLs before start, shows optional full-screen alerts, and exposes `Cmd+Shift+M` to join the next meeting.
@@ -10,16 +10,16 @@ macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift he
 
 | Layer | Tech |
 | --- | --- |
-| Runtime | Electron `^42.4.1`; all BrowserWindows sandboxed/context-isolated/no Node integration |
+| Runtime | Electron `^43.0.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
 | Language | TypeScript `^6.0.3`; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature` |
-| Build | Rslib `^0.23.0` for main/preload CJS; Rsbuild `^2.0.15` for three renderer entries |
-| Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26`; Electron 42 embeds Node `24.15.0` |
+| Build | Rslib `^0.23.1` for main/preload CJS; Rsbuild `^2.1.2` for three renderer entries |
+| Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26`; Electron runtime embeds its own Node independent of host Node |
 | Calendar | Swift EventKit helper source at `src/main/googlemeet-events.swift`, runtime cache under `/tmp/googlemeet/` |
 | Test | Vitest `^4.1.9` workspace: main / renderer / shared / scripts |
 | Package build | electron-builder `^26.15.3`; DMG + ZIP for `arm64` and `x64` |
 | Updates/logging | `electron-updater` `^6.8.9`, `electron-log` `^5.4.4` |
 
-Tooling note from this init pass: TypeScript LSP/codegraph were unavailable (`lsp_symbols` method missing, TS server not installed) and `ccc` was not installed. CODE MAP refs below are `rg`-derived hints; reference centrality is otherwise unmeasured.
+Tooling note from this init pass: TypeScript LSP symbols were unavailable (`lsp_symbols` returned `Method not found`; TS server missing), but codegraph was available. CODE MAP refs below combine codegraph blast-radius data with `rg`-derived hints.
 
 ## STRUCTURE
 
@@ -33,6 +33,7 @@ GogMeet/
 ├── scripts/         # Bun dev orchestrator, icon generation, Node 26 validation
 ├── build/           # electron-builder hooks, entitlements, generated app icon
 ├── assets/          # README screenshots
+├── .github/         # PR/release workflows; see `.github/workflows/AGENTS.md`
 └── .sentrux/        # architecture constraints: process boundaries, scheduler facade, state internals
 ```
 
@@ -53,7 +54,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Renderer popover | `src/renderer/index.ts`, `src/renderer/rendering/body.ts`, `src/renderer/lib/apply-events-push.ts` | push signature gates DOM re-render |
 | Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings saves through IPC; alert cannot open URLs |
 | Tests | `vitest.workspace.ts`, `tests/AGENTS.md` | main=node+Electron mock; renderer=jsdom; shared/scripts=node |
-| Packaging/release | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/*` | Swift source must stay unpacked from ASAR |
+| Packaging/release | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | Swift source must stay unpacked from ASAR; release workflow double-builds today |
 
 ## CODE MAP
 
@@ -78,6 +79,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 ## CONVENTIONS
 
 - TypeScript imports use `.js` specifiers for `.ts` source; type-only imports use `import type`.
+- Bun is the primary runner/package manager; host Node 26 is only for validation/icon-generation/release tag helper paths.
 - No barrels. `scheduler/index.ts` is an internal scheduling hub, not the public surface; external consumers use `scheduler/facade.ts`.
 - `as const` on lookup maps/config. Avoid `satisfies`, `enum`, and `namespace` under `erasableSyntaxOnly` / `isolatedDeclarations`.
 - Index-signature objects require bracket notation: `obj["key"]`.
@@ -122,8 +124,8 @@ bun run clean            # remove lib/ and dist/
 
 ## CI / PACKAGING
 
-- PR workflow: macOS, Bun install, `typecheck`, `test`, `test:coverage`; separate Node 26 job runs `validate:node`. Current workflow does not run a dirty-tree/icon diff guard after icon generation.
-- Release workflow: runs on `main` and `v*` tags, sets up Bun + Node 26, builds, creates `v$(package.json.version)` tag on `main` when missing, packages, uploads `dist/*.dmg` and `dist/*.zip`.
+- PR workflow: macOS, Bun install, `typecheck`, `test`, `test:coverage`; separate Node 26 job runs `validate:node`. It does not run lint/format or a dirty-tree/icon diff guard after icon generation.
+- Release workflow: runs on `main` and `v*` tags, sets up Bun + Node 26, runs `bun run build`, creates `v$(package.json.version)` tag on `main` when missing, then `bun run package` builds again and uploads `dist/*.dmg` / `dist/*.zip`.
 - `electron-builder.yml`: output `dist/`, resources `build/`, macOS 11+, DMG/ZIP for `arm64` and `x64`, `mergeASARs: false`, `hardenedRuntime: false`, `gatekeeperAssess: false`, `mac.notarize: false`, DMG `sign: false`.
 - Hooks: `build/after-pack.cjs` strips/prunes packaged `.app`; `build/notarize.cjs` is configured as `afterSign` but skips unless darwin + all Apple credentials, and builder notarization is disabled by config.
 
