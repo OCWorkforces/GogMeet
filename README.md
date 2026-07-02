@@ -38,9 +38,9 @@ Grab the latest packaged build from the [GitHub Releases page](https://github.co
 ### Developing or packaging
 
 - macOS with Xcode Command Line Tools available (`swiftc`, `codesign`).
-- Bun `>=1.3.12` (`packageManager: bun@1.3.14`) — primary runtime for dev, build, test, lint, and packaging.
+- Bun `>=1.3.0` (`packageManager: bun@1.3.14`) — primary runtime for dev, build, test, lint, and packaging.
 - Node.js host runtime: `>=20.0.0` is the floor declared in `engines.node`, but the recommended and CI-validated host version is **Node 26** (see `.nvmrc`). A handful of contributor paths shell out to plain Node — the tray/app icon generator (`scripts/generate-calendar-tray-icons.mjs`) and the release tag step (`node -p ...`) — and must run under host Node 26.
-- Note: Electron 42 embeds Node 24.15.0 at runtime for the packaged app. That embedded Node is independent of the host Node 26 used by contributor tooling; do not conflate the two.
+- Note: Electron embeds its own Node runtime for the packaged app. That embedded Node is independent of the host Node 26 used by contributor tooling; do not conflate the two.
 
 ## Development
 
@@ -145,19 +145,20 @@ The helper script installs dependencies, cleans `dist/`, builds the app, package
 
 - PR checks run on macOS for pushes and pull requests to `develop` and `main`:
   - Job `check`: Bun-only — `bun run typecheck`, `bun run test`, `bun run test:coverage`.
-  - Job `validate-node`: sets up Bun **and** Node 26 (via `actions/setup-node` + `.nvmrc`), runs `bun run validate:node`, then asserts the generated tray icons and `build/icon.icns` produce no diff.
-- Releases run on pushes to `main` and `v*` tags. The workflow sets up Bun and Node 26 (Node 26 is required because the tag step uses `node -p "require('./package.json').version"`), builds the app with Bun, creates the version tag from `package.json` when needed, packages the app with Bun, and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases.
-- Notarization reads `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_PASSWORD` when present.
+  - Job `validate-node`: sets up Bun **and** Node 26 (via `actions/setup-node` + `.nvmrc`), then runs `bun run validate:node`.
+  - The PR workflow does not currently run `bun run lint`, `bun run format:check`, or a dirty-tree check after icon generation.
+- Releases run on pushes to `main` and `v*` tags. The workflow sets up Bun and Node 26 (Node 26 is required because the tag step uses `node -p "require('./package.json').version"`), runs `bun run build`, creates the version tag from `package.json` when needed, then runs `bun run package` and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases. Because `bun run package` also runs `bun run build`, release builds compile twice today.
+- `electron-builder.yml` has builder notarization disabled (`mac.notarize: false`). `build/notarize.cjs` is wired as `afterSign`, but it skips unless running on macOS with all Apple credentials available.
 
 ### Runtime topology
 
 Three distinct Node runtimes coexist; do not conflate them:
 
-| Runtime          | Source                          | Used for                                                             |
-| ---------------- | ------------------------------- | -------------------------------------------------------------------- |
-| Bun `1.3.14`     | `packageManager` + `oven-sh/setup-bun` | Primary dev/build/test/lint/package runner and package manager. |
-| Host Node `26`   | `.nvmrc` + `actions/setup-node` | Icon generator (`scripts/generate-calendar-tray-icons.mjs`) and the release `node -p` tag step. Enforced by `bun run validate:node`. |
-| Embedded Node `24.15.0` | Bundled inside Electron 42      | Runtime for the packaged main process. Independent of host Node 26.  |
+| Runtime                | Source                                 | Used for                                                                                                                        |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Bun `1.3.14`           | `packageManager` + `oven-sh/setup-bun` | Primary dev/build/test/lint/package runner and package manager.                                                                 |
+| Host Node `26`         | `.nvmrc` + `actions/setup-node`        | Icon generator (`scripts/generate-calendar-tray-icons.mjs`) and the release `node -p` tag step. Enforced by `bun run validate:node`. |
+| Electron-embedded Node | Bundled inside Electron `^43.0.0`      | Runtime for the packaged main process. Independent of host Node 26.                                                             |
 
 ## Troubleshooting
 
@@ -193,16 +194,17 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 
 ## Tech stack
 
-| Layer           | Tech                      |
-| --------------- | ------------------------- |
-| Runtime         | Electron `^42.1.0`        |
-| Language        | TypeScript `^6.0.3`       |
-| Build           | Rslib + Rsbuild           |
-| Package manager | Bun `1.3.14`              |
-| Calendar        | Swift EventKit helper     |
-| Tests           | Vitest `^4.1.6` workspace |
-| Logging         | `electron-log`            |
-| Updates         | `electron-updater`        |
+| Layer           | Tech                                  |
+| --------------- | ------------------------------------- |
+| Runtime         | Electron `^43.0.0`                    |
+| Language        | TypeScript `^6.0.3`                   |
+| Build           | Rslib `^0.23.1` + Rsbuild `^2.1.2`    |
+| Package         | Electron Builder `^26.15.3`           |
+| Package manager | Bun `1.3.14`                          |
+| Calendar        | Swift EventKit helper                 |
+| Tests           | Vitest `^4.1.9` workspace             |
+| Logging         | `electron-log` `^5.4.4`               |
+| Updates         | `electron-updater` `^6.8.9`           |
 
 ## Contact
 

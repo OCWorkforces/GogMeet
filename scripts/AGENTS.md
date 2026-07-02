@@ -35,7 +35,7 @@ Repository automation scripts for local development and asset generation. These 
 - Reads `process.versions.node`, exits non-zero with a clear error message when the host Node major is less than `REQUIRED_MAJOR` (26), and prints the host Node version on success.
 - Spawns `node scripts/generate-calendar-tray-icons.mjs` under the same host Node and forwards its exit status. The `NODE_VALIDATE_SKIP_GENERATE=1` env var skips the spawn for unit tests; do not use it in CI.
 - Pure helpers (`parseMajor`, `validateNodeVersion`, `runValidation`) are exported and injected so `tests/scripts/validate-node.test.ts` can drive every branch without needing host Node 26 or running the real generator.
-- Electron 42 still embeds Node 24.15.0 at runtime for the packaged app. The host Node 26 enforced here is only for contributor tooling — do not change `engines.node` or the embedded Electron Node to match.
+- Electron embeds its own Node runtime for the packaged app. The host Node 26 enforced here is only for contributor tooling — do not change `engines.node` or conflate it with Electron's embedded runtime.
 
 ## Anti-Patterns
 
