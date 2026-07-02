@@ -145,7 +145,10 @@ export function startInMeetingCountdown(
  * Used when clearing tray title after consecutive errors.
  */
 export function clearAllDisplayTimers(): void {
-  for (const handle of state.countdownIntervals.values()) clearInterval(handle);
+  for (const handle of state.countdownIntervals.values()) {
+    clearInterval(handle);
+    state.powerCallbacks?.allowSleep?.();
+  }
   state.countdownIntervals.clear();
   for (const handle of state.clearTimers.values()) clearTimeout(handle);
   state.clearTimers.clear();
