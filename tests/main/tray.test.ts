@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
+type MockTrayInstance = {
+  setToolTip: ReturnType<typeof vi.fn>;
+  setTitle: ReturnType<typeof vi.fn>;
+  setImage: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  getBounds: ReturnType<typeof vi.fn>;
+  popUpContextMenu: ReturnType<typeof vi.fn>;
+  setContextMenu: ReturnType<typeof vi.fn>;
+};
+
 vi.mock("electron", () => ({
-  Tray: vi.fn().mockImplementation(function (this: {
-    setToolTip: ReturnType<typeof vi.fn>;
-    setTitle: ReturnType<typeof vi.fn>;
-    setImage: ReturnType<typeof vi.fn>;
-    on: ReturnType<typeof vi.fn>;
-    getBounds: ReturnType<typeof vi.fn>;
-    popUpContextMenu: ReturnType<typeof vi.fn>;
-  }) {
+  Tray: vi.fn().mockImplementation(function (this: MockTrayInstance) {
     this.setToolTip = vi.fn();
     this.setTitle = vi.fn();
     this.setImage = vi.fn();
@@ -19,6 +22,7 @@ vi.mock("electron", () => ({
       .fn()
       .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
     this.popUpContextMenu = vi.fn();
+    this.setContextMenu = vi.fn();
   }),
   Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
   shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
@@ -39,6 +43,10 @@ vi.mock("electron", () => ({
 
 vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+}));
+
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  forcePoll: vi.fn(),
 }));
 
 vi.mock("../../src/main/utils/meet-url.js", () => ({
@@ -64,6 +72,20 @@ function createMockEvent(
     endDate: asTestIsoUtc(in1Hour.toISOString()),
     ...overrides,
   });
+}
+
+function isMockTrayInstance(value: unknown): value is MockTrayInstance {
+  if (typeof value !== "object" || value === null) return false;
+  return "setToolTip" in value && "setContextMenu" in value;
+}
+
+function getLatestTrayInstance(Tray: typeof import("electron").Tray): MockTrayInstance {
+  const results = vi.mocked(Tray).mock.results;
+  const latestResult = results[results.length - 1];
+  if (!latestResult || latestResult.type === "throw" || !isMockTrayInstance(latestResult.value)) {
+    throw new Error("Tray was not constructed by the test setup");
+  }
+  return latestResult.value;
 }
 
 // Pure function tests - formatRemainingTime
@@ -136,8 +158,7 @@ describe("tray module exports", () => {
     const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow);
 
-    const trayInstance = (Tray as ReturnType<typeof vi.fn>).mock.results[0]
-      .value;
+    const trayInstance = getLatestTrayInstance(Tray);
     expect(trayInstance.setToolTip).toHaveBeenCalledWith("GogMeet");
   });
 
@@ -169,5 +190,43 @@ describe("tray module exports", () => {
       (c: unknown[]) => c[0] === "before-quit",
     );
     expect(beforeQuitCalls).toHaveLength(1);
+  });
+
+  it("installs a context menu during setup so the first tray click has a menu", async () => {
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { BrowserWindow, Menu, Tray } = await import("electron");
+
+    // Given: the tray is being created before any calendar cache has arrived.
+    const mockWindow = new BrowserWindow();
+
+    // When: setup registers the tray item.
+    setupTray(mockWindow);
+
+    // Then: the native tray menu is already installed for the first macOS activation.
+    const trayInstance = getLatestTrayInstance(Tray);
+    expect(Menu.buildFromTemplate).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Loading…", enabled: false }),
+      ]),
+    );
+    expect(trayInstance.setContextMenu).toHaveBeenCalledWith({});
+  });
+
+  it("refreshes the installed context menu when cached meetings change", async () => {
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { mainBus } = await import("../../src/main/events.js");
+    const { BrowserWindow, Tray } = await import("electron");
+
+    // Given: a tray exists with its initial loading menu installed.
+    const mockWindow = new BrowserWindow();
+    setupTray(mockWindow);
+    const trayInstance = getLatestTrayInstance(Tray);
+    vi.mocked(trayInstance.setContextMenu).mockClear();
+
+    // When: the scheduler publishes fresh cached meetings.
+    mainBus.emit("meeting-list-updated", [createMockEvent()]);
+
+    // Then: the already-installed native menu is rebuilt for the next click.
+    expect(trayInstance.setContextMenu).toHaveBeenCalledWith({});
   });
 });

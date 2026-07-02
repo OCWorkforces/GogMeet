@@ -45,7 +45,7 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 ## WINDOWS / SYSTEM / UTILS
 
 - Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts`.
-- Tray/menu/windows: `tray.test.ts`, `meeting-menu.test.ts`, `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts`.
+- Tray/menu/windows: `tray.test.ts` covers Tray setup, preinstalled context menus, and cache-refresh rebuilds; `meeting-menu.test.ts`, `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts` cover their focused modules.
 - System adapters: `power.test.ts`, `shortcuts.test.ts`, `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
 - Domain/utils: `settings.test.ts`, `settings-defaults.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
 
@@ -53,6 +53,7 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 
 - `tests/setup.main.ts` is the default Electron mock: `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`.
 - Inline `vi.mock("electron", ...)` is allowed when a suite needs isolated import-time behavior or a narrower Electron surface.
+- Tray native-menu tests should expose `setContextMenu` on the `Tray` mock and assert first-click readiness by checking setup-time installation, not by relying on `popUpContextMenu()` inside a click handler.
 - Mock source modules with `.js` specifiers, matching production imports.
 - Dynamic import tests use `vi.resetModules()` before `await import(...)`.
 

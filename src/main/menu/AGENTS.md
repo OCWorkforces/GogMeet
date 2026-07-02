@@ -1,6 +1,6 @@
 # Tray Context Menu
 
-Builds the Electron `MenuItemConstructorOptions[]` template shown when the user right-clicks (or invokes) the tray icon. Pure builder — no Electron `Menu` lifecycle, no state, no IPC.
+Builds the Electron `MenuItemConstructorOptions[]` template installed on the macOS tray icon. Pure builder — no Electron `Menu` lifecycle, no state, no IPC.
 
 ## FILES
 
@@ -15,7 +15,7 @@ Input:
 - `showTomorrowMeetings: boolean` — from `settings.showTomorrowMeetings`.
 - `callbacks: { onAbout, onOpenSettings }` — invoked on click.
 
-Output: `MenuItemConstructorOptions[]` ready for `Menu.buildFromTemplate()`.
+Output: `MenuItemConstructorOptions[]` ready for `Menu.buildFromTemplate()`. `tray.ts` owns `Menu.buildFromTemplate()` and `tray.setContextMenu()`.
 
 ## BEHAVIOR
 
@@ -29,10 +29,11 @@ Output: `MenuItemConstructorOptions[]` ready for `Menu.buildFromTemplate()`.
 
 ## CONSUMERS
 
-`tray.ts` calls `buildMeetingMenuTemplate()` whenever the meeting list changes (via `mainBus.on("meeting-list-updated", ...)`) or settings change.
+`tray.ts` installs a placeholder native menu during setup, then calls `buildMeetingMenuTemplate()` whenever cached meetings change via `mainBus.on("meeting-list-updated", ...)`.
 
 ## ANTI-PATTERNS
 
 - Do not mutate `events` — caller owns the array.
+- Do not build or pop Electron `Menu` instances here; `tray.ts` owns the native menu lifecycle and keeps the menu installed before first click.
 - Do not call `shell.openExternal()` directly — always go through `openMeetingUrl()` (URL allowlist).
 - Do not import from `scheduler/` — menu is a presentation leaf.
