@@ -95,6 +95,20 @@ describe("scheduler browser auto-open deadline", () => {
     expect(stateModule.state.firedEvents.has(event.id)).toBe(true);
   });
 
+  it("opens an unchanged future meeting after scheduler epoch changes", () => {
+    const startMs = BASE_NOW + 10 * MINUTE_MS;
+    const event = makeEvent("deadline-epoch-change", startMs, startMs + 30 * MINUTE_MS);
+
+    scheduleEvents([event]);
+    stateModule.state.pollEpoch += 1;
+    scheduleEvents([event]);
+    vi.advanceTimersByTime(7 * MINUTE_MS);
+
+    expect(openMeetingUrl).toHaveBeenCalledTimes(1);
+    expect(stateModule.state.firedEvents.has(event.id)).toBe(true);
+    expect(stateModule.state.timers.has(event.id)).toBe(false);
+  });
+
   it("does not open a future meeting before the configured offset", () => {
     const startMs = BASE_NOW + 10 * MINUTE_MS;
     const event = makeEvent("deadline-early", startMs, startMs + 30 * MINUTE_MS);
