@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { applyEventsPush } from "../../src/renderer/lib/apply-events-push.js";
 import type { AppState } from "../../src/shared/app-state.js";
 import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 import type { AppSettings } from "../../src/shared/settings.js";
 import { createMockEvent, isoFromNow } from "../helpers/test-utils.js";
+
+const FIXED_NOW = new Date(2026, 5, 15, 12, 0, 0).getTime();
 
 function loadingState(): AppState {
   return { type: "loading" };
@@ -19,6 +21,15 @@ function settingsWith(overrides: Partial<AppSettings> = {}): AppSettings {
 }
 
 describe("applyEventsPush", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders on first call (prevState=loading) and returns a non-empty signature", () => {
     const events = [createMockEvent({ id: "e1", startDate: isoFromNow(60) })];
     const result = applyEventsPush({
