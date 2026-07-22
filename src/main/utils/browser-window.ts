@@ -31,6 +31,15 @@ export function getPreloadPath(): string {
  * @param page - The page name without extension (e.g. "index", "settings", "alert")
  */
 export function loadWindowContent(win: BrowserWindow, page: string): void {
+  setupCspHeaders();
+  win.webContents.on("will-navigate", (event) => {
+    event.preventDefault();
+  });
+  win.webContents.on("will-frame-navigate", (event) => {
+    event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
   const load = !app.isPackaged
     ? () => {
         const devUrl = process.env["VITE_DEV_SERVER_URL"] ?? "http://localhost:5173";
@@ -45,12 +54,7 @@ export function loadWindowContent(win: BrowserWindow, page: string): void {
 
 type CSPSource = `'self'` | `'unsafe-inline'` | `data:` | `ws://localhost:*`;
 type CSPDirectiveName =
-  | "default-src"
-  | "script-src"
-  | "style-src"
-  | "img-src"
-  | "font-src"
-  | "connect-src";
+  "default-src" | "script-src" | "style-src" | "img-src" | "font-src" | "connect-src";
 type CSPDirective = `${CSPDirectiveName} ${CSPSource}${string}`;
 type CSP = `${CSPDirective}` | `${CSPDirective}; ${string}`;
 

@@ -9,6 +9,7 @@ app: {
     on: vi.fn(),
     showAboutPanel: vi.fn(),
     getPath: vi.fn().mockReturnValue("/tmp/test-user-data"),
+    getAppPath: vi.fn().mockReturnValue("/app"),
   },
   commandLine: { appendSwitch: vi.fn() },
   ipcMain: {
@@ -42,7 +43,11 @@ app: {
       setAlwaysOnTop: vi.fn(),
       on: vi.fn(),
       removeListener: vi.fn(),
-      webContents: { send: vi.fn() },
+      webContents: {
+        send: vi.fn(),
+        on: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+      },
     })),
     {
       getAllWindows: vi.fn().mockReturnValue([]),
@@ -86,5 +91,10 @@ app: {
       setTemplateImage: vi.fn(),
       isEmpty: vi.fn().mockReturnValue(true),
     }),
+  },
+  session: {
+    defaultSession: {
+      webRequest: { onHeadersReceived: vi.fn() },
+    },
   },
 }));

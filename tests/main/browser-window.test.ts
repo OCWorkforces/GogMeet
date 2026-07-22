@@ -1,12 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import path from "node:path";
 
+type NavigationEventName = "will-navigate" | "will-frame-navigate";
+type NavigationGuard = (event: { preventDefault(): void }) => void;
+type PopupGuard = () => { action: "deny" };
+
 // Local mock for electron — extends the global setup with `session`,
 // and lets us flip `app.isPackaged` per-test.
-const { mockOnHeadersReceived, mockLoadURL, mockLoadFile, appState } = vi.hoisted(() => ({
+const {
+  mockOnHeadersReceived,
+  mockLoadURL,
+  mockLoadFile,
+  mockWebContentsOn,
+  mockSetWindowOpenHandler,
+  appState,
+} = vi.hoisted(() => ({
   mockOnHeadersReceived: vi.fn(),
   mockLoadURL: vi.fn().mockResolvedValue(undefined),
   mockLoadFile: vi.fn().mockResolvedValue(undefined),
+  mockWebContentsOn: vi.fn<(eventName: NavigationEventName, listener: NavigationGuard) => void>(),
+  mockSetWindowOpenHandler: vi.fn<(handler: PopupGuard) => void>(),
   appState: { isPackaged: false },
 }));
 
@@ -39,8 +52,20 @@ function makeWindow(): BrowserWindow {
   const win = {
     loadURL: mockLoadURL,
     loadFile: mockLoadFile,
+    webContents: {
+      on: mockWebContentsOn,
+      setWindowOpenHandler: mockSetWindowOpenHandler,
+    },
   };
   return win as unknown as BrowserWindow;
+}
+
+function navigationGuard(eventName: NavigationEventName): NavigationGuard {
+  const handler = mockWebContentsOn.mock.calls.find(([name]) => name === eventName)?.[1];
+  if (!handler) {
+    throw new Error(`Missing ${eventName} navigation guard`);
+  }
+  return handler;
 }
 
 describe("SECURE_WEB_PREFERENCES", () => {
@@ -80,8 +105,54 @@ describe("loadWindowContent", () => {
   beforeEach(() => {
     mockLoadURL.mockClear();
     mockLoadFile.mockClear();
+    mockOnHeadersReceived.mockClear();
+    mockWebContentsOn.mockClear();
+    mockSetWindowOpenHandler.mockClear();
+    _resetCspForTest();
     appState.isPackaged = false;
     delete process.env["VITE_DEV_SERVER_URL"];
+  });
+
+  it("registers CSP and renderer guards before loading content", () => {
+    const win = makeWindow();
+
+    loadWindowContent(win, "index");
+
+    expect(mockOnHeadersReceived).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockWebContentsOn).toHaveBeenCalledWith("will-navigate", expect.any(Function));
+    expect(mockWebContentsOn).toHaveBeenCalledWith("will-frame-navigate", expect.any(Function));
+    expect(mockSetWindowOpenHandler).toHaveBeenCalledWith(expect.any(Function));
+    const headersRegistrationOrder = mockOnHeadersReceived.mock.invocationCallOrder[0];
+    const popupGuardOrder = mockSetWindowOpenHandler.mock.invocationCallOrder[0];
+    const loadOrder = mockLoadURL.mock.invocationCallOrder[0];
+    if (
+      headersRegistrationOrder === undefined ||
+      popupGuardOrder === undefined ||
+      loadOrder === undefined
+    ) {
+      throw new Error("Expected content security registration before loading");
+    }
+    expect(headersRegistrationOrder).toBeLessThan(loadOrder);
+    expect(popupGuardOrder).toBeLessThan(loadOrder);
+  });
+
+  it("prevents main and frame navigation", () => {
+    loadWindowContent(makeWindow(), "index");
+    const mainNavigation = { preventDefault: vi.fn() };
+    const frameNavigation = { preventDefault: vi.fn() };
+
+    navigationGuard("will-navigate")(mainNavigation);
+    navigationGuard("will-frame-navigate")(frameNavigation);
+
+    expect(mainNavigation.preventDefault).toHaveBeenCalledOnce();
+    expect(frameNavigation.preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it("denies renderer popup creation", () => {
+    loadWindowContent(makeWindow(), "index");
+    const popupHandler = mockSetWindowOpenHandler.mock.calls[0]?.[0];
+
+    expect(popupHandler?.()).toEqual({ action: "deny" });
   });
 
   it("uses loadURL with the dev server URL when not packaged", async () => {
