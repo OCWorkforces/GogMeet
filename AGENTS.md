@@ -45,7 +45,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | --- | --- | --- |
 | Runtime bootstrap | `src/main/index.ts`, `src/main/app/lifecycle.ts` | lifecycle order matters; settings load before scheduler |
 | Add IPC | `src/shared/ipc-channels.ts` -> `src/main/ipc-handlers/*` -> `src/preload/index.ts` -> renderer/tests | invoke uses `typedHandle`; fire-and-forget uses sender validation |
-| Calendar fetch/parser | `src/main/domain/calendar.ts`, `src/main/swift/*`, `src/main/googlemeet-events.swift` | Swift output is 9 tab-delimited fields |
+| Calendar fetch/parser | `src/main/domain/calendar.ts`, `src/main/swift/*`, `src/main/googlemeet-events.swift` | Swift output is JSON Lines arrays of 9 strings |
 | Calendar change watch | `src/main/domain/calendar-watcher.ts`, `src/main/swift/calendar-watch-sidecar.ts` | Swift `--watch` emits `CHANGED`; domain calls `forcePoll()` |
 | Scheduler behavior | `src/main/scheduler/facade.ts`, `src/main/scheduler/AGENTS.md` | facade is the only public scheduler entry |
 | Scheduler state | `src/main/scheduler/state/AGENTS.md` | state files are internal-only |
@@ -130,15 +130,17 @@ bun run clean            # remove lib/ and dist/
 
 - PR workflow: macOS, Bun install, `typecheck`, `test`, `test:coverage`; separate Node 26 job runs `validate:node`. It does not run lint/format or a dirty-tree/icon diff guard after icon generation.
 - Release workflow: runs on `main` and `v*` tags, sets up Bun + Node 26, runs `bun run build`, creates `v$(package.json.version)` tag on `main` when missing, then `bun run package` builds again and uploads `dist/*.dmg` / `dist/*.zip`.
-- `electron-builder.yml`: output `dist/`, resources `build/`, macOS 11+, DMG/ZIP for `arm64` and `x64`, `mergeASARs: false`, `hardenedRuntime: false`, `gatekeeperAssess: false`, `mac.notarize: false`, DMG `sign: false`.
-- Hooks: `build/after-pack.cjs` strips/prunes packaged `.app`; `build/notarize.cjs` is configured as `afterSign` but skips unless darwin + all Apple credentials, and builder notarization is disabled by config.
+- `electron-builder.yml`: output `dist/`, resources `build/`, macOS 11+, deterministic `GogMeet-${version}-${arch}.${ext}` DMG/ZIP targets for `arm64` and `x64`, `mergeASARs: false`, `hardenedRuntime: true`, built-in `mac.notarize: true`, `gatekeeperAssess: false`, and DMG `sign: false`.
+- `build/after-pack.cjs` is the only packaging hook. Electron Builder owns app signing and notarization; the app is stapled before its DMG/ZIP containers are created.
 
 ## NOTES
 
 - EventKit permission is requested on first access; lifecycle invalidates the cached permission state on resume/unlock before scheduler restart.
 - Swift helper cache: `/tmp/googlemeet/googlemeet-events` plus `/tmp/googlemeet/source.hash`, mode `0o700`, hash-keyed.
 - Swift one-shot exit codes: `0` success, `2` permission denied, `3` no calendars, `4` runtime/helper error. Verify production classification before assuming every helper exit maps to structured `AppError`.
-- Swift output protocol: `uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes`.
+- Swift output protocol: one JSON array line of exactly nine strings ordered as `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
+- Official releases are created only from `v${package.json.version}` tags. The tag workflow requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`; local `bun run package` remains allowed without them.
+- Official release verification mounts DMGs and extracts ZIPs, then validates each contained app. The app is signed, notarized, and stapled; a DMG and ZIP are containers and must not be described as stapled/notarized themselves.
 - Auto-open applies to non-all-day future meetings, 1-5 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists.
 - Full-screen alert fires 60s before browser auto-open, clamped to now; dismissing it cancels that event's pending browser open.
 - Scheduler polling: 2 min on AC, 4 min on battery; `forcePoll()` coalesces within 10s by scheduling one deferred follow-up, not by dropping every request.
