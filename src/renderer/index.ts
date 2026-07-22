@@ -132,7 +132,9 @@ async function loadEvents() {
         prevSignature: rs.lastEventsSignature,
       });
       if (!applied.didChange) {
+        rs.state = applied.state;
         rs.lastUpdatedAt = Date.now();
+        render();
         return;
       }
       rs.lastEventsSignature = applied.signature;
@@ -155,7 +157,11 @@ async function init() {
       window.api.scheduler.forcePoll();
       // loadEvents() will be triggered by CALENDAR_EVENTS_UPDATED push from main.
       // For error/no-permission states (no push arrives), also reload directly.
-      if (rs.state.type === "error" || rs.state.type === "no-permission") {
+      if (
+        rs.state.type === "has-events" ||
+        rs.state.type === "error" ||
+        rs.state.type === "no-permission"
+      ) {
         void loadEvents();
       }
     },
@@ -172,7 +178,9 @@ async function init() {
       prevSignature: rs.lastEventsSignature,
     });
     if (!applied.didChange) {
+      rs.state = applied.state;
       rs.lastUpdatedAt = Date.now();
+      render();
       return;
     }
     rs.lastEventsSignature = applied.signature;

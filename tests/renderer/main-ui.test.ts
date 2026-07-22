@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Api } from "../../src/preload/index.js";
+import type { CalendarPermission } from "../../src/shared/calendar-result.js";
+import type { CalendarResult } from "../../src/shared/calendar-result.js";
+import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import { createMockEvent, createMockSettings } from "../helpers/test-utils.js";
 
 /**
  * Tests for renderer/index.ts — the main popover UI
@@ -20,6 +25,142 @@ describe("renderer/index.ts", () => {
   it("module can be imported without errors", async () => {
     const module = await import("../../src/renderer/index.js");
     expect(module).toBeDefined();
+  });
+});
+
+const RENDERER_TEST_NOW = new Date(2026, 5, 15, 12, 0, 0).getTime();
+
+async function startRenderer(events: MeetingEvent[]) {
+  const getEvents = vi.fn<() => Promise<CalendarResult>>().mockResolvedValue({
+    kind: "ok",
+    events,
+  });
+  const forcePoll = vi.fn();
+  const callbacks: {
+    eventsUpdated: ((updatedEvents: MeetingEvent[]) => void) | null;
+    settingsChanged: ((settings: ReturnType<typeof createMockSettings>) => void) | null;
+  } = { eventsUpdated: null, settingsChanged: null };
+
+  const api: Api = {
+    calendar: {
+      getEvents,
+      requestPermission: vi.fn<() => Promise<CalendarPermission>>().mockResolvedValue("granted"),
+      getPermissionStatus: vi.fn<() => Promise<CalendarPermission>>().mockResolvedValue("granted"),
+      onEventsUpdated: vi.fn((callback: (updatedEvents: MeetingEvent[]) => void) => {
+        callbacks.eventsUpdated = callback;
+        return () => {};
+      }),
+    },
+    window: { setHeight: vi.fn() },
+    app: {
+      openExternal: vi.fn(() => Promise.resolve()),
+      getVersion: vi.fn(() => Promise.resolve("1.0.0")),
+    },
+    settings: {
+      get: vi.fn(() => Promise.resolve(createMockSettings())),
+      set: vi.fn((partial: Parameters<Api["settings"]["set"]>[0]) =>
+        Promise.resolve({ ...createMockSettings(), ...partial }),
+      ),
+      onChanged: vi.fn((callback: (settings: ReturnType<typeof createMockSettings>) => void) => {
+        callbacks.settingsChanged = callback;
+        return () => {};
+      }),
+    },
+    alert: {
+      onShowAlert: vi.fn(() => () => {}),
+      notifyDismissed: vi.fn(),
+    },
+    scheduler: { forcePoll },
+  };
+
+  Object.defineProperty(window, "api", { configurable: true, value: api });
+  const addEventListener = vi.spyOn(document, "addEventListener");
+
+  vi.resetModules();
+  await import("../../src/renderer/index.js");
+
+  const domContentLoadedListener = addEventListener.mock.calls.find(
+    ([type]) => type === "DOMContentLoaded",
+  )?.[1];
+  if (typeof domContentLoadedListener !== "function") {
+    throw new Error("Renderer entrypoint did not register a DOMContentLoaded listener");
+  }
+  domContentLoadedListener(new Event("DOMContentLoaded"));
+
+  await vi.waitFor(() => expect(getEvents).toHaveBeenCalledOnce());
+  if (callbacks.eventsUpdated === null || callbacks.settingsChanged === null) {
+    throw new Error("Renderer entrypoint did not register update callbacks");
+  }
+
+  const eventsUpdatedCallback = callbacks.eventsUpdated;
+  const settingsChangedCallback = callbacks.settingsChanged;
+  return { getEvents, forcePoll, eventsUpdatedCallback, settingsChangedCallback };
+}
+
+describe("renderer unchanged calendar updates", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(RENDERER_TEST_NOW);
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("restores visible meetings and refreshes the footer after an unchanged direct fetch", async () => {
+    // Given: the real entrypoint has rendered a successful meeting list.
+    const events = [createMockEvent({ title: "Unchanged direct meeting" })];
+    const renderer = await startRenderer(events);
+    vi.advanceTimersByTime(60_000);
+
+    // When: the existing settings push invokes the direct fetch path with identical events.
+    renderer.settingsChangedCallback(createMockSettings());
+
+    // Then: loading does not remain visible and completion is rendered.
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain("Unchanged direct meeting");
+      expect(document.body.textContent).toContain("Updated just now");
+    });
+  });
+
+  it("renders the refreshed footer after unchanged pushed events", async () => {
+    // Given: the real entrypoint has an older, visible meeting list.
+    const events = [createMockEvent({ title: "Unchanged pushed meeting" })];
+    const renderer = await startRenderer(events);
+    const footerLabel = document.querySelector<HTMLElement>(".footer-refresh-label");
+    if (footerLabel === null) {
+      throw new Error("Renderer did not render the refresh timestamp");
+    }
+    footerLabel.textContent = "Updated 1 min ago";
+
+    // When: main pushes an identical event list.
+    renderer.eventsUpdatedCallback([...events]);
+
+    // Then: the visible meeting and the refreshed completion timestamp remain observable.
+    expect(document.body.textContent).toContain("Unchanged pushed meeting");
+    expect(document.body.textContent).toContain("Updated just now");
+  });
+
+  it("force-polls and directly fetches when normal-state refresh returns unchanged events", async () => {
+    // Given: the real entrypoint is in its normal has-events state.
+    const events = [createMockEvent({ title: "Manual refresh meeting" })];
+    const renderer = await startRenderer(events);
+    vi.advanceTimersByTime(60_000);
+    const refreshButton = document.querySelector<HTMLButtonElement>("[data-action='refresh']");
+    if (refreshButton === null) {
+      throw new Error("Renderer did not render the refresh control");
+    }
+
+    // When: the user clicks refresh and the direct fetch returns the same events.
+    refreshButton.click();
+
+    // Then: scheduler polling and observable direct completion both occur.
+    await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
+    expect(renderer.forcePoll).toHaveBeenCalledOnce();
+    expect(document.body.textContent).toContain("Manual refresh meeting");
+    expect(document.body.textContent).toContain("Updated just now");
   });
 });
 
