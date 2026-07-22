@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
+import type { AppSettings } from "../../src/shared/settings.js";
 
 /**
  * Tests for settings/index.ts
@@ -14,9 +16,101 @@ describe("settings/index.ts", () => {
     vi.restoreAllMocks();
   });
 
-  it("module can be imported without errors", async () => {
-    const module = await import("../../src/renderer/settings/index.js");
-    expect(module).toBeDefined();
+  async function loadSettingsRenderer(
+    setSettings: (partial: Partial<AppSettings>) => Promise<AppSettings>,
+  ): Promise<void> {
+    vi.resetModules();
+    vi.stubGlobal("api", {
+      settings: {
+        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({ ...DEFAULT_SETTINGS }),
+        set: setSettings,
+      },
+    });
+
+    await import("../../src/renderer/settings/index.js");
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("open-before-select")).toBeInstanceOf(HTMLSelectElement);
+    });
+  }
+
+  function getOpenBeforeSelect(): HTMLSelectElement {
+    const select = document.getElementById("open-before-select");
+    if (!(select instanceof HTMLSelectElement)) {
+      throw new Error("settings renderer did not render the open-before dropdown");
+    }
+    return select;
+  }
+
+  function getLaunchAtLoginToggle(): HTMLInputElement {
+    const toggle = document.getElementById("launch-at-login-toggle");
+    if (!(toggle instanceof HTMLInputElement)) {
+      throw new Error("settings renderer did not render the launch-at-login toggle");
+    }
+    return toggle;
+  }
+
+  it("keeps controls wired after a successful dropdown save rerender", async () => {
+    const updatedAfterDropdown = { ...DEFAULT_SETTINGS, openBeforeMinutes: 2 };
+    const updatedAfterToggle = { ...updatedAfterDropdown, launchAtLogin: true };
+    const setSettings = vi
+      .fn<(partial: Partial<AppSettings>) => Promise<AppSettings>>()
+      .mockResolvedValueOnce(updatedAfterDropdown)
+      .mockResolvedValueOnce(updatedAfterToggle);
+
+    await loadSettingsRenderer(setSettings);
+
+    const initialSelect = getOpenBeforeSelect();
+    initialSelect.value = "2";
+    initialSelect.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => {
+      expect(setSettings).toHaveBeenCalledTimes(1);
+    });
+
+    const rerenderedSelect = getOpenBeforeSelect();
+    expect(rerenderedSelect).not.toBe(initialSelect);
+
+    const rerenderedToggle = getLaunchAtLoginToggle();
+    rerenderedToggle.checked = true;
+    rerenderedToggle.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => {
+      expect(setSettings).toHaveBeenCalledTimes(2);
+    });
+    expect(setSettings).toHaveBeenNthCalledWith(2, { launchAtLogin: true });
+  });
+
+  it("keeps controls wired after a failed dropdown save rerender", async () => {
+    const saveError = new Error("Settings save failed");
+    const updatedAfterToggle = { ...DEFAULT_SETTINGS, launchAtLogin: true };
+    const setSettings = vi
+      .fn<(partial: Partial<AppSettings>) => Promise<AppSettings>>()
+      .mockRejectedValueOnce(saveError)
+      .mockResolvedValueOnce(updatedAfterToggle);
+
+    await loadSettingsRenderer(setSettings);
+
+    const initialSelect = getOpenBeforeSelect();
+    initialSelect.value = "2";
+    initialSelect.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => {
+      expect(document.querySelector(".settings-error")?.textContent).toBe(saveError.message);
+    });
+
+    const rerenderedSelect = getOpenBeforeSelect();
+    expect(rerenderedSelect).not.toBe(initialSelect);
+
+    const rerenderedToggle = getLaunchAtLoginToggle();
+    rerenderedToggle.checked = true;
+    rerenderedToggle.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => {
+      expect(setSettings).toHaveBeenCalledTimes(2);
+    });
+    expect(setSettings).toHaveBeenNthCalledWith(2, { launchAtLogin: true });
   });
 });
 
