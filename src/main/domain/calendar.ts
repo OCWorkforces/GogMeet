@@ -18,7 +18,7 @@ export async function getCalendarEventsResult(): Promise<CalendarResult> {
     const output = await runSwiftHelper();
     const { events, diagnostics } = parseEvents(output);
     for (const d of diagnostics) {
-      console.warn(`[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`, d.raw ?? "");
+      console.warn(`[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`);
     }
     return { kind: "ok", events: [...events] };
   } catch (err) {
