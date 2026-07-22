@@ -37,6 +37,6 @@ Older suites still ship per-file factories rather than these helpers:
 | Per-file factory  | Where                     | Notes                                                                |
 | ----------------- | ------------------------- | -------------------------------------------------------------------- |
 | `makeEvent`       | scheduler-* tests          | Equivalent to `createMockEvent`; new tests should prefer the helper. |
-| `makeSwiftLine`   | `swift/event-parser.test.ts` | Builds the 9-field tab-delimited Swift output line; no shared replacement yet. |
+| `makeSwiftLine`   | `swift/event-parser.test.ts` | Produces a nine-string JSON Lines calendar record fixture; no shared replacement yet. |
 
 When extending an existing suite, match the surrounding style; when starting a new test file, use the helpers above.

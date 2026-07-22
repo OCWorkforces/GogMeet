@@ -1,6 +1,6 @@
 # Swift Integration
 
-Runtime compilation and parsing layer for the macOS EventKit helper. Source lives at `src/main/googlemeet-events.swift`; TypeScript in this directory finds, compiles, caches, executes, and validates its tab-delimited output.
+Runtime compilation and parsing layer for the macOS EventKit helper. Source lives at `src/main/googlemeet-events.swift`; TypeScript in this directory finds, compiles, caches, executes, and validates its JSON Lines output.
 
 ## Files
 
@@ -11,7 +11,7 @@ Runtime compilation and parsing layer for the macOS EventKit helper. Source live
 | `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
 | `calendar-watch-sidecar.ts` | Sidecar process used by calendar change watching. |
 | `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
-| `event-field-parser.ts` | Parse individual tab-delimited fields and optional values. |
+| `event-field-parser.ts` | Parse individual JSON record fields and optional values. |
 | `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `AppError`. |
 | `guards.ts` | Swift helper type guards and validation helpers. |
 
@@ -34,10 +34,10 @@ Do not change these paths without verifying both `bun run dev` and packaged `ele
 
 ## Swift protocol
 
-Output is one event per line, 9 tab-delimited fields:
+Output is one JSON array line with exactly nine strings:
 
-```
-uid\ttitle\tstartISO\tendISO\turl\tcalName\tallDay\temail\tnotes
+```json
+["uid", "title", "startISO", "endISO", "url", "calName", "allDay", "email", "notes"]
 ```
 
 Exit codes:

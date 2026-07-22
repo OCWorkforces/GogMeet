@@ -83,7 +83,7 @@ GogMeet keeps Electron's main, preload, renderer, and shared code separate:
 Runtime files worth knowing:
 
 - `src/main/domain/calendar.ts` calls the Swift integration and returns typed `CalendarResult` values.
-- `src/main/googlemeet-events.swift` queries EventKit for a two-day range starting today and prints 9 tab-delimited fields per event.
+- `src/main/googlemeet-events.swift` queries EventKit for a two-day range starting today and prints one JSON array of 9 strings per event line.
 - `src/main/swift/` compiles and caches the Swift helper in `/tmp/googlemeet/`, keyed by the Swift source hash.
 - `src/main/scheduler/facade.ts` is the public scheduler API. Polling runs every 2 minutes on AC power and every 4 minutes on battery; force polls coalesce within 10 seconds.
 - `src/main/scheduler/` schedules browser-open timers, alert timers, and tray countdowns.
@@ -105,10 +105,10 @@ Defaults live in `src/shared/settings.ts`:
 
 GogMeet asks for Calendar access the first time it needs events. If macOS denies permission, the fetch returns a typed Calendar error and the UI shows the permission state.
 
-The Swift helper prints one event per line with tab-delimited fields:
+The Swift helper prints one JSON array of exactly nine strings per line (JSON Lines):
 
-```text
-uid<TAB>title<TAB>startISO<TAB>endISO<TAB>url<TAB>calName<TAB>allDay<TAB>email<TAB>notes
+```json
+["uid", "title", "startISO", "endISO", "url", "calName", "allDay", "email", "notes"]
 ```
 
 Swift helper exit codes:
@@ -127,9 +127,10 @@ Build packaged macOS artifacts with Electron Builder:
 ```bash
 bun run package      # Build + package DMG and ZIP targets
 bun run package:dir  # Build + create unpacked macOS app directory
+bun run verify:macos-release  # Verify a signed, notarized official release on macOS
 ```
 
-`electron-builder.yml` creates DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it.
+`electron-builder.yml` creates deterministic `GogMeet-${version}-${arch}.${ext}` DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, enables the hardened runtime and built-in app notarization, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it. Local packaging remains usable without Apple release secrets; the official tag workflow does not.
 
 There is also a local Apple Silicon DMG helper:
 
@@ -143,12 +144,9 @@ The helper script installs dependencies, cleans `dist/`, builds the app, package
 
 ## Release and CI
 
-- PR checks run on macOS for pushes and pull requests to `develop` and `main`:
-  - Job `check`: Bun-only — `bun run typecheck`, `bun run test`, `bun run test:coverage`.
-  - Job `validate-node`: sets up Bun **and** Node 26 (via `actions/setup-node` + `.nvmrc`), then runs `bun run validate:node`.
-  - The PR workflow does not currently run `bun run lint`, `bun run format:check`, or a dirty-tree check after icon generation.
-- Releases run on pushes to `main` and `v*` tags. The workflow sets up Bun and Node 26 (Node 26 is required because the tag step uses `node -p "require('./package.json').version"`), runs `bun run build`, creates the version tag from `package.json` when needed, then runs `bun run package` and uploads `dist/*.dmg` and `dist/*.zip` to GitHub Releases. Because `bun run package` also runs `bun run build`, release builds compile twice today.
-- `electron-builder.yml` has builder notarization disabled (`mac.notarize: false`). `build/notarize.cjs` is wired as `afterSign`, but it skips unless running on macOS with all Apple credentials available.
+- PR checks run on macOS for pushes and pull requests to `develop` and `main`: the `check` job runs lint, formatting, type checking, a production build, and coverage; the Node 26 job validates generated icon drift.
+- A `main` push only creates and pushes `v${package.json.version}` when it does not already exist. The separate `v*` tag run installs, requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`, runs `bun run package` once, verifies the containers, writes `SHA256SUMS.txt`, then uploads exactly arm64/x64 DMG/ZIP files plus that checksum file.
+- The verifier mounts each DMG and extracts each ZIP to inspect the contained app. It validates signing, hardened runtime, Gatekeeper assessment, app stapling, entitlements, Swift-source packaging, and a native-architecture Swift smoke. The app is notarized and stapled before its containers are created; neither the ZIP nor the unsigned DMG container should be described as stapled or notarized.
 
 ### Runtime topology
 

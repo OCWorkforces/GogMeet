@@ -29,7 +29,7 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 
 ## CALENDAR / SWIFT
 
-- `calendar.test.ts` covers `CalendarResult`, 9-field tab-delimited Swift output, diagnostics, and permission status/request cache behavior.
+- `calendar.test.ts` covers `CalendarResult`, 9-string JSON Lines Swift output, diagnostics, and permission status/request cache behavior.
 - `swift/event-parser.test.ts` covers field parsing, diagnostics, sorting, URL/note cleanup, and `classifySwiftError()`.
 - `swift-binary-manager.test.ts` covers `/tmp/googlemeet` cache paths, source hash, compile target flags, retry/recompile behavior, and `promisify.custom` exec mocks.
 - `calendar-watch-sidecar.test.ts` covers the Node-managed `swift --watch` sidecar restart, debounce, stable-runtime reset, and stop behavior.
