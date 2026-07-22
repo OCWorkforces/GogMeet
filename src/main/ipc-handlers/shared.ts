@@ -1,6 +1,7 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import type { IpcChannelMap, PushChannelMap } from "../../shared/ipc-channels.js";
 
 /** Accepted URL origins for IPC senders (renderer served from file:// or localhost in dev) */
@@ -10,45 +11,66 @@ const ALLOWED_ORIGINS = new Set(["http://localhost:5173", "http://127.0.0.1:5173
 export const MIN_WINDOW_HEIGHT = 220;
 export const MAX_WINDOW_HEIGHT = 480;
 
+type IpcSenderEvent = {
+  readonly senderFrame?: { readonly url?: string } | null;
+};
+
 /** Returns true if the sender's origin is the app's own renderer */
-export function validateSender(event: IpcMainInvokeEvent): boolean {
+export function validateSender(event: IpcSenderEvent): boolean {
   const senderUrl = event.senderFrame?.url ?? "";
   return validateSenderUrl(senderUrl);
 }
 
 /** Validate sender for fire-and-forget (ipcMain.on) events */
-export function validateOnSender(event: IpcMainEvent): boolean {
+export function validateOnSender(event: IpcSenderEvent): boolean {
   const senderUrl = event.senderFrame?.url ?? "";
   return validateSenderUrl(senderUrl);
 }
 
 function validateSenderUrl(senderUrl: string): boolean {
-  // file:// origin check (packaged app) — restrict to our renderer output paths
-  if (senderUrl.startsWith("file://")) {
+  let parsed: URL;
+  try {
+    parsed = new URL(senderUrl);
+  } catch {
+    console.warn("[ipc] Rejected IPC with malformed sender URL:", senderUrl);
+    return false;
+  }
+
+  if (ALLOWED_ORIGINS.has(parsed.origin) && parsed.username === "" && parsed.password === "") {
+    return true;
+  }
+
+  if (
+    parsed.protocol === "file:" &&
+    parsed.host === "" &&
+    parsed.search === "" &&
+    parsed.hash === "" &&
+    parsed.username === "" &&
+    parsed.password === ""
+  ) {
     try {
-      const parsed = new URL(senderUrl);
-      // Normalize path separators (Windows-safe, though app is macOS-only)
-      const normalizedPath = path.normalize(
-        decodeURIComponent(parsed.pathname).replace(/\\/g, "/"),
-      );
-      // Accept only HTML files inside our renderer output directory
-      if (normalizedPath.includes("/lib/renderer/") && normalizedPath.endsWith(".html")) {
+      if (isAllowedRendererFile(parsed)) {
         return true;
       }
-      console.warn("[ipc] Rejected file:// IPC from unauthorized path:", normalizedPath);
-      return false;
     } catch {
-      console.warn("[ipc] Rejected file:// IPC with malformed URL:", senderUrl);
+      console.warn("[ipc] Rejected IPC with malformed file sender URL:", senderUrl);
       return false;
     }
   }
-  // Dev server origins
-  for (const origin of ALLOWED_ORIGINS) {
-    if (senderUrl.startsWith(origin)) return true;
-  }
+
   // Log unauthorized attempt for security auditing
   console.warn("[ipc] Rejected IPC from unauthorized sender:", senderUrl);
   return false;
+}
+
+function isAllowedRendererFile(senderUrl: URL): boolean {
+  const rendererDirectory = path.resolve(app.getAppPath(), "lib", "renderer");
+  const senderPath = path.resolve(fileURLToPath(senderUrl));
+  return (
+    senderPath === path.join(rendererDirectory, "index.html") ||
+    senderPath === path.join(rendererDirectory, "settings.html") ||
+    senderPath === path.join(rendererDirectory, "alert.html")
+  );
 }
 
 /**

@@ -11,7 +11,7 @@ function getRegisteredHandler(channel: string) {
 }
 
 const authorizedEvent = {
-  senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
+  senderFrame: { url: "file:///app/lib/renderer/index.html" },
 } as unknown as import("electron").IpcMainEvent;
 
 const unauthorizedEvent = {
@@ -49,7 +49,7 @@ describe("registerWindowHandlers", () => {
       expect(mockWin.setSize).toHaveBeenCalledWith(360, 400, true);
     });
 
-    it("clamps height to MIN_WINDOW_HEIGHT (220)", () => {
+    it("clamps below-minimum height to MIN_WINDOW_HEIGHT (220)", () => {
       const mockWin = {
         setSize: vi.fn(),
       } as unknown as import("electron").BrowserWindow;
@@ -58,11 +58,10 @@ describe("registerWindowHandlers", () => {
       const handler = getRegisteredHandler("window:set-height");
 
       handler!(authorizedEvent, { height: 100 });
-      // preload normally clamps; main handler accepts already-branded payload as-is.
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 100, true);
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 220, true);
     });
 
-    it("clamps height to MAX_WINDOW_HEIGHT (480)", () => {
+    it("clamps above-maximum height to MAX_WINDOW_HEIGHT (480)", () => {
       const mockWin = {
         setSize: vi.fn(),
       } as unknown as import("electron").BrowserWindow;
@@ -71,7 +70,7 @@ describe("registerWindowHandlers", () => {
       const handler = getRegisteredHandler("window:set-height");
 
       handler!(authorizedEvent, { height: 999 });
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 999, true);
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 480, true);
     });
 
     it("rounds fractional height", () => {
@@ -83,7 +82,7 @@ describe("registerWindowHandlers", () => {
       const handler = getRegisteredHandler("window:set-height");
 
       handler!(authorizedEvent, { height: 350.7 });
-      expect(mockWin.setSize).toHaveBeenCalledWith(360, 350.7, true);
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 351, true);
     });
 
     it("ignores non-number height", () => {
@@ -98,7 +97,7 @@ describe("registerWindowHandlers", () => {
       expect(mockWin.setSize).not.toHaveBeenCalled();
     });
 
-    it("ignores negative height", () => {
+    it("clamps negative height to MIN_WINDOW_HEIGHT", () => {
       const mockWin = {
         setSize: vi.fn(),
       } as unknown as import("electron").BrowserWindow;
@@ -107,10 +106,10 @@ describe("registerWindowHandlers", () => {
       const handler = getRegisteredHandler("window:set-height");
 
       handler!(authorizedEvent, { height: -50 });
-      expect(mockWin.setSize).not.toHaveBeenCalled();
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 220, true);
     });
 
-    it("ignores zero height", () => {
+    it("clamps zero height to MIN_WINDOW_HEIGHT", () => {
       const mockWin = {
         setSize: vi.fn(),
       } as unknown as import("electron").BrowserWindow;
@@ -119,8 +118,23 @@ describe("registerWindowHandlers", () => {
       const handler = getRegisteredHandler("window:set-height");
 
       handler!(authorizedEvent, { height: 0 });
-      expect(mockWin.setSize).not.toHaveBeenCalled();
+      expect(mockWin.setSize).toHaveBeenCalledWith(360, 220, true);
     });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+      "ignores non-finite height: %s",
+      (height) => {
+        const mockWin = {
+          setSize: vi.fn(),
+        } as unknown as import("electron").BrowserWindow;
+
+        registerWindowHandlers(mockWin);
+        const handler = getRegisteredHandler("window:set-height");
+
+        handler!(authorizedEvent, { height });
+        expect(mockWin.setSize).not.toHaveBeenCalled();
+      },
+    );
 
     it("ignores unauthorized sender", () => {
       const mockWin = {
