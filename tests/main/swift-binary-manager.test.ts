@@ -331,6 +331,72 @@ describe("ensureBinary", () => {
 
     expect(execFileAsyncMock).not.toHaveBeenCalled();
   });
+
+  it("shares one compilation cycle across concurrent cold-start callers", async () => {
+    // Given
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    accessMock.mockRejectedValue(new Error("ENOENT"));
+    let releaseCompile = (): void => {};
+    let signalCompileStarted = (): void => {};
+    const compilationStarted = new Promise<void>((resolve) => {
+      signalCompileStarted = () => resolve();
+    });
+    const heldCompilation = new Promise<void>((resolve) => {
+      releaseCompile = () => resolve();
+    });
+    execFileAsyncMock
+      .mockImplementationOnce(async () => {
+        signalCompileStarted();
+        await heldCompilation;
+        return { stdout: "", stderr: "" };
+      })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+    const mod = await loadModule();
+
+    // When
+    const first = mod.ensureBinary();
+    const second = mod.ensureBinary();
+    const third = mod.ensureBinary();
+    await compilationStarted;
+    releaseCompile();
+    await expect(Promise.all([first, second, third])).resolves.toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+
+    // Then
+    const swiftcCalls = execFileAsyncMock.mock.calls.filter((call) => call[0] === "swiftc");
+    expect(swiftcCalls).toHaveLength(1);
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+
+  it("starts a new compilation cycle after a shared failure", async () => {
+    // Given
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    accessMock.mockRejectedValue(new Error("ENOENT"));
+    const sharedFailure = new Error("hash write failed");
+    writeFileMock.mockRejectedValueOnce(sharedFailure);
+    const mod = await loadModule();
+
+    // When
+    const first = mod.ensureBinary();
+    const second = mod.ensureBinary();
+    const failedCycleResults = await Promise.allSettled([first, second]);
+    const failedCycleSwiftcCalls = execFileAsyncMock.mock.calls.filter(
+      (call) => call[0] === "swiftc",
+    );
+    writeFileMock.mockResolvedValue(undefined);
+    await expect(mod.ensureBinary()).resolves.toBeUndefined();
+
+    // Then
+    expect(failedCycleSwiftcCalls).toHaveLength(1);
+    expect(failedCycleResults.every((result) => result.status === "rejected")).toBe(true);
+    expect(second).toBe(first);
+    const swiftcCalls = execFileAsyncMock.mock.calls.filter((call) => call[0] === "swiftc");
+    expect(swiftcCalls).toHaveLength(2);
+  });
 });
 
 describe("ensureBinary source-hash memoization", () => {
