@@ -11,7 +11,34 @@ permissions:
   contents: write
 
 jobs:
+  create-version-tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 26
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Create tag from package.json version
+        run: |
+          set -euo pipefail
+          VERSION="v$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -22,50 +49,61 @@ jobs:
         with:
           bun-version: "1.3.14"
 
-      - name: Setup Node 26
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version-file: .nvmrc
-
       - run: bun install --frozen-lockfile
 
-      - run: bun run build
-
-      - name: Create tag from package.json version
-        id: create-tag
-        if: github.ref == 'refs/heads/main'
-        run: |
-          VERSION="v$(node -p "require('./package.json').version")"
-          if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists, skipping"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "$VERSION"
-            git push origin "$VERSION"
-            echo "tag_name=$VERSION" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and package
-        if: startsWith(github.ref, 'refs/tags/') || steps.create-tag.outputs.tag_name != ''
-        run: bun run package
+      - name: Preflight official release credentials
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          required=(CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_SPECIFIC_PASSWORD)
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Required official release credential is missing: $name"
+              exit 1
+            fi
+          done
+          expected_tag="v$(bun -e 'const packageInfo = await Bun.file("package.json").json(); process.stdout.write(packageInfo.version)')"
+          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match package.json version $expected_tag"
+            exit 1
+          fi
 
-      - name: Verify build artifacts
-        if: always() && (startsWith(github.ref, 'refs/tags/') || steps.create-tag.outputs.tag_name != '')
-        run: 'ls -la dist/*.dmg dist/*.zip 2>/dev/null || echo "WARNING: No DMG/ZIP files found in dist/"'
+      - name: Build, sign, notarize, and package
+        run: bun run package
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      - name: Verify release containers
+        run: bun run verify:macos-release
+
+      - name: Create release checksums
+        run: |
+          set -euo pipefail
+          shasum -a 256 \
+            dist/GogMeet-*-arm64.dmg \
+            dist/GogMeet-*-arm64.zip \
+            dist/GogMeet-*-x64.dmg \
+            dist/GogMeet-*-x64.zip \
+            > dist/SHA256SUMS.txt
 
       - name: Upload release assets
-        if: startsWith(github.ref, 'refs/tags/') || steps.create-tag.outputs.tag_name != ''
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: dist/*.dmg,dist/*.zip
-          tag_name: ${{ steps.create-tag.outputs.tag_name || github.ref_name }}
+          files: |
+            dist/GogMeet-*-arm64.dmg
+            dist/GogMeet-*-arm64.zip
+            dist/GogMeet-*-x64.dmg
+            dist/GogMeet-*-x64.zip
+            dist/SHA256SUMS.txt
           fail_on_unmatched_files: true
           make_latest: true
