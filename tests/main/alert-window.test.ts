@@ -24,6 +24,8 @@ vi.mock("electron", () => {
       send: mockSend,
       executeJavaScript: vi.fn().mockResolvedValue(300),
       isDestroyed: vi.fn(() => false),
+      on: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
     };
     // Capture handlers without invoking — allows deferred firing for race condition tests
     this._onceHandlers = new Map<string, () => void>();
@@ -38,7 +40,12 @@ vi.mock("electron", () => {
 
   return {
     BrowserWindow: vi.fn(MockBrowserWindow),
-    app: { isPackaged: false },
+    app: { isPackaged: false, getAppPath: vi.fn().mockReturnValue("/app") },
+    session: {
+      defaultSession: {
+        webRequest: { onHeadersReceived: vi.fn() },
+      },
+    },
   };
 });
 

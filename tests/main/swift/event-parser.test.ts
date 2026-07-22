@@ -8,7 +8,6 @@ import {
 } from "../../../src/main/swift/event-validator.js";
 import { isoFromNow } from "../../helpers/test-utils.js";
 
-/** Build a 9-field tab-delimited Swift line. */
 function makeLine(
   id: string,
   title: string,
@@ -20,7 +19,7 @@ function makeLine(
   email = "",
   notes = "",
 ): string {
-  return [id, title, start, end, url, calendar, allDay, email, notes].join("\t");
+  return JSON.stringify([id, title, start, end, url, calendar, allDay, email, notes]);
 }
 
 describe("parseEvents — happy path", () => {
@@ -92,7 +91,7 @@ describe("parseEvents — empty / whitespace input", () => {
     expect(diagnostics).toEqual([]);
   });
 
-  it("strips trailing CRLF on lines", () => {
+  it("accepts a trailing CRLF after a record", () => {
     const valid = makeLine(
       "crlf-evt",
       "Carriage",
@@ -111,7 +110,7 @@ describe("parseEvents — empty / whitespace input", () => {
 
 describe("parseEvents — malformed input", () => {
   it("emits malformed_field_count diagnostic for wrong field count", () => {
-    const tooFew = ["only", "three", "fields"].join("\t");
+    const tooFew = JSON.stringify(["only", "three", "fields"]);
     const { events, diagnostics } = parseEvents(tooFew);
     expect(events).toEqual([]);
     expect(diagnostics).toHaveLength(1);
@@ -119,7 +118,6 @@ describe("parseEvents — malformed input", () => {
       line: 1,
       reason: "malformed_field_count",
     });
-    expect(diagnostics[0]?.raw).toContain("only");
   });
 
   it("emits invalid_iso diagnostic for unparseable dates", () => {
@@ -205,6 +203,108 @@ describe("parseEvents — malformed input", () => {
     expect(events).toEqual([]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({ line: 1, reason: "invalid_iso" });
+  });
+});
+
+describe("parseEvents — JSON Lines protocol", () => {
+  it("round-trips special characters within string fields", () => {
+    const start = isoFromNow(30);
+    const end = isoFromNow(60);
+    const title = 'Plan\t"quoted"\\route\r\n日本語';
+    const calendar = 'Core\t"team"\\東京';
+    const email = 'owner\t"team"\\日本語@example.com';
+    const notes = 'Notes\t"quoted"\\path\n日本語';
+    const url = "https://meet.google.com/abc-defg-hij?label=%22backslash%5C%E6%97%A5%E6%9C%AC%E8%AA%9E";
+
+    const { events, diagnostics } = parseEvents(
+      makeLine("event-日本語", title, start, end, url, calendar, "false", email, notes),
+    );
+
+    expect(diagnostics).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      id: "event-日本語",
+      title,
+      meetUrl: url,
+      calendarName: calendar,
+      userEmail: email,
+      description: notes,
+    });
+  });
+
+  it("accepts CRLF and LF record boundaries", () => {
+    const first = makeLine(
+      "first",
+      "First",
+      isoFromNow(30),
+      isoFromNow(60),
+      "https://meet.google.com/first-one-two",
+      "Work",
+      "false",
+    );
+    const second = makeLine(
+      "second",
+      "Second",
+      isoFromNow(90),
+      isoFromNow(120),
+      "https://meet.google.com/second-one-two",
+      "Work",
+      "false",
+    );
+
+    const { events, diagnostics } = parseEvents(`${first}\r\n${second}\n`);
+
+    expect(diagnostics).toEqual([]);
+    expect(events.map((event) => event.id)).toEqual(["first", "second"]);
+  });
+
+  it("reports malformed JSON records with safe reasons and physical line numbers", () => {
+    const start = isoFromNow(30);
+    const end = isoFromNow(60);
+    const valid = makeLine(
+      "valid",
+      "Valid",
+      start,
+      end,
+      "https://meet.google.com/valid-one-two",
+      "Work",
+      "false",
+    );
+    const nonArray = JSON.stringify({ kind: "not-an-array" });
+    const nonString = JSON.stringify([
+      "non-string",
+      "Title",
+      start,
+      end,
+      "https://meet.google.com/non-string-one-two",
+      "Work",
+      "false",
+      "user@example.com",
+      1,
+    ]);
+    const wrongLength = JSON.stringify([
+      "wrong-length",
+      "Title",
+      start,
+      end,
+      "https://meet.google.com/wrong-length-one-two",
+      "Work",
+      "false",
+      "user@example.com",
+    ]);
+
+    const { events, diagnostics } = parseEvents(
+      `${valid}\r\nnot-json\n${nonArray}\r\n${nonString}\n${wrongLength}\r\n`,
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("valid");
+    expect(diagnostics).toEqual([
+      { line: 2, reason: "malformed_record" },
+      { line: 3, reason: "malformed_record" },
+      { line: 4, reason: "malformed_record" },
+      { line: 5, reason: "malformed_field_count" },
+    ]);
   });
 });
 

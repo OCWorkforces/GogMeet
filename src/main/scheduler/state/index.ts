@@ -1,5 +1,9 @@
 import type { EventId } from "../../../shared/brand.js";
-import { type ScheduledEventSnapshot, type TimersState, createTimersState } from "./state-timers.js";
+import {
+  type ScheduledEventSnapshot,
+  type TimersState,
+  createTimersState,
+} from "./state-timers.js";
 import { type DisplayState, createDisplayState } from "./state-display.js";
 import { MAX_CONSECUTIVE_ERRORS_CAP, type PollState, createPollState } from "./state-poll.js";
 import { type RuntimeState, createRuntimeState } from "./state-runtime.js";
@@ -7,7 +11,11 @@ import { clearSchedulerResources } from "./state-cleanup.js";
 
 export type { ScheduledEventSnapshot } from "./state-timers.js";
 export type { PowerCallbacks } from "./state-runtime.js";
-export { clearInMeetingState, clearSchedulerResources, cancelStaleEntries } from "./state-cleanup.js";
+export {
+  clearInMeetingState,
+  clearSchedulerResources,
+  cancelStaleEntries,
+} from "./state-cleanup.js";
 
 export interface SchedulerState extends TimersState, DisplayState, PollState, RuntimeState {}
 

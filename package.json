@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.15.5",
+  "version": "1.16.0",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "authorEmail": "kennydizi@ocworkforces.com",
@@ -51,6 +51,7 @@
     "build:renderer": "rsbuild build",
     "package": "bun run build && electron-builder --mac",
     "package:dir": "bun run build && electron-builder --mac --dir",
+    "verify:macos-release": "node scripts/verify-macos-release.mjs",
     "typecheck": "tsc -b",
     "validate:node": "node scripts/validate-node.mjs",
     "test": "vitest run -c vitest.workspace.ts",

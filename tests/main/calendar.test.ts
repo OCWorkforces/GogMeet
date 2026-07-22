@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseEvents } from "../../src/main/swift/event-parser.js";
 import { cleanDescription } from "../../src/main/swift/event-field-parser.js";
-import { requestCalendarPermission, getCalendarPermissionStatus, invalidateCalendarPermissionCache } from "../../src/main/domain/calendar.js";
+import {
+  getCalendarEventsResult,
+  requestCalendarPermission,
+  getCalendarPermissionStatus,
+  invalidateCalendarPermissionCache,
+} from "../../src/main/domain/calendar.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 
-const { execFileAsyncMock } = vi.hoisted(() => ({
+const { execFileAsyncMock, runSwiftHelperMock } = vi.hoisted(() => ({
   execFileAsyncMock: vi.fn(),
+  runSwiftHelperMock: vi.fn(),
 }));
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
@@ -14,8 +20,10 @@ vi.mock("node:child_process", async () => {
   });
   return { execFile: fn };
 });
+vi.mock("../../src/main/swift/binary-manager.js", () => ({
+  runSwiftHelper: runSwiftHelperMock,
+}));
 
-// Helper to create tab-delimited Swift output
 function makeSwiftLine(
   id: string,
   title: string,
@@ -27,7 +35,7 @@ function makeSwiftLine(
   email?: string,
   notes?: string,
 ): string {
-  return [id, title, start, end, url, calendar, allDay, email ?? "", notes ?? ""].join("\t");
+  return JSON.stringify([id, title, start, end, url, calendar, allDay, email ?? "", notes ?? ""]);
 }
 
 // Helper to get ISO strings for relative times
@@ -36,7 +44,7 @@ function isoFromNow(minutesFromNow: number): string {
 }
 
 describe("parseEvents", () => {
-  it("parses valid 8-field input correctly", () => {
+  it("parses a valid JSON array record correctly", () => {
     const start = isoFromNow(60);
     const end = isoFromNow(90);
     const input = makeSwiftLine(
@@ -65,7 +73,7 @@ describe("parseEvents", () => {
     });
   });
 
-  it("parses 7-field input (without email)", () => {
+  it("omits an empty email field", () => {
     const start = isoFromNow(60);
     const end = isoFromNow(90);
     const input = makeSwiftLine(
@@ -84,13 +92,12 @@ describe("parseEvents", () => {
   });
 
   it("records a malformed_field_count diagnostic for lines with wrong field count", () => {
-    const input = "evt-1\tTitle\t2024-01-01"; // Only 3 fields
+    const input = JSON.stringify(["evt-1", "Title", "2024-01-01"]);
     const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(0);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.reason).toBe("malformed_field_count");
     expect(diagnostics[0]?.line).toBe(1);
-    expect(diagnostics[0]?.raw).toBe("evt-1\tTitle\t2024-01-01");
   });
 
   it("filters out events before today midnight", () => {
@@ -248,7 +255,7 @@ describe("parseEvents", () => {
     const { events, diagnostics } = parseEvents("   ");
     expect(events).toEqual([]);
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0]?.reason).toBe("malformed_field_count");
+    expect(diagnostics[0]?.reason).toBe("malformed_record");
   });
 
   it("records an invalid_iso diagnostic for malformed dates", () => {
@@ -281,7 +288,7 @@ describe("parseEvents", () => {
       "Work",
       "false",
     );
-    const malformed = "too\tfew\tfields";
+    const malformed = JSON.stringify(["too", "few", "fields"]);
     const badIso = makeSwiftLine(
       "evt-badiso",
       "Bad ISO",
@@ -386,9 +393,10 @@ describe("parseEvents", () => {
       "https://meet.google.com/crlf",
       "Work",
       "false",
-    ).replace(/\n/g, "\r\n");
+    );
+    const inputWithCrLf = `${input}\r\n`;
 
-    const { events } = parseEvents(input);
+    const { events } = parseEvents(inputWithCrLf);
     expect(events).toHaveLength(1);
   });
 
@@ -421,10 +429,8 @@ describe("parseEvents", () => {
 
     const { events, diagnostics } = parseEvents(input);
     expect(events).toHaveLength(2);
-    // "   " is a non-empty line but only one field; current strict check flags it.
-    // Verify it's reported as malformed_field_count rather than silently dropped.
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0]?.reason).toBe("malformed_field_count");
+    expect(diagnostics[0]?.reason).toBe("malformed_record");
   });
 
   it("parses 9-field input with description", () => {
@@ -465,6 +471,40 @@ describe("parseEvents", () => {
     const { events } = parseEvents(input);
     expect(events).toHaveLength(1);
     expect(events[0]?.description).toBeUndefined();
+  });
+});
+
+describe("getCalendarEventsResult diagnostics", () => {
+  beforeEach(() => {
+    runSwiftHelperMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs only safe diagnostic metadata for malformed calendar records", async () => {
+    const sentinels = {
+      title: "SENTINEL_TITLE",
+      email: "SENTINEL_EMAIL",
+      url: "SENTINEL_URL",
+      notes: "SENTINEL_NOTE",
+    };
+    runSwiftHelperMock.mockResolvedValueOnce(
+      `not-json ${sentinels.title} ${sentinels.email} ${sentinels.url} ${sentinels.notes}`,
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await getCalendarEventsResult();
+
+    expect(result).toEqual({ kind: "ok", events: [] });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("[calendar] Parse diagnostic: line 1: malformed_record");
+    const logged = warn.mock.calls.flat().map(String).join("\n");
+    expect(logged).not.toContain(sentinels.title);
+    expect(logged).not.toContain(sentinels.email);
+    expect(logged).not.toContain(sentinels.url);
+    expect(logged).not.toContain(sentinels.notes);
   });
 });
 

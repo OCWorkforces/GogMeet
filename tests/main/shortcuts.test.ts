@@ -331,6 +331,53 @@ describe("shortcuts", () => {
 
       expect(openMeetingUrl).not.toHaveBeenCalled();
     });
+
+    it("skips an in-progress meeting and opens the next strictly future meeting", async () => {
+      const { openMeetingUrl, buildMeetUrl } = await import(
+        "../../src/main/utils/meet-url.js"
+      );
+      const { getCalendarEventsResult } =
+        await import("../../src/main/domain/calendar.js");
+      const now = Date.now();
+      const futureMeeting = {
+        id: "evt-future",
+        title: "Future Meeting",
+        startDate: new Date(now + 30 * 60_000).toISOString(),
+        endDate: new Date(now + 60 * 60_000).toISOString(),
+        meetUrl: "https://meet.google.com/future-mtg-url",
+        calendarName: "Work",
+        isAllDay: false,
+        userEmail: "future@example.com",
+      };
+      vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
+        kind: "ok",
+        events: [
+          {
+            id: "evt-in-progress",
+            title: "In Progress Meeting",
+            startDate: new Date(now - 5 * 60_000).toISOString(),
+            endDate: new Date(now + 25 * 60_000).toISOString(),
+            meetUrl: "https://meet.google.com/active-mtg-url",
+            calendarName: "Work",
+            isAllDay: false,
+            userEmail: "active@example.com",
+          },
+          futureMeeting,
+        ],
+      });
+      vi.mocked(buildMeetUrl).mockReturnValueOnce(
+        "https://meet.google.com/future-mtg-url?authuser=future%40example.com",
+      );
+
+      registerShortcuts();
+      const handler = vi.mocked(globalShortcut.register).mock.calls[0][1];
+      await handler();
+
+      expect(buildMeetUrl).toHaveBeenCalledWith(futureMeeting);
+      expect(openMeetingUrl).toHaveBeenCalledWith(
+        "https://meet.google.com/future-mtg-url?authuser=future%40example.com",
+      );
+    });
   });
   });
 });

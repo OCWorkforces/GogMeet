@@ -18,6 +18,7 @@ import { compileWithRetries, stripBinary } from "./binary-compiler.js";
 const execFileAsync = promisify(execFile);
 
 let hashVerified = false;
+let ensureBinaryInFlight: Promise<void> | null = null;
 
 interface SourceHashCacheEntry {
   readonly path: string;
@@ -74,8 +75,7 @@ function logDebug(error: unknown): void {
   console.debug("[binary-manager]", error);
 }
 
-/** Compile the Swift EventKit helper if not already compiled */
-export async function ensureBinary(): Promise<void> {
+async function ensureBinaryCycle(): Promise<void> {
   // Locate Swift source
   // IMPORTANT: swiftc cannot read files from inside ASAR archives.
   // We must use the unpacked version when running from ASAR.
@@ -122,6 +122,18 @@ export async function ensureBinary(): Promise<void> {
 
   // Store hash for future comparisons
   await writeFile(HASH_PATH, currentHash, "utf-8");
+}
+
+/** Compile the Swift EventKit helper if not already compiled. */
+export function ensureBinary(): Promise<void> {
+  if (ensureBinaryInFlight !== null) {
+    return ensureBinaryInFlight;
+  }
+
+  ensureBinaryInFlight = ensureBinaryCycle().finally(() => {
+    ensureBinaryInFlight = null;
+  });
+  return ensureBinaryInFlight;
 }
 
 /** Run the compiled Swift EventKit helper and return raw output */

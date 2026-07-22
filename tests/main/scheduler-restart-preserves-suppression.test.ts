@@ -3,7 +3,10 @@ import { asTestEventId } from "../helpers/test-utils.js";
 
 // Mock electron
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn().mockReturnValue("/tmp/test") },
+  app: {
+    getPath: vi.fn().mockReturnValue("/tmp/test"),
+    getAppPath: vi.fn().mockReturnValue("/tmp/test"),
+  },
 }));
 
 // Mock calendar module so startScheduler's initial poll() resolves quickly

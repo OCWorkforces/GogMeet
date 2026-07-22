@@ -9,7 +9,6 @@ import { queryRequiredElement } from "../utils/dom.js";
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let isSaving = false;
-let listenersSetup = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function render(errorMessage?: string): void {
@@ -111,13 +110,10 @@ function render(errorMessage?: string): void {
     </div>
   `;
 
-  if (!listenersSetup) {
-    setupSelectListener();
-    setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
-    setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
-    setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
-    listenersSetup = true;
-  }
+  setupSelectListener();
+  setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
+  setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
+  setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
 }
 
 function showSaveIndicator(id: string, text: string): void {

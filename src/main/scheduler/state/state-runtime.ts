@@ -9,8 +9,7 @@ export interface PowerCallbacks {
 export interface RuntimeState {
   win: BrowserWindow | null;
   onTrayTitleUpdate?:
-    | ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void)
-    | null;
+    ((title: string | null, minsRemaining?: number, inMeeting?: boolean) => void) | null;
   powerCallbacks?: PowerCallbacks | null;
 }
 

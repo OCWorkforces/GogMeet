@@ -6,6 +6,7 @@ vi.mock("electron", () => ({
   app: {
     isPackaged: false,
     dock: { show: vi.fn(), hide: vi.fn() },
+    getAppPath: vi.fn().mockReturnValue("/app"),
   },
   BrowserWindow: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this.loadURL = vi.fn().mockResolvedValue(undefined);
@@ -13,10 +14,19 @@ vi.mock("electron", () => ({
     this.show = vi.fn();
     this.focus = vi.fn();
     this.isDestroyed = () => false;
-    this.webContents = { send: vi.fn() };
+    this.webContents = {
+      send: vi.fn(),
+      on: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
+    };
     this.once = vi.fn((_event: string, cb: () => void) => cb());
     this.on = vi.fn();
   }),
+  session: {
+    defaultSession: {
+      webRequest: { onHeadersReceived: vi.fn() },
+    },
+  },
 }));
 
 describe("settings-window", () => {

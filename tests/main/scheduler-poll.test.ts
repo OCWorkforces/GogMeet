@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { CalendarResult } from "../../src/shared/calendar-result.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
 
 // Mock electron
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn().mockReturnValue("/tmp/test") },
+  app: {
+    getPath: vi.fn().mockReturnValue("/tmp/test"),
+    getAppPath: vi.fn().mockReturnValue("/tmp/test"),
+  },
 }));
 
 // Mock calendar module
@@ -30,9 +34,14 @@ const { getCalendarEventsResult } = await import("../../src/main/domain/calendar
 
 // Use stateModule.state to always get the current state reference after replaceState
 const stateModule = await import("../../src/main/scheduler/state/index.js");
-const { initPowerCallbacks, startScheduler, stopScheduler, restartScheduler } = await import(
-  "../../src/main/scheduler/facade.js",
-);
+const {
+  initPowerCallbacks,
+  startScheduler,
+  stopScheduler,
+  restartScheduler,
+  _resetForceTestState,
+} = await import("../../src/main/scheduler/facade.js");
+const { mainBus } = await import("../../src/main/events.js");
 
 const { poll, _resetForTest } = await import("../../src/main/scheduler/poll.js");
 
@@ -51,6 +60,20 @@ function refreshStateRefs(): void {
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   return createMockEvent(overrides);
+}
+
+function createDeferred<T>(): {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+  readonly reject: (reason: unknown) => void;
+} {
+  let resolve = (_value: T): void => {};
+  let reject = (_reason: unknown): void => {};
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 const mockTrayCallback = vi.fn();
@@ -116,7 +139,7 @@ describe("poll()", () => {
   it("does not clear display timers on 1-2 consecutive errors", async () => {
     // Set up a countdown interval to track via the real state
     stateModule.state.countdownIntervals.set(
-      "evt-1",
+      asTestEventId("evt-1"),
       setInterval(() => {}, 60_000),
     );
 
@@ -132,26 +155,26 @@ describe("poll()", () => {
     expect(stateModule.getConsecutiveErrors()).toBe(2);
     expect(countdownIntervals.size).toBe(1);
 
-    clearInterval(stateModule.state.countdownIntervals.get("evt-1")!);
+    clearInterval(stateModule.state.countdownIntervals.get(asTestEventId("evt-1"))!);
     stateModule.state.countdownIntervals.clear();
   });
 
   it("clears all display timers after MAX_CONSECUTIVE_ERRORS (3)", async () => {
     // Set up timers to be cleared
     stateModule.state.countdownIntervals.set(
-      "a",
+      asTestEventId("a"),
       setInterval(() => {}, 60_000),
     );
     stateModule.state.clearTimers.set(
-      "a",
+      asTestEventId("a"),
       setTimeout(() => {}, 60_000),
     );
     stateModule.state.inMeetingIntervals.set(
-      "b",
+      asTestEventId("b"),
       setInterval(() => {}, 60_000),
     );
     stateModule.state.inMeetingEndTimers.set(
-      "b",
+      asTestEventId("b"),
       setTimeout(() => {}, 60_000),
     );
 
@@ -220,7 +243,7 @@ describe("poll()", () => {
   });
 
   it("resets activeInMeetingEventId after MAX_CONSECUTIVE_ERRORS", async () => {
-    stateModule.setActiveInMeetingEventId("im-1");
+    stateModule.setActiveInMeetingEventId(asTestEventId("im-1"));
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       error: "error",
     } as never);
@@ -247,7 +270,7 @@ describe("poll()", () => {
 
   it("clears display timers on thrown exception at threshold", async () => {
     stateModule.state.countdownIntervals.set(
-      "a",
+      asTestEventId("a"),
       setInterval(() => {}, 60_000),
     );
 
@@ -536,7 +559,9 @@ describe("restartScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();
+    _resetForceTestState();
     refreshStateRefs();
+    vi.mocked(getCalendarEventsResult).mockClear();
     vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
@@ -545,6 +570,7 @@ describe("restartScheduler", () => {
 
   afterEach(() => {
     _resetForTest();
+    _resetForceTestState();
     refreshStateRefs();
     vi.useRealTimers();
     stateModule.state.powerCallbacks = null;
@@ -580,6 +606,79 @@ describe("restartScheduler", () => {
     await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
     expect(callMock).toHaveBeenCalledTimes(3);
   });
+
+  it("ignores a pre-restart successful poll and runs one current-generation follow-up", async () => {
+    const stalePoll = createDeferred<CalendarResult>();
+    const currentPoll = createDeferred<CalendarResult>();
+    const staleEvent = makeEvent({ id: asTestEventId("stale-generation") });
+    const currentEvent = makeEvent({ id: asTestEventId("current-generation") });
+    const emittedEventIds: string[] = [];
+    const onMeetingListUpdated = (events: MeetingEvent[]): void => {
+      emittedEventIds.push(...events.map((event) => event.id));
+    };
+    const send = vi.fn();
+    stateModule.state.win = {
+      isDestroyed: vi.fn().mockReturnValue(false),
+      webContents: { send, isDestroyed: vi.fn().mockReturnValue(false) },
+    } as never;
+    mainBus.on("meeting-list-updated", onMeetingListUpdated);
+    vi.mocked(getCalendarEventsResult)
+      .mockReturnValueOnce(stalePoll.promise)
+      .mockReturnValueOnce(currentPoll.promise);
+
+    startScheduler();
+    await Promise.resolve();
+    restartScheduler();
+    stalePoll.resolve({ kind: "ok", events: [staleEvent] });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const staleWasScheduled = stateModule.state.timers.has(staleEvent.id);
+    const emittedAfterStale = [...emittedEventIds];
+    const sendsAfterStale = send.mock.calls.length;
+
+    currentPoll.resolve({ kind: "ok", events: [currentEvent] });
+    await vi.advanceTimersByTimeAsync(0);
+    mainBus.off("meeting-list-updated", onMeetingListUpdated);
+    stopScheduler();
+
+    expect(staleWasScheduled).toBe(false);
+    expect(emittedAfterStale).toEqual([]);
+    expect(sendsAfterStale).toBe(0);
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+    expect(emittedEventIds).toEqual([currentEvent.id]);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith("calendar:events-updated", [currentEvent]);
+  });
+
+  it("ignores a pre-restart rejected poll before current-generation error state", async () => {
+    const stalePoll = createDeferred<CalendarResult>();
+    const currentPoll = createDeferred<CalendarResult>();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getCalendarEventsResult)
+      .mockReturnValueOnce(stalePoll.promise)
+      .mockReturnValueOnce(currentPoll.promise);
+
+    startScheduler();
+    await Promise.resolve();
+    restartScheduler();
+    stalePoll.reject(new Error("stale calendar failure"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const errorsAfterStale = stateModule.getConsecutiveErrors();
+    const logsAfterStale = errorSpy.mock.calls.length;
+
+    currentPoll.resolve({ kind: "ok", events: [] });
+    await vi.advanceTimersByTimeAsync(0);
+    errorSpy.mockRestore();
+    stopScheduler();
+
+    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+    expect(errorsAfterStale).toBe(0);
+    expect(logsAfterStale).toBe(0);
+    expect(stateModule.getConsecutiveErrors()).toBe(0);
+  });
 });
 
 describe("_resetForTest", () => {
@@ -600,7 +699,7 @@ describe("_resetForTest", () => {
   });
 
   it("resets activeTitleEventId to null", () => {
-    stateModule.setActiveTitleEventId("some-id");
+    stateModule.setActiveTitleEventId(asTestEventId("some-id"));
 
     _resetForTest();
 
@@ -608,7 +707,7 @@ describe("_resetForTest", () => {
   });
 
   it("resets activeInMeetingEventId to null", () => {
-    stateModule.setActiveInMeetingEventId("other-id");
+    stateModule.setActiveInMeetingEventId(asTestEventId("other-id"));
 
     _resetForTest();
 
@@ -625,7 +724,7 @@ describe("_resetForTest", () => {
 
   it("clears maps", () => {
     stateModule.state.countdownIntervals.set(
-      "x",
+      asTestEventId("x"),
       setInterval(() => {}, 1000),
     );
 

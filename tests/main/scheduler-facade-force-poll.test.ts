@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Mock electron
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn().mockReturnValue("/tmp/test") },
+  app: {
+    getPath: vi.fn().mockReturnValue("/tmp/test"),
+    getAppPath: vi.fn().mockReturnValue("/tmp/test"),
+  },
 }));
 
 // Mock calendar module — single source of truth for poll() side effect counting

@@ -8,9 +8,16 @@ import {
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
 
 describe("validateSender (invoke)", () => {
-  it("accepts file:// origin", () => {
+  it("accepts an exact packaged index renderer file", () => {
     const event = {
-      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
+      senderFrame: { url: "file:///app/lib/renderer/index.html" },
+    } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(true);
+  });
+
+  it.each(["settings", "alert"])("accepts exact packaged %s renderer file", (page) => {
+    const event = {
+      senderFrame: { url: `file:///app/lib/renderer/${page}.html` },
     } as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });
@@ -44,6 +51,30 @@ describe("validateSender (invoke)", () => {
     expect(validateSender(event)).toBe(true);
   });
 
+  it.each([
+    "http://localhost:5173.evil.example/",
+    "http://localhost:5173@evil.example/",
+    "http://evil.example@localhost:5173/",
+  ])("rejects an origin-prefix or userinfo spoof: %s", (url) => {
+    const event = {
+      senderFrame: { url },
+    } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(false);
+  });
+
+  it.each([
+    "file:///app/lib/renderer/other.html",
+    "file:///app/lib/renderer/index.html?unexpected=true",
+    "file:///app/lib/renderer/index.html#unexpected",
+    "file:///tmp/lib/renderer/index.html",
+    "file://evil.example/app/lib/renderer/index.html",
+  ])("rejects a non-exact packaged renderer file: %s", (url) => {
+    const event = {
+      senderFrame: { url },
+    } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(false);
+  });
+
   it("rejects unauthorized origin", () => {
     const event = {
       senderFrame: { url: "https://evil.com/" },
@@ -61,15 +92,15 @@ describe("validateSender (invoke)", () => {
   it("rejects undefined senderFrame", () => {
     const event = {
       senderFrame: undefined,
-    } as IpcMainInvokeEvent;
+    };
     expect(validateSender(event)).toBe(false);
   });
 });
 
 describe("validateOnSender (fire-and-forget)", () => {
-  it("accepts file:// origin", () => {
+  it("accepts an exact packaged renderer file", () => {
     const event = {
-      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
+      senderFrame: { url: "file:///app/lib/renderer/index.html" },
     } as IpcMainEvent;
     expect(validateOnSender(event)).toBe(true);
   });
@@ -130,7 +161,7 @@ describe("typedHandle", () => {
 
     const handler = handleCall![1];
     const mockEvent = {
-      senderFrame: { url: "file:///path/to/lib/renderer/main.html" },
+      senderFrame: { url: "file:///app/lib/renderer/index.html" },
     } as unknown as IpcMainInvokeEvent;
 
     await handler(mockEvent, { openBeforeMinutes: 2 });

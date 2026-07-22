@@ -26,6 +26,9 @@ let inFlightPoll: Promise<void> | null = null;
 /** Set when a guarded poll is requested while one is already in flight — bounded to one */
 let queuedPollRequested = false;
 
+/** Monotonic lifecycle generation; never reset so stopped schedulers cannot collide by epoch reuse */
+let lifecycleGeneration = 0;
+
 /**
  * Run poll() with concurrency guard + at-most-one queued follow-up.
  * - If no poll is in flight, runs poll() and updates lastPollCompletedAt on completion.
@@ -39,18 +42,18 @@ async function runGuardedPoll(): Promise<void> {
     return inFlightPoll;
   }
   const run = (async (): Promise<void> => {
-    try {
-      await poll();
-    } finally {
-      lastPollCompletedAt = Date.now();
-    }
-    while (queuedPollRequested) {
-      queuedPollRequested = false;
+    while (true) {
+      const generation = lifecycleGeneration;
+      const isCurrentGeneration = (): boolean => lifecycleGeneration === generation;
       try {
-        await poll();
+        await poll(isCurrentGeneration);
       } finally {
-        lastPollCompletedAt = Date.now();
+        if (isCurrentGeneration()) {
+          lastPollCompletedAt = Date.now();
+        }
       }
+      if (!queuedPollRequested) return;
+      queuedPollRequested = false;
     }
   })();
   inFlightPoll = run;
@@ -140,6 +143,8 @@ export function startScheduler(): void {
 
 /** Stop the scheduler and clear all pending timers — call on before-quit */
 export function stopScheduler(options?: { preserveFiredState?: boolean }): void {
+  lifecycleGeneration++;
+  queuedPollRequested = false;
   if (pendingForcePollTimer !== null) {
     clearTimeout(pendingForcePollTimer);
     pendingForcePollTimer = null;
@@ -151,6 +156,7 @@ export function stopScheduler(options?: { preserveFiredState?: boolean }): void 
 
 /** Reset module-level facade state for tests — not for production use */
 export function _resetForceTestState(): void {
+  lifecycleGeneration++;
   if (pendingForcePollTimer !== null) {
     clearTimeout(pendingForcePollTimer);
     pendingForcePollTimer = null;
