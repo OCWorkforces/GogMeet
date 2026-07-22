@@ -243,7 +243,17 @@ export function scheduleEvents(events: MeetingEvent[]): void {
 
     if (shouldSkipScheduledEvent(event, startMs, endMs, openAtMs, state)) continue;
 
-    scheduleFutureTimers(event, delayMs, openAtMs, startMs, endMs, now, state, settings, shouldAbort);
+    scheduleFutureTimers(
+      event,
+      delayMs,
+      openAtMs,
+      startMs,
+      endMs,
+      now,
+      state,
+      settings,
+      shouldAbort,
+    );
   }
 
   // Only mark dirty when the active id set actually changed — avoids
