@@ -6,30 +6,29 @@ CI/release automation for the macOS Electron app. Keep workflow behavior aligned
 
 | File | Role |
 | --- | --- |
-| `pr-check.yml` | PR/push validation on `develop` and `main`: typecheck, tests, coverage, Node 26 validation. |
-| `release.yml` | Release packaging on `main` pushes and `v*` tags; creates version tag when needed and uploads DMG/ZIP assets. |
+| `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates, full and changed-source coverage, and Node 26 icon-drift validation. |
+| `release.yml` | Main pushes create a version tag only; the resulting `v*` tag run packages, verifies, and uploads the official release. |
 
 ## PR Check
 
 - Runs on `macos-latest`; do not move to Linux unless Swift/EventKit/icon tooling assumptions are replaced.
 - Uses pinned `actions/checkout` and `oven-sh/setup-bun` SHAs; keep pins intentional when upgrading.
-- `check` job runs `bun install --frozen-lockfile`, `bun run typecheck`, `bun run test`, then `bun run test:coverage`.
-- `validate-node` job sets up Bun plus Node from `.nvmrc` (currently 26), then runs `bun run validate:node`.
-- `validate:node` regenerates icons through the host Node path, but this workflow does not currently assert a clean git diff afterward.
-- PR workflow does not run `bun run lint` or `bun run format:check` today; do not claim those gates exist without adding steps.
+- The `check` checkout uses `fetch-depth: 0` so a PR can compare with `github.event.pull_request.base.sha` and a push can compare with `github.event.before`. For an initial push with GitHub's all-zero `before` SHA, it resolves `HEAD^` and reuses that resolved base for changed-source coverage.
+- `check` runs `bun install --frozen-lockfile`, `bun run lint`, `bun run format:check`, `bun run typecheck`, `bun run build`, and one `bun run test:coverage`.
+- It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`; there are no coverage percentage thresholds.
+- `validate-node` sets up Bun plus Node from `.nvmrc` (currently 26), runs `bun run validate:node`, then runs `git diff --exit-code` to fail on regenerated tracked icon drift.
 
 ## Release
 
-- Triggered by pushes to `main` and tags matching `v*`; permissions require `contents: write` for tag creation and release upload.
-- Bun is pinned to `1.3.14`; Node 26 comes from `.nvmrc` for the `node -p "require('./package.json').version"` tag step.
-- On `main`, create `v${package.json.version}` only when that tag is missing; if the tag already exists, packaging is skipped.
-- On tag pushes, package directly using the tag ref.
-- The workflow runs `bun run build` before `bun run package`; `bun run package` invokes `bun run build` again.
-- `Upload release assets` is the real artifact gate: `fail_on_unmatched_files: true` for `dist/*.dmg,dist/*.zip`.
+- A `main` push creates and pushes `v${package.json.version}` only when missing. It never installs, packages, verifies, or uploads release assets.
+- The resulting `v*` tag run installs with Bun `1.3.14`, requires the tag to match `package.json`, and runs `bun run package` exactly once.
+- Before packaging, the tag run fails closed unless `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` are nonempty. These are the standard Electron Builder signing/notarization variables.
+- `bun run verify:macos-release` is a required normal-success gate before checksums and upload. It verifies each contained app from both DMGs and ZIPs, not the container as a stapled artifact.
+- The only uploaded containers are deterministic `GogMeet-${version}-{arm64,x64}.{dmg,zip}` files plus `SHA256SUMS.txt`.
 
 ## Anti-Patterns
 
-- Do not remove `fetch-depth: 0`; the release job needs tag visibility.
-- Do not assume notarization ran just because Apple secrets are present; packaging hooks still follow `electron-builder.yml` / `build/notarize.cjs` rules.
+- Do not remove `fetch-depth: 0`; the PR check needs base comparisons and the release job needs tag visibility.
+- Do not add custom Apple password variables or a warning-only artifact check. Built-in Electron Builder notarization and the verifier own official-release proof.
 - Do not hand-edit generated icons to satisfy workflow drift; regenerate through `scripts/generate-calendar-tray-icons.mjs`.
 - Do not duplicate build/package rules here; source of truth remains package scripts plus `electron-builder.yml`.
