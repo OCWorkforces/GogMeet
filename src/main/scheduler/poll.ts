@@ -45,9 +45,10 @@ function handlePollFailure(): void {
 }
 
 /** Poll calendar and refresh timers */
-export async function poll(): Promise<void> {
+export async function poll(isCurrentGeneration: () => boolean = () => true): Promise<void> {
   try {
     const result = await getCalendarEventsResult();
+    if (!isCurrentGeneration()) return;
     if (isCalendarOk(result)) {
       setConsecutiveErrors(0);
       scheduleEvents(result.events);
@@ -67,6 +68,7 @@ export async function poll(): Promise<void> {
       handlePollFailure();
     }
   } catch (err) {
+    if (!isCurrentGeneration()) return;
     console.error("[scheduler] Poll error:", err);
     handlePollFailure();
   }
