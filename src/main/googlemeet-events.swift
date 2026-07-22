@@ -4,8 +4,8 @@ import Foundation
 // GogMeet Swift EventKit Helper
 //
 // Two modes:
-//   1. One-shot (default): outputs meeting events for today+tomorrow in tab-delimited format
-//      uid\ttitle\tstartISO\tendISO\tmeetUrl\tcalendarName\tisAllDay\tuserEmail\tnotes
+//   1. One-shot (default): outputs one JSON array line per meeting event for today+tomorrow
+//      [uid, title, startISO, endISO, meetUrl, calendarName, isAllDay, userEmail, notes]
 //   2. Watch mode (--watch): runs indefinitely, prints `CHANGED` to stdout whenever
 //      EKEventStore broadcasts a change notification (debounced 1000ms). Exits cleanly
 //      when stdin closes (parent process death).
@@ -173,7 +173,12 @@ requestCalendarAccess { granted in
             }
         }
 
-        print("\(uid)\t\(title)\t\(start)\t\(end)\t\(url)\t\(calName)\t\(allDay)\t\(userEmail)\t\(event.notes ?? "")")
+        let fields = [uid, title, start, end, url, calName, allDay, userEmail, event.notes ?? ""]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: fields),
+              let jsonLine = String(data: jsonData, encoding: .utf8) else {
+            fail("could not serialize event", code: 4)
+        }
+        print(jsonLine)
     }
 
     sema.signal()

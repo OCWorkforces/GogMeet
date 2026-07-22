@@ -127,19 +127,10 @@ export function parseIsoUtc(raw: string): Date {
 
 /** Reason codes for parse diagnostics emitted by `parseEvents`. */
 export type ParseDiagnosticReason =
-  | "malformed_field_count"
-  | "invalid_iso"
-  | "invalid_id"
-  | "duplicate_uid";
+  "malformed_record" | "malformed_field_count" | "invalid_iso" | "invalid_id" | "duplicate_uid";
 
 /** Diagnostic record for a single malformed input line. */
 export interface ParseDiagnostic {
   readonly line: number;
   readonly reason: ParseDiagnosticReason;
-  readonly raw?: string;
-}
-
-/** Truncate a raw line for diagnostic preview to keep logs bounded. */
-export function previewLine(line: string): string {
-  return line.length > 200 ? `${line.slice(0, 200)}…` : line;
 }

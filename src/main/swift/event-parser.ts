@@ -7,7 +7,6 @@ import {
   parseTimestampPair,
 } from "./event-field-parser.js";
 import type { ParseDiagnostic } from "./event-validator.js";
-import { previewLine } from "./event-validator.js";
 import { isStringTupleOfLength } from "./guards.js";
 
 const EXPECTED_FIELD_COUNT = 9;
@@ -18,7 +17,7 @@ export interface ParseResult {
   readonly diagnostics: readonly ParseDiagnostic[];
 }
 
-/** Parse tab-delimited output from Swift helper into a {@link ParseResult}.
+/** Parse JSON Lines output from Swift helper into a {@link ParseResult}.
  *
  * Strictly requires exactly {@link EXPECTED_FIELD_COUNT} fields per line. Any
  * malformed line is skipped and recorded as a {@link ParseDiagnostic} entry on
@@ -38,19 +37,34 @@ export function parseEvents(raw: string): ParseResult {
   const diagnostics: ParseDiagnostic[] = [];
   const events: MeetingEvent[] = [];
 
-  const lines = raw.split("\n").map((line) => line.replace(/[\r\n]+$/u, ""));
+  const lines = raw.split("\n");
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i] ?? "";
+    const line = (lines[i] ?? "").replace(/\r$/u, "");
     if (!line) continue;
     const lineNumber = i + 1;
 
-    const fields = line.split("\t");
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        diagnostics.push({ line: lineNumber, reason: "malformed_record" });
+        continue;
+      }
+      throw error;
+    }
+
+    if (!Array.isArray(record) || !record.every((field) => typeof field === "string")) {
+      diagnostics.push({ line: lineNumber, reason: "malformed_record" });
+      continue;
+    }
+
+    const fields = record;
     if (!isStringTupleOfLength(fields, EXPECTED_FIELD_COUNT)) {
       diagnostics.push({
         line: lineNumber,
         reason: "malformed_field_count",
-        raw: previewLine(line),
       });
       continue;
     }
@@ -62,7 +76,6 @@ export function parseEvents(raw: string): ParseResult {
       diagnostics.push({
         line: lineNumber,
         reason: "invalid_iso",
-        raw: previewLine(line),
       });
       continue;
     }
@@ -76,7 +89,6 @@ export function parseEvents(raw: string): ParseResult {
       diagnostics.push({
         line: lineNumber,
         reason: "invalid_id",
-        raw: previewLine(line),
       });
       continue;
     }
@@ -87,7 +99,6 @@ export function parseEvents(raw: string): ParseResult {
       diagnostics.push({
         line: lineNumber,
         reason: "duplicate_uid",
-        raw: previewLine(line),
       });
       continue;
     }
@@ -102,7 +113,6 @@ export function parseEvents(raw: string): ParseResult {
       diagnostics.push({
         line: lineNumber,
         reason: "invalid_iso",
-        raw: previewLine(line),
       });
       continue;
     }
