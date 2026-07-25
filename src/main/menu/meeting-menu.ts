@@ -1,7 +1,7 @@
 import { app, type MenuItemConstructorOptions } from "electron";
-import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
 import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/utils/time.js";
 import type { MeetingEvent } from "../../shared/meeting-event.js";
+import { joinMeetingById } from "../utils/join-meeting.js";
 
 interface MenuCallbacks {
   onAbout: () => void;
@@ -62,9 +62,7 @@ export function buildMeetingMenuTemplate(
         enabled: hasUrl,
         ...(hasUrl && {
           click: () => {
-            const url = buildMeetUrl(event);
-            if (!url) return;
-            void openMeetingUrl(url);
+            void joinMeetingById(event.id);
           },
         }),
       });
@@ -81,9 +79,7 @@ export function buildMeetingMenuTemplate(
         enabled: hasUrl,
         ...(hasUrl && {
           click: () => {
-            const url = buildMeetUrl(event);
-            if (!url) return;
-            void openMeetingUrl(url);
+            void joinMeetingById(event.id);
           },
         }),
       });

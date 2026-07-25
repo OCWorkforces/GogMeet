@@ -4,9 +4,8 @@ import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
-  buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl ?? ""),
-  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
+vi.mock("../../src/main/utils/join-meeting.js", () => ({
+  joinMeetingById: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 // Fixed "now" for deterministic tests: 2026-04-08 at 14:00 local time
@@ -57,7 +56,7 @@ describe("buildMeetingMenuTemplate", () => {
   let buildMeetingMenuTemplate: typeof import("../../src/main/menu/meeting-menu.js").buildMeetingMenuTemplate;
   let app: { quit: ReturnType<typeof vi.fn> };
   let shell: { openExternal: ReturnType<typeof vi.fn> };
-  let openMeetingUrl: ReturnType<typeof vi.fn>;
+  let joinMeetingById: ReturnType<typeof vi.fn>;
   const onAbout = vi.fn();
   const onOpenSettings = vi.fn();
 
@@ -69,13 +68,12 @@ describe("buildMeetingMenuTemplate", () => {
     const mod = await import("../../src/main/menu/meeting-menu.js");
     buildMeetingMenuTemplate = mod.buildMeetingMenuTemplate;
 
-
     const electron = await import("electron");
     app = electron.app as unknown as typeof app;
     shell = electron.shell as unknown as typeof shell;
 
-    const meetUrlMod = await import("../../src/main/utils/meet-url.js");
-    openMeetingUrl = meetUrlMod.openMeetingUrl as ReturnType<typeof vi.fn>;
+    const joinMod = await import("../../src/main/utils/join-meeting.js");
+    joinMeetingById = joinMod.joinMeetingById as ReturnType<typeof vi.fn>;
 
     onAbout.mockClear();
     onOpenSettings.mockClear();
@@ -140,7 +138,7 @@ describe("buildMeetingMenuTemplate", () => {
       expect(meetingItem?.click).toBeTypeOf("function");
     });
 
-    it("click handler opens the meeting URL via openMeetingUrl", () => {
+    it("click handler joins via joinMeetingById", () => {
       const event = makeEvent({
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
@@ -154,7 +152,7 @@ describe("buildMeetingMenuTemplate", () => {
         {} as Electron.KeyboardEvent,
       );
 
-      expect(openMeetingUrl).toHaveBeenCalled();
+      expect(joinMeetingById).toHaveBeenCalledWith(event.id);
     });
   });
 
@@ -192,7 +190,7 @@ describe("buildMeetingMenuTemplate", () => {
       expect(meetingItem?.click).toBeTypeOf("function");
     });
 
-    it("click handler opens Zoom URL via openMeetingUrl", () => {
+    it("click handler joins Zoom event via joinMeetingById", () => {
       const event = makeEvent({
         meetUrl: "https://us02web.zoom.us/j/789?pwd=secret",
         startDate: todayAt(15, 0).toISOString(),
@@ -207,7 +205,7 @@ describe("buildMeetingMenuTemplate", () => {
         {} as Electron.KeyboardEvent,
       );
 
-      expect(openMeetingUrl).toHaveBeenCalled();
+      expect(joinMeetingById).toHaveBeenCalledWith(event.id);
     });
   });
 

@@ -38,8 +38,16 @@ export function scheduleBrowserTimer(
       return;
     }
     const url = buildMeetUrl(event);
-    void openMeetingUrl(url);
-    console.log(`[scheduler] Opened browser for "${event.title}" → ${url}`);
+    void openMeetingUrl(url).then((result) => {
+      if (result?.ok) {
+        console.log(`[scheduler] Opened browser for "${event.title}" → ${url}`);
+      } else {
+        console.error(
+          `[scheduler] Failed to open browser for "${event.title}":`,
+          result && !result.ok ? result.error : "unknown",
+        );
+      }
+    });
   }, effectiveDelay);
 
   timers.set(event.id, handle);

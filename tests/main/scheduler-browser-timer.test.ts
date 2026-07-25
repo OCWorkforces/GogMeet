@@ -21,7 +21,7 @@ vi.mock("../../src/main/utils/meet-url.js", () => ({
     .mockReturnValue(
       "https://meet.google.com/abc-def-ghi?authuser=user@test.com",
     ),
-  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
+  openMeetingUrl: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const { Notification, shell } = await import("electron");

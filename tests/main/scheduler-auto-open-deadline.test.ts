@@ -36,7 +36,7 @@ vi.mock("../../src/main/utils/meet-url.js", () => ({
   buildMeetUrl: vi
     .fn()
     .mockReturnValue("https://meet.google.com/abc-def-ghi?authuser=user@example.com"),
-  openMeetingUrl: vi.fn().mockResolvedValue(undefined),
+  openMeetingUrl: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const { scheduleEvents } = await import("../../src/main/scheduler/index.js");
