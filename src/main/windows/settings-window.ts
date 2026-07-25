@@ -21,7 +21,8 @@ export function createSettingsWindow(): BrowserWindow {
 
   const win = new BrowserWindow({
     width: 520,
-    height: 480,
+    // Tall enough for schema-v2 prefs (open-before + 6 toggles + chrome)
+    height: 680,
     resizable: false,
     minimizable: false,
     maximizable: false,
