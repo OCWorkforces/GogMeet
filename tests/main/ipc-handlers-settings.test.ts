@@ -5,11 +5,13 @@ const {
   mockGetSettings,
   mockUpdateSettings,
   mockRestartScheduler,
+  mockForcePoll,
   mockSyncAutoLaunch,
 } = vi.hoisted(() => ({
   mockGetSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockRestartScheduler: vi.fn(),
+  mockForcePoll: vi.fn(),
   mockSyncAutoLaunch: vi.fn(),
 }));
 
@@ -19,6 +21,7 @@ vi.mock("../../src/main/domain/settings.js", () => ({
 }));
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   restartScheduler: mockRestartScheduler,
+  forcePoll: mockForcePoll,
 }));
 vi.mock("../../src/main/system/auto-launch.js", () => ({
   syncAutoLaunch: mockSyncAutoLaunch,
@@ -161,6 +164,52 @@ describe("registerSettingsHandlers", () => {
       expect(result).toEqual(DEFAULT_SETTINGS);
       expect(result).not.toBe(DEFAULT_SETTINGS);
     });
-  });
 
+    it("does not restart scheduler when only launchAtLogin changes", async () => {
+      const updated = { ...DEFAULT_SETTINGS, launchAtLogin: true };
+      mockUpdateSettings.mockResolvedValue(updated);
+      const mockWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      } as unknown as import("electron").BrowserWindow;
+
+      registerSettingsHandlers(mockWin);
+      const handler = getRegisteredHandler("settings:set");
+
+      await handler!(authorizedEvent, { launchAtLogin: true });
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
+      expect(mockSyncAutoLaunch).toHaveBeenCalledWith(true);
+      expect(mockWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
+    });
+
+    it("force-polls (no restart) when only showTomorrowMeetings changes", async () => {
+      const updated = { ...DEFAULT_SETTINGS, showTomorrowMeetings: false };
+      mockUpdateSettings.mockResolvedValue(updated);
+      const mockWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      } as unknown as import("electron").BrowserWindow;
+
+      registerSettingsHandlers(mockWin);
+      const handler = getRegisteredHandler("settings:set");
+
+      await handler!(authorizedEvent, { showTomorrowMeetings: false });
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
+      expect(mockForcePoll).toHaveBeenCalledOnce();
+    });
+
+    it("restarts scheduler for quiet hours and auto-open timing keys", async () => {
+      const mockWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      } as unknown as import("electron").BrowserWindow;
+      mockUpdateSettings.mockResolvedValue(DEFAULT_SETTINGS);
+      registerSettingsHandlers(mockWin);
+      const handler = getRegisteredHandler("settings:set");
+
+      await handler!(authorizedEvent, { quietHoursEnabled: true });
+      expect(mockRestartScheduler).toHaveBeenCalledOnce();
+      mockRestartScheduler.mockClear();
+
+      await handler!(authorizedEvent, { autoOpenEnabled: false });
+      expect(mockRestartScheduler).toHaveBeenCalledOnce();
+    });
+  });
 });

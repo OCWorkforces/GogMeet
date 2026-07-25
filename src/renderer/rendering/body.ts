@@ -102,7 +102,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
             <div class="meeting-item">
               <div class="meeting-item-row">
                 <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-url="${escapeHtml(event.meetUrl)}">Join</button>` : ""}
+                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-event-id="${escapeHtml(event.id)}" aria-label="Join ${escapeHtml(event.title)}">Join</button>` : ""}
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>

@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { MeetingEvent } from "../shared/meeting-event.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
 import { getSettings } from "./domain/settings.js";
+import { getLastCalendarStatus } from "./domain/calendar-status.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
@@ -29,21 +30,22 @@ let meetingsListener: ((events: MeetingEvent[]) => void) | null = null;
 let beforeQuitRegistered = false;
 
 function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructorOptions[] {
+  const callbacks = {
+    onAbout: () => showAbout(mainWindow),
+    onOpenSettings: () => createSettingsWindow(),
+  };
+  const status = getLastCalendarStatus();
   const cachedEvents = cachedMeetings;
   if (cachedEvents) {
-    return buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
-      onAbout: () => showAbout(mainWindow),
-      onOpenSettings: () => createSettingsWindow(),
-    });
+    return buildMeetingMenuTemplate(
+      cachedEvents,
+      getSettings().showTomorrowMeetings,
+      callbacks,
+      status,
+    );
   }
 
-  return [
-    { label: "Loading…", enabled: false },
-    { type: "separator" },
-    { label: "Settings...", click: () => createSettingsWindow() },
-    { label: "About GogMeet", click: () => showAbout(mainWindow) },
-    { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
-  ];
+  return buildMeetingMenuTemplate([], getSettings().showTomorrowMeetings, callbacks, status);
 }
 
 function refreshContextMenu(mainWindow: BrowserWindow): void {

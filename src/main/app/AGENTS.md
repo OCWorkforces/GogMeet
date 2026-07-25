@@ -24,9 +24,10 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 
 ## NOTES
 
-- `lifecycle.ts` imports subsystems from their post-refactor homes: `domain/` (calendar, settings, calendar-watcher), `system/` (power, auto-launch, notification, shortcuts), `windows/` (about-window), `scheduler/facade.js`, `swift/binary-manager.js`.
+- `lifecycle.ts` imports subsystems from: `domain/` (calendar, settings, calendar-watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, `swift/binary-manager.js`.
 - `ipc.ts` is a thin registration shim. All handler logic lives in `../ipc-handlers/`.
 - Fatal init failures surface via `dialog.showErrorBox()`; non-fatal errors are logged and aggregated.
 - Settings must be loaded before `startScheduler()` so the scheduler reads warm cache on first poll.
 - Both files are imported only by `index.ts`; no other consumers should reach in here.
-- `initPowerManagement`'s resume/unlock callback calls `invalidateCalendarPermissionCache()` before `restartScheduler()`, so the first post-wake poll re-reads EventKit authorization instead of trusting the cached status across sleep/lock boundaries.
+- Resume/unlock callback order: `invalidateCalendarPermissionCache()` → `reviveCalendarWatcher()` → `restartScheduler()` so authorization and the watch sidecar recover after sleep/lock.
+- `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged`.

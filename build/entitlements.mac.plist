@@ -4,6 +4,7 @@
   <dict>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+    <!-- Required for Electron V8/JIT under hardened runtime on current Electron 43. Re-evaluate before removing. -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <key>com.apple.security.personal-information.calendars</key>

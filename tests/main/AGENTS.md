@@ -23,6 +23,7 @@ tests/main/
 | State machine | `scheduler.test.ts`, `scheduler-state-replace.test.ts` |
 | Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts`, `scheduler-restart-preserves-suppression.test.ts` |
 | Browser/alert timers | `scheduler-browser-timer.test.ts`, `scheduler-alert-timer.test.ts`, `scheduler-auto-open-deadline.test.ts`, `scheduler-facade-cancel-browser-open.test.ts` |
+| Late-join | `late-join.test.ts` (eligibility + grace; `firedEvents` only) |
 | Tray countdown | `scheduler-title-countdown.test.ts`, `scheduler-countdown.test.ts` |
 
 Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
@@ -32,22 +33,23 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 - `calendar.test.ts` covers `CalendarResult`, 9-string JSON Lines Swift output, diagnostics, and permission status/request cache behavior.
 - `swift/event-parser.test.ts` covers field parsing, diagnostics, sorting, URL/note cleanup, and `classifySwiftError()`.
 - `swift-binary-manager.test.ts` covers `/tmp/googlemeet` cache paths, source hash, compile target flags, retry/recompile behavior, and `promisify.custom` exec mocks.
-- `calendar-watch-sidecar.test.ts` covers the Node-managed `swift --watch` sidecar restart, debounce, stable-runtime reset, and stop behavior.
+- `calendar-watch-sidecar.test.ts` covers the Node-managed `swift --watch` sidecar restart, debounce, stable-runtime reset, cooldown/revive, and stop behavior.
+- Production Swift exit classification is covered via binary-manager + calendar domain paths (no recompile on 2/3/4).
 
 ## IPC / PRELOAD
 
-- Channel contracts: `ipc-channels.test.ts`, `ipc-types.test.ts`.
+- Channel contracts: `ipc-channels.test.ts` (includes `APP_JOIN_MEETING`), `ipc-types.test.ts`.
 - Boundary helpers: `ipc-handlers-shared.test.ts` for `validateSender`, `validateOnSender`, `typedHandle`, `typedSend`.
-- Domain handlers: `ipc-handlers-calendar/settings/app/window/scheduler/alert.test.ts`.
+- Domain handlers: `ipc-handlers-calendar/settings/app/window/scheduler/alert.test.ts` — app handlers cover Result open + join-by-id; settings cover selective restart + `forcePoll` mock.
 - Registrar: `ipc-registrar.test.ts` must track every handler registered by `src/main/app/ipc.ts`.
-- Preload API: `preload.test.ts` covers `contextBridge` exposure, invoke/send/listener wiring, and preload URL allowlist behavior.
+- Preload API: `preload.test.ts` covers `joinMeeting`, allowlist via shared module, invoke/send/listeners.
 
 ## WINDOWS / SYSTEM / UTILS
 
-- Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts`.
-- Tray/menu/windows: `tray.test.ts` covers Tray setup, preinstalled context menus, and cache-refresh rebuilds; `meeting-menu.test.ts`, `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts` cover their focused modules.
-- System adapters: `power.test.ts`, `shortcuts.test.ts`, `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
-- Domain/utils: `settings.test.ts`, `settings-defaults.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
+- Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts` (assert `initAutoUpdater`, resume → revive watcher).
+- Tray/menu/windows: `tray.test.ts`, `meeting-menu.test.ts` (Join/Copy submenu, Refresh, Join Next, status rows), `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts`.
+- System adapters: `power.test.ts`, `shortcuts.test.ts` (in-progress pick + `joinMeetingById`), `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
+- Domain/utils: `settings.test.ts` / `settings-defaults.test.ts` (schema v2), `join-meeting.test.ts`, `system-settings.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
 
 ## MOCKING RULES
 

@@ -10,12 +10,12 @@ GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your m
 - Opens only allowlisted HTTPS meeting hosts. Google Meet gets `authuser=<email>` and Zoom gets `uname=<email>` when the Calendar account email is available.
 - Opens browser links 1 to 5 minutes before non-all-day meetings.
 - Shows an optional secure alert window shortly before a meeting. Dismissing the alert cancels that meeting's pending browser auto-open.
-- Shows cached upcoming meetings from the tray popover, with manual refresh, settings, and app info.
+- Shows upcoming meetings from the native menu bar menu (right-click / click the tray icon), with settings and app info.
 - Displays pre-meeting and in-meeting countdown text beside the tray icon.
-- Lets you show or hide tomorrow's meetings in the tray popover.
+- Lets you show or hide tomorrow's meetings in the tray menu.
 - Can register itself as a macOS login item.
 - Opens the next upcoming meeting with a URL when you press `Cmd+Shift+M`.
-- Checks GitHub Releases for packaged app updates through `electron-updater` and installs downloaded updates on quit.
+- In packaged builds, checks GitHub Releases for updates through `electron-updater` (when release assets include updater metadata such as `latest-mac.yml`) and installs downloaded updates on quit.
 
 ## Screenshots
 
@@ -94,12 +94,18 @@ Runtime files worth knowing:
 
 Defaults live in `src/shared/settings.ts`:
 
-| Setting                | Default | Notes                                                      |
-| ---------------------- | ------- | ---------------------------------------------------------- |
-| `openBeforeMinutes`    | `1`     | Browser auto-open offset, clamped to 1–5 minutes           |
-| `launchAtLogin`        | `false` | Syncs to macOS login items                                 |
-| `showTomorrowMeetings` | `true`  | Controls whether tomorrow's events appear in the tray list |
-| `windowAlert`          | `true`  | Enables the pre-meeting alert window                       |
+| Setting                  | Default | Notes                                                                 |
+| ------------------------ | ------- | --------------------------------------------------------------------- |
+| `openBeforeMinutes`      | `1`     | Browser auto-open offset, clamped to 0–10 minutes (`0` = at start)    |
+| `launchAtLogin`          | `false` | Syncs to macOS login items                                            |
+| `showTomorrowMeetings`   | `true`  | Controls whether tomorrow's events appear in the tray menu            |
+| `windowAlert`            | `true`  | Enables the pre-meeting alert window                                  |
+| `autoOpenEnabled`        | `true`  | Arms browser auto-open for timed meetings with URLs                   |
+| `alertLeadSeconds`       | `60`    | Alert fires this many seconds before browser open                     |
+| `nativeNotifications`    | `true`  | OS Notification when a meeting auto-opens                             |
+| `lateJoinGraceMinutes`   | `0`     | Optional post-start auto-open window (`0` = off)                      |
+| `quietHoursEnabled`      | `false` | Suppress alert + notifications; auto-open continues                   |
+| `quietHoursStart`/`End`  | `22:00`/`07:00` | Local quiet window (supports midnight wrap)                     |
 
 ## Calendar and permissions
 
@@ -145,8 +151,9 @@ The helper script installs dependencies, cleans `dist/`, builds the app, package
 ## Release and CI
 
 - PR checks run on macOS for pushes and pull requests to `develop` and `main`: the `check` job runs lint, formatting, type checking, a production build, and coverage; the Node 26 job validates generated icon drift.
-- A `main` push only creates and pushes `v${package.json.version}` when it does not already exist. The separate `v*` tag run installs, requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`, runs `bun run package` once, verifies the containers, writes `SHA256SUMS.txt`, then uploads exactly arm64/x64 DMG/ZIP files plus that checksum file.
-- The verifier mounts each DMG and extracts each ZIP to inspect the contained app. It validates signing, hardened runtime, Gatekeeper assessment, app stapling, entitlements, Swift-source packaging, and a native-architecture Swift smoke. The app is notarized and stapled before its containers are created; neither the ZIP nor the unsigned DMG container should be described as stapled or notarized.
+- **Beta pre-releases:** every push to `develop` (including merged PRs) runs `.github/workflows/beta-release.yml`. It publishes a GitHub **pre-release** with arm64/x64 DMG and ZIP assets. Tags are auto-incremented as `v${package.json.version}-beta-1`, `v${package.json.version}-beta-2`, and so on (for example `v1.16.0-beta-1`). The app version embedded in the build is `${version}-beta.N` (for example `1.16.0-beta.1`). If Apple signing/notarize secrets are configured, the beta is signed and notarized; otherwise the pipeline still packages and uploads (Gatekeeper may block casual installs).
+- **Official releases:** a `main` push only creates and pushes `v${package.json.version}` when it does not already exist. The separate `v*` tag run installs, requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`, runs `bun run package` once, verifies the containers, writes `SHA256SUMS.txt`, then uploads exactly arm64/x64 DMG/ZIP files plus that checksum file and marks the release as Latest.
+- The official verifier mounts each DMG and extracts each ZIP to inspect the contained app. It validates signing, hardened runtime, Gatekeeper assessment, app stapling, entitlements, Swift-source packaging, and a native-architecture Swift smoke. The app is notarized and stapled before its containers are created; neither the ZIP nor the unsigned DMG container should be described as stapled or notarized.
 
 ### Runtime topology
 
@@ -172,7 +179,7 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 
 1. Confirm Calendar permission in **System Settings → Privacy & Security → Calendars**.
 2. Make sure the event contains a supported meeting URL in the event URL, location, or notes field.
-3. Click the tray icon and use refresh/retry to force a poll.
+3. Click the tray icon to open the menu (or click again to force a calendar refresh).
 4. Check logs:
 
    ```bash

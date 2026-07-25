@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createMockSettings } from "../helpers/test-utils.js";
 import { existsSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
@@ -128,7 +129,7 @@ describe("settings", () => {
   describe("updateSettings", () => {
     it("merges partial, saves, and returns full settings", async () => {
       // First, save initial settings
-      await saveSettings({ openBeforeMinutes: 2, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 });
+      await saveSettings(createMockSettings({ openBeforeMinutes: 2, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 }));
 
       // Now update with partial
       const result = await updateSettings({ openBeforeMinutes: 4 });
@@ -149,14 +150,14 @@ describe("settings", () => {
       expect(cached.openBeforeMinutes).toBe(4);
     });
 
-    it("clamps openBeforeMinutes to 1-5 range (value below min -> 1)", async () => {
-      const result = await updateSettings({ openBeforeMinutes: 0 });
+    it("clamps openBeforeMinutes to 0-10 range (value below min -> 0)", async () => {
+      const result = await updateSettings({ openBeforeMinutes: -5 });
 
       expect(result.openBeforeMinutes).toBe(OPEN_BEFORE_MINUTES_MIN);
     });
 
-    it("clamps openBeforeMinutes to 1-5 range (value above max -> 5)", async () => {
-      const result = await updateSettings({ openBeforeMinutes: 10 });
+    it("clamps openBeforeMinutes to 0-10 range (value above max -> 10)", async () => {
+      const result = await updateSettings({ openBeforeMinutes: 99 });
 
       expect(result.openBeforeMinutes).toBe(OPEN_BEFORE_MINUTES_MAX);
     });
@@ -171,12 +172,12 @@ describe("settings", () => {
 
       expect(result.openBeforeMinutes).toBe(3);
       // Verify unknown property wasn't added to result
-      expect(Object.keys(result).sort()).toEqual(["windowAlert", "launchAtLogin", "openBeforeMinutes", "schemaVersion", "showTomorrowMeetings"].sort());
+      expect(Object.keys(result).sort()).toEqual(Object.keys(createMockSettings()).sort());
     });
 
     it("updates launchAtLogin correctly", async () => {
       // Start with default (false)
-      await saveSettings({ openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 });
+      await saveSettings(createMockSettings({ openBeforeMinutes: 1, launchAtLogin: false, showTomorrowMeetings: true, windowAlert: true, schemaVersion: 1 }));
 
       // Enable launch at login
       const result = await updateSettings({ launchAtLogin: true });

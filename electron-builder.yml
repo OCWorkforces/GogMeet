@@ -42,15 +42,22 @@ mac:
   minimumSystemVersion: "11.0.0"
   # No universal build - don't merge ASARs
   mergeASARs: false
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   extendInfo:
     LSUIElement: true
     NSCalendarsFullAccessUsageDescription: GogMeet needs calendar access to find your Google Meet events.
-    NSAppleEventsUsageDescription: GogMeet uses AppleScript to read your calendar events.
+    NSAppleEventsUsageDescription: GogMeet uses AppleScript to check calendar permission status.
+  # Custom afterSign (build/notarize.cjs) owns notarize + staple — do not enable dual path
   notarize: false
+
+# electron-updater + electron-builder GitHub Releases feed
+publish:
+  provider: github
+  owner: OCWorkforces
+  repo: GogMeet
 
 # === DMG-SPECIFIC ===
 dmg:
@@ -63,7 +70,3 @@ dmg:
 
 afterPack: build/after-pack.cjs
 afterSign: build/notarize.cjs
-
-nsis:
-  oneClick: false
-  perMachine: true

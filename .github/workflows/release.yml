@@ -38,7 +38,8 @@ jobs:
           git push origin "$VERSION"
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Official tags only: v1.2.3 — exclude develop beta tags (v1.2.3-beta-N)
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-beta-')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,6 +75,7 @@ jobs:
           fi
 
       - name: Build, sign, notarize, and package
+        # package uses --publish never; softprops owns GitHub release asset upload
         run: bun run package
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -97,8 +99,10 @@ jobs:
 
       - name: Upload release assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
           files: |
             dist/GogMeet-*-arm64.dmg
             dist/GogMeet-*-arm64.zip

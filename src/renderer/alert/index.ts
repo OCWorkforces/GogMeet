@@ -118,6 +118,11 @@ function render(data: AlertPayload): void {
         </div>
 
         <div class="alert-actions">
+          ${
+            data.hasMeetUrl
+              ? `<button class="alert-btn alert-btn-join" data-action="join">Join Meeting</button>`
+              : ""
+          }
           <button class="alert-btn alert-btn-dismiss" data-action="dismiss">Dismiss</button>
         </div>
       </article>
@@ -128,6 +133,15 @@ function render(data: AlertPayload): void {
     document.body.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#fff;background:#1d1d1f;padding:24px;text-align:center;">Unable to display meeting alert</div>';
   }
+}
+
+async function joinFromAlert(): Promise<void> {
+  if (!currentPayload?.hasMeetUrl) return;
+  const result = await window.api.app.joinMeeting(currentPayload.id);
+  if (!result.ok) {
+    console.error("[alert] Join failed:", result.error);
+  }
+  dismissAlert();
 }
 
 function setupDelegatedEvents(): void {
@@ -146,6 +160,8 @@ function setupDelegatedEvents(): void {
 
     if (action === "dismiss") {
       dismissAlert();
+    } else if (action === "join") {
+      void joinFromAlert();
     }
   });
 }

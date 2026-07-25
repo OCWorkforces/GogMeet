@@ -61,13 +61,14 @@ describe("preload/index.ts", () => {
     expect(typeof apiArg.window.setHeight).toBe("function");
   });
 
-  it("app namespace has openExternal and getVersion methods", async () => {
+  it("app namespace has openExternal, joinMeeting, and getVersion methods", async () => {
     await import("../../src/preload/index.js");
 
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
     const app = apiArg.app;
 
     expect(typeof app.openExternal).toBe("function");
+    expect(typeof app.joinMeeting).toBe("function");
     expect(typeof app.getVersion).toBe("function");
   });
 

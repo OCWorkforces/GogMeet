@@ -2,31 +2,20 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-Auxiliary BrowserWindow factories beyond the main popover. Each is a singleton with its own lifecycle.
+Auxiliary BrowserWindow factories beyond the main list window (often hidden; tray menu is primary list UI).
 
 ## FILES
 
 | File | Role | Key Exports |
 |------|------|-------------|
-| `about-window.ts` | About panel: `alwaysOnTop`, `hiddenInset` titlebar, version-injected HTML, repository link, embeds `about-icon.svg` as data URI | `showAbout(mainWindow)` |
-| `alert-window.ts` | Full-screen meeting alert overlay with queue + duplicate-uid coalescing | `showAlert(event)` |
-| `settings-window.ts` | Settings UI; visible in Dock while open, hidden on close | `createSettingsWindow()` |
-
-## WHERE TO LOOK
-
-| Task | Location |
-|------|----------|
-| Reuse vs reopen About | `about-window.ts` → `aboutWindow` ref + `isDestroyed()` check |
-| Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` tag on window |
-| Defer next alert after close | `alert-window.ts` → `processNextAlert()` uses `setImmediate` |
-| Project MeetingEvent → AlertPayload | `alert-window.ts` → `toAlertPayload()` (drops `meetUrl`) |
-| Dock show/hide | `settings-window.ts` → `app.dock?.show()` on ready, `app.dock?.hide()` on `closed` |
+| `about-window.ts` | About panel; exact-match repo `openExternal` | `showAbout(mainWindow)` |
+| `alert-window.ts` | Full-screen meeting alert; queue + uid coalesce | `showAlert(event, autoOpenAt?)` |
+| `settings-window.ts` | Settings UI; Dock while open | `createSettingsWindow()` |
 
 ## NOTES
 
-- All three windows load via `loadWindowContent(win, page)` and use `getPreloadPath()` from `utils/browser-window.js`. See `utils/AGENTS.md` for security defaults.
-- About window reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. Repository links are exact-match guarded against `packageJson.repository` before `shell.openExternal()`.
-- Alert window is tagged with `win.__alertUid = event.id` so rapid `showAlert()` calls with the same uid are dropped (active or queued). Different uids queue and fire sequentially after the prior window closes.
-- Alert payload omits `meetUrl` by design, the alert UI does not join meetings, dismissal only.
-- Settings window is the only window that toggles Dock visibility, the app is tray-only otherwise. IPC settings updates trigger `restartScheduler()` from the handler side, not from this file.
-- Singleton pattern is identical across all three: module-level `let win: BrowserWindow | null`, focus existing if alive, null out on `closed`.
+- Load via `loadWindowContent` + `getPreloadPath` / secure prefs.
+- **Alert payload** (`toAlertPayload`): includes `hasMeetUrl` and optional `autoOpenAt`; **omits raw `meetUrl`**. Join is renderer → `app.joinMeeting(id)` in main.
+- Alert dismissal still cancels pending browser open via `ALERT_DISMISSED` → facade.
+- Settings window toggles Dock; timing settings restart is owned by settings IPC handler, not this file.
+- Singleton pattern: module-level window ref, focus if alive, null on `closed`.
