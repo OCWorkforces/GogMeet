@@ -28,6 +28,7 @@ const {
   mockInvalidateCalendarPermissionCache,
   mockInitPowerCallbacks,
   mockInitAutoUpdater,
+  mockReviveCalendarWatcher,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -60,6 +61,7 @@ const {
   mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
   mockInitAutoUpdater: vi.fn(),
+  mockReviveCalendarWatcher: vi.fn(),
 }))
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -116,6 +118,12 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 
 vi.mock("../../src/main/system/auto-updater.js", () => ({
   initAutoUpdater: mockInitAutoUpdater,
+}));
+
+vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
+  startCalendarWatcher: vi.fn(),
+  stopCalendarWatcher: vi.fn(),
+  reviveCalendarWatcher: mockReviveCalendarWatcher,
 }));
 
 import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
@@ -216,13 +224,15 @@ describe("lifecycle", () => {
 
       const callOrder: string[] = [];
       mockInvalidateCalendarPermissionCache.mockImplementation(() => callOrder.push("invalidate"));
+      mockReviveCalendarWatcher.mockImplementation(() => callOrder.push("revive"));
       mockRestartScheduler.mockImplementation(() => callOrder.push("restart"));
 
       callback!();
 
       expect(mockInvalidateCalendarPermissionCache).toHaveBeenCalledOnce();
+      expect(mockReviveCalendarWatcher).toHaveBeenCalledOnce();
       expect(mockRestartScheduler).toHaveBeenCalledOnce();
-      expect(callOrder).toEqual(["invalidate", "restart"]);
+      expect(callOrder).toEqual(["invalidate", "revive", "restart"]);
     });
   });
 

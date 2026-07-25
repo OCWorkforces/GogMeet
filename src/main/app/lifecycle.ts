@@ -28,7 +28,11 @@ import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
 import { ensureBinary } from "../swift/binary-manager.js";
-import { startCalendarWatcher, stopCalendarWatcher } from "../domain/calendar-watcher.js";
+import {
+  reviveCalendarWatcher,
+  startCalendarWatcher,
+  stopCalendarWatcher,
+} from "../domain/calendar-watcher.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
 
 /**
@@ -116,6 +120,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     tryRun("initPowerManagement", () =>
       initPowerManagement(() => {
         invalidateCalendarPermissionCache();
+        reviveCalendarWatcher();
         restartScheduler();
       }),
     );

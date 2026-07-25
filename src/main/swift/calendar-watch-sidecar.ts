@@ -7,6 +7,8 @@ const DEBOUNCE_MS = 2000;
 const MAX_RETRIES = 5;
 const BACKOFF_MAX_MS = 30_000;
 const KILL_GRACE_MS = 5000;
+/** After giving up at MAX_RETRIES, wait this long then try again from attempt 0. */
+const GIVE_UP_COOLDOWN_MS = 5 * 60_000;
 // A child that has been alive for this long is considered "stable". When the
 // stability timer fires we reset retryCount so that later, isolated failures
 // after a long healthy run do not inherit a stale exhausted retry budget.
@@ -19,6 +21,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let killTimer: ReturnType<typeof setTimeout> | null = null;
 let stableTimer: ReturnType<typeof setTimeout> | null = null;
+let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
 let stdoutBuffer = "";
 let retryCount = 0;
 let stopped = false;
@@ -27,7 +30,18 @@ let onChangeCallback: (() => void) | null = null;
 function scheduleRestart(): void {
   if (stopped) return;
   if (retryCount >= MAX_RETRIES) {
-    console.error(`[calendar-watch-sidecar] Giving up after ${MAX_RETRIES} restart attempts`);
+    console.error(
+      `[calendar-watch-sidecar] Giving up after ${MAX_RETRIES} restart attempts — cooldown ${GIVE_UP_COOLDOWN_MS}ms`,
+    );
+    if (cooldownTimer !== null) clearTimeout(cooldownTimer);
+    cooldownTimer = setTimeout(() => {
+      cooldownTimer = null;
+      if (stopped) return;
+      console.log("[calendar-watch-sidecar] Cooldown elapsed — resetting retries");
+      retryCount = 0;
+      ensureThenSpawn();
+    }, GIVE_UP_COOLDOWN_MS);
+    cooldownTimer.unref?.();
     return;
   }
   const delay = Math.min(1000 * 2 ** retryCount, BACKOFF_MAX_MS);
@@ -142,12 +156,29 @@ function spawnChild(): void {
  * no-op.
  */
 export function startWatchSidecar(onChange: () => void): void {
-  if (child !== null || restartTimer !== null) return;
+  if (child !== null || restartTimer !== null || cooldownTimer !== null) return;
 
   stopped = false;
   retryCount = 0;
   onChangeCallback = onChange;
 
+  ensureThenSpawn();
+}
+
+/**
+ * Revive a sidecar that gave up or was stopped after a long idle period
+ * (e.g. resume from sleep / permission grant). Safe when already running.
+ */
+export function reviveWatchSidecar(): void {
+  if (stopped) return;
+  if (child !== null) return;
+  if (restartTimer !== null) return;
+  if (cooldownTimer !== null) {
+    clearTimeout(cooldownTimer);
+    cooldownTimer = null;
+  }
+  retryCount = 0;
+  console.log("[calendar-watch-sidecar] Revive requested — restarting");
   ensureThenSpawn();
 }
 
@@ -198,6 +229,11 @@ export function stopWatchSidecar(): void {
   if (stableTimer !== null) {
     clearTimeout(stableTimer);
     stableTimer = null;
+  }
+
+  if (cooldownTimer !== null) {
+    clearTimeout(cooldownTimer);
+    cooldownTimer = null;
   }
 
   const proc = child;
