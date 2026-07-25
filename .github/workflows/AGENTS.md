@@ -16,7 +16,7 @@ CI/release automation for the macOS Electron app. Keep workflow behavior aligned
 - Uses pinned `actions/checkout` and `oven-sh/setup-bun` SHAs; keep pins intentional when upgrading.
 - The `check` checkout uses `fetch-depth: 0` so a PR can compare with `github.event.pull_request.base.sha` and a push can compare with `github.event.before`. For an initial push with GitHub's all-zero `before` SHA, it resolves `HEAD^` and reuses that resolved base for changed-source coverage.
 - `check` runs `bun install --frozen-lockfile`, `bun run lint`, `bun run format:check`, `bun run typecheck`, `bun run build`, and one `bun run test:coverage`.
-- It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`; there are no coverage percentage thresholds.
+- It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`. Soft **main-project** coverage floors live in `vitest.workspace.ts` (lines/statements 60, functions 55, branches 45).
 - `validate-node` sets up Bun plus Node from `.nvmrc` (currently 26), runs `bun run validate:node`, then runs `git diff --exit-code` to fail on regenerated tracked icon drift.
 
 ## Beta Release (`develop`)

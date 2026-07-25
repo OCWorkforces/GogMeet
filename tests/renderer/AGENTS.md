@@ -8,14 +8,14 @@ Tests for `src/renderer/` under Vitest with `jsdom` environment. No Electron moc
 
 ```
 tests/renderer/
-├── alert.test.ts                  # Alert overlay state machine, formatTimeRange, AlertPayload push
+├── alert.test.ts                  # Alert overlay, formatTimeRange, AlertPayload push
 ├── apply-events-push.test.ts      # Push event filtering/signature gating
-├── delegation.test.ts             # data-action event delegation
+├── delegation.test.ts             # data-action event delegation (join uses data-event-id)
 ├── escape-html.test.ts            # XSS protection (top-level)
-├── main-ui.test.ts                # Main popover state machine + meeting list render
-├── settings.test.ts               # Settings form auto-save toggles
+├── main-ui.test.ts                # List window state machine + meeting list render
+├── settings.test.ts               # Settings form auto-save; open-before 0–10; schema v2 defaults
 ├── rendering/
-│   └── body.test.ts               # Meeting list HTML rendering with escapeHtml + parts.push() pattern
+│   └── body.test.ts               # Meeting list HTML; Join buttons use data-event-id
 └── utils/
     ├── dom.test.ts                # DOM helpers (queries, classlist, structure assertions)
     ├── escape-html.test.ts        # escapeHtml unit test (lower-level)

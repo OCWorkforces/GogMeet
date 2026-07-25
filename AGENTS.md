@@ -1,10 +1,10 @@
 # GogMeet - AGENTS.md
 
-**Generated:** 2026-07-02
-**Commit:** 6dc9a78
-**Branch:** develop
+**Generated:** 2026-07-25
+**Commit:** 66ae35f
+**Branch:** general-enhancements
 
-macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift helper, lists upcoming Google Meet/Zoom/Calendly events, auto-opens meeting URLs before start, shows optional full-screen alerts, and exposes `Cmd+Shift+M` to join the next meeting.
+macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift helper, lists upcoming Google Meet/Zoom/Calendly events in the **native tray menu**, auto-opens meeting URLs before start, shows optional full-screen alerts (with Join), and exposes `Cmd+Shift+M` to join the next or in-progress meeting.
 
 ## STACK
 
@@ -49,34 +49,38 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Calendar change watch | `src/main/domain/calendar-watcher.ts`, `src/main/swift/calendar-watch-sidecar.ts` | Swift `--watch` emits `CHANGED`; domain calls `forcePoll()` |
 | Scheduler behavior | `src/main/scheduler/facade.ts`, `src/main/scheduler/AGENTS.md` | facade is the only public scheduler entry |
 | Scheduler state | `src/main/scheduler/state/AGENTS.md` | state files are internal-only |
-| Tray native menu | `src/main/tray.ts`, `src/main/menu/meeting-menu.ts`, `tests/main/tray.test.ts` | install with `tray.setContextMenu()` during setup; refresh on `meeting-list-updated` |
-| URL allowlist/egress | `src/main/utils/url-validation.ts`, `src/main/utils/meet-url.ts`, `src/preload/index.ts` | preload mirror is intentional; main is authoritative |
+| Tray native menu | `src/main/tray.ts`, `src/main/menu/meeting-menu.ts`, `tests/main/tray.test.ts` | primary list UI; install with `tray.setContextMenu()`; refresh on `meeting-list-updated` |
+| Join a meeting | `src/main/utils/join-meeting.ts`, `utils/meet-url.ts`, menu/shortcuts/IPC | all paths use `joinMeetingById` → `buildMeetUrl` + `openMeetingUrl` + `cancelPendingBrowserOpen` |
+| URL allowlist/egress | `src/shared/meet-url-allowlist.ts`, `main/utils/url-validation.ts`, preload | shared hostnames; main re-validates at egress; parse uses `validateMeetUrl` |
 | BrowserWindow security/loading | `src/main/utils/browser-window.ts`, `src/main/windows/*` | dev/prod renderer loading belongs here |
-| Renderer popover | `src/renderer/index.ts`, `src/renderer/rendering/body.ts`, `src/renderer/lib/apply-events-push.ts` | push signature gates DOM re-render |
-| Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings saves through IPC; alert cannot open URLs |
-| Tests | `vitest.workspace.ts`, `tests/AGENTS.md` | main=node+Electron mock; renderer=jsdom; shared/scripts=node |
-| Packaging/release | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | Swift source must stay unpacked from ASAR; release workflow double-builds today |
+| Renderer list UI | `src/renderer/index.ts`, `src/renderer/rendering/body.ts` | optional popover window (often hidden); Join uses `app.joinMeeting(eventId)` |
+| Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings schema v2; alert Join via EventId (no meetUrl in payload) |
+| Tests | `vitest.workspace.ts`, `tests/AGENTS.md` | main=node+Electron mock; renderer=jsdom; shared/scripts=node; main coverage soft floors |
+| Packaging/release | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | afterSign notarize+staple; develop beta pre-releases; main official tags |
 
 ## CODE MAP
 
 | Symbol / file | Type | Refs | Role |
 | --- | --- | --- | --- |
-| `src/main/index.ts` | entry | runtime | creates tray popover, enables sandbox, calls lifecycle |
-| `initializeApp()` | function | startup hub | wires Swift prewarm, IPC, settings, tray, scheduler, watcher, power, shortcuts |
+| `src/main/index.ts` | entry | runtime | creates hidden list window, enables sandbox, configures logging, calls lifecycle |
+| `initializeApp()` | function | startup hub | Swift prewarm, IPC, settings, tray, scheduler, watcher, power, shortcuts, auto-updater |
 | `src/main/app/ipc.ts` | registrar | IPC hub | registers calendar/settings/app/window/alert/scheduler handlers |
-| `src/shared/ipc-channels.ts` | contract | high, rg-derived | channel names, request/response maps, push payload maps |
-| `src/preload/index.ts` | bridge | runtime | exposes `window.api`; brands URL/height before IPC |
-| `scheduler/facade.ts` | facade | 8 direct prod importers, rg-derived | `startScheduler`, `forcePoll`, restart, injected callbacks |
-| `scheduler/poll.ts` | internal | facade-called | fetches calendar, schedules timers, hash-gates renderer push |
-| `scheduler/state/*` | internal state | internal only | timer maps, display state, poll epoch, runtime callbacks |
-| `domain/calendar.ts` | boundary | IPC/scheduler | runs Swift helper and returns `CalendarResult` |
-| `swift/binary-manager.ts` | boundary | calendar | cache/compile/run helper, retry once after exec failure |
-| `utils/browser-window.ts` | facade | 4 direct prod importers, rg-derived | secure web prefs, preload path, content loading, CSP |
-| `events.ts` | bus | 3 direct prod importers, rg-derived | scheduler/power -> tray decoupling |
-| `tray.ts` | status item | runtime | creates native Tray, pre-installs context menu, refreshes menu cache from `meeting-list-updated` |
-| `renderer/index.ts` | page entry | Rsbuild main | popover state machine, push handling, resize IPC |
-| `renderer/settings/index.ts` | page entry | Rsbuild settings | settings form, auto-save, save indicators |
-| `renderer/alert/index.ts` | page entry | Rsbuild alert | alert render/dismiss, Escape-only keyboard dismiss |
+| `src/shared/ipc-channels.ts` | contract | high | channel names, request/response maps (includes `APP_JOIN_MEETING`), push maps |
+| `src/preload/index.ts` | bridge | runtime | exposes `window.api`; brands URL/height/EventId; `joinMeeting` |
+| `scheduler/facade.ts` | facade | public only | `startScheduler`, `forcePoll`, restart, `cancelPendingBrowserOpen`, DI |
+| `scheduler/poll.ts` | internal | facade-called | fetches calendar, records status, schedules timers, hash-gates push |
+| `scheduler/late-join.ts` | internal | schedule + browser-timer | late-join grace eligibility (`firedEvents` only) |
+| `domain/calendar.ts` | boundary | IPC/scheduler | Swift helper → `CalendarResult` with required `code` on err |
+| `domain/calendar-status.ts` | cache | tray menu | last poll ok/err status for menu error rows |
+| `utils/join-meeting.ts` | join hub | menu/hotkey/IPC | `joinMeetingById` + mark opened |
+| `utils/meet-url.ts` | egress | join + timers | `buildMeetUrl`, `openMeetingUrl` → `Result` |
+| `swift/binary-manager.ts` | boundary | calendar | cache/compile/run; classify 2/3/4 without recompile |
+| `utils/browser-window.ts` | facade | windows | secure web prefs, preload path, content loading, CSP |
+| `utils/log.ts` | logging | bootstrap | electron-log scopes for main diagnostics |
+| `events.ts` | bus | tray | scheduler → tray `meeting-list-updated` |
+| `tray.ts` | status item | runtime | native Tray + context menu (primary list UI) |
+| `renderer/settings/index.ts` | page entry | settings | schema v2 toggles, auto-save |
+| `renderer/alert/index.ts` | page entry | alert | dismiss + Join via `app.joinMeeting` |
 
 ## CONVENTIONS
 
@@ -86,10 +90,11 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - `as const` on lookup maps/config. Avoid `satisfies`, `enum`, and `namespace` under `erasableSyntaxOnly` / `isolatedDeclarations`.
 - Index-signature objects require bracket notation: `obj["key"]`.
 - Branded values (`EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight`) are created at trust boundaries only.
-- `CalendarResult` narrows via `result.kind === "ok"` or `isCalendarOk()`. Generic `Result` narrows via `result.ok`.
+- `CalendarResult` narrows via `result.kind === "ok"` or `isCalendarOk()`. Err results include required `code`. Generic `Result` narrows via `result.ok`.
 - Renderer HTML uses string templates/full rerender; any user-controlled string going into `innerHTML` passes through `escapeHtml()`.
-- Swift parsing is structural; meeting host allowlisting happens at egress (`buildMeetUrl`, `openMeetingUrl`, `APP_OPEN_EXTERNAL`).
-- Native tray menus are installed ahead of first activation with `tray.setContextMenu()`; click handlers may trigger refresh work such as `forcePoll()`, but must not be the only place the menu is built.
+- Meeting hostnames live in `src/shared/meet-url-allowlist.ts`. Parser ingress uses `validateMeetUrl()`; egress uses `openMeetingUrl()` / `joinMeetingById`.
+- All user join paths (menu, hotkey, renderer, alert) must call `joinMeetingById` so auto-open is suppressed after a successful open.
+- Native tray menus are the primary meeting list UI; install with `tray.setContextMenu()` before first activation; refresh on `meeting-list-updated`.
 
 ## ANTI-PATTERNS
 
@@ -98,7 +103,8 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Bypassing `validateSender()` / `validateOnSender()` for renderer-originated IPC.
 - Trusting preload-branded payloads in main fire-and-forget handlers; revalidate/rebrand at the main boundary.
 - Meeting URL validation with `.startsWith()`; parse with `new URL()` and exact/suffix host allowlists.
-- Meeting URL egress through direct `shell.openExternal()`; use `openMeetingUrl()` or a documented exact allowlist/guard for non-meeting URLs.
+- Meeting URL egress through direct `shell.openExternal()`; use `openMeetingUrl()` / `joinMeetingById`, or a documented exact allowlist for non-meeting URLs (`openSystemSettings`).
+- Using title-countdown `cancelledEvents` for auto-open suppression (use `firedEvents` / `cancelPendingBrowserOpen` only).
 - Bundling Electron into preload; `electron` and `electron/*` stay external in `rslib.config.preload.ts`.
 - Bundling Swift source only inside ASAR; `swiftc` needs `asarUnpack`.
 - Reaching into `scheduler/poll.ts`, `scheduler/index.ts`, or `scheduler/state/*` from outside scheduler.
@@ -144,5 +150,9 @@ bun run clean            # remove lib/ and dist/
 - Official release verification mounts DMGs and extracts ZIPs, then validates each contained app. The app is signed, notarized, and stapled; a DMG and ZIP are containers and must not be described as stapled/notarized themselves.
 - Auto-open applies to non-all-day future meetings when `autoOpenEnabled`; open offset is 0–10 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists. Manual joins go through `joinMeetingById` and mark the event opened.
 - Full-screen alert fires `alertLeadSeconds` (default 60s) before browser auto-open; Join uses EventId IPC; dismissing cancels that event's pending browser open.
+- Quiet hours suppress window alert + OS notifications only; auto-open continues when enabled.
+- Late-join grace (`lateJoinGraceMinutes`, default 0) can open shortly after start; eligibility uses `firedEvents` only (never title `cancelledEvents`).
 - Scheduler polling: 2 min on AC, 4 min on battery; `forcePoll()` coalesces within 10s by scheduling one deferred follow-up, not by dropping every request.
-- Supported extracted meeting URLs today: Google Meet, Zoom (including `.zoom.us` subdomains), and Calendly wrappers. Add new wrappers by updating Swift extraction, main/preload allowlists, and tests together.
+- Settings timing keys restart the scheduler; `launchAtLogin` / `showTomorrowMeetings` do not.
+- Supported extracted meeting URLs today: Google Meet, Zoom (including `.zoom.us` subdomains), and Calendly wrappers. Add new wrappers by updating Swift extraction, `shared/meet-url-allowlist.ts`, and tests together.
+- Develop beta tags: `vX.Y.Z-beta-N` (see `.github/workflows/beta-release.yml`). Official tags: exact `v${package.json.version}` from `main`.

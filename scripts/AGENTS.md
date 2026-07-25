@@ -39,6 +39,13 @@ Repository automation scripts for local development and asset generation. These 
 - Pure helpers (`parseMajor`, `validateNodeVersion`, `runValidation`) are exported and injected so `tests/scripts/validate-node.test.ts` can drive every branch without needing host Node 26 or running the real generator.
 - Electron embeds its own Node runtime for the packaged app. The host Node 26 enforced here is only for contributor tooling — do not change `engines.node` or conflate it with Electron's embedded runtime.
 
+## `next-beta-tag.mjs` Contract
+
+- Pure ESM helper: `computeNextBeta(base, tagList)` → `{ base, betaNumber, tag, appVersion }`.
+- Tag form: `vX.Y.Z-beta-N`; app version form: `X.Y.Z-beta.N`.
+- CLI: `node scripts/next-beta-tag.mjs [--base 1.16.0] [--tags $'...']` prints JSON.
+- Used by `.github/workflows/beta-release.yml`; unit tests in `tests/scripts/next-beta-tag.test.ts`.
+
 ## `verify-macos-release.mjs` Contract
 
 - Plain Node ESM with no dependencies. It runs only on macOS and fails closed for missing, extra, or wrong-version DMG/ZIP containers.
