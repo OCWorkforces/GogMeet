@@ -1,8 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { formatAppError } from "../../shared/errors.js";
-import type { CalendarPermission, CalendarResult } from "../../shared/calendar-result.js";
+import { formatAppError, isSwiftNoCalendars, isSwiftPermissionDenied } from "../../shared/errors.js";
+import type {
+  CalendarErrorCode,
+  CalendarPermission,
+  CalendarResult,
+} from "../../shared/calendar-result.js";
 import { runSwiftHelper } from "../swift/binary-manager.js";
 import { parseEvents } from "../swift/event-parser.js";
 import { SwiftHelperError } from "../swift/event-validator.js";
@@ -11,6 +15,14 @@ import { getErrorStderr } from "../swift/guards.js";
 const execFileAsync = promisify(execFile);
 
 let cachedPermissionStatus: CalendarPermission | null = null;
+
+function calendarErrorCodeFromSwift(err: SwiftHelperError): CalendarErrorCode {
+  const appErr = err.toAppError();
+  if (isSwiftPermissionDenied(appErr)) return "permission-denied";
+  if (isSwiftNoCalendars(appErr)) return "no-calendars";
+  if (appErr.kind === "swift-runtime") return "runtime";
+  return "unknown";
+}
 
 /** Fetch Google Meet events — returns structured result with events or error */
 export async function getCalendarEventsResult(): Promise<CalendarResult> {
@@ -25,12 +37,16 @@ export async function getCalendarEventsResult(): Promise<CalendarResult> {
     if (err instanceof SwiftHelperError) {
       const appErr = err.toAppError();
       console.error("[calendar] getCalendarEventsResult error:", err);
-      return { kind: "err", error: formatAppError(appErr) };
+      return {
+        kind: "err",
+        error: formatAppError(appErr),
+        code: calendarErrorCodeFromSwift(err),
+      };
     }
     const stderr = getErrorStderr(err);
     const message = stderr || (err instanceof Error ? err.message : "Unknown error");
     console.error("[calendar] getCalendarEventsResult error:", err);
-    return { kind: "err", error: message };
+    return { kind: "err", error: message, code: "unknown" };
   }
 }
 

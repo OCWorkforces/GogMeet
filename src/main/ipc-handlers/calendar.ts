@@ -13,12 +13,17 @@ export function registerCalendarHandlers(): void {
     async (
       event: IpcMainInvokeEvent,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
-      if (!validateSender(event)) return { kind: "err", error: "unauthorized" };
+      if (!validateSender(event))
+        return { kind: "err", error: "unauthorized", code: "unknown" };
       try {
         return await getCalendarEventsResult();
       } catch (err) {
         console.error("[ipc] CALENDAR_GET_EVENTS error:", err);
-        return { kind: "err", error: err instanceof Error ? err.message : String(err) };
+        return {
+          kind: "err",
+          error: err instanceof Error ? err.message : String(err),
+          code: "unknown",
+        };
       }
     },
   );

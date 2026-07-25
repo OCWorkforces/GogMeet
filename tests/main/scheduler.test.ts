@@ -726,6 +726,7 @@ describe("scheduleEvents", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "permission denied",
     });
 
@@ -755,6 +756,7 @@ describe("scheduleEvents", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "permission denied",
     });
 
@@ -867,6 +869,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "Calendar access denied",
     });
 
