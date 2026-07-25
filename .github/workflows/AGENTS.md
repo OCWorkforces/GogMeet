@@ -37,8 +37,10 @@ CI/release automation for the macOS Electron app. Keep workflow behavior aligned
 - **Why release runs in the same workflow as tag creation:** GitHub does not start new workflow runs for pushes that use the default `GITHUB_TOKEN`. Creating `vX.Y.Z` on `main` therefore cannot rely on a follow-up “tag push” event to package. The `prepare` job ensures the version tag exists, and the `release` job packages/uploads in **that same run**.
 - Triggers: push to `main`, or push of a non-beta `v*` tag.
 - `prepare`: on `main`, tag is `v${package.json.version}` (must be plain `X.Y.Z`); create/push the annotated tag if missing; set `run_release=true`. On `v*` tag push without `-beta-`, set `run_release=true`. Beta tags set `run_release=false`.
-- `release` (when `run_release=true`): checkout the release tag, require `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `bun run package` once, `verify:macos-release`, checksums, upload via softprops as **Latest** (`prerelease: false`).
-- The only uploaded containers are deterministic `GogMeet-${version}-{arm64,x64}.{dmg,zip}` files plus `SHA256SUMS.txt`.
+- `release` (when `run_release=true`): checkout the release tag; validate version vs tag; detect signing mode:
+  - **signed** — all of `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD` set → `bun run package` with secrets, then `verify:macos-release`.
+  - **unsigned** — any secret missing (including no `CSC_LINK`) → `CSC_IDENTITY_AUTO_DISCOVERY=false`, package without Developer ID, **skip** verifier, warn in release notes about Gatekeeper.
+- Always write checksums and upload arm64/x64 DMG/ZIP + `SHA256SUMS.txt` via softprops as **Latest** (`prerelease: false`).
 - Do not use `-beta-` tags for official releases; beta tags are owned by `beta-release.yml`.
 
 ## Anti-Patterns
