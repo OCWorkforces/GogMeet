@@ -75,6 +75,7 @@ jobs:
           fi
 
       - name: Build, sign, notarize, and package
+        # package uses --publish never; softprops owns GitHub release asset upload
         run: bun run package
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -98,8 +99,10 @@ jobs:
 
       - name: Upload release assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
           files: |
             dist/GogMeet-*-arm64.dmg
             dist/GogMeet-*-arm64.zip

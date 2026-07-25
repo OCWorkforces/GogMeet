@@ -26,6 +26,7 @@ CI/release automation for the macOS Electron app. Keep workflow behavior aligned
 - Next tag is `v${BASE}-beta-${N}` where `N` is one greater than the highest existing local/remote tag matching that prefix (e.g. `v1.16.0-beta-1`, `v1.16.0-beta-2`).
 - Working-tree `package.json` version is rewritten for the package step only to `${BASE}-beta.${N}` so DMG/ZIP names and About version match; that rewrite is **not** committed.
 - A lightweight annotated git tag is pushed, then `softprops/action-gh-release` creates a **pre-release** (`prerelease: true`, `make_latest: false`) with arm64/x64 DMG+ZIP and `SHA256SUMS.txt`.
+- **Packaging never auto-publishes via electron-builder** (`--publish never` in `package` / `package:dir`). Releases are uploaded only by `softprops/action-gh-release` with `token: ${{ github.token }}` (do not pass an empty `secrets.GITHUB_TOKEN` override). This avoids electron-builder requiring `GH_TOKEN` during `bun run package`.
 - Signing is **optional** for beta:
   - If `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` are all set → sign, notarize, staple, and run `verify:macos-release`.
   - Otherwise → `CSC_IDENTITY_AUTO_DISCOVERY=false`, package without Developer ID, skip verifier, and note Gatekeeper limits in the release body.
