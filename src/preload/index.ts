@@ -3,27 +3,16 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-c
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../shared/settings.js";
 import type { MeetingEvent } from "../shared/meeting-event.js";
-import { asMeetUrl, clampWindowHeight, type EventId, type MeetUrl } from "../shared/brand.js";
-
-/** Hostnames the renderer is permitted to ask the main process to open. */
-const MEET_URL_ALLOWED_HOSTNAMES: readonly string[] = [
-  "meet.google.com",
-  "calendar.google.com",
-  "accounts.google.com",
-  "zoom.us",
-  "calendly.com",
-];
-
-/** Hostname suffixes (any subdomain) the renderer may ask main to open. */
-const MEET_URL_ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [".zoom.us"];
-
-function isAllowedMeetHostname(hostname: string): boolean {
-  if (MEET_URL_ALLOWED_HOSTNAMES.includes(hostname)) return true;
-  for (const suffix of MEET_URL_ALLOWED_HOSTNAME_SUFFIXES) {
-    if (hostname.endsWith(suffix)) return true;
-  }
-  return false;
-}
+import {
+  asEventId,
+  asMeetUrl,
+  clampWindowHeight,
+  type EventId,
+  type MeetUrl,
+} from "../shared/brand.js";
+import type { Result } from "../shared/result.js";
+import { err } from "../shared/result.js";
+import { isAllowedMeetHostname } from "../shared/meet-url-allowlist.js";
 
 function brandMeetUrl(raw: string): MeetUrl | null {
   const branded = asMeetUrl(raw);
@@ -70,8 +59,16 @@ const api = {
   app: {
     openExternal: (url: string): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
       const branded = brandMeetUrl(url);
-      if (branded === null) return Promise.resolve();
+      if (branded === null) {
+        return Promise.resolve(err("Invalid or disallowed URL") as Result<void, string>);
+      }
       return ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, { url: branded });
+    },
+
+    joinMeeting: (rawId: string): Promise<IpcResponse<typeof IPC_CHANNELS.APP_JOIN_MEETING>> => {
+      const id = asEventId(rawId);
+      if (!id.ok) return Promise.resolve(err(id.error));
+      return ipcRenderer.invoke(IPC_CHANNELS.APP_JOIN_MEETING, { id: id.value });
     },
 
     getVersion: (): Promise<IpcResponse<typeof IPC_CHANNELS.APP_GET_VERSION>> =>

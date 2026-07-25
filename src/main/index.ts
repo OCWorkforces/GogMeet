@@ -7,6 +7,7 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "./utils/browser-window.js";
+import { configureMainLogging, mainLog } from "./utils/log.js";
 
 // Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
 // These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
@@ -17,9 +18,11 @@ app.commandLine.appendSwitch("log-level", "3");
 // Preload uses only contextBridge + ipcRenderer (sandbox-compatible).
 app.enableSandbox();
 
+configureMainLogging();
+
 // === Process-level error handlers ===
 process.on("uncaughtException", (error: Error) => {
-  console.error("[main] Uncaught exception:", error);
+  mainLog.error("Uncaught exception:", error);
   if (app.isPackaged) {
     dialog.showErrorBox("Unexpected Error", error.message || "An unexpected error occurred.");
     app.exit(1);
@@ -27,7 +30,7 @@ process.on("uncaughtException", (error: Error) => {
 });
 
 process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) => {
-  console.error("[main] Unhandled rejection at:", promise, "reason:", reason);
+  mainLog.error("Unhandled rejection at:", promise, "reason:", reason);
   // Do not exit on unhandled rejection - these are often recoverable
 });
 

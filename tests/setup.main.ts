@@ -20,6 +20,10 @@ app: {
   shell: {
     openExternal: vi.fn().mockResolvedValue(undefined),
   },
+  clipboard: {
+    writeText: vi.fn(),
+    readText: vi.fn().mockReturnValue(""),
+  },
   dialog: {
     showErrorBox: vi.fn(),
     showMessageBox: vi.fn().mockResolvedValue({ response: 0 }),

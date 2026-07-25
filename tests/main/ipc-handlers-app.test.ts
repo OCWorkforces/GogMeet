@@ -1,19 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Use vi.hoisted for mock functions used in vi.mock factories
-const { mockIsAllowedMeetUrl } = vi.hoisted(() => ({
-  mockIsAllowedMeetUrl: vi.fn(),
+const { mockOpenMeetingUrl, mockJoinMeetingById } = vi.hoisted(() => ({
+  mockOpenMeetingUrl: vi.fn(),
+  mockJoinMeetingById: vi.fn(),
 }));
 
-vi.mock("../../src/main/utils/url-validation.js", () => ({
-  isAllowedMeetUrl: mockIsAllowedMeetUrl,
+vi.mock("../../src/main/utils/meet-url.js", () => ({
+  openMeetingUrl: mockOpenMeetingUrl,
+  buildMeetUrl: vi.fn(),
+}));
+
+vi.mock("../../src/main/utils/join-meeting.js", () => ({
+  joinMeetingById: mockJoinMeetingById,
 }));
 
 import { registerAppHandlers } from "../../src/main/ipc-handlers/app.js";
-import { ipcMain, shell, app } from "electron";
+import { ipcMain, app } from "electron";
 
 const mockIpcMain = vi.mocked(ipcMain);
-const mockShell = vi.mocked(shell);
 const mockApp = vi.mocked(app);
 
 function getRegisteredHandler(channel: string) {
@@ -33,96 +37,98 @@ describe("registerAppHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApp.getVersion.mockReturnValue("1.0.0");
+    mockOpenMeetingUrl.mockResolvedValue({ ok: true, value: undefined });
+    mockJoinMeetingById.mockResolvedValue({ ok: true, value: undefined });
   });
 
-  it("registers 2 handlers", () => {
+  it("registers 3 handlers", () => {
     registerAppHandlers();
-    expect(mockIpcMain.handle).toHaveBeenCalledTimes(2);
+    expect(mockIpcMain.handle).toHaveBeenCalledTimes(3);
   });
 
   describe("app:open-external", () => {
-    it("opens allowed URL for authorized sender", async () => {
-      mockIsAllowedMeetUrl.mockReturnValue(true);
-      mockShell.openExternal.mockResolvedValue(undefined);
-
+    it("delegates allowed URL to openMeetingUrl for authorized sender", async () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, { url: "https://meet.google.com/abc-def-ghi" });
-      expect(mockShell.openExternal).toHaveBeenCalledWith(
-        "https://meet.google.com/abc-def-ghi",
-      );
+      const result = await handler!(authorizedEvent, {
+        url: "https://meet.google.com/abc-def-ghi",
+      });
+      expect(mockOpenMeetingUrl).toHaveBeenCalledWith("https://meet.google.com/abc-def-ghi");
+      expect(result).toEqual({ ok: true, value: undefined });
     });
 
-    it("does not open non-allowed URL", async () => {
-      mockIsAllowedMeetUrl.mockReturnValue(false);
-
+    it("returns err for invalid URL shape", async () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, { url: "https://evil.com/" });
-      expect(mockShell.openExternal).not.toHaveBeenCalled();
+      const result = await handler!(authorizedEvent, { url: "http://meet.google.com/abc" });
+      expect(mockOpenMeetingUrl).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ ok: false });
     });
 
-    it("does nothing for non-string URL", async () => {
+    it("returns err for non-string URL", async () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(authorizedEvent, { url: 123 });
-      expect(mockShell.openExternal).not.toHaveBeenCalled();
+      const result = await handler!(authorizedEvent, { url: 123 });
+      expect(mockOpenMeetingUrl).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: false, error: "Invalid URL payload" });
     });
 
-    it("does nothing for unauthorized sender", async () => {
+    it("returns Unauthorized for unauthorized sender", async () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:open-external");
 
-      await handler!(unauthorizedEvent, { url: "https://meet.google.com/abc" });
-      expect(mockShell.openExternal).not.toHaveBeenCalled();
+      const result = await handler!(unauthorizedEvent, {
+        url: "https://meet.google.com/abc-def-ghi",
+      });
+      expect(mockOpenMeetingUrl).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: false, error: "Unauthorized" });
+    });
+  });
+
+  describe("app:join-meeting", () => {
+    it("joins by event id for authorized sender", async () => {
+      registerAppHandlers();
+      const handler = getRegisteredHandler("app:join-meeting");
+
+      const result = await handler!(authorizedEvent, { id: "evt-1" });
+      expect(mockJoinMeetingById).toHaveBeenCalledWith("evt-1");
+      expect(result).toEqual({ ok: true, value: undefined });
     });
 
-    it("catches and logs errors", async () => {
-      mockIsAllowedMeetUrl.mockReturnValue(true);
-      mockShell.openExternal.mockRejectedValue(new Error("Network error"));
-
+    it("returns Unauthorized for unauthorized sender", async () => {
       registerAppHandlers();
-      const handler = getRegisteredHandler("app:open-external");
+      const handler = getRegisteredHandler("app:join-meeting");
 
-      // Should not throw
-      await expect(
-        handler!(authorizedEvent, { url: "https://meet.google.com/abc" }),
-      ).resolves.toBeUndefined();
+      const result = await handler!(unauthorizedEvent, { id: "evt-1" });
+      expect(mockJoinMeetingById).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: false, error: "Unauthorized" });
+    });
+
+    it("returns err for empty id", async () => {
+      registerAppHandlers();
+      const handler = getRegisteredHandler("app:join-meeting");
+
+      const result = await handler!(authorizedEvent, { id: "  " });
+      expect(mockJoinMeetingById).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ ok: false });
     });
   });
 
   describe("app:get-version", () => {
     it("returns version for authorized sender", async () => {
       mockApp.getVersion.mockReturnValue("1.6.1");
-
       registerAppHandlers();
       const handler = getRegisteredHandler("app:get-version");
-
-      const result = await handler!(authorizedEvent);
-      expect(result).toBe("1.6.1");
+      expect(await handler!(authorizedEvent)).toBe("1.6.1");
     });
 
     it("returns empty string for unauthorized sender", async () => {
       registerAppHandlers();
       const handler = getRegisteredHandler("app:get-version");
-
-      const result = await handler!(unauthorizedEvent);
-      expect(result).toBe("");
-    });
-
-    it("returns empty string on error", async () => {
-      mockApp.getVersion.mockImplementation(() => {
-        throw new Error("fail");
-      });
-
-      registerAppHandlers();
-      const handler = getRegisteredHandler("app:get-version");
-
-      const result = await handler!(authorizedEvent);
-      expect(result).toBe("");
+      expect(await handler!(unauthorizedEvent)).toBe("");
     });
   });
 });

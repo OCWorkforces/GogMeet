@@ -243,6 +243,16 @@ body {
   transform: scale(0.97);
 }
 
+.alert-btn-join {
+  color: #fff;
+  background: rgba(10, 132, 255, 0.85);
+  border: 1px solid rgba(10, 132, 255, 0.95);
+}
+
+.alert-btn-join:hover {
+  background: rgba(10, 132, 255, 1);
+}
+
 .alert-btn-dismiss {
   border: 1px solid var(--alert-dismiss-border);
   background: var(--alert-dismiss-bg);

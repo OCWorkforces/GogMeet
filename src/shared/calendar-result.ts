@@ -18,10 +18,15 @@ export interface CalendarResultOk {
   events: MeetingEvent[];
 }
 
-/** Failed calendar fetch — error message available */
+/** Stable error codes for calendar fetch failures (maps from Swift exit / AppError). */
+export type CalendarErrorCode = "permission-denied" | "no-calendars" | "runtime" | "unknown";
+
+/** Failed calendar fetch — error message and structured code for UI branching */
 export interface CalendarResultErr {
   kind: "err";
   error: string;
+  /** Required structured code so UI can distinguish permission vs runtime failures. */
+  code: CalendarErrorCode;
 }
 
 /** Structured result from calendar fetch — discriminated union on `kind` */

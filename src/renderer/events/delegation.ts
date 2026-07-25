@@ -3,7 +3,7 @@ import { isElementTarget } from "../utils/dom.js";
 export interface DelegatedEventHandlers {
   onForcePoll: () => void;
   onGrantAccess: () => void;
-  onOpenExternal: (url: string) => void;
+  onJoinMeeting: (eventId: string) => void;
 }
 
 export function setupDelegatedEvents(handlers: DelegatedEventHandlers): void {
@@ -25,8 +25,8 @@ export function setupDelegatedEvents(handlers: DelegatedEventHandlers): void {
         handlers.onGrantAccess();
         break;
       case "join-meeting": {
-        const url = target.dataset["url"];
-        if (url) handlers.onOpenExternal(url);
+        const eventId = target.dataset["eventId"];
+        if (eventId) handlers.onJoinMeeting(eventId);
         break;
       }
     }

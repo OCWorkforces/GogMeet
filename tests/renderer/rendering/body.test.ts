@@ -96,7 +96,7 @@ describe("renderBody", () => {
       expect(html).toContain('class="meeting-title"');
       expect(html).toContain("Standup");
       expect(html).toContain('data-action="join-meeting"');
-      expect(html).toContain('data-url="https://meet.google.com/abc-def-ghi"');
+      expect(html).toContain('data-event-id="evt-1"');
     });
 
     it("renders 'All done for today!' when only past events exist", () => {
@@ -339,7 +339,7 @@ describe("renderBody", () => {
       const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("Work &amp; &quot;Home&quot;");
-      expect(html).toContain('data-url="https://meet.google.com/xyz-abcd-efg"');
+      expect(html).toContain('data-event-id="evt-cal"');
     });
   });
 
@@ -360,7 +360,7 @@ describe("renderBody", () => {
 
       expect(html).toContain("Zoom Standup");
       expect(html).toContain('data-action="join-meeting"');
-      expect(html).toContain('data-url="https://zoom.us/j/1234567890"');
+      expect(html).toContain('data-event-id="evt-zoom"');
       expect(html).toContain('class="badge-auto"');
       expect(html).toContain("⚡ Auto");
     });
@@ -390,7 +390,7 @@ describe("renderBody", () => {
       const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
 
       expect(html).toContain("Acme Sync");
-      expect(html).toContain('data-url="https://acme.zoom.us/j/456?pwd=abc"');
+      expect(html).toContain('data-event-id="evt-zoom-sub"');
     });
   });
 });

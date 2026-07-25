@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMockSettings } from "../helpers/test-utils.js";
+import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 
 // Use vi.hoisted for mock functions used in vi.mock factories
 const {
@@ -27,6 +28,8 @@ const {
   mockGetCalendarEventsResult,
   mockInvalidateCalendarPermissionCache,
   mockInitPowerCallbacks,
+  mockInitAutoUpdater,
+  mockReviveCalendarWatcher,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -37,11 +40,18 @@ const {
   mockSetSchedulerWindow: vi.fn(),
   mockSetTrayTitleCallback: vi.fn(),
   mockGetSettings: vi.fn().mockReturnValue({
-    schemaVersion: 1,
+    schemaVersion: 2,
     openBeforeMinutes: 1,
     launchAtLogin: false,
     showTomorrowMeetings: true,
     windowAlert: true,
+    autoOpenEnabled: true,
+    alertLeadSeconds: 60,
+    nativeNotifications: true,
+    lateJoinGraceMinutes: 0,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
   }),
   mockLoadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
   mockSyncAutoLaunch: vi.fn(),
@@ -58,6 +68,8 @@ const {
   mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
+  mockInitAutoUpdater: vi.fn(),
+  mockReviveCalendarWatcher: vi.fn(),
 }))
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -112,6 +124,16 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   setTrayTitleCallback: mockSetTrayTitleCallback,
 }));
 
+vi.mock("../../src/main/system/auto-updater.js", () => ({
+  initAutoUpdater: mockInitAutoUpdater,
+}));
+
+vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
+  startCalendarWatcher: vi.fn(),
+  stopCalendarWatcher: vi.fn(),
+  reviveCalendarWatcher: mockReviveCalendarWatcher,
+}));
+
 import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
 
 const mockWindow = {} as unknown as import("electron").BrowserWindow;
@@ -155,6 +177,9 @@ describe("lifecycle", () => {
 
       // Auto-launch synced with settings
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(false);
+
+      // Auto-updater wired for packaged builds (module no-ops when unpackaged)
+      expect(mockInitAutoUpdater).toHaveBeenCalledOnce();
     });
 
     it("requests calendar permission when not determined", async () => {
@@ -207,13 +232,15 @@ describe("lifecycle", () => {
 
       const callOrder: string[] = [];
       mockInvalidateCalendarPermissionCache.mockImplementation(() => callOrder.push("invalidate"));
+      mockReviveCalendarWatcher.mockImplementation(() => callOrder.push("revive"));
       mockRestartScheduler.mockImplementation(() => callOrder.push("restart"));
 
       callback!();
 
       expect(mockInvalidateCalendarPermissionCache).toHaveBeenCalledOnce();
+      expect(mockReviveCalendarWatcher).toHaveBeenCalledOnce();
       expect(mockRestartScheduler).toHaveBeenCalledOnce();
-      expect(callOrder).toEqual(["invalidate", "restart"]);
+      expect(callOrder).toEqual(["invalidate", "revive", "restart"]);
     });
   });
 

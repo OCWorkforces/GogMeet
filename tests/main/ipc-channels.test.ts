@@ -12,6 +12,7 @@ describe("IPC_CHANNELS", () => {
     );
     expect(IPC_CHANNELS.WINDOW_SET_HEIGHT).toBe("window:set-height");
     expect(IPC_CHANNELS.APP_OPEN_EXTERNAL).toBe("app:open-external");
+    expect(IPC_CHANNELS.APP_JOIN_MEETING).toBe("app:join-meeting");
     expect(IPC_CHANNELS.APP_GET_VERSION).toBe("app:get-version");
     expect(IPC_CHANNELS.SETTINGS_GET).toBe("settings:get");
     expect(IPC_CHANNELS.SETTINGS_SET).toBe("settings:set");
@@ -22,8 +23,8 @@ describe("IPC_CHANNELS", () => {
     expect(IPC_CHANNELS.ALERT_SHOW).toBe("alert:show");
   });
 
-  it("has 13 channels total", () => {
-    expect(Object.keys(IPC_CHANNELS)).toHaveLength(13);
+  it("has 14 channels total", () => {
+    expect(Object.keys(IPC_CHANNELS)).toHaveLength(14);
   });
 
   it("uses colon-separated naming convention", () => {

@@ -20,7 +20,7 @@ function render(errorMessage?: string): void {
     (_, i) => {
       const val = OPEN_BEFORE_MINUTES_MIN + i;
       const selected = val === settings.openBeforeMinutes ? " selected" : "";
-      const label = val === 1 ? "1 minute" : `${val} minutes`;
+      const label = val === 0 ? "At start" : val === 1 ? "1 minute" : `${val} minutes`;
       return `<option value="${val}"${selected}>${label}</option>`;
     },
   ).join("");
@@ -33,7 +33,7 @@ function render(errorMessage?: string): void {
       <div class="settings-hero-icon">🎥</div>
       <div class="settings-hero-text">
         <div class="settings-hero-name">GogMeet</div>
-        <div class="settings-hero-desc">Google Meet calendar reminders</div>
+        <div class="settings-hero-desc">Calendar meeting reminders</div>
       </div>
     </div>
     <div class="settings-content">
@@ -75,7 +75,7 @@ function render(errorMessage?: string): void {
           <label class="setting-label" for="show-tomorrow-toggle">
             📅 Show Tomorrow's Meetings
           </label>
-          <span class="setting-description">Display tomorrow's meetings in the popover</span>
+          <span class="setting-description">Display tomorrow's meetings in the tray menu</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="tomorrow-save-indicator" aria-live="polite"></span>
@@ -92,12 +92,63 @@ function render(errorMessage?: string): void {
           <label class="setting-label" for="window-alert-toggle">
             🔔 Show Window Alert
           </label>
-          <span class="setting-description">Show a notification window when a meeting starts</span>
+          <span class="setting-description">Show a full-screen alert before auto-open (lead time below)</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="alert-save-indicator" aria-live="polite"></span>
           <label class="toggle-switch" role="switch" aria-checked="${settings.windowAlert ? "true" : "false"}">
             <input type="checkbox" id="window-alert-toggle" class="toggle-input"${settings.windowAlert ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="auto-open-toggle">
+            🌐 Auto-Open Browser
+          </label>
+          <span class="setting-description">Automatically open meeting links before they start</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="auto-open-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.autoOpenEnabled ? "true" : "false"}">
+            <input type="checkbox" id="auto-open-toggle" class="toggle-input"${settings.autoOpenEnabled ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="native-notif-toggle">
+            📣 OS Notifications
+          </label>
+          <span class="setting-description">Show a system notification when a meeting auto-opens</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="native-notif-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.nativeNotifications ? "true" : "false"}">
+            <input type="checkbox" id="native-notif-toggle" class="toggle-input"${settings.nativeNotifications ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
+          <label class="setting-label" for="quiet-hours-toggle">
+            🌙 Quiet Hours
+          </label>
+          <span class="setting-description">Hide alerts and notifications during quiet hours (auto-open continues)</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="quiet-hours-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.quietHoursEnabled ? "true" : "false"}">
+            <input type="checkbox" id="quiet-hours-toggle" class="toggle-input"${settings.quietHoursEnabled ? " checked" : ""} />
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
@@ -114,6 +165,9 @@ function render(errorMessage?: string): void {
   setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
   setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
   setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
+  setupToggleListener("auto-open-toggle", "autoOpenEnabled", "auto-open-save-indicator");
+  setupToggleListener("native-notif-toggle", "nativeNotifications", "native-notif-save-indicator");
+  setupToggleListener("quiet-hours-toggle", "quietHoursEnabled", "quiet-hours-save-indicator");
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -200,6 +254,12 @@ function buildTogglePatch(key: ToggleSettingKey, value: boolean): Partial<AppSet
       return { showTomorrowMeetings: value };
     case "windowAlert":
       return { windowAlert: value };
+    case "autoOpenEnabled":
+      return { autoOpenEnabled: value };
+    case "nativeNotifications":
+      return { nativeNotifications: value };
+    case "quietHoursEnabled":
+      return { quietHoursEnabled: value };
   }
 }
 

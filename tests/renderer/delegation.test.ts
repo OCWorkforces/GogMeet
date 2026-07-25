@@ -18,23 +18,23 @@ describe("event delegation", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 
-  it('clicking [data-action="join-meeting"] provides data-url to handler', () => {
+  it('clicking [data-action="join-meeting"] provides data-event-id to handler', () => {
     document.body.innerHTML =
-      '<div id="app"><button data-action="join-meeting" data-url="https://meet.google.com/abc">Join</button></div>';
+      '<div id="app"><button data-action="join-meeting" data-event-id="evt-1">Join</button></div>';
     const app = document.getElementById("app")!;
-    let capturedUrl = "";
+    let capturedId = "";
     app.addEventListener("click", (e) => {
       const target = (e.target as HTMLElement).closest<HTMLElement>(
         "[data-action]",
       );
       if (target?.dataset["action"] === "join-meeting") {
-        capturedUrl = target.dataset["url"] ?? "";
+        capturedId = target.dataset["eventId"] ?? "";
       }
     });
     document
       .querySelector<HTMLButtonElement>('[data-action="join-meeting"]')!
       .click();
-    expect(capturedUrl).toBe("https://meet.google.com/abc");
+    expect(capturedId).toBe("evt-1");
   });
 
   it("clicking outside [data-action] elements does not trigger handlers", () => {
