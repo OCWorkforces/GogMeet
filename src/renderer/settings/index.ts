@@ -33,7 +33,7 @@ function render(errorMessage?: string): void {
       <div class="settings-hero-icon">🎥</div>
       <div class="settings-hero-text">
         <div class="settings-hero-name">GogMeet</div>
-        <div class="settings-hero-desc">Google Meet calendar reminders</div>
+        <div class="settings-hero-desc">Calendar meeting reminders</div>
       </div>
     </div>
     <div class="settings-content">
@@ -75,7 +75,7 @@ function render(errorMessage?: string): void {
           <label class="setting-label" for="show-tomorrow-toggle">
             📅 Show Tomorrow's Meetings
           </label>
-          <span class="setting-description">Display tomorrow's meetings in the popover</span>
+          <span class="setting-description">Display tomorrow's meetings in the tray menu</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="tomorrow-save-indicator" aria-live="polite"></span>
@@ -92,7 +92,7 @@ function render(errorMessage?: string): void {
           <label class="setting-label" for="window-alert-toggle">
             🔔 Show Window Alert
           </label>
-          <span class="setting-description">Show a notification window when a meeting starts</span>
+          <span class="setting-description">Show a full-screen alert about one minute before auto-open</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="alert-save-indicator" aria-live="polite"></span>

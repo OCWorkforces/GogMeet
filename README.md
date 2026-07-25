@@ -10,12 +10,12 @@ GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your m
 - Opens only allowlisted HTTPS meeting hosts. Google Meet gets `authuser=<email>` and Zoom gets `uname=<email>` when the Calendar account email is available.
 - Opens browser links 1 to 5 minutes before non-all-day meetings.
 - Shows an optional secure alert window shortly before a meeting. Dismissing the alert cancels that meeting's pending browser auto-open.
-- Shows cached upcoming meetings from the tray popover, with manual refresh, settings, and app info.
+- Shows upcoming meetings from the native menu bar menu (right-click / click the tray icon), with settings and app info.
 - Displays pre-meeting and in-meeting countdown text beside the tray icon.
-- Lets you show or hide tomorrow's meetings in the tray popover.
+- Lets you show or hide tomorrow's meetings in the tray menu.
 - Can register itself as a macOS login item.
 - Opens the next upcoming meeting with a URL when you press `Cmd+Shift+M`.
-- Checks GitHub Releases for packaged app updates through `electron-updater` and installs downloaded updates on quit.
+- In packaged builds, checks GitHub Releases for updates through `electron-updater` (when release assets include updater metadata such as `latest-mac.yml`) and installs downloaded updates on quit.
 
 ## Screenshots
 
@@ -98,7 +98,7 @@ Defaults live in `src/shared/settings.ts`:
 | ---------------------- | ------- | ---------------------------------------------------------- |
 | `openBeforeMinutes`    | `1`     | Browser auto-open offset, clamped to 1–5 minutes           |
 | `launchAtLogin`        | `false` | Syncs to macOS login items                                 |
-| `showTomorrowMeetings` | `true`  | Controls whether tomorrow's events appear in the tray list |
+| `showTomorrowMeetings` | `true`  | Controls whether tomorrow's events appear in the tray menu |
 | `windowAlert`          | `true`  | Enables the pre-meeting alert window                       |
 
 ## Calendar and permissions
@@ -172,7 +172,7 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 
 1. Confirm Calendar permission in **System Settings → Privacy & Security → Calendars**.
 2. Make sure the event contains a supported meeting URL in the event URL, location, or notes field.
-3. Click the tray icon and use refresh/retry to force a poll.
+3. Click the tray icon to open the menu (or click again to force a calendar refresh).
 4. Check logs:
 
    ```bash
