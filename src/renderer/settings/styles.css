@@ -34,14 +34,14 @@
 html,
 body {
   width: 520px;
-  height: 480;
+  height: 680px;
   overflow: hidden;
   background: transparent;
 }
 
 #app {
   width: 520px;
-  height: 480;
+  height: 680px;
   background: var(--bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -119,10 +119,13 @@ body {
 /* ---- Settings content ---- */
 .settings-content {
   flex: 1;
+  min-height: 0;
   padding: 0 0 10px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 /* ---- Section heading ---- */
@@ -148,6 +151,10 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+}
+
+.setting-row + .setting-row {
+  margin-top: 6px;
 }
 
 .setting-row-inner {
