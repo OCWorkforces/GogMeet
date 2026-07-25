@@ -21,9 +21,18 @@ import {
 } from "./state/index.js";
 
 import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
-import { getLateJoinGraceMs, isLateJoinEligible } from "./late-join.js";
+import {
+  getLateJoinGraceMs,
+  isLateJoinEligible,
+  setLateJoinGraceFromSettings,
+} from "./late-join.js";
+import { isInQuietHours } from "../../shared/settings.js";
 
-export { getLateJoinGraceMs, isLateJoinEligible, _setLateJoinGraceMsForTest } from "./late-join.js";
+export {
+  getLateJoinGraceMs,
+  isLateJoinEligible,
+  _setLateJoinGraceMsForTest,
+} from "./late-join.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(settings: AppSettings): number {
@@ -55,7 +64,9 @@ function handleInProgressEvent(
   if (endMs <= now) return true;
 
   const graceMs = getLateJoinGraceMs();
-  const lateJoin = isLateJoinEligible(event, startMs, endMs, now, graceMs, s);
+  const settings = getSettings();
+  const lateJoin =
+    settings.autoOpenEnabled && isLateJoinEligible(event, startMs, endMs, now, graceMs, s);
   const hasPendingBrowserOpen = s.timers.has(event.id);
   // Preserve a pending delay-0 late-join timer across re-polls (title cancel
   // must not kill the browser timer — cancelledEvents is title-only).
@@ -76,6 +87,9 @@ function handleInProgressEvent(
   cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
 
   if (lateJoin && !s.timers.has(event.id)) {
+    const quiet =
+      settings.quietHoursEnabled &&
+      isInQuietHours(new Date(now), settings.quietHoursStart, settings.quietHoursEnd);
     scheduleBrowserTimer(
       event,
       0,
@@ -85,6 +99,9 @@ function handleInProgressEvent(
       s.timers,
       s.firedEvents,
       s.scheduledEventData,
+      {
+        nativeNotifications: settings.nativeNotifications && !quiet,
+      },
     );
   }
 
@@ -202,9 +219,12 @@ function scheduleFutureTimers(
   shouldAbort: () => boolean,
 ): void {
   const effectiveDelay = Math.max(0, delayMs);
+  const quiet =
+    settings.quietHoursEnabled &&
+    isInQuietHours(new Date(now), settings.quietHoursStart, settings.quietHoursEnd);
 
-  // Alert timer (fires 1 minute before browser timer)
-  if (settings.windowAlert && !s.alertFiredEvents.has(event.id)) {
+  // Alert timer (offset from browser open by alertLeadSeconds)
+  if (settings.windowAlert && !quiet && !s.alertFiredEvents.has(event.id)) {
     scheduleAlertTimer(
       event,
       effectiveDelay,
@@ -212,19 +232,26 @@ function scheduleFutureTimers(
       s.alertTimers,
       s.alertFiredEvents,
       shouldAbort,
+      settings.alertLeadSeconds * 1000,
+      openAtMs,
     );
   }
 
-  scheduleBrowserTimer(
-    event,
-    effectiveDelay,
-    openAtMs,
-    startMs,
-    endMs,
-    s.timers,
-    s.firedEvents,
-    s.scheduledEventData,
-  );
+  if (settings.autoOpenEnabled) {
+    scheduleBrowserTimer(
+      event,
+      effectiveDelay,
+      openAtMs,
+      startMs,
+      endMs,
+      s.timers,
+      s.firedEvents,
+      s.scheduledEventData,
+      {
+        nativeNotifications: settings.nativeNotifications && !quiet,
+      },
+    );
+  }
 
   // 30-min tray title countdown
   scheduleTitleCountdown(
@@ -242,6 +269,7 @@ function scheduleFutureTimers(
 export function scheduleEvents(events: MeetingEvent[]): void {
   const now = Date.now();
   const settings = getSettings();
+  setLateJoinGraceFromSettings(settings.lateJoinGraceMinutes);
   const activeIds = new Set<EventId>();
 
   // Capture pollEpoch so timer callbacks scheduled here can detect a

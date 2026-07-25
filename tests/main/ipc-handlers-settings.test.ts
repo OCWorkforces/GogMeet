@@ -5,11 +5,13 @@ const {
   mockGetSettings,
   mockUpdateSettings,
   mockRestartScheduler,
+  mockForcePoll,
   mockSyncAutoLaunch,
 } = vi.hoisted(() => ({
   mockGetSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockRestartScheduler: vi.fn(),
+  mockForcePoll: vi.fn(),
   mockSyncAutoLaunch: vi.fn(),
 }));
 
@@ -19,6 +21,7 @@ vi.mock("../../src/main/domain/settings.js", () => ({
 }));
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   restartScheduler: mockRestartScheduler,
+  forcePoll: mockForcePoll,
 }));
 vi.mock("../../src/main/system/auto-launch.js", () => ({
   syncAutoLaunch: mockSyncAutoLaunch,

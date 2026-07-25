@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMockSettings } from "../helpers/test-utils.js";
+import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 
 // Use vi.hoisted for mock functions used in vi.mock factories
 const {
@@ -39,11 +40,18 @@ const {
   mockSetSchedulerWindow: vi.fn(),
   mockSetTrayTitleCallback: vi.fn(),
   mockGetSettings: vi.fn().mockReturnValue({
-    schemaVersion: 1,
+    schemaVersion: 2,
     openBeforeMinutes: 1,
     launchAtLogin: false,
     showTomorrowMeetings: true,
     windowAlert: true,
+    autoOpenEnabled: true,
+    alertLeadSeconds: 60,
+    nativeNotifications: true,
+    lateJoinGraceMinutes: 0,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
   }),
   mockLoadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
   mockSyncAutoLaunch: vi.fn(),

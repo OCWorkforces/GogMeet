@@ -54,7 +54,7 @@ describe("scheduleAlertTimer", () => {
     scheduleAlertTimer(event, delay, Date.now() + 30 * 60_000, alertTimers, alertFiredEvents);
 
     vi.advanceTimersByTime(delay);
-    expect(showAlert).toHaveBeenCalledWith(event);
+    expect(showAlert).toHaveBeenCalledWith(event, undefined);
   });
 
   it("calls showAlert for events without meetUrl", () => {
@@ -63,7 +63,7 @@ describe("scheduleAlertTimer", () => {
     scheduleAlertTimer(event, delay, Date.now() + 30 * 60_000, alertTimers, alertFiredEvents);
 
     vi.advanceTimersByTime(delay);
-    expect(showAlert).toHaveBeenCalledWith(event);
+    expect(showAlert).toHaveBeenCalledWith(event, undefined);
     expect(event.meetUrl).toBeUndefined();
   });
 

@@ -14,6 +14,10 @@ export function notificationBodyForOpen(startMs: number, nowMs: number = Date.no
   return `Starting in ${mins} min`;
 }
 
+export interface BrowserTimerOptions {
+  nativeNotifications?: boolean;
+}
+
 /**
  * Schedule a browser-open timer for a meeting event.
  * Shows a notification and opens the meeting URL when the timer fires.
@@ -27,7 +31,9 @@ export function scheduleBrowserTimer(
   timers: Map<EventId, ReturnType<typeof setTimeout>>,
   firedEvents: Map<EventId, number>,
   scheduledEventData: Map<EventId, ScheduledEventSnapshot>,
+  options: BrowserTimerOptions = {},
 ): void {
+  const showNativeNotification = options.nativeNotifications !== false;
   const handle = setTimeout(() => {
     if (timers.get(event.id) !== handle) return;
     timers.delete(event.id);
@@ -39,13 +45,15 @@ export function scheduleBrowserTimer(
       return;
     }
     firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
-    try {
-      new Notification({
-        title: event.title,
-        body: notificationBodyForOpen(startMs, now),
-      }).show();
-    } catch {
-      console.warn(`[scheduler] Notification denied for "${event.title}"`);
+    if (showNativeNotification) {
+      try {
+        new Notification({
+          title: event.title,
+          body: notificationBodyForOpen(startMs, now),
+        }).show();
+      } catch {
+        console.warn(`[scheduler] Notification denied for "${event.title}"`);
+      }
     }
     // Open browser for meetings with a URL (suppressed when alert is dismissed via cancelPendingBrowserOpen)
     if (!event.meetUrl) {

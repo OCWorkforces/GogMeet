@@ -22,7 +22,20 @@ describe("settings/index.ts", () => {
     vi.resetModules();
     vi.stubGlobal("api", {
       settings: {
-        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({ ...DEFAULT_SETTINGS }),
+        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({
+    schemaVersion: 2,
+    openBeforeMinutes: 1,
+    launchAtLogin: false,
+    showTomorrowMeetings: true,
+    windowAlert: true,
+    autoOpenEnabled: true,
+    alertLeadSeconds: 60,
+    nativeNotifications: true,
+    lateJoinGraceMinutes: 0,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+  }),
         set: setSettings,
       },
     });
@@ -115,16 +128,16 @@ describe("settings/index.ts", () => {
 });
 
 describe("settings constants", () => {
-  it("OPEN_BEFORE_MINUTES_MIN is 1", async () => {
+  it("OPEN_BEFORE_MINUTES_MIN is 0", async () => {
     expect(
       (await import("../../src/shared/settings.js")).OPEN_BEFORE_MINUTES_MIN,
-    ).toBe(1);
+    ).toBe(0);
   });
 
-  it("OPEN_BEFORE_MINUTES_MAX is 5", async () => {
+  it("OPEN_BEFORE_MINUTES_MAX is 10", async () => {
     expect(
       (await import("../../src/shared/settings.js")).OPEN_BEFORE_MINUTES_MAX,
-    ).toBe(5);
+    ).toBe(10);
   });
 
   it("range produces 5 options", () => {
