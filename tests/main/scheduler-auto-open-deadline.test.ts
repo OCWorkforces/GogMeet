@@ -176,7 +176,8 @@ describe("scheduler browser auto-open deadline", () => {
 
     expect(buildMeetUrl).not.toHaveBeenCalled();
     expect(openMeetingUrl).not.toHaveBeenCalled();
-    expect(firedEvents.has(event.id)).toBe(false);
+    // Past start with grace 0: mark fired so we do not reschedule storms
+    expect(firedEvents.has(event.id)).toBe(true);
     expect(timers.has(event.id)).toBe(false);
   });
 });

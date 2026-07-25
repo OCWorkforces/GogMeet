@@ -4,6 +4,15 @@ import type { EventId } from "../../shared/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import type { ScheduledEventSnapshot } from "./state/index.js";
 import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
+import { getLateJoinGraceMs } from "./late-join.js";
+
+/** Human-readable notification body based on minutes until meeting start. */
+export function notificationBodyForOpen(startMs: number, nowMs: number = Date.now()): string {
+  const mins = Math.max(0, Math.round((startMs - nowMs) / 60_000));
+  if (mins <= 0) return "Starting now";
+  if (mins === 1) return "Starting in 1 min";
+  return `Starting in ${mins} min`;
+}
 
 /**
  * Schedule a browser-open timer for a meeting event.
@@ -22,12 +31,18 @@ export function scheduleBrowserTimer(
   const handle = setTimeout(() => {
     if (timers.get(event.id) !== handle) return;
     timers.delete(event.id);
-    if (Date.now() >= startMs) return;
+    const now = Date.now();
+    const graceMs = getLateJoinGraceMs();
+    // Past grace window after start: mark fired, do not open
+    if (now >= startMs + graceMs) {
+      firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
+      return;
+    }
     firedEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
     try {
       new Notification({
         title: event.title,
-        body: "Starting now",
+        body: notificationBodyForOpen(startMs, now),
       }).show();
     } catch {
       console.warn(`[scheduler] Notification denied for "${event.title}"`);

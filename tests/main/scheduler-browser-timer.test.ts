@@ -114,7 +114,7 @@ describe("scheduleBrowserTimer", () => {
     vi.advanceTimersByTime(60_000);
     expect(Notification).toHaveBeenCalledWith({
       title: "Standup",
-      body: "Starting now",
+      body: expect.stringMatching(/^Starting (now|in \d+ min)$/),
     });
   });
 

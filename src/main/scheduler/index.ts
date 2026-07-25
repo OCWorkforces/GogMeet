@@ -21,6 +21,9 @@ import {
 } from "./state/index.js";
 
 import { resolveActiveInMeetingEvent, startInMeetingCountdown } from "./countdown.js";
+import { getLateJoinGraceMs, isLateJoinEligible } from "./late-join.js";
+
+export { getLateJoinGraceMs, isLateJoinEligible, _setLateJoinGraceMsForTest } from "./late-join.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(settings: AppSettings): number {
@@ -33,7 +36,7 @@ const MAX_SCHEDULE_AHEAD_MS = 24 * 60 * 60 * 1000; // 24 hours
 /**
  * Handle an event whose start time is in the past.
  * If the meeting is still in progress, starts the in-meeting countdown
- * and cleans up any pending future timers.
+ * and optionally arms a late-join browser open.
  * Returns true if the event was handled (caller should `continue`).
  */
 function handleInProgressEvent(
@@ -51,10 +54,39 @@ function handleInProgressEvent(
   // Meeting already ended
   if (endMs <= now) return true;
 
-  // Clean up any pending future timers (e.g., event rescheduled to past).
-  cancelBrowserTimer(event.id, s.timers);
+  const graceMs = getLateJoinGraceMs();
+  const lateJoin = isLateJoinEligible(event, startMs, endMs, now, graceMs, s);
+  const hasPendingBrowserOpen = s.timers.has(event.id);
+  // Preserve a pending delay-0 late-join timer across re-polls (title cancel
+  // must not kill the browser timer — cancelledEvents is title-only).
+  const preserveBrowserTimer =
+    lateJoin ||
+    (hasPendingBrowserOpen &&
+      !s.firedEvents.has(event.id) &&
+      graceMs > 0 &&
+      startMs <= now &&
+      now < startMs + graceMs &&
+      !!event.meetUrl &&
+      !event.isAllDay);
+
+  if (!preserveBrowserTimer) {
+    cancelBrowserTimer(event.id, s.timers);
+  }
   cancelAlertTimer(event.id, s.alertTimers);
   cancelTitleCountdown(event.id, s.titleTimers, s.countdownIntervals, s.clearTimers);
+
+  if (lateJoin && !s.timers.has(event.id)) {
+    scheduleBrowserTimer(
+      event,
+      0,
+      startMs,
+      startMs,
+      endMs,
+      s.timers,
+      s.firedEvents,
+      s.scheduledEventData,
+    );
+  }
 
   // Meeting in progress — start in-meeting countdown
   activeIds.add(event.id);
