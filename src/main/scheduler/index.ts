@@ -28,11 +28,7 @@ import {
 } from "./late-join.js";
 import { isInQuietHours } from "../../shared/settings.js";
 
-export {
-  getLateJoinGraceMs,
-  isLateJoinEligible,
-  _setLateJoinGraceMsForTest,
-} from "./late-join.js";
+export { getLateJoinGraceMs, isLateJoinEligible, _setLateJoinGraceMsForTest } from "./late-join.js";
 
 /** Get milliseconds before meeting start to open browser, based on settings */
 function getOpenBeforeMs(settings: AppSettings): number {

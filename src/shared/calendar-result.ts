@@ -19,11 +19,7 @@ export interface CalendarResultOk {
 }
 
 /** Stable error codes for calendar fetch failures (maps from Swift exit / AppError). */
-export type CalendarErrorCode =
-  | "permission-denied"
-  | "no-calendars"
-  | "runtime"
-  | "unknown";
+export type CalendarErrorCode = "permission-denied" | "no-calendars" | "runtime" | "unknown";
 
 /** Failed calendar fetch — error message and structured code for UI branching */
 export interface CalendarResultErr {

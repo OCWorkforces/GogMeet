@@ -20,8 +20,7 @@ function render(errorMessage?: string): void {
     (_, i) => {
       const val = OPEN_BEFORE_MINUTES_MIN + i;
       const selected = val === settings.openBeforeMinutes ? " selected" : "";
-      const label =
-        val === 0 ? "At start" : val === 1 ? "1 minute" : `${val} minutes`;
+      const label = val === 0 ? "At start" : val === 1 ? "1 minute" : `${val} minutes`;
       return `<option value="${val}"${selected}>${label}</option>`;
     },
   ).join("");

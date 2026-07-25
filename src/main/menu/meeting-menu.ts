@@ -31,10 +31,7 @@ function statusRows(status: CalendarStatus): MenuItemConstructorOptions[] {
     ];
   }
   if (status.code === "no-calendars") {
-    return [
-      { label: "No calendars available", enabled: false },
-      { type: "separator" },
-    ];
+    return [{ label: "No calendars available", enabled: false }, { type: "separator" }];
   }
   return [
     {

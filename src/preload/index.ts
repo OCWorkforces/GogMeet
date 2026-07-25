@@ -57,9 +57,7 @@ const api = {
   },
 
   app: {
-    openExternal: (
-      url: string,
-    ): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
+    openExternal: (url: string): Promise<IpcResponse<typeof IPC_CHANNELS.APP_OPEN_EXTERNAL>> => {
       const branded = brandMeetUrl(url);
       if (branded === null) {
         return Promise.resolve(err("Invalid or disallowed URL") as Result<void, string>);

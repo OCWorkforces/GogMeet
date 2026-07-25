@@ -13,8 +13,7 @@ export function registerCalendarHandlers(): void {
     async (
       event: IpcMainInvokeEvent,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
-      if (!validateSender(event))
-        return { kind: "err", error: "unauthorized", code: "unknown" };
+      if (!validateSender(event)) return { kind: "err", error: "unauthorized", code: "unknown" };
       try {
         return await getCalendarEventsResult();
       } catch (err) {

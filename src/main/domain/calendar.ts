@@ -1,7 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { formatAppError, isSwiftNoCalendars, isSwiftPermissionDenied } from "../../shared/errors.js";
+import {
+  formatAppError,
+  isSwiftNoCalendars,
+  isSwiftPermissionDenied,
+} from "../../shared/errors.js";
 import type {
   CalendarErrorCode,
   CalendarPermission,
