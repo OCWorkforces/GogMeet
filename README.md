@@ -94,12 +94,18 @@ Runtime files worth knowing:
 
 Defaults live in `src/shared/settings.ts`:
 
-| Setting                | Default | Notes                                                      |
-| ---------------------- | ------- | ---------------------------------------------------------- |
-| `openBeforeMinutes`    | `1`     | Browser auto-open offset, clamped to 1–5 minutes           |
-| `launchAtLogin`        | `false` | Syncs to macOS login items                                 |
-| `showTomorrowMeetings` | `true`  | Controls whether tomorrow's events appear in the tray menu |
-| `windowAlert`          | `true`  | Enables the pre-meeting alert window                       |
+| Setting                  | Default | Notes                                                                 |
+| ------------------------ | ------- | --------------------------------------------------------------------- |
+| `openBeforeMinutes`      | `1`     | Browser auto-open offset, clamped to 0–10 minutes (`0` = at start)    |
+| `launchAtLogin`          | `false` | Syncs to macOS login items                                            |
+| `showTomorrowMeetings`   | `true`  | Controls whether tomorrow's events appear in the tray menu            |
+| `windowAlert`            | `true`  | Enables the pre-meeting alert window                                  |
+| `autoOpenEnabled`        | `true`  | Arms browser auto-open for timed meetings with URLs                   |
+| `alertLeadSeconds`       | `60`    | Alert fires this many seconds before browser open                     |
+| `nativeNotifications`    | `true`  | OS Notification when a meeting auto-opens                             |
+| `lateJoinGraceMinutes`   | `0`     | Optional post-start auto-open window (`0` = off)                      |
+| `quietHoursEnabled`      | `false` | Suppress alert + notifications; auto-open continues                   |
+| `quietHoursStart`/`End`  | `22:00`/`07:00` | Local quiet window (supports midnight wrap)                     |
 
 ## Calendar and permissions
 

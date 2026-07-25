@@ -15,6 +15,13 @@ export default defineConfig({
             reporter: ['text', 'json-summary'],
             include: ['src/main/**/*.ts'],
             exclude: ['src/main/**/*.d.ts', 'src/main/**/*.swift'],
+            // Soft floors to catch large regressions; raise over time.
+            thresholds: {
+              lines: 60,
+              functions: 55,
+              branches: 45,
+              statements: 60,
+            },
           },
         },
       },

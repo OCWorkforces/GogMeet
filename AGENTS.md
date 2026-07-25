@@ -128,20 +128,20 @@ bun run clean            # remove lib/ and dist/
 
 ## CI / PACKAGING
 
-- PR workflow: macOS, Bun install, `typecheck`, `test`, `test:coverage`; separate Node 26 job runs `validate:node`. It does not run lint/format or a dirty-tree/icon diff guard after icon generation.
-- Release workflow: runs on `main` and `v*` tags, sets up Bun + Node 26, runs `bun run build`, creates `v$(package.json.version)` tag on `main` when missing, then `bun run package` builds again and uploads `dist/*.dmg` / `dist/*.zip`.
-- `electron-builder.yml`: output `dist/`, resources `build/`, macOS 11+, deterministic `GogMeet-${version}-${arch}.${ext}` DMG/ZIP targets for `arm64` and `x64`, `mergeASARs: false`, `hardenedRuntime: true`, built-in `mac.notarize: true`, `gatekeeperAssess: false`, and DMG `sign: false`.
-- `build/after-pack.cjs` is the only packaging hook. Electron Builder owns app signing and notarization; the app is stapled before its DMG/ZIP containers are created.
+- PR workflow (`.github/workflows/pr-check.yml`): macOS, Bun install, `lint`, `format:check`, `typecheck`, `build`, `test:coverage`, related tests for changed `src/**/*.ts`; separate Node 26 job runs `validate:node` and fails on icon drift (`git diff --exit-code`).
+- Release workflow: on `main` may create `v$(package.json.version)` when missing; tag `v*` runs require `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, then `bun run package` once, `verify:macos-release`, and upload DMG/ZIP + `SHA256SUMS.txt`.
+- `electron-builder.yml`: output `dist/`, macOS 11+, arm64+x64 DMG/ZIP, `mergeASARs: false`, `hardenedRuntime: true`, `mac.notarize: false` (custom afterSign owns notarize), `gatekeeperAssess: false`, DMG `sign: false`, GitHub `publish` for electron-updater.
+- Packaging hooks: `afterPack: build/after-pack.cjs` (optimize); `afterSign: build/notarize.cjs` (notarytool + staple + validate). Env prefers `APPLE_APP_SPECIFIC_PASSWORD`.
 
 ## NOTES
 
 - EventKit permission is requested on first access; lifecycle invalidates the cached permission state on resume/unlock before scheduler restart.
 - Swift helper cache: `/tmp/googlemeet/googlemeet-events` plus `/tmp/googlemeet/source.hash`, mode `0o700`, hash-keyed.
-- Swift one-shot exit codes: `0` success, `2` permission denied, `3` no calendars, `4` runtime/helper error. Verify production classification before assuming every helper exit maps to structured `AppError`.
+- Swift one-shot exit codes: `0` success, `2` permission denied, `3` no calendars, `4` runtime/helper error. Production `runSwiftHelper` classifies 2/3/4 via `classifySwiftError` without recompile; `CalendarResultErr.code` carries the structured code.
 - Swift output protocol: one JSON array line of exactly nine strings ordered as `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
 - Official releases are created only from `v${package.json.version}` tags. The tag workflow requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`; local `bun run package` remains allowed without them.
 - Official release verification mounts DMGs and extracts ZIPs, then validates each contained app. The app is signed, notarized, and stapled; a DMG and ZIP are containers and must not be described as stapled/notarized themselves.
-- Auto-open applies to non-all-day future meetings, 1-5 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists.
-- Full-screen alert fires 60s before browser auto-open, clamped to now; dismissing it cancels that event's pending browser open.
+- Auto-open applies to non-all-day future meetings when `autoOpenEnabled`; open offset is 0–10 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists. Manual joins go through `joinMeetingById` and mark the event opened.
+- Full-screen alert fires `alertLeadSeconds` (default 60s) before browser auto-open; Join uses EventId IPC; dismissing cancels that event's pending browser open.
 - Scheduler polling: 2 min on AC, 4 min on battery; `forcePoll()` coalesces within 10s by scheduling one deferred follow-up, not by dropping every request.
 - Supported extracted meeting URLs today: Google Meet, Zoom (including `.zoom.us` subdomains), and Calendly wrappers. Add new wrappers by updating Swift extraction, main/preload allowlists, and tests together.
