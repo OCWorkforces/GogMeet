@@ -29,6 +29,7 @@ import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
 import { ensureBinary } from "../swift/binary-manager.js";
 import { startCalendarWatcher, stopCalendarWatcher } from "../domain/calendar-watcher.js";
+import { initAutoUpdater } from "../system/auto-updater.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -130,6 +131,11 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     tryRun("syncAutoLaunch", () => {
       const settings = getSettings();
       syncAutoLaunch(settings.launchAtLogin);
+    });
+
+    // Packaged builds only — no-ops when unpackaged (see auto-updater.ts)
+    tryRun("initAutoUpdater", () => {
+      initAutoUpdater();
     });
 
     if (errors.length > 0) {

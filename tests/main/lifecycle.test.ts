@@ -27,6 +27,7 @@ const {
   mockGetCalendarEventsResult,
   mockInvalidateCalendarPermissionCache,
   mockInitPowerCallbacks,
+  mockInitAutoUpdater,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -58,6 +59,7 @@ const {
   mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
+  mockInitAutoUpdater: vi.fn(),
 }))
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -112,6 +114,10 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   setTrayTitleCallback: mockSetTrayTitleCallback,
 }));
 
+vi.mock("../../src/main/system/auto-updater.js", () => ({
+  initAutoUpdater: mockInitAutoUpdater,
+}));
+
 import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
 
 const mockWindow = {} as unknown as import("electron").BrowserWindow;
@@ -155,6 +161,9 @@ describe("lifecycle", () => {
 
       // Auto-launch synced with settings
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(false);
+
+      // Auto-updater wired for packaged builds (module no-ops when unpackaged)
+      expect(mockInitAutoUpdater).toHaveBeenCalledOnce();
     });
 
     it("requests calendar permission when not determined", async () => {
