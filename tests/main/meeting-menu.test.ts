@@ -8,6 +8,14 @@ vi.mock("../../src/main/utils/join-meeting.js", () => ({
   joinMeetingById: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  forcePoll: vi.fn(),
+}));
+
+vi.mock("../../src/main/utils/system-settings.js", () => ({
+  openSystemSettings: vi.fn(),
+}));
+
 // Fixed "now" for deterministic tests: 2026-04-08 at 14:00 local time
 const NOW = new Date("2026-04-08T14:00:00");
 
@@ -448,6 +456,103 @@ describe("buildMeetingMenuTemplate", () => {
       const settingsIdx = items.findIndex((i) => i.label === "Settings...");
       expect(settingsIdx).toBeGreaterThan(0);
       expect(items[settingsIdx - 1]).toEqual({ type: "separator" });
+    });
+  });
+
+  // ─── Primary actions (Refresh / Join Next / Copy Link / status) ───
+  describe("primary tray actions", () => {
+    it("includes Refresh, Join Next, Settings, About, Quit in the footer", () => {
+      const event = makeEvent({
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
+
+      expect(findItem(items, "Join Next Meeting")).toBeDefined();
+      expect(findItem(items, "Join Next Meeting")?.enabled).toBe(true);
+      expect(findItem(items, "Refresh")).toBeDefined();
+      expect(findItem(items, "Settings...")).toBeDefined();
+      expect(findItem(items, "About GogMeet")).toBeDefined();
+      expect(findItem(items, "Quit")).toBeDefined();
+    });
+
+    it("Join Next Meeting joins the earliest upcoming event id", () => {
+      const later = makeEvent({
+        id: "later",
+        title: "Later",
+        startDate: todayAt(17, 0).toISOString(),
+        endDate: todayAt(18, 0).toISOString(),
+      });
+      const sooner = makeEvent({
+        id: "sooner",
+        title: "Sooner",
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([later, sooner], true, { onAbout, onOpenSettings });
+      const joinNext = findItem(items, "Join Next Meeting");
+      joinNext?.click?.(
+        {} as Electron.MenuItem,
+        undefined,
+        {} as Electron.KeyboardEvent,
+      );
+      expect(joinMeetingById).toHaveBeenCalledWith("sooner");
+    });
+
+    it("disables Join Next Meeting when no joinable URLs exist", () => {
+      const event = makeEvent({
+        meetUrl: undefined,
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
+      expect(findItem(items, "Join Next Meeting")?.enabled).toBe(false);
+    });
+
+    it("Copy Link writes the built meet URL to the clipboard", async () => {
+      const { clipboard } = await import("electron");
+      const writeText = vi.mocked(clipboard.writeText);
+      writeText.mockClear();
+
+      const event = makeEvent({
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+        meetUrl: "https://meet.google.com/abc-def-ghi",
+      });
+      const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
+      const meetingItem = findItemContaining(items, "Standup");
+      const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
+      const copy = submenu?.find((i) => i.label === "Copy Link");
+      copy?.click?.(
+        {} as Electron.MenuItem,
+        undefined,
+        {} as Electron.KeyboardEvent,
+      );
+      expect(writeText).toHaveBeenCalled();
+      expect(String(writeText.mock.calls[0]?.[0])).toContain("meet.google.com");
+    });
+
+    it("Refresh calls forcePoll", async () => {
+      const { forcePoll } = await import("../../src/main/scheduler/facade.js");
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
+      const refresh = findItem(items, "Refresh");
+      refresh?.click?.(
+        {} as Electron.MenuItem,
+        undefined,
+        {} as Electron.KeyboardEvent,
+      );
+      expect(forcePoll).toHaveBeenCalled();
+    });
+
+    it("shows permission-denied status row", () => {
+      const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings }, {
+        kind: "err",
+        error: "denied",
+        code: "permission-denied",
+        updatedAt: Date.now(),
+      });
+      expect(findItem(items, "Calendar access denied")).toBeDefined();
+      expect(findItem(items, "Open Calendar Privacy Settings…")).toBeDefined();
     });
   });
 });
