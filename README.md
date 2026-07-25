@@ -1,6 +1,6 @@
 # GogMeet
 
-GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your macOS Calendar through a Swift EventKit helper, lists upcoming meetings from the tray, opens meeting links before they start, and can show a focused alert window when a meeting is close.
+GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your macOS Calendar through a Swift EventKit helper, lists upcoming meetings from the **native tray menu**, opens meeting links before they start, and can show a focused alert window when a meeting is close.
 
 ## Features
 
@@ -8,24 +8,27 @@ GogMeet is a macOS menu bar app for calendar meeting reminders. It checks your m
 - Reads today's and tomorrow's Calendar events from EventKit, skipping cancelled and declined meetings.
 - Finds Google Meet, Zoom, and Calendly links in an event's URL, location, or notes.
 - Opens only allowlisted HTTPS meeting hosts. Google Meet gets `authuser=<email>` and Zoom gets `uname=<email>` when the Calendar account email is available.
-- Opens browser links 1 to 5 minutes before non-all-day meetings.
-- Shows an optional secure alert window shortly before a meeting. Dismissing the alert cancels that meeting's pending browser auto-open.
-- Shows upcoming meetings from the native menu bar menu (right-click / click the tray icon), with settings and app info.
-- Displays pre-meeting and in-meeting countdown text beside the tray icon.
-- Lets you show or hide tomorrow's meetings in the tray menu.
+- Auto-opens browser links 0–10 minutes before non-all-day meetings (default 1 minute; `0` means at start). Can be turned off in Settings.
+- Optional full-screen alert before auto-open (lead time configurable). **Join** opens the meeting; **Dismiss** cancels that meeting's pending browser auto-open.
+- Optional OS notifications when a meeting auto-opens; quiet hours can silence alerts and notifications without blocking auto-open.
+- Native tray menu: Join, Copy Link, Join Next, Refresh, Settings, and About. Pre- and in-meeting countdown text beside the tray icon.
+- Show or hide tomorrow's meetings in the tray menu.
 - Can register itself as a macOS login item.
-- Opens the next upcoming meeting with a URL when you press `Cmd+Shift+M`.
-- In packaged builds, checks GitHub Releases for updates through `electron-updater` (when release assets include updater metadata such as `latest-mac.yml`) and installs downloaded updates on quit.
+- Opens the current in-progress meeting if one is joinable, otherwise the next upcoming meeting, with `Cmd+Shift+M`.
+- Packaged builds can check GitHub Releases for updates through `electron-updater` (when release assets include updater metadata such as `latest-mac.yml`) and install downloaded updates on quit.
 
 ## Screenshots
 
 ![Settings](assets/setting-page.png)
 
-_Settings for auto-open timing, launch at login, tomorrow's meetings, and alert behavior._
+_Settings for auto-open timing, launch at login, tomorrow's meetings, alert, notifications, and quiet hours._
 
 ## Download
 
-Grab the latest packaged build from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
+- **Official (Latest):** [GitHub Releases](https://github.com/OCWorkforces/GogMeet/releases) — signed and notarized builds from `main` / version tags.
+- **Beta (pre-release):** same page, filter **Pre-release** — auto-built from `develop` as `vX.Y.Z-beta-N` (for example `v1.16.0-beta-1`). Prefer the DMG for your architecture (`arm64` Apple Silicon, `x64` Intel).
+
+Unsigned or ad-hoc beta builds may be blocked by Gatekeeper; see [Troubleshooting](#troubleshooting).
 
 ## Requirements
 
@@ -77,39 +80,39 @@ GogMeet keeps Electron's main, preload, renderer, and shared code separate:
 | -------- | ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
 | Main     | `src/main/index.ts`    | `lib/main/index.cjs`    | App lifecycle, tray, scheduler, secure windows, IPC handlers, Calendar/EventKit integration |
 | Preload  | `src/preload/index.ts` | `lib/preload/index.cjs` | Sandboxed `window.api` context bridge                                                       |
-| Renderer | `src/renderer/`        | `lib/renderer/`         | Vanilla TypeScript UI for popover, settings, and alert pages                                |
-| Shared   | `src/shared/`          | Bundled into consumers  | Branded types, settings, IPC contracts, errors, and pure utilities                          |
+| Renderer | `src/renderer/`        | `lib/renderer/`         | Vanilla TypeScript UI for list, settings, and alert pages                                   |
+| Shared   | `src/shared/`          | Bundled into consumers  | Branded types, settings, IPC contracts, allowlist, errors, and pure utilities               |
 
 Runtime files worth knowing:
 
-- `src/main/domain/calendar.ts` calls the Swift integration and returns typed `CalendarResult` values.
+- `src/main/domain/calendar.ts` calls the Swift integration and returns typed `CalendarResult` values (errors include a structured `code`).
 - `src/main/googlemeet-events.swift` queries EventKit for a two-day range starting today and prints one JSON array of 9 strings per event line.
 - `src/main/swift/` compiles and caches the Swift helper in `/tmp/googlemeet/`, keyed by the Swift source hash.
 - `src/main/scheduler/facade.ts` is the public scheduler API. Polling runs every 2 minutes on AC power and every 4 minutes on battery; force polls coalesce within 10 seconds.
-- `src/main/scheduler/` schedules browser-open timers, alert timers, and tray countdowns.
-- `src/main/utils/url-validation.ts` owns the meeting URL allowlist.
+- `src/main/utils/join-meeting.ts` is the shared join path (menu, hotkey, renderer, alert): build identity URL, open, mark opened.
+- `src/shared/meet-url-allowlist.ts` is the hostname allowlist source of truth; main re-validates at egress.
 - `src/main/utils/browser-window.ts` centralizes secure BrowserWindow defaults (`sandbox`, `contextIsolation`, no Node integration).
 
 ## Settings
 
-Defaults live in `src/shared/settings.ts`:
+Defaults live in `src/shared/settings.ts` (schema version 2):
 
-| Setting                  | Default | Notes                                                                 |
-| ------------------------ | ------- | --------------------------------------------------------------------- |
-| `openBeforeMinutes`      | `1`     | Browser auto-open offset, clamped to 0–10 minutes (`0` = at start)    |
-| `launchAtLogin`          | `false` | Syncs to macOS login items                                            |
-| `showTomorrowMeetings`   | `true`  | Controls whether tomorrow's events appear in the tray menu            |
-| `windowAlert`            | `true`  | Enables the pre-meeting alert window                                  |
-| `autoOpenEnabled`        | `true`  | Arms browser auto-open for timed meetings with URLs                   |
-| `alertLeadSeconds`       | `60`    | Alert fires this many seconds before browser open                     |
-| `nativeNotifications`    | `true`  | OS Notification when a meeting auto-opens                             |
-| `lateJoinGraceMinutes`   | `0`     | Optional post-start auto-open window (`0` = off)                      |
-| `quietHoursEnabled`      | `false` | Suppress alert + notifications; auto-open continues                   |
-| `quietHoursStart`/`End`  | `22:00`/`07:00` | Local quiet window (supports midnight wrap)                     |
+| Setting                 | Default         | Notes                                                              |
+| ----------------------- | --------------- | ------------------------------------------------------------------ |
+| `openBeforeMinutes`     | `1`             | Browser auto-open offset, clamped to 0–10 minutes (`0` = at start) |
+| `launchAtLogin`         | `false`         | Syncs to macOS login items                                         |
+| `showTomorrowMeetings`  | `true`          | Controls whether tomorrow's events appear in the tray menu         |
+| `windowAlert`           | `true`          | Enables the pre-meeting alert window                               |
+| `autoOpenEnabled`       | `true`          | Arms browser auto-open for timed meetings with URLs                |
+| `alertLeadSeconds`      | `60`            | Alert fires this many seconds before browser open                  |
+| `nativeNotifications`   | `true`          | OS Notification when a meeting auto-opens                          |
+| `lateJoinGraceMinutes`  | `0`             | Optional post-start auto-open window (`0` = off)                   |
+| `quietHoursEnabled`     | `false`         | Suppress alert + notifications; auto-open continues                |
+| `quietHoursStart`/`End` | `22:00` / `07:00` | Local quiet window (supports midnight wrap)                      |
 
 ## Calendar and permissions
 
-GogMeet asks for Calendar access the first time it needs events. If macOS denies permission, the fetch returns a typed Calendar error and the UI shows the permission state.
+GogMeet asks for Calendar access the first time it needs events. If macOS denies permission, the fetch returns a typed Calendar error and the tray menu can show a permission-denied row with a link to Calendar privacy settings.
 
 The Swift helper prints one JSON array of exactly nine strings per line (JSON Lines):
 
@@ -131,12 +134,29 @@ Swift helper exit codes:
 Build packaged macOS artifacts with Electron Builder:
 
 ```bash
-bun run package      # Build + package DMG and ZIP targets
+bun run package      # Build + package DMG and ZIP targets (--publish never)
 bun run package:dir  # Build + create unpacked macOS app directory
 bun run verify:macos-release  # Verify a signed, notarized official release on macOS
 ```
 
-`electron-builder.yml` creates deterministic `GogMeet-${version}-${arch}.${ext}` DMG and ZIP targets for both `arm64` and `x64`, writes artifacts to `dist/`, enables the hardened runtime and built-in app notarization, and keeps `src/main/googlemeet-events.swift` unpacked from ASAR so `swiftc` can read it. Local packaging remains usable without Apple release secrets; the official tag workflow does not.
+### Hardened runtime (keep enabled)
+
+`electron-builder.yml` sets **`hardenedRuntime: true`**. Keep it on.
+
+| Build type | Hardened runtime | What you need |
+| --- | --- | --- |
+| Local / CI without Apple secrets | Still `true` in config | Package skips Developer ID signing and notarize; Gatekeeper may block install — OK for development |
+| Official / signed beta | Required | Developer ID (`CSC_LINK`, `CSC_KEY_PASSWORD`) + notarize env (`APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`) |
+
+Hardened runtime is a **code-signing flag for distribution**, not what blocks unsigned apps on other Macs. Gatekeeper cares about **Developer ID signature + notarization**. Turning hardened runtime off does not make unsigned DMGs freely installable, and it would break notarization and `verify:macos-release` later.
+
+### Notarization and publish
+
+- **Notarize owner:** custom `afterSign` hook `build/notarize.cjs` (notarytool + staple + validate). `mac.notarize` stays `false` so Electron Builder and the hook do not double-notarize.
+- Without Apple secrets, the hook logs a skip and packaging continues.
+- **`package` / `package:dir` use `--publish never`.** GitHub upload is done by CI (`softprops/action-gh-release`), not by electron-builder during package. The `publish` block in `electron-builder.yml` is metadata for `electron-updater`, not a CI upload step.
+- Swift source stays in `asarUnpack` so `swiftc` can read it at runtime.
+- Artifact names: `GogMeet-${version}-${arch}.{dmg,zip}` under `dist/`.
 
 There is also a local Apple Silicon DMG helper:
 
@@ -150,36 +170,38 @@ The helper script installs dependencies, cleans `dist/`, builds the app, package
 
 ## Release and CI
 
-- PR checks run on macOS for pushes and pull requests to `develop` and `main`: the `check` job runs lint, formatting, type checking, a production build, and coverage; the Node 26 job validates generated icon drift.
-- **Beta pre-releases:** every push to `develop` (including merged PRs) runs `.github/workflows/beta-release.yml`. It publishes a GitHub **pre-release** with arm64/x64 DMG and ZIP assets. Tags are auto-incremented as `v${package.json.version}-beta-1`, `v${package.json.version}-beta-2`, and so on (for example `v1.16.0-beta-1`). The app version embedded in the build is `${version}-beta.N` (for example `1.16.0-beta.1`). If Apple signing/notarize secrets are configured, the beta is signed and notarized; otherwise the pipeline still packages and uploads (Gatekeeper may block casual installs).
-- **Official releases:** a `main` push only creates and pushes `v${package.json.version}` when it does not already exist. The separate `v*` tag run installs, requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`, runs `bun run package` once, verifies the containers, writes `SHA256SUMS.txt`, then uploads exactly arm64/x64 DMG/ZIP files plus that checksum file and marks the release as Latest.
-- The official verifier mounts each DMG and extracts each ZIP to inspect the contained app. It validates signing, hardened runtime, Gatekeeper assessment, app stapling, entitlements, Swift-source packaging, and a native-architecture Swift smoke. The app is notarized and stapled before its containers are created; neither the ZIP nor the unsigned DMG container should be described as stapled or notarized.
+- **PR checks** (`.github/workflows/pr-check.yml`) run on macOS for pushes and pull requests to `develop` and `main`: lint, formatting, typecheck, production build, coverage; a separate Node 26 job validates generated icon drift.
+- **Beta pre-releases** (`.github/workflows/beta-release.yml`): every push to `develop` publishes a GitHub **pre-release** with arm64/x64 DMG and ZIP. Tags auto-increment as `v${package.json.version}-beta-1`, `v${package.json.version}-beta-2`, … (example `v1.16.0-beta-1`). The embedded app version is `${version}-beta.N` (example `1.16.0-beta.1`). Signing/notarize run when Apple secrets are present; otherwise packaging is unsigned and Gatekeeper may block casual installs.
+- **Official releases** (`.github/workflows/release.yml`): a `main` push ensures `v${package.json.version}` exists (creates it if missing) and **packages/uploads in the same workflow run** (GitHub does not re-trigger workflows for tags pushed with the default `GITHUB_TOKEN`). Non-beta `v*` tag pushes can also release. Requires `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`; runs `bun run package` once, verifies containers, writes `SHA256SUMS.txt`, and uploads arm64/x64 DMG/ZIP as **Latest**.
+- The official verifier mounts each DMG and extracts each ZIP, then validates the contained app (signing, hardened runtime, Gatekeeper, stapling, entitlements, Swift packaging, native Swift smoke). The app is notarized and stapled before containers are created; DMG/ZIP containers themselves are not described as stapled or notarized.
 
 ### Runtime topology
 
 Three distinct Node runtimes coexist; do not conflate them:
 
-| Runtime                | Source                                 | Used for                                                                                                                        |
-| ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Bun `1.3.14`           | `packageManager` + `oven-sh/setup-bun` | Primary dev/build/test/lint/package runner and package manager.                                                                 |
+| Runtime                | Source                                 | Used for                                                                                                                             |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Bun `1.3.14`           | `packageManager` + `oven-sh/setup-bun` | Primary dev/build/test/lint/package runner and package manager.                                                                      |
 | Host Node `26`         | `.nvmrc` + `actions/setup-node`        | Icon generator (`scripts/generate-calendar-tray-icons.mjs`) and the release `node -p` tag step. Enforced by `bun run validate:node`. |
-| Electron-embedded Node | Bundled inside Electron `^43.0.0`      | Runtime for the packaged main process. Independent of host Node 26.                                                             |
+| Electron-embedded Node | Bundled inside Electron `^43.0.0`      | Runtime for the packaged main process. Independent of host Node 26.                                                                  |
 
 ## Troubleshooting
 
 ### macOS blocks the app
 
-Gatekeeper can block ad-hoc signed local builds. After copying the app to `/Applications`, use **System Settings → Privacy & Security → Open Anyway** or remove quarantine:
+Gatekeeper can block ad-hoc signed local builds and unsigned betas. After copying the app to `/Applications`, use **System Settings → Privacy & Security → Open Anyway** or remove quarantine:
 
 ```bash
 sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 ```
 
+Official releases that are Developer ID–signed, notarized, and stapled should open without this step.
+
 ### Calendar events do not appear
 
 1. Confirm Calendar permission in **System Settings → Privacy & Security → Calendars**.
 2. Make sure the event contains a supported meeting URL in the event URL, location, or notes field.
-3. Click the tray icon to open the menu (or click again to force a calendar refresh).
+3. Open the tray menu and use **Refresh**, or click the tray icon to force a calendar poll.
 4. Check logs:
 
    ```bash
@@ -199,17 +221,17 @@ sudo xattr -rd com.apple.quarantine "/Applications/GogMeet.app"
 
 ## Tech stack
 
-| Layer           | Tech                                  |
-| --------------- | ------------------------------------- |
-| Runtime         | Electron `^43.0.0`                    |
-| Language        | TypeScript `^6.0.3`                   |
-| Build           | Rslib `^0.23.1` + Rsbuild `^2.1.2`    |
-| Package         | Electron Builder `^26.15.3`           |
-| Package manager | Bun `1.3.14`                          |
-| Calendar        | Swift EventKit helper                 |
-| Tests           | Vitest `^4.1.9` workspace             |
-| Logging         | `electron-log` `^5.4.4`               |
-| Updates         | `electron-updater` `^6.8.9`           |
+| Layer           | Tech                               |
+| --------------- | ---------------------------------- |
+| Runtime         | Electron `^43.0.0`                 |
+| Language        | TypeScript `^6.0.3`                |
+| Build           | Rslib `^0.23` + Rsbuild `^2.1`     |
+| Package         | Electron Builder `^26.15.3`        |
+| Package manager | Bun `1.3.14`                       |
+| Calendar        | Swift EventKit helper              |
+| Tests           | Vitest workspace                   |
+| Logging         | `electron-log` `^5.4.4`            |
+| Updates         | `electron-updater` `^6.8.9`        |
 
 ## Contact
 
