@@ -136,7 +136,7 @@ bun run clean            # remove lib/ and dist/
 
 - PR workflow (`.github/workflows/pr-check.yml`): macOS, Bun install, `lint`, `format:check`, `typecheck`, `build`, `test:coverage`, related tests for changed `src/**/*.ts`; separate Node 26 job runs `validate:node` and fails on icon drift (`git diff --exit-code`).
 - Beta workflow (`.github/workflows/beta-release.yml`): push to `develop` publishes a GitHub **pre-release** with auto-incremented tag `v${version}-beta-N` and DMG/ZIP assets; signing/notarize when secrets are present, otherwise unsigned package.
-- Official release workflow: on `main`, ensure `v$(package.json.version)` exists and **package/upload in the same run** (GITHUB_TOKEN tag pushes do not re-trigger workflows). Also runs for non-beta `v*` tags. Requires signing/notarize secrets; `verify:macos-release`; upload DMG/ZIP + `SHA256SUMS.txt` as Latest.
+- Official release workflow: on `main`, ensure `v$(package.json.version)` exists and **package/upload in the same run** (GITHUB_TOKEN tag pushes do not re-trigger workflows). Also runs for non-beta `v*` tags. Signed+notarized when all Apple secrets are set; otherwise unsigned fallback (skip verifier). Upload DMG/ZIP + `SHA256SUMS.txt` as Latest.
 - `electron-builder.yml`: output `dist/`, macOS 11+, arm64+x64 DMG/ZIP, `mergeASARs: false`, `hardenedRuntime: true`, `mac.notarize: false` (custom afterSign owns notarize), `gatekeeperAssess: false`, DMG `sign: false`, GitHub `publish` for electron-updater.
 - Packaging hooks: `afterPack: build/after-pack.cjs` (optimize); `afterSign: build/notarize.cjs` (notarytool + staple + validate). Env prefers `APPLE_APP_SPECIFIC_PASSWORD`.
 
