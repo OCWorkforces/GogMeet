@@ -104,6 +104,7 @@ jobs:
         if: steps.signing.outputs.mode == 'signed'
         run: bun run package
         env:
+          # package script uses --publish never; softprops owns the GitHub release upload
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -142,6 +143,9 @@ jobs:
           cat dist/SHA256SUMS.txt
 
       - name: Create beta tag
+        env:
+          # Explicit token so tag push works with contents:write
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TAG="${{ steps.beta.outputs.tag }}"
@@ -149,12 +153,17 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # Tag the merge commit on develop (not the version-bumped working tree)
           git tag -a "$TAG" -m "Beta release $TAG"
-          git push origin "$TAG"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
 
       - name: Publish GitHub pre-release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          # Prefer github.token; omit empty secrets.GITHUB_TOKEN overrides that break the action
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # github.token is always available in Actions; do not pass secrets.GITHUB_TOKEN
+          # (an empty secret value is treated as "token unset" by this action).
+          token: ${{ github.token }}
           tag_name: ${{ steps.beta.outputs.tag }}
           name: ${{ steps.beta.outputs.tag }}
           target_commitish: ${{ github.sha }}
