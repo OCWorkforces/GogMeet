@@ -1,33 +1,14 @@
 import { globalShortcut, Notification } from "electron";
 import { getCalendarEventsResult } from "../domain/calendar.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
+import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
 import { getLastKnownEvents } from "../scheduler/facade.js";
 import { joinMeetingById } from "../utils/join-meeting.js";
 import log from "electron-log";
 
+export { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
+
 let registered = false;
-
-/**
- * Prefer the joinable in-progress meeting; otherwise the next future meeting with a URL.
- * Pure selection helper for the global hotkey.
- */
-export function pickJoinTarget(events: readonly MeetingEvent[], nowMs: number): MeetingEvent | null {
-  const withUrl = events.filter((e) => !e.isAllDay && !!e.meetUrl);
-  const inProgress = withUrl
-    .filter((e) => {
-      const start = new Date(e.startDate).getTime();
-      const end = new Date(e.endDate).getTime();
-      return start <= nowMs && nowMs < end;
-    })
-    .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
-  if (inProgress[0]) return inProgress[0];
-
-  const upcoming = withUrl
-    .filter((e) => new Date(e.startDate).getTime() > nowMs)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-  return upcoming[0] ?? null;
-}
 
 function notifyUser(title: string, body: string): void {
   try {

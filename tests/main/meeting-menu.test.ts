@@ -94,14 +94,15 @@ describe("buildMeetingMenuTemplate", () => {
       });
     });
 
-    it("includes separator + Settings + About + Quit after no-meetings label", () => {
+    it("includes Refresh, Join Next, Settings, About, Quit after no-meetings label", () => {
       const items = buildMeetingMenuTemplate([], true, { onAbout, onOpenSettings });
 
-      expect(items).toHaveLength(5);
-      expect(items[1]).toEqual({ type: "separator" });
-      expect(items[2]?.label).toBe("Settings...");
-      expect(items[3]?.label).toBe("About GogMeet");
-      expect(items[4]?.label).toBe("Quit");
+      expect(items[0]?.label).toBe("No upcoming meetings");
+      expect(findItem(items, "Join Next Meeting")).toBeDefined();
+      expect(findItem(items, "Refresh")).toBeDefined();
+      expect(findItem(items, "Settings...")).toBeDefined();
+      expect(findItem(items, "About GogMeet")).toBeDefined();
+      expect(findItem(items, "Quit")).toBeDefined();
     });
 
     it("shows no-meetings when all events are all-day", () => {
@@ -134,11 +135,10 @@ describe("buildMeetingMenuTemplate", () => {
 
       const meetingItem = findItemContaining(items, "Team Sync");
       expect(meetingItem).toBeDefined();
-      expect(meetingItem?.enabled).toBe(true);
-      expect(meetingItem?.click).toBeTypeOf("function");
+      expect(Array.isArray(meetingItem?.submenu)).toBe(true);
     });
 
-    it("click handler joins via joinMeetingById", () => {
+    it("submenu Join joins via joinMeetingById", () => {
       const event = makeEvent({
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
@@ -146,7 +146,9 @@ describe("buildMeetingMenuTemplate", () => {
       const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Standup");
-      meetingItem?.click?.(
+      const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
+      const join = submenu?.find((i) => i.label === "Join");
+      join?.click?.(
         {} as Electron.MenuItem,
         undefined,
         {} as Electron.KeyboardEvent,
@@ -186,11 +188,10 @@ describe("buildMeetingMenuTemplate", () => {
 
       const meetingItem = findItemContaining(items, "Zoom Sync");
       expect(meetingItem).toBeDefined();
-      expect(meetingItem?.enabled).toBe(true);
-      expect(meetingItem?.click).toBeTypeOf("function");
+      expect(Array.isArray(meetingItem?.submenu)).toBe(true);
     });
 
-    it("click handler joins Zoom event via joinMeetingById", () => {
+    it("submenu Join joins Zoom event via joinMeetingById", () => {
       const event = makeEvent({
         meetUrl: "https://us02web.zoom.us/j/789?pwd=secret",
         startDate: todayAt(15, 0).toISOString(),
@@ -199,7 +200,9 @@ describe("buildMeetingMenuTemplate", () => {
       const items = buildMeetingMenuTemplate([event], true, { onAbout, onOpenSettings });
 
       const meetingItem = findItemContaining(items, "Standup");
-      meetingItem?.click?.(
+      const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
+      const join = submenu?.find((i) => i.label === "Join");
+      join?.click?.(
         {} as Electron.MenuItem,
         undefined,
         {} as Electron.KeyboardEvent,
