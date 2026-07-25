@@ -10,6 +10,7 @@ Repository automation scripts for local development and asset generation. These 
 | `generate-calendar-tray-icons.mjs` | Sharp/iconutil asset generator for tray PNGs, `build/icon.icns`, and About-dialog icon.  |
 | `validate-node.mjs`                | Host-Node 26 guard: parses `process.versions.node`, then runs the icon generator under host Node. Wired to `bun run validate:node` and the PR-check `validate-node` job. |
 | `verify-macos-release.mjs`         | Official macOS release verifier: inventories deterministic containers and inspects their extracted apps. Wired to `bun run verify:macos-release`. |
+| `next-beta-tag.mjs`                | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version. Used by `.github/workflows/beta-release.yml`; unit-tested in `tests/scripts/next-beta-tag.test.ts`. |
 
 ## `dev.ts` Contract
 
