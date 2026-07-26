@@ -1,6 +1,6 @@
 # Swift Integration
 
-Runtime compilation and parsing layer for the macOS EventKit helper. Source lives at `src/main/googlemeet-events.swift`; TypeScript in this directory finds, compiles, caches, executes, and validates its JSON Lines output.
+Runtime compilation and parsing layer for the **macOS EventKit** helper. Consumed only by `calendar/providers/darwin-eventkit.ts` (never by Windows Google path or `domain/calendar.ts`). Source: `src/main/googlemeet-events.swift`.
 
 ## Files
 
@@ -11,15 +11,15 @@ Runtime compilation and parsing layer for the macOS EventKit helper. Source live
 | `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
 | `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES**. |
 | `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
-| `event-field-parser.ts` | Field parsers; **meet URL via `validateMeetUrl`** (allowlist at ingress). |
-| `event-validator.ts` | `classifySwiftError`, `SwiftHelperError` → `AppError`. |
-| `guards.ts` | Type guards and validation helpers. |
+| `event-field-parser.ts` | Parse individual JSON record fields and optional values (no description cleaning — use `calendar/clean-description.ts`). |
+| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to neutral `calendar-*` AppError kinds. |
+| `guards.ts` | Exec/tuple guards for helper I/O; imports `isObjectRecord` from `shared/type-guards`. |
 
 ## Binary cache
 
-- Cache dir: `/tmp/googlemeet/` with mode `0o700`.
-- Binary: `/tmp/googlemeet/googlemeet-events`.
-- Hash sidecar: `/tmp/googlemeet/source.hash`.
+- Cache dir: `{os.tmpdir()}/googlemeet/` with mode `0o700` (not a hard-coded `/tmp` string).
+- Binary: `…/googlemeet-events`.
+- Hash sidecar: `…/source.hash`.
 - Recompile when source hash changes or binary is missing.
 - **Do not recompile** on semantic exits 2 (permission), 3 (no calendars), 4 (helper error) — throw `SwiftHelperError` so domain returns structured `CalendarResult` codes.
 

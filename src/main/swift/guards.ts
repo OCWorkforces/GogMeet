@@ -3,17 +3,14 @@
  * These replace unchecked `as` type assertions with verifiable narrowing so the
  * type system reflects what the runtime can actually prove. */
 
+import { isObjectRecord } from "../../shared/type-guards.js";
+
 /** Shape of an error from `child_process.execFile` or `runSwiftHelper`. All
  * fields are optional because Node assigns them dynamically on the Error. */
 export interface ExecErrorLike {
   readonly code?: number | string;
   readonly stderr?: unknown;
   readonly message?: unknown;
-}
-
-/** True when `value` is a non-null object — narrows safely from `unknown`. */
-export function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 /** True when `value` looks like an exec/spawn error.

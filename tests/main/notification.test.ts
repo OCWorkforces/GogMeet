@@ -22,10 +22,16 @@ vi.mock("electron", () => ({
 const MOCK_USER_DATA_PATH = "/tmp/gogmeet-notification-test";
 
 // Import after mocking - using static imports like settings.test.ts
-import { checkNotificationPermission } from "../../src/main/system/notification.js";
+import {
+  checkNotificationPermission,
+  getNotificationSettingsDeepLink,
+} from "../../src/main/system/notification.js";
 import { Notification, dialog, shell } from "electron";
+import { isWin32 } from "../../src/main/platform/os.js";
 
 describe("notification", () => {
+  const deepLink = getNotificationSettingsDeepLink();
+
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
@@ -80,9 +86,7 @@ describe("notification", () => {
       await checkNotificationPermission();
 
       expect(dialog.showMessageBox).toHaveBeenCalledTimes(1);
-      expect(shell.openExternal).toHaveBeenCalledWith(
-        "x-apple.systempreferences:com.apple.preference.notifications",
-      );
+      expect(shell.openExternal).toHaveBeenCalledWith(deepLink.primary);
     });
 
     it("does nothing when user clicks button 1 (Skip)", async () => {
@@ -137,7 +141,7 @@ describe("notification", () => {
       expect(dialog.showMessageBox).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "info",
-          buttons: ["Open System Settings", "Skip"],
+          buttons: [deepLink.openButton, "Skip"],
           defaultId: 0,
           cancelId: 1,
           title: "Enable Notifications",
@@ -163,14 +167,8 @@ describe("notification", () => {
       await vi.waitFor(() => {
         expect(shell.openExternal).toHaveBeenCalledTimes(2);
       });
-      expect(shell.openExternal).toHaveBeenNthCalledWith(
-        1,
-        "x-apple.systempreferences:com.apple.preference.notifications",
-      );
-      expect(shell.openExternal).toHaveBeenNthCalledWith(
-        2,
-        "x-apple.systempreferences:",
-      );
+      expect(shell.openExternal).toHaveBeenNthCalledWith(1, deepLink.primary);
+      expect(shell.openExternal).toHaveBeenNthCalledWith(2, deepLink.fallback);
     });
 
     it("marks as asked even when notifications are not supported", async () => {
@@ -182,6 +180,27 @@ describe("notification", () => {
 
       // Dialog should never have been shown
       expect(dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getNotificationSettingsDeepLink", () => {
+    it("returns Windows Settings URIs on win32", () => {
+      // On non-win32 hosts this asserts the opposite branch; on win32 CI it matches.
+      if (isWin32()) {
+        expect(getNotificationSettingsDeepLink()).toEqual({
+          primary: "ms-settings:notifications",
+          fallback: "ms-settings:",
+          openButton: "Open Windows Settings",
+          settingsName: "Windows Settings",
+        });
+      } else {
+        expect(getNotificationSettingsDeepLink()).toEqual({
+          primary: "x-apple.systempreferences:com.apple.preference.notifications",
+          fallback: "x-apple.systempreferences:",
+          openButton: "Open System Settings",
+          settingsName: "System Settings",
+        });
+      }
     });
   });
 });

@@ -16,7 +16,7 @@ import type { AppSettings } from "../../shared/settings.js";
 import { ok, err } from "../../shared/result.js";
 import type { Result, AppResult } from "../../shared/result.js";
 import { parseJsonObject } from "../../shared/parse-json.js";
-import { isObjectRecord } from "../swift/guards.js";
+import { isObjectRecord } from "../../shared/type-guards.js";
 import { formatAppError, isValidationError } from "../../shared/errors.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };

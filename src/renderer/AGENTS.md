@@ -10,9 +10,10 @@ Primary meeting list UX for users is the **native tray menu**; the main BrowserW
 
 | Entry | HTML | Window | Role |
 |-------|------|--------|------|
-| `index.ts` | `index.html` | list window (often `show: false`) | Meeting list state machine, Join by event id, refresh |
+| `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
+| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + **Google Calendar account** (connect/disconnect); auto-save |
+| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
 | `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | Schema v2 toggles, auto-save |
-| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Alert payload display; Dismiss + Join |
 
 ## STRUCTURE
 
@@ -36,9 +37,19 @@ src/renderer/
 
 ## SETTINGS WINDOW (schema v2)
 
-- Open-before select: **0–10** minutes (`0` = “At start”)
-- Toggles: launch at login, show tomorrow, window alert, **auto-open**, **OS notifications**, **quiet hours**
-- Auto-save via `settings.set`; copy must not claim alerts fire “at start” (they fire before auto-open)
+`AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
+
+- `loadEvents()` fetches cached events via `window.api.calendar.getEvents()`; pushes deliver `MeetingEvent[]` directly through `onEventsUpdated(callback: (events: MeetingEvent[]) => void)`.
+- `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
+- Visibility-aware: refreshes on show when stale; push updates arrive through `onEventsUpdated()`.
+- `lastPollTime = Date.now()` prevents redundant fetch on first show
+
+## SETTINGS WINDOW
+
+- Google Calendar section: `calendar.getUiState()` / `requestPermission` / `disconnect`; escape email and lastError.
+- Meeting prefs auto-save: toggle → `window.api.settings.set()` → "✓ Saved" indicator.
+- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle; `saveIndicatorTimers` cleaned on re-render.
+- Save failure reverts toggle + shows error message.
 
 ## ALERT WINDOW
 

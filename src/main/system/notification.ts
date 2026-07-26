@@ -2,6 +2,8 @@ import { Notification, dialog, shell, app } from "electron";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { isWin32 } from "../platform/os.js";
+
 /** Path to store notification permission status */
 function getPermissionFlagPath(): string {
   const userData = app.getPath("userData");
@@ -22,6 +24,32 @@ function markAsAsked(): void {
   writeFileSync(getPermissionFlagPath(), "true");
 }
 
+/**
+ * Platform-specific deep links and copy for the notification settings dialog.
+ * Exported for unit tests.
+ */
+export function getNotificationSettingsDeepLink(): {
+  readonly primary: string;
+  readonly fallback: string;
+  readonly openButton: string;
+  readonly settingsName: string;
+} {
+  if (isWin32()) {
+    return {
+      primary: "ms-settings:notifications",
+      fallback: "ms-settings:",
+      openButton: "Open Windows Settings",
+      settingsName: "Windows Settings",
+    };
+  }
+  return {
+    primary: "x-apple.systempreferences:com.apple.preference.notifications",
+    fallback: "x-apple.systempreferences:",
+    openButton: "Open System Settings",
+    settingsName: "System Settings",
+  };
+}
+
 /** Check notification permission and prompt user if needed */
 export async function checkNotificationPermission(): Promise<void> {
   // Skip if already asked
@@ -40,26 +68,24 @@ export async function checkNotificationPermission(): Promise<void> {
   // Mark as asked so we don't prompt again
   markAsAsked();
 
+  const deepLink = getNotificationSettingsDeepLink();
+
   // Show dialog asking user to enable notifications
   const { response } = await dialog.showMessageBox({
     type: "info",
-    buttons: ["Open System Settings", "Skip"],
+    buttons: [deepLink.openButton, "Skip"],
     defaultId: 0,
     cancelId: 1,
     title: "Enable Notifications",
     message: "GogMeet needs notification permission to remind you about meetings.",
-    detail: "Would you like to open System Settings to enable notifications for GogMeet?",
+    detail: `Would you like to open ${deepLink.settingsName} to enable notifications for GogMeet?`,
   });
 
   if (response === 0) {
-    // Open macOS System Settings > Notifications
-    // Using x-apple.systempreferences: to open directly to notifications pane
-    shell
-      .openExternal("x-apple.systempreferences:com.apple.preference.notifications")
-      .catch((err) => {
-        console.error("[notification] Failed to open System Settings:", err);
-        // Fallback: open general System Settings
-        shell.openExternal("x-apple.systempreferences:").catch(() => {});
-      });
+    shell.openExternal(deepLink.primary).catch((err: unknown) => {
+      console.error(`[notification] Failed to open ${deepLink.settingsName}:`, err);
+      // Fallback: open general settings root for the platform
+      shell.openExternal(deepLink.fallback).catch(() => {});
+    });
   }
 }

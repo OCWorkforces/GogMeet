@@ -260,6 +260,30 @@ body {
   transform: scale(1);
 }
 
+/* ---- Action button (calendar connect) ---- */
+.setting-button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.setting-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.setting-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ---- Error message ---- */
 .settings-error {
   font-size: 11px;

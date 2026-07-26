@@ -18,7 +18,7 @@ tests/shared/
 
 - Import from `../../src/shared/...` by default. The documented exception is `errors.test.ts`, which imports `SwiftHelperError` from `src/main/swift/event-validator.js` to verify the `toAppError()` bridge.
 - All fallible APIs return `Result<T, E>` / `AppResult<T> = Result<T, AppError>`. Tests assert on the `ok` discriminant (`if (result.ok) { ... } else { ... }`) — no `try/catch` around pure functions.
-- `AppError` is a tagged union with `kind: "swift-permission-denied" | "swift-no-calendars" | "swift-runtime" | "validation" | "io" | "unknown"`. Use the `isXxx` predicates (`isSwiftPermissionDenied`, `isValidationError`, …) rather than ad-hoc shape checks.
+- `AppError` is a tagged union with calendar (`calendar-permission-denied` | `calendar-no-calendars` | `calendar-runtime` | `calendar-auth` | `calendar-network`), `validation`, `io`, and `unknown` kinds. Use `isCalendarPermissionDenied`, `isValidationError`, … rather than ad-hoc shape checks.
 - `parseJsonObject(json, label, validator)` always returns `AppResult<T>`; tests cover three failure modes (`SyntaxError` → `validation`, non-object root → `validation` with `"Expected JSON object"`, validator-returned `err`) and the success path.
 - Fixtures may stay inline; branded fixtures can use `tests/helpers/test-utils.ts` wrappers such as `asTestEventId`.
 

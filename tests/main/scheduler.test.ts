@@ -19,6 +19,7 @@ vi.mock("electron", () => {
 
 // Mock calendar module
 vi.mock("../../src/main/domain/calendar.js", () => ({
+  reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 

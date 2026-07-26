@@ -1,108 +1,157 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-import {
-  formatAppError,
-  isSwiftNoCalendars,
-  isSwiftPermissionDenied,
-} from "../../shared/errors.js";
-import type {
-  CalendarErrorCode,
-  CalendarPermission,
-  CalendarResult,
-} from "../../shared/calendar-result.js";
-import { runSwiftHelper } from "../swift/binary-manager.js";
-import { parseEvents } from "../swift/event-parser.js";
-import { SwiftHelperError } from "../swift/event-validator.js";
-import { getErrorStderr } from "../swift/guards.js";
-
-const execFileAsync = promisify(execFile);
+import type { CalendarPermission, CalendarResult } from "../../shared/calendar-result.js";
+import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
+import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
+import type { MeetingEvent } from "../../shared/meeting-event.js";
+import { getActiveCalendarProvider, resetCalendarProvider } from "../calendar/factory.js";
+import { isGoogleOAuthConfigured } from "../calendar/auth/google-client-id.js";
+import { isGoogleOAuthInFlight } from "../calendar/auth/google-oauth.js";
+import { loadGoogleTokens } from "../calendar/auth/google-token-store.js";
+import { isDarwin } from "../platform/os.js";
+import { mainBus } from "../events.js";
 
 let cachedPermissionStatus: CalendarPermission | null = null;
+let uiState: CalendarUiState = defaultCalendarUiState();
 
-function calendarErrorCodeFromSwift(err: SwiftHelperError): CalendarErrorCode {
-  const appErr = err.toAppError();
-  if (isSwiftPermissionDenied(appErr)) return "permission-denied";
-  if (isSwiftNoCalendars(appErr)) return "no-calendars";
-  if (appErr.kind === "swift-runtime") return "runtime";
-  return "unknown";
+function publishUiState(partial: Partial<CalendarUiState>): void {
+  uiState = { ...uiState, ...partial };
+  mainBus.emit("calendar-status-updated", uiState);
 }
 
-/** Fetch Google Meet events — returns structured result with events or error */
+/** Synchronous snapshot for tray menu builders. */
+export function getCalendarUiState(): CalendarUiState {
+  return uiState;
+}
+
+/** Fetch calendar events — returns structured result with events or error. */
 export async function getCalendarEventsResult(): Promise<CalendarResult> {
-  try {
-    const output = await runSwiftHelper();
-    const { events, diagnostics } = parseEvents(output);
-    for (const d of diagnostics) {
-      console.warn(`[calendar] Parse diagnostic: line ${d.line}: ${d.reason}`);
-    }
-    return { kind: "ok", events: [...events] };
-  } catch (err) {
-    if (err instanceof SwiftHelperError) {
-      const appErr = err.toAppError();
-      console.error("[calendar] getCalendarEventsResult error:", err);
-      return {
-        kind: "err",
-        error: formatAppError(appErr),
-        code: calendarErrorCodeFromSwift(err),
-      };
-    }
-    const stderr = getErrorStderr(err);
-    const message = stderr || (err instanceof Error ? err.message : "Unknown error");
-    console.error("[calendar] getCalendarEventsResult error:", err);
-    return { kind: "err", error: message, code: "unknown" };
-  }
-}
+  const provider = await getActiveCalendarProvider();
+  const result = await provider.getEvents();
 
-/** Run an inline AppleScript for permission checks (fast, no event queries) */
-async function runAppleScript(script: string): Promise<string> {
-  const { stdout } = await execFileAsync("osascript", ["-e", script], {
-    timeout: 10_000,
-  });
-  return stdout.trim();
-}
-
-/** Trigger permission dialog by accessing Calendar */
-export async function requestCalendarPermission(): Promise<CalendarPermission> {
-  try {
-    await runAppleScript(`
-      tell application "Calendar"
-        get name of calendars
-      end tell
-    `);
-    return "granted";
-  } catch {
-    return "denied";
-  }
-}
-
-/** Check current calendar permission state without triggering dialog */
-export async function getCalendarPermissionStatus(): Promise<CalendarPermission> {
-  if (cachedPermissionStatus !== null) return cachedPermissionStatus;
-  try {
-    await runAppleScript(`
-      tell application "Calendar"
-        get name of first calendar
-      end tell
-    `);
+  if (result.kind === "ok") {
+    const email = (await loadGoogleTokens())?.email ?? uiState.accountEmail;
+    publishUiState({
+      permission: "granted",
+      phase: result.events.length === 0 ? "empty" : "ready",
+      lastError: null,
+      events: result.events,
+      offline: false,
+      accountEmail: email,
+      oauthConfigured: isGoogleOAuthConfigured(),
+    });
     cachedPermissionStatus = "granted";
-    return cachedPermissionStatus;
-  } catch (err) {
-    const msg = String(err);
-    if (msg.includes("not authorized") || msg.includes("1743")) {
-      cachedPermissionStatus = "denied";
-      return cachedPermissionStatus;
-    }
-    if (msg.includes("2700") || msg.includes("not determined")) {
-      cachedPermissionStatus = "not-determined";
-      return cachedPermissionStatus;
-    }
-    cachedPermissionStatus = "not-determined";
-    return cachedPermissionStatus;
+  } else {
+    const permission = await provider.getPermissionStatus().catch(() => "denied" as const);
+    cachedPermissionStatus = permission;
+    publishUiState({
+      permission,
+      phase: "error",
+      lastError: result.error,
+      oauthConfigured: isGoogleOAuthConfigured(),
+    });
   }
+
+  return result;
 }
 
-/** Invalidate cached permission — call on power state resume as a safety net */
+/**
+ * Trigger permission flow for the active provider.
+ * Darwin: Calendar.app AppleScript probe / TCC dialog.
+ * Windows: OAuth when invoked from tray/Settings — not from lifecycle auto path.
+ */
+export async function requestCalendarPermission(): Promise<CalendarPermission> {
+  publishUiState({
+    phase: "connecting",
+    lastError: null,
+    oauthConfigured: isGoogleOAuthConfigured(),
+  });
+
+  const provider = await getActiveCalendarProvider();
+  const status = await provider.requestPermission();
+  cachedPermissionStatus = status;
+
+  if (status === "granted") {
+    const email = (await loadGoogleTokens())?.email ?? null;
+    publishUiState({
+      permission: "granted",
+      phase: "ready",
+      lastError: null,
+      accountEmail: email,
+      oauthConfigured: isGoogleOAuthConfigured(),
+    });
+  } else {
+    publishUiState({
+      permission: status,
+      phase: status === "denied" ? "error" : "disconnected",
+      lastError: status === "denied" ? "Google Calendar was not connected." : null,
+      oauthConfigured: isGoogleOAuthConfigured(),
+    });
+  }
+
+  return status;
+}
+
+/** Check current calendar permission state without triggering a new dialog when cached. */
+export async function getCalendarPermissionStatus(): Promise<CalendarPermission> {
+  if (isGoogleOAuthInFlight()) return "not-determined";
+  if (cachedPermissionStatus !== null) return cachedPermissionStatus;
+  const provider = await getActiveCalendarProvider();
+  cachedPermissionStatus = await provider.getPermissionStatus();
+
+  publishUiState({
+    permission: cachedPermissionStatus,
+    phase:
+      cachedPermissionStatus === "granted"
+        ? uiState.events && uiState.events.length > 0
+          ? "ready"
+          : "empty"
+        : "disconnected",
+    oauthConfigured: isGoogleOAuthConfigured(),
+    accountEmail: (await loadGoogleTokens())?.email ?? uiState.accountEmail,
+  });
+
+  return cachedPermissionStatus;
+}
+
+/** Invalidate cached permission — call on power state resume as a safety net. */
 export function invalidateCalendarPermissionCache(): void {
   cachedPermissionStatus = null;
+}
+
+/**
+ * Whether lifecycle may auto-call `requestCalendarPermission` when status is
+ * `not-determined`. Darwin only — Windows must not auto-open OAuth (K16).
+ */
+export function shouldAutoRequestCalendarPermission(): boolean {
+  return isDarwin();
+}
+
+/** Pre-warm the active provider (Swift compile on Darwin / token soft-refresh on Google). */
+export async function warmupCalendarProvider(): Promise<void> {
+  const provider = await getActiveCalendarProvider();
+  await provider.warmup?.();
+}
+
+/** Disconnect Google / reset provider. Clears permission cache and UI state. */
+export async function disconnectCalendar(): Promise<void> {
+  const provider = await getActiveCalendarProvider();
+  await provider.disconnect?.();
+  resetCalendarProvider();
+  cachedPermissionStatus = null;
+  publishUiState({
+    ...defaultCalendarUiState(),
+    oauthConfigured: isGoogleOAuthConfigured(),
+    phase: "disconnected",
+    permission: "not-determined",
+  });
+}
+
+/** Apply a poll-level error while optionally retaining last events for offline UI. */
+export function reportCalendarPollError(error: string, lastEvents: MeetingEvent[] | null): void {
+  publishUiState({
+    phase: lastEvents && lastEvents.length > 0 ? "offline-cached" : "error",
+    lastError: error,
+    events: lastEvents,
+    offline: !!(lastEvents && lastEvents.length > 0),
+    oauthConfigured: isGoogleOAuthConfigured(),
+  });
 }

@@ -43,6 +43,17 @@ vi.mock("electron", () => ({
 
 vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarUiState: vi.fn().mockReturnValue({
+    permission: "not-determined",
+    phase: "disconnected",
+    lastError: null,
+    accountEmail: null,
+    events: null,
+    offline: false,
+    oauthConfigured: false,
+  }),
+  requestCalendarPermission: vi.fn().mockResolvedValue("granted"),
+  disconnectCalendar: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
@@ -59,6 +70,13 @@ vi.mock("../../src/main/windows/about-window.js", () => ({
 
 vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
+}));
+
+const platformState = vi.hoisted(() => ({ darwin: true }));
+
+vi.mock("../../src/main/platform/os.js", () => ({
+  isDarwin: () => platformState.darwin,
+  isWin32: () => !platformState.darwin,
 }));
 
 // Helper to create mock event
@@ -132,6 +150,7 @@ describe("formatRemainingTime", () => {
 describe("tray module exports", () => {
   beforeEach(() => {
     vi.resetModules();
+    platformState.darwin = true;
   });
 
   it("exports setupTray and updateTrayTitle functions", async () => {
@@ -139,6 +158,28 @@ describe("tray module exports", () => {
 
     expect(typeof trayModule.setupTray).toBe("function");
     expect(typeof trayModule.updateTrayTitle).toBe("function");
+    expect(typeof trayModule.truncateTrayTooltip).toBe("function");
+    expect(typeof trayModule.buildWindowsTrayTooltip).toBe("function");
+    expect(typeof trayModule.formatTrayCountdownLabel).toBe("function");
+  });
+
+  it("truncateTrayTooltip caps length with ellipsis", async () => {
+    const { truncateTrayTooltip } = await import("../../src/main/tray.js");
+    expect(truncateTrayTooltip("short")).toBe("short");
+    expect(truncateTrayTooltip("a".repeat(70), 10)).toBe("aaaaaaaaa\u2026");
+  });
+
+  it("buildWindowsTrayTooltip formats idle, offline, and countdown", async () => {
+    const { buildWindowsTrayTooltip, TRAY_TOOLTIP_MAX_CHARS } = await import(
+      "../../src/main/tray.js"
+    );
+    expect(buildWindowsTrayTooltip(null)).toBe("GogMeet");
+    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toBe(
+      "GogMeet — Offline",
+    );
+    expect(buildWindowsTrayTooltip("Standup", 15)).toBe("GogMeet — Standup in 15 mins");
+    const long = buildWindowsTrayTooltip("A".repeat(80), 5);
+    expect(long.length).toBeLessThanOrEqual(TRAY_TOOLTIP_MAX_CHARS);
   });
 
   it("setupTray creates a Tray instance", async () => {
@@ -202,7 +243,7 @@ describe("tray module exports", () => {
     // When: setup registers the tray item.
     setupTray(mockWindow);
 
-    // Then: the native tray menu is already installed for the first macOS activation.
+    // Then: the native tray menu is already installed for the first status-item activation.
     const trayInstance = getLatestTrayInstance(Tray);
     expect(Menu.buildFromTemplate).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -230,4 +271,46 @@ describe("tray module exports", () => {
     // Then: the already-installed native menu is rebuilt for the next click.
     expect(trayInstance.setContextMenu).toHaveBeenCalledWith({});
   });
+
+  it("on Windows left-click forcePolls and popUpContextMenu", async () => {
+    platformState.darwin = false;
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { forcePoll } = await import("../../src/main/scheduler/facade.js");
+    const { BrowserWindow, Tray } = await import("electron");
+
+    const mockWindow = new BrowserWindow();
+    setupTray(mockWindow);
+    const trayInstance = getLatestTrayInstance(Tray);
+
+    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
+      | (() => void)
+      | undefined;
+    expect(clickHandler).toBeTypeOf("function");
+    clickHandler?.();
+
+    expect(forcePoll).toHaveBeenCalled();
+    expect(trayInstance.popUpContextMenu).toHaveBeenCalled();
+  });
+
+  it("on Darwin left-click forcePolls without popUpContextMenu", async () => {
+    platformState.darwin = true;
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { forcePoll } = await import("../../src/main/scheduler/facade.js");
+    const { BrowserWindow, Tray } = await import("electron");
+
+    vi.mocked(forcePoll).mockClear();
+    const mockWindow = new BrowserWindow();
+    setupTray(mockWindow);
+    const trayInstance = getLatestTrayInstance(Tray);
+    vi.mocked(trayInstance.popUpContextMenu).mockClear();
+
+    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
+      | (() => void)
+      | undefined;
+    clickHandler?.();
+
+    expect(forcePoll).toHaveBeenCalled();
+    expect(trayInstance.popUpContextMenu).not.toHaveBeenCalled();
+  });
 });
+

@@ -5,13 +5,15 @@
  * has structured failure modes that a caller may want to branch on. For
  * free-form/string errors, keep using `Result<T>` (default `E = string`).
  *
- * Trust boundaries (Swift helper, IPC, FS) should map their native errors into
- * AppError via `errFrom()` or a dedicated `toAppError()` method.
+ * Trust boundaries (calendar providers, IPC, FS) should map their native errors
+ * into AppError via `errFrom()` or a dedicated `toAppError()` method.
  */
 export type AppError =
-  | { kind: "swift-permission-denied"; message: string }
-  | { kind: "swift-no-calendars"; message: string }
-  | { kind: "swift-runtime"; message: string; exitCode?: number }
+  | { kind: "calendar-permission-denied"; message: string }
+  | { kind: "calendar-no-calendars"; message: string }
+  | { kind: "calendar-runtime"; message: string; exitCode?: number }
+  | { kind: "calendar-auth"; message: string }
+  | { kind: "calendar-network"; message: string }
   | { kind: "validation"; field: string; message: string }
   | { kind: "io"; path: string; cause: string }
   | { kind: "unknown"; message: string };
@@ -25,20 +27,32 @@ export function isAppErrorKind<K extends AppError["kind"]>(
 }
 
 /** Per-variant guards for ergonomic narrowing at use-sites. */
-export function isSwiftPermissionDenied(
+export function isCalendarPermissionDenied(
   e: AppError,
-): e is Extract<AppError, { kind: "swift-permission-denied" }> {
-  return e.kind === "swift-permission-denied";
+): e is Extract<AppError, { kind: "calendar-permission-denied" }> {
+  return e.kind === "calendar-permission-denied";
 }
 
-export function isSwiftNoCalendars(
+export function isCalendarNoCalendars(
   e: AppError,
-): e is Extract<AppError, { kind: "swift-no-calendars" }> {
-  return e.kind === "swift-no-calendars";
+): e is Extract<AppError, { kind: "calendar-no-calendars" }> {
+  return e.kind === "calendar-no-calendars";
 }
 
-export function isSwiftRuntime(e: AppError): e is Extract<AppError, { kind: "swift-runtime" }> {
-  return e.kind === "swift-runtime";
+export function isCalendarRuntime(
+  e: AppError,
+): e is Extract<AppError, { kind: "calendar-runtime" }> {
+  return e.kind === "calendar-runtime";
+}
+
+export function isCalendarAuth(e: AppError): e is Extract<AppError, { kind: "calendar-auth" }> {
+  return e.kind === "calendar-auth";
+}
+
+export function isCalendarNetwork(
+  e: AppError,
+): e is Extract<AppError, { kind: "calendar-network" }> {
+  return e.kind === "calendar-network";
 }
 
 export function isValidationError(e: AppError): e is Extract<AppError, { kind: "validation" }> {
@@ -56,14 +70,18 @@ export function isUnknownError(e: AppError): e is Extract<AppError, { kind: "unk
 /** Human-readable formatting of an AppError, suitable for logs and UI surfaces. */
 export function formatAppError(e: AppError): string {
   switch (e.kind) {
-    case "swift-permission-denied":
+    case "calendar-permission-denied":
       return `Calendar permission denied: ${e.message}`;
-    case "swift-no-calendars":
+    case "calendar-no-calendars":
       return `No calendars available: ${e.message}`;
-    case "swift-runtime": {
+    case "calendar-runtime": {
       const code = e.exitCode !== undefined ? ` (exit ${e.exitCode})` : "";
-      return `Swift helper error${code}: ${e.message}`;
+      return `Calendar error${code}: ${e.message}`;
     }
+    case "calendar-auth":
+      return `Calendar authentication error: ${e.message}`;
+    case "calendar-network":
+      return `Calendar network error: ${e.message}`;
     case "validation":
       return `Validation error on '${e.field}': ${e.message}`;
     case "io":

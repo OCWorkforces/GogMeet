@@ -13,7 +13,14 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 
 ```typescript
 window.api = {
-  calendar: { getEvents, requestPermission, getPermissionStatus, onEventsUpdated },
+  calendar: {
+    getEvents,
+    requestPermission,
+    getPermissionStatus,
+    disconnect,
+    getUiState,
+    onEventsUpdated,
+  },
   window: { setHeight },
   app: { openExternal, joinMeeting, getVersion },
   settings: { get, set, onChanged },
@@ -50,6 +57,19 @@ Subscriptions return `() => void`:
 | `CALENDAR_EVENTS_UPDATED` | `calendar.onEventsUpdated` | `MeetingEvent[]` |
 | `SETTINGS_CHANGED`        | `settings.onChanged`       | `AppSettings`    |
 | `ALERT_SHOW`              | `alert.onShowAlert`        | `AlertPayload`   |
+
+Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
+
+## Shared imports
+
+There is no `models.ts` barrel. Import concrete files:
+
+- `../shared/ipc-channels.js` — channels and `IpcRequest` / `IpcResponse` types.
+- `../shared/meeting-event.js` — `MeetingEvent`.
+- `../shared/settings.js` — `AppSettings`.
+- `../shared/alert.js` — `AlertPayload`.
+- `../shared/brand.js` — `asMeetUrl`, `clampWindowHeight`, branded types.
+- `../shared/calendar-ui-state.js` — `CalendarUiState` (via IPC response typing).
 
 ## Build constraints
 

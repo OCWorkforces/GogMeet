@@ -5,20 +5,42 @@ const {
   mockGetCalendarEventsResult,
   mockRequestCalendarPermission,
   mockGetCalendarPermissionStatus,
+  mockDisconnectCalendar,
+  mockGetCalendarUiState,
+  mockForcePoll,
 } = vi.hoisted(() => ({
   mockGetCalendarEventsResult: vi.fn(),
   mockRequestCalendarPermission: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn(),
+  mockDisconnectCalendar: vi.fn(),
+  mockGetCalendarUiState: vi.fn().mockReturnValue({
+    permission: "not-determined",
+    phase: "disconnected",
+    lastError: null,
+    accountEmail: null,
+    events: null,
+    offline: false,
+    oauthConfigured: false,
+  }),
+  mockForcePoll: vi.fn(),
 }));
 
 vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
+  disconnectCalendar: mockDisconnectCalendar,
+  getCalendarUiState: mockGetCalendarUiState,
+  reportCalendarPollError: vi.fn(),
+}));
+
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  forcePoll: mockForcePoll,
 }));
 
 import { registerCalendarHandlers } from "../../src/main/ipc-handlers/calendar.js";
 import { ipcMain } from "electron";
+import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 
@@ -27,22 +49,20 @@ function getRegisteredHandler(channel: string) {
   return call?.[1];
 }
 
-const authorizedEvent = {
-  senderFrame: { url: "file:///app/lib/renderer/index.html" },
-} as unknown as import("electron").IpcMainInvokeEvent;
-
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
 } as unknown as import("electron").IpcMainInvokeEvent;
+
+const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
 
 describe("registerCalendarHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("registers 3 handlers", () => {
+  it("registers 5 handlers", () => {
     registerCalendarHandlers();
-    expect(mockIpcMain.handle).toHaveBeenCalledTimes(3);
+    expect(mockIpcMain.handle).toHaveBeenCalledTimes(5);
   });
 
   describe("calendar:get-events", () => {

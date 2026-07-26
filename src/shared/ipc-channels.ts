@@ -1,5 +1,6 @@
 import type { MeetingEvent } from "./meeting-event.js";
 import type { CalendarResult, CalendarPermission } from "./calendar-result.js";
+import type { CalendarUiState } from "./calendar-ui-state.js";
 import type { EventId, MeetUrl, WindowHeight } from "./brand.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";
@@ -10,6 +11,8 @@ export const IPC_CHANNELS = {
   CALENDAR_GET_EVENTS: "calendar:get-events",
   CALENDAR_REQUEST_PERMISSION: "calendar:request-permission",
   CALENDAR_PERMISSION_STATUS: "calendar:permission-status",
+  CALENDAR_DISCONNECT: "calendar:disconnect",
+  CALENDAR_UI_STATE: "calendar:ui-state",
   WINDOW_SET_HEIGHT: "window:set-height",
   APP_OPEN_EXTERNAL: "app:open-external",
   APP_JOIN_MEETING: "app:join-meeting",
@@ -35,6 +38,8 @@ export interface IpcChannelMap {
   [IPC_CHANNELS.CALENDAR_GET_EVENTS]: { request: void; response: CalendarResult };
   [IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION]: { request: void; response: CalendarPermission };
   [IPC_CHANNELS.CALENDAR_PERMISSION_STATUS]: { request: void; response: CalendarPermission };
+  [IPC_CHANNELS.CALENDAR_DISCONNECT]: { request: void; response: void };
+  [IPC_CHANNELS.CALENDAR_UI_STATE]: { request: void; response: CalendarUiState };
   [IPC_CHANNELS.WINDOW_SET_HEIGHT]: { request: { height: WindowHeight }; response: void };
   [IPC_CHANNELS.APP_OPEN_EXTERNAL]: {
     request: { url: MeetUrl };

@@ -1,9 +1,14 @@
+import path from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Use vi.hoisted to avoid hoisting issues with vi.mock factory
-const { mockGetAppPath } = vi.hoisted(() => ({
-  mockGetAppPath: vi.fn().mockReturnValue("/app"),
-}));
+// Platform-absolute mock root so path.join matches production on Windows.
+const { MOCK_APP_PATH, mockGetAppPath } = vi.hoisted(() => {
+  const appPath = process.platform === "win32" ? "C:\\app" : "/app";
+  return {
+    MOCK_APP_PATH: appPath,
+    mockGetAppPath: vi.fn().mockReturnValue(appPath),
+  };
+});
 
 vi.mock("electron", () => ({
   app: {
@@ -37,7 +42,7 @@ describe("getPackageInfo", () => {
   beforeEach(() => {
     clearPackageInfoCache();
     vi.clearAllMocks();
-    mockGetAppPath.mockReturnValue("/app");
+    mockGetAppPath.mockReturnValue(MOCK_APP_PATH);
     mockReadFileSync.mockReturnValue(
       JSON.stringify({
         name: "gogmeet",
@@ -53,7 +58,10 @@ describe("getPackageInfo", () => {
 
   it("reads package.json from app path", () => {
     getPackageInfo();
-    expect(mockReadFileSync).toHaveBeenCalledWith("/app/package.json", "utf-8");
+    expect(mockReadFileSync).toHaveBeenCalledWith(
+      path.join(MOCK_APP_PATH, "package.json"),
+      "utf-8",
+    );
   });
 
   it("returns parsed package.json data", () => {

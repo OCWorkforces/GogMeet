@@ -2,12 +2,11 @@ import { describe, it, expect } from "vitest";
 import { validateSender } from "../../src/main/ipc-handlers/shared.js";
 import { isAllowedMeetUrl } from "../../src/main/utils/url-validation.js";
 import type { IpcMainInvokeEvent } from "electron";
+import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 
 describe("validateSender", () => {
   it("accepts file:// origin (packaged app)", () => {
-    const event = {
-      senderFrame: { url: "file:///app/lib/renderer/index.html" },
-    } as IpcMainInvokeEvent;
+    const event = authorizedInvokeEvent("index") as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });
 

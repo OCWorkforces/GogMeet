@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseEvents } from "../../src/main/swift/event-parser.js";
-import { cleanDescription } from "../../src/main/swift/event-field-parser.js";
+import { cleanDescription } from "../../src/main/calendar/clean-description.js";
 import {
   getCalendarEventsResult,
   requestCalendarPermission,
   getCalendarPermissionStatus,
   invalidateCalendarPermissionCache,
 } from "../../src/main/domain/calendar.js";
+import { resetCalendarProvider } from "../../src/main/calendar/factory.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 
 const { execFileAsyncMock, runSwiftHelperMock } = vi.hoisted(() => ({
@@ -22,6 +23,12 @@ vi.mock("node:child_process", async () => {
 });
 vi.mock("../../src/main/swift/binary-manager.js", () => ({
   runSwiftHelper: runSwiftHelperMock,
+  ensureBinary: vi.fn().mockResolvedValue(undefined),
+}));
+// Domain calendar uses the factory; force Darwin EventKit path in these tests.
+vi.mock("../../src/main/platform/os.js", () => ({
+  isDarwin: () => true,
+  isWin32: () => false,
 }));
 
 function makeSwiftLine(
@@ -477,10 +484,13 @@ describe("parseEvents", () => {
 describe("getCalendarEventsResult diagnostics", () => {
   beforeEach(() => {
     runSwiftHelperMock.mockReset();
+    resetCalendarProvider();
+    invalidateCalendarPermissionCache();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetCalendarProvider();
   });
 
   it("logs only safe diagnostic metadata for malformed calendar records", async () => {
@@ -499,7 +509,9 @@ describe("getCalendarEventsResult diagnostics", () => {
 
     expect(result).toEqual({ kind: "ok", events: [] });
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith("[calendar] Parse diagnostic: line 1: malformed_record");
+    expect(warn).toHaveBeenCalledWith(
+      "[calendar:darwin] Parse diagnostic: line 1: malformed_record",
+    );
     const logged = warn.mock.calls.flat().map(String).join("\n");
     expect(logged).not.toContain(sentinels.title);
     expect(logged).not.toContain(sentinels.email);
@@ -579,6 +591,8 @@ describe("cleanDescription", () => {
 describe("requestCalendarPermission", () => {
   beforeEach(() => {
     execFileAsyncMock.mockReset();
+    resetCalendarProvider();
+    invalidateCalendarPermissionCache();
   });
 
   it('returns "granted" when AppleScript succeeds', async () => {
@@ -599,6 +613,7 @@ describe("requestCalendarPermission", () => {
 describe("getCalendarPermissionStatus", () => {
   beforeEach(() => {
     execFileAsyncMock.mockReset();
+    resetCalendarProvider();
     invalidateCalendarPermissionCache();
   });
 

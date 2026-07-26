@@ -1,16 +1,21 @@
 import { app, clipboard, type MenuItemConstructorOptions } from "electron";
 import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/utils/time.js";
 import type { MeetingEvent } from "../../shared/meeting-event.js";
+import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
 import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
 import type { CalendarStatus } from "../domain/calendar-status.js";
 import { forcePoll } from "../scheduler/facade.js";
 import { joinMeetingById } from "../utils/join-meeting.js";
 import { buildMeetUrl } from "../utils/meet-url.js";
 import { openSystemSettings } from "../utils/system-settings.js";
+import { isDarwin } from "../platform/os.js";
 
-interface MenuCallbacks {
+export interface MenuCallbacks {
   onAbout: () => void;
   onOpenSettings: () => void;
+  onConnectGoogle?: () => void;
+  onDisconnectGoogle?: () => void;
+  onRetryPoll?: () => void;
 }
 
 function statusRows(status: CalendarStatus): MenuItemConstructorOptions[] {
@@ -76,9 +81,91 @@ function meetingItem(event: MeetingEvent, now: Date): MenuItemConstructorOptions
   };
 }
 
+function meetingDayRows(
+  events: MeetingEvent[],
+  showTomorrowMeetings: boolean,
+): MenuItemConstructorOptions[] {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const tomorrowStart = startOfTomorrow();
+  const dayAfterStart = new Date(tomorrowStart);
+  dayAfterStart.setDate(dayAfterStart.getDate() + 1);
+
+  const upcoming = events.filter((e) => {
+    if (e.isAllDay) return false;
+    return new Date(e.endDate) > now;
+  });
+
+  if (upcoming.length === 0) {
+    return [{ label: "No upcoming meetings", enabled: false }];
+  }
+
+  const todayEvents = upcoming.filter((e) => {
+    const d = new Date(e.startDate);
+    return d >= todayStart && d < tomorrowStart;
+  });
+  const tomorrowEvents = upcoming.filter((e) => {
+    const d = new Date(e.startDate);
+    return d >= tomorrowStart && d < dayAfterStart;
+  });
+
+  const items: MenuItemConstructorOptions[] = [];
+
+  if (todayEvents.length > 0) {
+    items.push({ label: "Today", enabled: false });
+    for (const event of todayEvents) {
+      items.push(meetingItem(event, now));
+    }
+  }
+
+  if (showTomorrowMeetings && tomorrowEvents.length > 0) {
+    if (items.length > 0) items.push({ type: "separator" });
+    items.push({ label: "Tomorrow", enabled: false });
+    for (const event of tomorrowEvents) {
+      items.push(meetingItem(event, now));
+    }
+  }
+
+  return items;
+}
+
+function footerItems(
+  events: MeetingEvent[],
+  callbacks: MenuCallbacks,
+): MenuItemConstructorOptions[] {
+  const now = new Date();
+  const next = pickJoinTarget(events, now.getTime());
+  return [
+    { type: "separator" },
+    {
+      label: "Join Next Meeting",
+      enabled: next !== null,
+      click: () => {
+        if (!next) return;
+        void joinMeetingById(next.id);
+      },
+    },
+    {
+      label: "Refresh",
+      click: () => {
+        void forcePoll();
+      },
+    },
+    { type: "separator" },
+    { label: "Settings...", click: () => callbacks.onOpenSettings() },
+    { label: "About GogMeet", click: () => callbacks.onAbout() },
+    {
+      label: "Quit",
+      accelerator: "CommandOrControl+Q",
+      click: () => app.quit(),
+    },
+  ];
+}
+
 /**
  * Build menu template with upcoming meetings grouped by day.
  * Includes all non-all-day upcoming events. Items without a meetUrl are shown disabled.
+ * Join/Copy Link submenus and Join Next / Refresh actions are always present.
  */
 export function buildMeetingMenuTemplate(
   events: MeetingEvent[],
@@ -127,31 +214,96 @@ export function buildMeetingMenuTemplate(
     }
   }
 
-  items.push({ type: "separator" });
-
-  const next = pickJoinTarget(events, now.getTime());
-  items.push({
-    label: "Join Next Meeting",
-    enabled: next !== null,
-    click: () => {
-      if (!next) return;
-      void joinMeetingById(next.id);
-    },
-  });
-  items.push({
-    label: "Refresh",
-    click: () => {
-      void forcePoll();
-    },
-  });
-  items.push({ type: "separator" });
-  items.push({ label: "Settings...", click: () => callbacks.onOpenSettings() });
-  items.push({ label: "About GogMeet", click: () => callbacks.onAbout() });
-  items.push({
-    label: "Quit",
-    accelerator: "Cmd+Q",
-    click: () => app.quit(),
-  });
-
+  items.push(...footerItems(events, callbacks));
   return items;
+}
+
+/**
+ * Build tray menu from calendar UI state (Windows connect CTA + errors + meetings).
+ * On Darwin with granted/ready/empty, behaves like the classic meeting menu with join actions.
+ */
+export function buildCalendarTrayMenuTemplate(
+  ui: CalendarUiState,
+  showTomorrowMeetings: boolean,
+  callbacks: MenuCallbacks,
+  status: CalendarStatus = { kind: "unknown" },
+): MenuItemConstructorOptions[] {
+  const items: MenuItemConstructorOptions[] = [];
+  const events = ui.events ?? [];
+
+  // Windows / Google connect surface
+  if (!isDarwin()) {
+    if (ui.phase === "connecting") {
+      items.push({ label: "Connecting to Google…", enabled: false });
+    } else if (ui.permission !== "granted") {
+      items.push({ label: "No calendar connected", enabled: false });
+      if (callbacks.onConnectGoogle) {
+        const label =
+          ui.permission === "denied" ? "Reconnect Google Calendar…" : "Connect Google Calendar…";
+        items.push({
+          label,
+          enabled: ui.oauthConfigured,
+          click: () => callbacks.onConnectGoogle?.(),
+        });
+      }
+      if (!ui.oauthConfigured) {
+        items.push({
+          label: "Set GOOGLE_OAUTH_CLIENT_ID to enable",
+          enabled: false,
+        });
+      }
+      items.push({
+        label: "Outlook support coming in a later version",
+        enabled: false,
+      });
+      if (ui.lastError) {
+        items.push({ label: ui.lastError.slice(0, 80), enabled: false });
+      }
+      return [...items, ...footerItems(events, callbacks)];
+    } else if (ui.accountEmail) {
+      items.push({ label: `Connected as ${ui.accountEmail}`, enabled: false });
+    }
+  } else {
+    items.push(...statusRows(status));
+  }
+
+  if (ui.phase === "error" && (!ui.events || ui.events.length === 0)) {
+    items.push({
+      label: ui.lastError ? ui.lastError.slice(0, 80) : "Calendar error",
+      enabled: false,
+    });
+    if (callbacks.onRetryPoll) {
+      items.push({ label: "Retry", click: () => callbacks.onRetryPoll?.() });
+    }
+    if (!isDarwin() && callbacks.onConnectGoogle) {
+      items.push({
+        label: "Reconnect Google Calendar…",
+        click: () => callbacks.onConnectGoogle?.(),
+      });
+    }
+    return [...items, ...footerItems(events, callbacks)];
+  }
+
+  if (ui.events !== null) {
+    const dayRows = meetingDayRows(ui.events, showTomorrowMeetings);
+    // Avoid double "No upcoming meetings" when empty and status already empty-ish
+    items.push(...dayRows);
+    if (ui.offline) {
+      items.push({ label: "Offline — showing last synced meetings", enabled: false });
+    }
+  } else if (ui.phase === "empty" || ui.permission === "granted") {
+    items.push({ label: "No upcoming meetings", enabled: false });
+  } else {
+    items.push({ label: "Loading…", enabled: false });
+  }
+
+  if (!isDarwin() && ui.permission === "granted" && callbacks.onDisconnectGoogle) {
+    items.push({ type: "separator" });
+    items.push({
+      label: "Disconnect Google Calendar",
+      click: () => callbacks.onDisconnectGoogle?.(),
+    });
+  }
+
+  return [...items, ...footerItems(events, callbacks)];
 }

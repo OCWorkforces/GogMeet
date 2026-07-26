@@ -8,26 +8,25 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 
 ## FILES
 
-| File           | Exports                          | Role                                                                              |
-| -------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| `lifecycle.ts` | `initializeApp`, `shutdownApp`   | Subsystem init/shutdown orchestrator. Uses `tryRun`/`tryRunAsync` (non-fatal) and `tryRunCritical`/`tryRunAsyncCritical` (fatal, throws). Eager-loads settings before scheduler start. |
-| `ipc.ts`       | `registerIpcHandlers`            | Registers calendar, settings, app, window, scheduler IPC handlers from `ipc-handlers/`. |
+| File | Exports | Role |
+| --- | --- | --- |
+| `lifecycle.ts` | `initializeApp`, `shutdownApp` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Settings before scheduler; auto-updater last. |
+| `ipc.ts` | `registerIpcHandlers` | Registers handlers from `ipc-handlers/`. |
 
 ## WHERE TO LOOK
 
-| Task                          | Location                                                |
-| ----------------------------- | ------------------------------------------------------- |
-| Add new subsystem to startup  | `lifecycle.ts` → `initializeApp()`                      |
-| Add cleanup on quit           | `lifecycle.ts` → `shutdownApp()`                        |
-| Register new IPC handler file | `ipc.ts` → `registerIpcHandlers()`                      |
-| Fatal vs non-fatal init       | `tryRunCritical` throws; `tryRun` collects to `errors[]` |
+| Task | Location |
+| --- | --- |
+| Add subsystem to startup | `lifecycle.ts` → `initializeApp()` |
+| Cleanup on quit | `lifecycle.ts` → `shutdownApp()` |
+| Register IPC module | `ipc.ts` → `registerIpcHandlers()` |
 
 ## NOTES
 
-- `lifecycle.ts` imports subsystems from: `domain/` (calendar, settings, calendar-watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, `swift/binary-manager.js`.
-- `ipc.ts` is a thin registration shim. All handler logic lives in `../ipc-handlers/`.
-- Fatal init failures surface via `dialog.showErrorBox()`; non-fatal errors are logged and aggregated.
-- Settings must be loaded before `startScheduler()` so the scheduler reads warm cache on first poll.
-- Both files are imported only by `index.ts`; no other consumers should reach in here.
+- Imports: `domain/` (calendar, settings, watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, tray — **not** `swift/binary-manager` (warmup via `warmupCalendarProvider`).
+- Calendar permission: status always checked; `requestCalendarPermission` only when `shouldAutoRequestCalendarPermission()` (Darwin).
+- Power resume/unlock: `invalidateCalendarPermissionCache()` then `restartScheduler()`.
+- Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.
+- Both files are for `index.ts` only.
 - Resume/unlock callback order: `invalidateCalendarPermissionCache()` → `reviveCalendarWatcher()` → `restartScheduler()` so authorization and the watch sidecar recover after sleep/lock.
 - `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged`.

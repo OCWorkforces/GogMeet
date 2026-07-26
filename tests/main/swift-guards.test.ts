@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  isObjectRecord,
   isExecErrorLike,
   getErrorStderr,
   isStringTupleOfLength,
 } from "../../src/main/swift/guards.js";
+import { isObjectRecord } from "../../src/shared/type-guards.js";
 
-describe("isObjectRecord", () => {
+describe("isObjectRecord (shared)", () => {
   it("returns true for plain objects", () => {
     expect(isObjectRecord({})).toBe(true);
     expect(isObjectRecord({ a: 1 })).toBe(true);

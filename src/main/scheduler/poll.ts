@@ -1,4 +1,4 @@
-import { getCalendarEventsResult } from "../domain/calendar.js";
+import { getCalendarEventsResult, reportCalendarPollError } from "../domain/calendar.js";
 import { recordCalendarResult } from "../domain/calendar-status.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { eventListSignature } from "../../shared/event-signature.js";
@@ -67,11 +67,22 @@ export async function poll(isCurrentGeneration: () => boolean = () => true): Pro
       }
     } else {
       console.error("[scheduler] Calendar error:", result.error);
+      const lastEvents =
+        state.lastKnownEvents && isCalendarOk(state.lastKnownEvents)
+          ? state.lastKnownEvents.events
+          : null;
+      reportCalendarPollError(result.error, lastEvents);
       handlePollFailure();
     }
   } catch (err) {
     if (!isCurrentGeneration()) return;
     console.error("[scheduler] Poll error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    const lastEvents =
+      state.lastKnownEvents && isCalendarOk(state.lastKnownEvents)
+        ? state.lastKnownEvents.events
+        : null;
+    reportCalendarPollError(message, lastEvents);
     handlePollFailure();
   }
 }

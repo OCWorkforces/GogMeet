@@ -66,6 +66,12 @@ vi.mock("../../src/main/utils/packageInfo.js", () => ({
   }),
 }));
 
+vi.mock("../../src/main/utils/window-chrome.js", () => ({
+  platformWindowChrome: vi.fn().mockReturnValue({
+    titleBarStyle: "hiddenInset",
+  }),
+}));
+
 describe("about-window", () => {
   beforeEach(() => {
     vi.clearAllMocks();
