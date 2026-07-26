@@ -14,6 +14,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 
 - `check` matrix: `macos-latest` and `windows-latest` (K31 — no `windows-11-arm`; arm64 Windows packages are cross-built later on x64 runners).
 - Defaults to `shell: bash` so changed-files scripts stay portable on Windows runners.
+- Before checkout, sets `core.autocrlf=false` / `core.eol=lf` so Windows runners keep LF. Pair with repo-root `.gitattributes` (`* text=auto eol=lf`). Prettier is `endOfLine: "lf"`; without this, only `windows-latest` fails `bun run lint` with Delete `␍`.
 - Uses pinned `actions/checkout` and `oven-sh/setup-bun` SHAs; keep pins intentional when upgrading.
 - The `check` checkout uses `fetch-depth: 0` so a PR can compare with `github.event.pull_request.base.sha` and a push can compare with `github.event.before`. For an initial push with GitHub's all-zero `before` SHA, it resolves `HEAD^` and reuses that resolved base for changed-source coverage.
 - `check` runs `bun install --frozen-lockfile`, `bun run lint`, `bun run format:check`, `bun run typecheck`, `bun run build`, and one `bun run test:coverage`.

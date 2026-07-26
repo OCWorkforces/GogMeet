@@ -67,8 +67,8 @@
     "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
     "clean": "rimraf lib dist",
     "lint": "eslint src/ --cache",
-    "format:check": "prettier --check 'src/**/*.{ts,css}'",
-    "format": "prettier --write 'src/**/*.{ts,css}'"
+    "format:check": "prettier --check \"src/**/*.{ts,css}\"",
+    "format": "prettier --write \"src/**/*.{ts,css}\""
   },
   "sideEffects": false,
   "type": "module",

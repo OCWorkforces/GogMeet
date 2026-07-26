@@ -27,6 +27,14 @@ jobs:
         shell: bash
 
     steps:
+      # Git for Windows defaults to core.autocrlf=true, which rewrites LF→CRLF on
+      # checkout. Prettier is configured with endOfLine: "lf", so lint fails only
+      # on windows-latest unless we keep LF in the working tree.
+      - name: Prefer LF line endings on checkout
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

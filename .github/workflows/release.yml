@@ -214,6 +214,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Prefer LF line endings on checkout
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
