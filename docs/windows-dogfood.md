@@ -130,8 +130,10 @@ This starts Rslib/Rsbuild watch + Electron. On first launch:
 
 1. Look for the **GogMeet** icon in the Windows **notification area** (system tray).  
    - If hidden, open the overflow caret (`^`) and pin GogMeet.
-2. **Left-click or right-click** the tray icon to open the context menu.
-3. Choose **Connect Google Calendar…**.
+   - Icons are 16×16 / 32×32 themed PNGs (not macOS template images).
+2. **Left-click** opens the context menu and triggers a refresh; **right-click** also opens the menu.
+3. Hover shows a length-capped tooltip (`GogMeet` or `GogMeet — {title} in N mins`).
+4. Choose **Connect Google Calendar…**.
 4. Complete Google consent in the browser.
 5. Return to the tray; after connect, a poll should list meetings (or “No upcoming meetings”).
 
