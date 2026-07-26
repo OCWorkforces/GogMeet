@@ -68,6 +68,26 @@ describe("formatAppError", () => {
     expect(out).toContain("no access");
   });
 
+  it("formats calendar-permission-denied the same as the swift alias", () => {
+    const out = formatAppError({
+      kind: "calendar-permission-denied",
+      message: "no access",
+    });
+    expect(out).toBe(
+      formatAppError({ kind: "swift-permission-denied", message: "no access" }),
+    );
+  });
+
+  it("formats calendar-runtime without Swift helper wording", () => {
+    const out = formatAppError({
+      kind: "calendar-runtime",
+      message: "backend down",
+    });
+    expect(out).toContain("Calendar error");
+    expect(out).toContain("backend down");
+    expect(out.toLowerCase()).not.toContain("swift helper");
+  });
+
   it("formats swift-no-calendars", () => {
     const out = formatAppError({
       kind: "swift-no-calendars",

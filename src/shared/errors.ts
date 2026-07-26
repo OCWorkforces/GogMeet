@@ -9,6 +9,13 @@
  * AppError via `errFrom()` or a dedicated `toAppError()` method.
  */
 export type AppError =
+  // Neutral calendar kinds (preferred for new code)
+  | { kind: "calendar-permission-denied"; message: string }
+  | { kind: "calendar-no-calendars"; message: string }
+  | { kind: "calendar-runtime"; message: string; exitCode?: number }
+  | { kind: "calendar-auth"; message: string }
+  | { kind: "calendar-network"; message: string }
+  // Deprecated Swift aliases — same user-facing strings; remove after call sites migrate
   | { kind: "swift-permission-denied"; message: string }
   | { kind: "swift-no-calendars"; message: string }
   | { kind: "swift-runtime"; message: string; exitCode?: number }
@@ -56,14 +63,25 @@ export function isUnknownError(e: AppError): e is Extract<AppError, { kind: "unk
 /** Human-readable formatting of an AppError, suitable for logs and UI surfaces. */
 export function formatAppError(e: AppError): string {
   switch (e.kind) {
+    case "calendar-permission-denied":
     case "swift-permission-denied":
       return `Calendar permission denied: ${e.message}`;
+    case "calendar-no-calendars":
     case "swift-no-calendars":
       return `No calendars available: ${e.message}`;
+    case "calendar-runtime":
     case "swift-runtime": {
       const code = e.exitCode !== undefined ? ` (exit ${e.exitCode})` : "";
-      return `Swift helper error${code}: ${e.message}`;
+      // Prefer neutral wording; keep "Swift helper" only for legacy kind.
+      if (e.kind === "swift-runtime") {
+        return `Swift helper error${code}: ${e.message}`;
+      }
+      return `Calendar error${code}: ${e.message}`;
     }
+    case "calendar-auth":
+      return `Calendar authentication error: ${e.message}`;
+    case "calendar-network":
+      return `Calendar network error: ${e.message}`;
     case "validation":
       return `Validation error on '${e.field}': ${e.message}`;
     case "io":
