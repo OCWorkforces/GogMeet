@@ -1,22 +1,23 @@
 # GitHub Workflows
 
-CI/release automation for the macOS Electron app. Keep workflow behavior aligned with `package.json`, `.nvmrc`, `scripts/validate-node.mjs`, and packaging guidance in `build/AGENTS.md`.
+CI/release automation for the Electron app (macOS + Windows). Keep workflow behavior aligned with `package.json`, `.nvmrc`, `scripts/validate-node.mjs`, and packaging guidance in `build/AGENTS.md`.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates, full and changed-source coverage, and Node 26 icon-drift validation. |
-| `release.yml` | Main pushes create a version tag only; the resulting `v*` tag run packages, verifies, and uploads the official release. |
+| `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates on macOS + Windows, full and changed-source coverage, and Node 26 icon-drift validation (mac only). |
+| `release.yml` | Main pushes create a version tag only; the resulting `v*` tag run packages, verifies, and uploads the official release (mac today; Windows release job is Wave 7). |
 
 ## PR Check
 
-- Runs on `macos-latest`; do not move to Linux unless Swift/EventKit/icon tooling assumptions are replaced.
+- `check` matrix: `macos-latest` and `windows-latest` (K31 — no `windows-11-arm`; arm64 Windows packages are cross-built later on x64 runners).
+- Defaults to `shell: bash` so changed-files scripts stay portable on Windows runners.
 - Uses pinned `actions/checkout` and `oven-sh/setup-bun` SHAs; keep pins intentional when upgrading.
 - The `check` checkout uses `fetch-depth: 0` so a PR can compare with `github.event.pull_request.base.sha` and a push can compare with `github.event.before`. For an initial push with GitHub's all-zero `before` SHA, it resolves `HEAD^` and reuses that resolved base for changed-source coverage.
 - `check` runs `bun install --frozen-lockfile`, `bun run lint`, `bun run format:check`, `bun run typecheck`, `bun run build`, and one `bun run test:coverage`.
 - It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`; there are no coverage percentage thresholds.
-- `validate-node` sets up Bun plus Node from `.nvmrc` (currently 26), runs `bun run validate:node`, then runs `git diff --exit-code` to fail on regenerated tracked icon drift.
+- `validate-node` remains **macos-latest only** (iconutil / icns). Sets up Bun plus Node from `.nvmrc` (currently 26), runs `bun run validate:node`, then `git diff --exit-code` for icon drift including `build/icon.ico` and Windows tray PNGs.
 
 ## Release
 

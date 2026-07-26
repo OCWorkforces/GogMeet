@@ -7,9 +7,10 @@ Repository automation scripts for local development and asset generation. These 
 | File                               | Role                                                                                     |
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
 | `dev.ts`                           | Bun dev orchestrator: rslib watch for main/preload, rsbuild dev server, Electron launch. |
-| `generate-calendar-tray-icons.mjs` | Sharp/iconutil asset generator for tray PNGs, `build/icon.icns`, and About-dialog icon.  |
+| `generate-calendar-tray-icons.mjs` | Sharp asset generator: tray PNGs (mac 18/36 + win 16/32), `build/icon.icns` (mac/iconutil), `build/icon.ico` (any OS), About SVG. |
 | `validate-node.mjs`                | Host-Node 26 guard: parses `process.versions.node`, then runs the icon generator under host Node. Wired to `bun run validate:node` and the PR-check `validate-node` job. |
 | `verify-macos-release.mjs`         | Official macOS release verifier: inventories deterministic containers and inspects their extracted apps. Wired to `bun run verify:macos-release`. |
+| `verify-windows-release.mjs`       | Windows release inventory verifier (NSIS + portable x64/arm64; optional latest.yml both arches). Wired to `bun run verify:windows-release`. |
 
 ## `dev.ts` Contract
 
@@ -24,8 +25,9 @@ Repository automation scripts for local development and asset generation. These 
 ## Icon Generation Contract
 
 - Run with `bun scripts/generate-calendar-tray-icons.mjs` or Node.
-- Outputs tray icons to `src/assets/`: dark/light 1x and 2x PNGs.
-- Outputs app icon to `build/icon.icns` through a temporary `build/AppIcon.iconset` and `iconutil`.
+- Outputs tray icons to `src/assets/`: mac dark/light 18/36, Windows dark/light 16/32.
+- Outputs `build/icon.icns` via `iconutil` on macOS only (skipped elsewhere).
+- Outputs `build/icon.ico` multi-size PNG-in-ICO via sharp on any OS (Windows packaging).
 - Uses `sharp`; keep `sharp` in devDependencies when editing this script.
 - The script also emits the About-dialog aura asset used by main windows.
 

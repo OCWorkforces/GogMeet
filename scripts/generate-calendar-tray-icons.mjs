@@ -303,16 +303,69 @@ for (const icon of ICONS) {
   }
 }
 
-console.log("\nGenerating app icon (icon.icns)...\n");
+/**
+ * Pack PNG buffers into a multi-size .ico (PNG-compressed entries, Vista+).
+ * @param {{ size: number, data: Buffer }[]} images
+ */
+function encodeIco(images) {
+  const count = images.length;
+  const headerSize = 6 + 16 * count;
+  let offset = headerSize;
+  const entries = images.map((img) => {
+    const entry = { size: img.size, data: img.data, offset };
+    offset += img.data.length;
+    return entry;
+  });
+
+  const buf = Buffer.alloc(offset);
+  buf.writeUInt16LE(0, 0); // reserved
+  buf.writeUInt16LE(1, 2); // type = icon
+  buf.writeUInt16LE(count, 4);
+
+  let entryOffset = 6;
+  for (const e of entries) {
+    const dim = e.size >= 256 ? 0 : e.size;
+    buf.writeUInt8(dim, entryOffset); // width
+    buf.writeUInt8(dim, entryOffset + 1); // height
+    buf.writeUInt8(0, entryOffset + 2); // color palette
+    buf.writeUInt8(0, entryOffset + 3); // reserved
+    buf.writeUInt16LE(1, entryOffset + 4); // color planes
+    buf.writeUInt16LE(32, entryOffset + 6); // bits per pixel
+    buf.writeUInt32LE(e.data.length, entryOffset + 8);
+    buf.writeUInt32LE(e.offset, entryOffset + 12);
+    e.data.copy(buf, e.offset);
+    entryOffset += 16;
+  }
+  return buf;
+}
+
+console.log("\nGenerating app icons (icon.icns / icon.ico)...\n");
 
 try {
   const appSvg = appIconSvg(1024);
   const png1024 = await svgToPng(appSvg, 1024);
-  const icnsPath = join(BUILD_DIR, "icon.icns");
-  await generateIcns(png1024, icnsPath);
-  console.log("  OK: build/icon.icns (1024x1024 source)");
+
+  // macOS .icns (requires iconutil — skip gracefully on non-mac hosts)
+  if (process.platform === "darwin") {
+    const icnsPath = join(BUILD_DIR, "icon.icns");
+    await generateIcns(png1024, icnsPath);
+    console.log("  OK: build/icon.icns (1024x1024 source)");
+  } else {
+    console.log("  SKIP: build/icon.icns (iconutil is macOS-only)");
+  }
+
+  // Windows .ico — multi-size PNG entries via sharp on any OS
+  const icoSizes = [16, 24, 32, 48, 64, 128, 256];
+  const icoImages = [];
+  for (const size of icoSizes) {
+    const data = await sharp(png1024).resize(size, size).png().toBuffer();
+    icoImages.push({ size, data });
+  }
+  const icoPath = join(BUILD_DIR, "icon.ico");
+  writeFileSync(icoPath, encodeIco(icoImages));
+  console.log(`  OK: build/icon.ico (${icoSizes.join("/")})`);
 } catch (err) {
-  console.error(`  FAIL: icon.icns: ${err.message}`);
+  console.error(`  FAIL: app icons: ${err.message}`);
   process.exitCode = 1;
 }
 
@@ -328,4 +381,6 @@ try {
   process.exitCode = 1;
 }
 
-console.log("\nDone. 4 tray icons + 1 app icon generated.");
+console.log(
+  "\nDone. tray icons (mac 18/36 + win 16/32) + app icons generated.",
+);

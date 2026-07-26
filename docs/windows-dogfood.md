@@ -244,17 +244,35 @@ bun run dev
 
 ---
 
-## Packaging note (later waves)
+## Packaging (local unsigned dogfood)
 
-Windows NSIS/portable packaging and CI release jobs are planned in Waves 6–7. Until those land:
+Run on a **Windows** machine (or Windows CI runner). Prefer **separate** arch invocations (K15):
 
-| Goal | Approach |
+```powershell
+$env:GOOGLE_OAUTH_CLIENT_ID = "….apps.googleusercontent.com"
+bun run package:win:x64      # NSIS + portable x64 → dist/
+bun run package:win:arm64    # NSIS + portable arm64 → dist/
+```
+
+| Script | Purpose |
 | --- | --- |
-| Day-to-day dogfood | `bun run dev` on Windows with `GOOGLE_OAUTH_CLIENT_ID` |
-| Unsigned installers | Follow design doc / `package:win` scripts once merged |
-| Code signing | Optional; unsigned dogfood is expected to show SmartScreen warnings |
+| `bun run package:win:x64` | Build + NSIS + portable for x64 |
+| `bun run package:win:arm64` | Build + NSIS + portable for arm64 (cross-compile on x64 hosts) |
+| `bun run package:win:dir` | Unpacked dir target for inspection |
+| `bun run verify:windows-release` | Inventory check for four artifacts (after both arches built) |
 
-Do not treat macOS `bun run package` output as a Windows build.
+Expected artifacts (version from `package.json`):
+
+```text
+dist/GogMeet-<version>-x64.exe
+dist/GogMeet-<version>-arm64.exe
+dist/GogMeet-<version>-x64-portable.exe
+dist/GogMeet-<version>-arm64-portable.exe
+```
+
+- **Unsigned** builds are fine for dogfood (SmartScreen may warn). Authenticode is optional (`WIN_CSC_*` — Wave 7 release path).
+- Do not treat macOS `bun run package` / `package:mac` output as a Windows build.
+- Merged `latest.yml` for auto-update is Wave 7; local package steps may leave per-arch yml fragments.
 
 ---
 

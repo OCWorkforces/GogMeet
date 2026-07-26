@@ -12,9 +12,19 @@ concurrency:
 
 jobs:
   check:
-    name: Quality checks
-    runs-on: macos-latest
-    timeout-minutes: 15
+    name: Quality checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # Private repo: windows-latest only for Windows (K31). No windows-11-arm.
+        os: [macos-latest, windows-latest]
+
+    defaults:
+      run:
+        # Git Bash on windows-latest keeps scripts portable with macOS.
+        shell: bash
 
     steps:
       - name: Checkout
@@ -54,7 +64,7 @@ jobs:
             BASE_SHA="$(git rev-parse HEAD^)"
           fi
           echo "base-sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          changed_sources="$(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$GITHUB_SHA" -- 'src/**/*.ts')"
+          changed_sources="$(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$GITHUB_SHA" -- 'src/**/*.ts' || true)"
           if [ -n "$changed_sources" ]; then
             echo "has-files=true" >> "$GITHUB_OUTPUT"
           else
@@ -73,8 +83,13 @@ jobs:
         run: |
           source_files=()
           while IFS= read -r source_file; do
+            [ -n "$source_file" ] || continue
             source_files+=("$source_file")
           done <<< "$CHANGED_SOURCES"
+          if [ ${#source_files[@]} -eq 0 ]; then
+            echo "No changed TypeScript files to test"
+            exit 0
+          fi
           bun x vitest related --run -c vitest.workspace.ts "${source_files[@]}"
 
       - name: Report changed TypeScript coverage
@@ -85,8 +100,12 @@ jobs:
         run: |
           source_files=()
           while IFS= read -r source_file; do
+            [ -n "$source_file" ] || continue
             source_files+=("$source_file")
           done <<< "$CHANGED_SOURCES"
+          if [ ${#source_files[@]} -eq 0 ]; then
+            exit 0
+          fi
           bun x vitest related --run -c vitest.workspace.ts --coverage.enabled --coverage.changed "$BASE_SHA" --coverage.reporter=text "${source_files[@]}"
 
   validate-node:
