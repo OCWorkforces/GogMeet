@@ -1,10 +1,16 @@
 /**
  * Calendar provider factory.
  *
- * Darwin always uses EventKit (K17). Non-Darwin uses the unsupported stub until
- * Wave 4 wires Google Calendar. Providers that touch Swift are loaded only via
- * dynamic import on Darwin so Windows never pulls in the Swift graph.
+ * Order:
+ * 1. Dev fixture when unpackaged + GOGMEET_CALENDAR_FIXTURE (K23)
+ * 2. Darwin → EventKit (K17)
+ * 3. Else → stub until Wave 4 Google
+ *
+ * Providers that touch Swift are loaded only via dynamic import on Darwin so
+ * Windows never pulls in the Swift graph.
  */
+
+import { app } from "electron";
 
 import { isDarwin } from "../platform/os.js";
 import type { CalendarProvider } from "./provider.js";
@@ -16,6 +22,15 @@ let cached: CalendarProvider | null = null;
  */
 export async function getActiveCalendarProvider(): Promise<CalendarProvider> {
   if (cached !== null) {
+    return cached;
+  }
+
+  // K23: fixture only when unpackaged AND env path set — never in packaged builds
+  const fixturePath = process.env["GOGMEET_CALENDAR_FIXTURE"];
+  if (!app.isPackaged && typeof fixturePath === "string" && fixturePath.trim().length > 0) {
+    const { createFixtureCalendarProvider } = await import("./providers/fixture-calendar.js");
+    cached = createFixtureCalendarProvider(fixturePath.trim());
+    console.log(`[calendar:factory] Using fixture provider: ${fixturePath.trim()}`);
     return cached;
   }
 

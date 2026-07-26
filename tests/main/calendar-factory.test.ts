@@ -11,6 +11,7 @@ describe("calendar factory", () => {
   beforeEach(async () => {
     vi.resetModules();
     platformState.darwin = true;
+    delete process.env["GOGMEET_CALENDAR_FIXTURE"];
     const { resetCalendarProvider } = await import("../../src/main/calendar/factory.js");
     resetCalendarProvider();
   });
@@ -19,6 +20,7 @@ describe("calendar factory", () => {
     const { resetCalendarProvider } = await import("../../src/main/calendar/factory.js");
     resetCalendarProvider();
     platformState.darwin = true;
+    delete process.env["GOGMEET_CALENDAR_FIXTURE"];
   });
 
   it("selects darwin-eventkit on Darwin", async () => {
