@@ -8,6 +8,15 @@ import { platformWindowChrome } from "../utils/window-chrome.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * In-page navigation target used by the Close form.
+ *
+ * Inline `onclick` / scripts are blocked by the app CSP (`script-src 'self'`),
+ * and `window.close()` is unreliable for main-created BrowserWindows. The
+ * form navigates here; main intercepts and calls `win.close()`.
+ */
+const ABOUT_CLOSE_URL = "gogmeet://about-close";
+
 /** Reference to the singleton About BrowserWindow (null when not open). */
 let aboutWindow: BrowserWindow | null = null;
 
@@ -16,6 +25,15 @@ const aboutIconSvg = readFileSync(
   "utf-8",
 );
 const ABOUT_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
+
+function isAboutCloseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "gogmeet:" && parsed.hostname === "about-close";
+  } catch {
+    return false;
+  }
+}
 
 export function showAbout(_mainWindow: BrowserWindow): void {
   // Reuse existing about window if still alive
@@ -79,6 +97,9 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     padding: 0 20px;
     margin-bottom: 24px;
   }
+  .close-form {
+    -webkit-app-region: no-drag;
+  }
   button {
     font-family: inherit;
     font-size: 13px;
@@ -105,7 +126,9 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   <h1>${appName}</h1>
   <div class="version">Version ${version}</div>
   <div class="copyright">${packageJson.description}</div>
-  <button onclick="window.close()">Close</button>
+  <form class="close-form" action="${ABOUT_CLOSE_URL}" method="get">
+    <button type="submit">Close</button>
+  </form>
 </body>
 </html>`;
 
@@ -121,6 +144,20 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     show: false,
     ...chrome,
     webPreferences: { ...SECURE_WEB_PREFERENCES },
+  });
+
+  const handleNavigation = (event: { preventDefault: () => void }, url: string): void => {
+    event.preventDefault();
+    if (isAboutCloseUrl(url) && !win.isDestroyed()) {
+      win.close();
+    }
+  };
+
+  win.webContents.on("will-navigate", (event, url) => {
+    handleNavigation(event, url);
+  });
+  win.webContents.on("will-frame-navigate", (event) => {
+    handleNavigation(event, event.url);
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {

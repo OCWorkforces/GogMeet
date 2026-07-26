@@ -25,7 +25,8 @@ Auxiliary BrowserWindow factories beyond the main popover. Each is a singleton w
 ## NOTES
 
 - All three windows load via `loadWindowContent(win, page)` and use `getPreloadPath()` from `utils/browser-window.js`. Chrome options come from `platformWindowChrome()` / `applyAlertAlwaysOnTop()` in `utils/window-chrome.js` (mac vibrancy vs Windows opaque).
-- About window reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. Repository links are exact-match guarded against `packageJson.repository` before `shell.openExternal()`.
+- About window loads inline HTML via a `data:` URL (not `loadWindowContent`). It reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. Repository links are exact-match guarded against `packageJson.repository` before `shell.openExternal()`.
+- About Close cannot use inline `onclick` / `window.close()`: session CSP is `script-src 'self'` (blocks inline handlers), and main-created windows are not reliable close targets from the renderer. Close is a GET form to `gogmeet://about-close`; `will-navigate` / `will-frame-navigate` preventDefault and call `win.close()` in main.
 - Alert window is tagged with `win.__alertUid = event.id` so rapid `showAlert()` calls with the same uid are dropped (active or queued). Different uids queue and fire sequentially after the prior window closes.
 - Alert payload omits `meetUrl` by design, the alert UI does not join meetings, dismissal only.
 - Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows. Scheduler restart on settings save is owned by IPC handlers, not this file.
