@@ -6,16 +6,17 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 | Area | Files | Responsibility |
 | --- | --- | --- |
-| Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | app bootstrap, tray, event bus, Swift source |
+| Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | app bootstrap (single-instance lock), tray, event bus, Swift source |
 | `app/` | `lifecycle.ts`, `ipc.ts` | initialization order, shutdown, IPC registration |
 | `domain/` | `calendar.ts`, `calendar-watcher.ts`, `settings.ts` | EventKit calls, calendar watcher, settings JSON/migrations |
+| `platform/` | `os.ts` | OS predicates (`isDarwin` / `isWin32`); not meeting-host detection |
 | `windows/` | `about-window.ts`, `alert-window.ts`, `settings-window.ts` | secure BrowserWindow singletons |
 | `system/` | `power.ts`, `shortcuts.ts`, `auto-launch.ts`, `auto-updater.ts`, `notification.ts` | OS integration |
 | `scheduler/` | see `scheduler/AGENTS.md` | polling, timers, auto-open, alert scheduling |
 | `swift/` | see `swift/AGENTS.md` | Swift binary cache, parser, event validation |
 | `ipc-handlers/` | see `ipc-handlers/AGENTS.md` | typed IPC handlers and push helpers |
 | `menu/` | see `menu/AGENTS.md` | tray context menu template |
-| `utils/` | see `utils/AGENTS.md` | URL validation, meet URL building, secure window helpers |
+| `utils/` | see `utils/AGENTS.md` | URL validation, meet URL building, secure window helpers, window chrome |
 
 ## Lifecycle order
 
