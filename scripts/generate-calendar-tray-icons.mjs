@@ -1,9 +1,10 @@
 /**
  * Generate calendar icon PNGs and app icon (.icns) for GiMeet.
  *
- * Creates 4 tray PNG files in src/assets/:
- *   tray-icon-dark.png, tray-icon-dark@2x.png
+ * Creates tray PNG files in src/assets/:
+ *   tray-icon-dark.png, tray-icon-dark@2x.png          (macOS 18/36)
  *   tray-icon-light.png, tray-icon-light@2x.png
+ *   tray-icon-win-{dark,light}-{16,32}.png             (Windows notification area)
  *
  * Creates app icon in build/:
  *   icon.icns (macOS app icon from 1024x1024 calendar icon)
@@ -267,12 +268,17 @@ function auraIconSvg(size) {
 // --- Tray icon definitions (active only) ---
 
 const ICONS = [
-  // Dark theme (white calendar, dark number)
+  // Dark theme (white calendar, dark number) — macOS menu bar 18/36
   { name: "tray-icon-dark.png", size: 18, fill: "#FFFFFF", numberColor: "#1D1D1F" },
   { name: "tray-icon-dark@2x.png", size: 36, fill: "#FFFFFF", numberColor: "#1D1D1F" },
-  // Light theme (dark calendar, white number)
+  // Light theme (dark calendar, white number) — macOS menu bar 18/36
   { name: "tray-icon-light.png", size: 18, fill: "#1D1D1F", numberColor: "#FFFFFF" },
   { name: "tray-icon-light@2x.png", size: 36, fill: "#1D1D1F", numberColor: "#FFFFFF" },
+  // Windows notification area — 16×16 and 32×32 (no template images)
+  { name: "tray-icon-win-dark-16.png", size: 16, fill: "#FFFFFF", numberColor: "#1D1D1F" },
+  { name: "tray-icon-win-dark-32.png", size: 32, fill: "#FFFFFF", numberColor: "#1D1D1F" },
+  { name: "tray-icon-win-light-16.png", size: 16, fill: "#1D1D1F", numberColor: "#FFFFFF" },
+  { name: "tray-icon-win-light-32.png", size: 32, fill: "#1D1D1F", numberColor: "#FFFFFF" },
 ];
 
 // --- Main ---
