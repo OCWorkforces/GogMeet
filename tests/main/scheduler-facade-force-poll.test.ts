@@ -10,6 +10,7 @@ vi.mock("electron", () => ({
 
 // Mock calendar module — single source of truth for poll() side effect counting
 vi.mock("../../src/main/domain/calendar.js", () => ({
+  reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 

@@ -11,6 +11,7 @@ vi.mock("electron", () => ({
 
 // Mock calendar module so startScheduler's initial poll() resolves quickly
 vi.mock("../../src/main/domain/calendar.js", () => ({
+  reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
 
