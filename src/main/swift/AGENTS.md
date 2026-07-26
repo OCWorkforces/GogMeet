@@ -1,6 +1,6 @@
 # Swift Integration
 
-Runtime compilation and parsing layer for the macOS EventKit helper. Source lives at `src/main/googlemeet-events.swift`; TypeScript in this directory finds, compiles, caches, executes, and validates its JSON Lines output.
+Runtime compilation and parsing layer for the **macOS EventKit** helper. Consumed only by `calendar/providers/darwin-eventkit.ts` (never by Windows Google path or `domain/calendar.ts`). Source: `src/main/googlemeet-events.swift`.
 
 ## Files
 
@@ -17,9 +17,9 @@ Runtime compilation and parsing layer for the macOS EventKit helper. Source live
 
 ## Binary cache
 
-- Cache dir: `/tmp/googlemeet/` with mode `0o700`.
-- Binary: `/tmp/googlemeet/googlemeet-events`.
-- Hash sidecar: `/tmp/googlemeet/source.hash`.
+- Cache dir: `{os.tmpdir()}/googlemeet/` with mode `0o700` (not a hard-coded `/tmp` string).
+- Binary: `…/googlemeet-events`.
+- Hash sidecar: `…/source.hash`.
 - Recompile when source hash changes or binary is missing.
 - Compile with arch-aware target and optimization flags (`-Osize`, `-whole-module-optimization`); optional strip after compile.
 - Compile retries use 5 attempts with 1s/2s/4s/8s sleeps; the 30s cap is present but not reached with the current attempt count.

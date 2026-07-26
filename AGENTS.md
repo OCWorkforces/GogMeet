@@ -1,147 +1,140 @@
 # GogMeet - AGENTS.md
 
-**Generated:** 2026-07-02
-**Commit:** 6dc9a78
-**Branch:** develop
+**Updated:** 2026-07-26
+**Commit:** 5c730cf
+**Branch:** feature/windows-platform-support
 
-macOS tray app for Calendar meeting reminders. Reads EventKit through a Swift helper, lists upcoming Google Meet/Zoom/Calendly events, auto-opens meeting URLs before start, shows optional full-screen alerts, and exposes `Cmd+Shift+M` to join the next meeting.
+Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
 ## STACK
 
 | Layer | Tech |
 | --- | --- |
-| Runtime | Electron `^43.0.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
+| Runtime | Electron `^43.2.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
 | Language | TypeScript `^6.0.3`; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature` |
-| Build | Rslib `^0.23.1` for main/preload CJS; Rsbuild `^2.1.2` for three renderer entries |
-| Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26`; Electron runtime embeds its own Node independent of host Node |
-| Calendar | Swift EventKit helper source at `src/main/googlemeet-events.swift`, runtime cache under `/tmp/googlemeet/` |
-| Test | Vitest `^4.1.9` workspace: main / renderer / shared / scripts |
-| Package build | electron-builder `^26.15.3`; DMG + ZIP for `arm64` and `x64` |
-| Updates/logging | `electron-updater` `^6.8.9`, `electron-log` `^5.4.4` |
-
-Tooling note: TypeScript LSP symbols are unavailable (`lsp_symbols` returned `Method not found`; TS server missing), but codegraph is available. CODE MAP refs below combine codegraph blast-radius data with `rg`-derived hints.
+| Build | Rslib for main/preload CJS; Rsbuild for three renderer entries |
+| Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` |
+| Calendar (macOS) | Swift EventKit helper `src/main/googlemeet-events.swift`; cache under `{tmpdir}/googlemeet/` |
+| Calendar (Windows) | Google OAuth PKCE + Calendar API; tokens/cache encrypted under `userData` (`calendar-auth/google.enc`, `calendar-cache.enc`) |
+| Test | Vitest workspace: main / renderer / shared / scripts |
+| Package build | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64` |
+| Updates/logging | `electron-updater` (packaged non-portable only), `electron-log` |
 
 ## STRUCTURE
 
 ```text
 GogMeet/
-├── src/main/        # Electron main: lifecycle, tray, IPC, scheduler, windows, EventKit/Swift
+├── src/main/        # Electron main: lifecycle, tray, IPC, scheduler, windows, calendar providers
+│   ├── calendar/    # CalendarProvider factory, Google/Darwin/fixture, auth, url-extract
+│   ├── domain/      # calendar facade, watcher, settings
+│   ├── platform/    # OS helpers (isDarwin/isWin32) — not meeting-host detection
+│   └── swift/       # EventKit compile/run/JSON Lines (Darwin provider only)
 ├── src/preload/     # sandboxed context bridge exposing typed window.api
 ├── src/renderer/    # vanilla TS pages: popover, settings, alert
-├── src/shared/      # side-effect-free contracts, brands, results, errors, pure utilities
+├── src/shared/      # contracts, brands, results, errors, IPC maps, pure utilities
 ├── tests/           # Vitest workspace; Electron mocks only in main project
-├── scripts/         # Bun dev orchestrator, icon generation, Node 26 validation
-├── build/           # electron-builder hooks, entitlements, generated app icon
+├── scripts/         # dev orchestrator, icons (icns/ico), release verifiers, latest.yml merge
+├── build/           # electron-builder hooks, entitlements, icon.icns / icon.ico
+├── docs/            # windows design + dogfood guides
 ├── assets/          # README screenshots
 ├── .github/         # PR/release workflows; see `.github/workflows/AGENTS.md`
-└── .sentrux/        # architecture constraints: process boundaries, scheduler facade, state internals
+└── .sentrux/        # architecture constraints
 ```
 
-Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.eslintcache`, `*.tsbuildinfo`, `.cocoindex_code/`, `.omo/`, `.mnemonics/`.
+Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.eslintcache`, `*.tsbuildinfo`.
 
 ## WHERE TO LOOK
 
 | Task | Location | Notes |
 | --- | --- | --- |
-| Runtime bootstrap | `src/main/index.ts`, `src/main/app/lifecycle.ts` | lifecycle order matters; settings load before scheduler |
-| Add IPC | `src/shared/ipc-channels.ts` -> `src/main/ipc-handlers/*` -> `src/preload/index.ts` -> renderer/tests | invoke uses `typedHandle`; fire-and-forget uses sender validation |
-| Calendar fetch/parser | `src/main/domain/calendar.ts`, `src/main/swift/*`, `src/main/googlemeet-events.swift` | Swift output is JSON Lines arrays of 9 strings |
-| Calendar change watch | `src/main/domain/calendar-watcher.ts`, `src/main/swift/calendar-watch-sidecar.ts` | Swift `--watch` emits `CHANGED`; domain calls `forcePoll()` |
-| Scheduler behavior | `src/main/scheduler/facade.ts`, `src/main/scheduler/AGENTS.md` | facade is the only public scheduler entry |
-| Scheduler state | `src/main/scheduler/state/AGENTS.md` | state files are internal-only |
-| Tray native menu | `src/main/tray.ts`, `src/main/menu/meeting-menu.ts`, `tests/main/tray.test.ts` | install with `tray.setContextMenu()` during setup; refresh on `meeting-list-updated` |
-| URL allowlist/egress | `src/main/utils/url-validation.ts`, `src/main/utils/meet-url.ts`, `src/preload/index.ts` | preload mirror is intentional; main is authoritative |
-| BrowserWindow security/loading | `src/main/utils/browser-window.ts`, `src/main/windows/*` | dev/prod renderer loading belongs here |
-| Renderer popover | `src/renderer/index.ts`, `src/renderer/rendering/body.ts`, `src/renderer/lib/apply-events-push.ts` | push signature gates DOM re-render |
-| Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings saves through IPC; alert cannot open URLs |
-| Tests | `vitest.workspace.ts`, `tests/AGENTS.md` | main=node+Electron mock; renderer=jsdom; shared/scripts=node |
-| Packaging/release | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | Swift source must stay unpacked from ASAR; release workflow double-builds today |
+| Runtime bootstrap | `src/main/index.ts`, `src/main/app/lifecycle.ts` | single-instance lock; settings before scheduler; `initAutoUpdater` last |
+| Add IPC | `src/shared/ipc-channels.ts` → `ipc-handlers/*` → preload → renderer/tests | invoke: `typedHandle`; fire-and-forget: sender validation |
+| Calendar facade | `src/main/domain/calendar.ts` | only public calendar surface for scheduler/IPC/tray |
+| Calendar providers | `src/main/calendar/factory.ts`, `providers/*` | Darwin EventKit; Windows Google; fixture when unpackaged + env |
+| Google OAuth / tokens | `src/main/calendar/auth/*` | PKCE loopback; `google.enc`; `GOOGLE_OAUTH_CLIENT_ID` |
+| URL extraction (shared) | `src/main/calendar/url-extract.ts` | Zoom → Meet → Calendly; allowlisted |
+| Swift EventKit wire | `src/main/swift/*`, `googlemeet-events.swift` | JSON Lines 9-string arrays; Darwin only |
+| Calendar change watch | `domain/calendar-watcher.ts` | provider `startWatch` (EventKit sidecar) or poll-only |
+| Scheduler | `scheduler/facade.ts`, `scheduler/AGENTS.md` | only public scheduler entry |
+| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | `setContextMenu` on setup; Windows left-click `popUpContextMenu` |
+| OS vs meeting platform | `platform/os.ts` vs `utils/platform.ts` | OS predicates vs Meet/Zoom host detection |
+| Window chrome | `utils/window-chrome.ts` | mac vibrancy vs Windows opaque |
+| Settings Google account | `renderer/settings/index.ts` + calendar IPC disconnect/ui-state | tray-first Connect CTA on Windows |
+| Packaging | `electron-builder.yml`, `build/AGENTS.md` | per-arch win NSIS/portable; mac DMG/ZIP |
+| CI/release | `.github/workflows/AGENTS.md` | PR matrix mac+win; release-mac + release-win |
+| Windows dogfood | `docs/windows-dogfood.md` | OAuth setup, package scripts |
 
 ## CODE MAP
 
-| Symbol / file | Type | Refs | Role |
-| --- | --- | --- | --- |
-| `src/main/index.ts` | entry | runtime | creates tray popover, enables sandbox, calls lifecycle |
-| `initializeApp()` | function | startup hub | wires Swift prewarm, IPC, settings, tray, scheduler, watcher, power, shortcuts |
-| `src/main/app/ipc.ts` | registrar | IPC hub | registers calendar/settings/app/window/alert/scheduler handlers |
-| `src/shared/ipc-channels.ts` | contract | high, rg-derived | channel names, request/response maps, push payload maps |
-| `src/preload/index.ts` | bridge | runtime | exposes `window.api`; brands URL/height before IPC |
-| `scheduler/facade.ts` | facade | 8 direct prod importers, rg-derived | `startScheduler`, `forcePoll`, restart, injected callbacks |
-| `scheduler/poll.ts` | internal | facade-called | fetches calendar, schedules timers, hash-gates renderer push |
-| `scheduler/state/*` | internal state | internal only | timer maps, display state, poll epoch, runtime callbacks |
-| `domain/calendar.ts` | boundary | IPC/scheduler | runs Swift helper and returns `CalendarResult` |
-| `swift/binary-manager.ts` | boundary | calendar | cache/compile/run helper, retry once after exec failure |
-| `utils/browser-window.ts` | facade | 4 direct prod importers, rg-derived | secure web prefs, preload path, content loading, CSP |
-| `events.ts` | bus | 3 direct prod importers, rg-derived | scheduler/power -> tray decoupling |
-| `tray.ts` | status item | runtime | creates native Tray, pre-installs context menu, refreshes menu cache from `meeting-list-updated` |
-| `renderer/index.ts` | page entry | Rsbuild main | popover state machine, push handling, resize IPC |
-| `renderer/settings/index.ts` | page entry | Rsbuild settings | settings form, auto-save, save indicators |
-| `renderer/alert/index.ts` | page entry | Rsbuild alert | alert render/dismiss, Escape-only keyboard dismiss |
+| Symbol / file | Role |
+| --- | --- |
+| `src/main/index.ts` | bootstrap, single-instance, popover chrome, lifecycle |
+| `initializeApp()` | warmup provider, IPC, settings, tray, scheduler, watcher, power, shortcuts, auto-updater |
+| `calendar/factory.ts` | fixture → Darwin EventKit → Google (non-Darwin) |
+| `domain/calendar.ts` | facade + `CalendarUiState` + `calendar-status-updated` bus |
+| `scheduler/facade.ts` | only external scheduler import |
+| `scheduler/poll.ts` | poll; emits meetings + error status for tray |
+| `tray.ts` | Tray lifecycle, icons, tooltip, menu install + Windows left-click menu |
+| `events.ts` | `meeting-list-updated`, `calendar-status-updated`, power |
+| `system/auto-updater.ts` | packaged non-portable only (`isPortableInstall`) |
 
 ## CONVENTIONS
 
-- TypeScript imports use `.js` specifiers for `.ts` source; type-only imports use `import type`.
-- Bun is the primary runner/package manager; host Node 26 is only for validation/icon-generation/release tag helper paths.
-- No barrels. `scheduler/index.ts` is an internal scheduling hub, not the public surface; external consumers use `scheduler/facade.ts`.
-- `as const` on lookup maps/config. Avoid `satisfies`, `enum`, and `namespace` under `erasableSyntaxOnly` / `isolatedDeclarations`.
-- Index-signature objects require bracket notation: `obj["key"]`.
-- Branded values (`EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight`) are created at trust boundaries only.
-- `CalendarResult` narrows via `result.kind === "ok"` or `isCalendarOk()`. Generic `Result` narrows via `result.ok`.
-- Renderer HTML uses string templates/full rerender; any user-controlled string going into `innerHTML` passes through `escapeHtml()`.
-- Swift parsing is structural; meeting host allowlisting happens at egress (`buildMeetUrl`, `openMeetingUrl`, `APP_OPEN_EXTERNAL`).
-- Native tray menus are installed ahead of first activation with `tray.setContextMenu()`; click handlers may trigger refresh work such as `forcePoll()`, but must not be the only place the menu is built.
+- TypeScript imports use `.js` specifiers; type-only imports use `import type`.
+- Bun is the primary package manager; host Node 26 for validation/icon generation/release helpers.
+- No barrels. Scheduler public surface is `scheduler/facade.ts` only.
+- Prefer `platform/os.ts` over raw `process.platform` for OS branches.
+- Never static-import `swift/*` outside `calendar/providers/darwin-eventkit.ts` and `swift/**`.
+- Branded values created only at trust boundaries.
+- `CalendarResult` narrows via `result.kind === "ok"` / `isCalendarOk()`.
+- Meeting URL allowlisting at egress only (`buildMeetUrl`, `openMeetingUrl`, `APP_OPEN_EXTERNAL`).
+- Tray menu must be installed with `setContextMenu()` before first activation; Windows also `popUpContextMenu` on left-click.
+- User strings in renderer HTML go through `escapeHtml()`.
 
 ## ANTI-PATTERNS
 
-- `as any`, `@ts-ignore`, `@ts-expect-error`, empty catches, or raw-string thrown errors.
-- Raw `ipcMain.handle()` outside `typedHandle()` or raw `webContents.send()` outside `typedSend()`.
-- Bypassing `validateSender()` / `validateOnSender()` for renderer-originated IPC.
-- Trusting preload-branded payloads in main fire-and-forget handlers; revalidate/rebrand at the main boundary.
-- Meeting URL validation with `.startsWith()`; parse with `new URL()` and exact/suffix host allowlists.
-- Meeting URL egress through direct `shell.openExternal()`; use `openMeetingUrl()` or a documented exact allowlist/guard for non-meeting URLs.
-- Bundling Electron into preload; `electron` and `electron/*` stay external in `rslib.config.preload.ts`.
-- Bundling Swift source only inside ASAR; `swiftc` needs `asarUnpack`.
-- Reaching into `scheduler/poll.ts`, `scheduler/index.ts`, or `scheduler/state/*` from outside scheduler.
-- Building the tray context menu only inside `tray.on("click")`; macOS needs an installed menu before the first status-item activation.
-- `allowSleep()` without a matching prior `preventSleep()`; power refs are reference-counted.
-- Hand-editing generated tray/app icon assets; regenerate through `scripts/generate-calendar-tray-icons.mjs`.
+- `as any`, `@ts-ignore`, empty catches, raw-string thrown errors.
+- Raw `ipcMain.handle` / `webContents.send` outside `typedHandle` / `typedSend`.
+- Importing `swift/*` from domain, lifecycle, Google provider, or settings.
+- Auto-opening OAuth on Windows lifecycle (use tray/Settings Connect only).
+- Dual-arch single NSIS invocation for official Windows artifacts (build `--x64` and `--arm64` separately).
+- Overwriting `latest.yml` with sequential publish without `merge:windows-latest-yml`.
+- Hand-editing generated icons; regenerate via `scripts/generate-calendar-tray-icons.mjs`.
+- Claiming EventKit multi-source parity for Windows Google MVP.
 
 ## COMMANDS
 
 ```bash
 bun install
-bun run dev              # Bun orchestrator: Rslib watches + Rsbuild dev server + Electron
-bun run build            # build main, preload, renderer
-bun run build:main       # rslib build -c rslib.config.ts
-bun run build:preload    # rslib build -c rslib.config.preload.ts
-bun run build:renderer   # rsbuild build
-bun run typecheck        # tsc -b
-bun run test             # vitest run -c vitest.workspace.ts
-bun run test:coverage    # V8 coverage across workspace projects
-bun run lint             # eslint src/ --cache
-bun run format:check     # prettier --check 'src/**/*.{ts,css}'
-bun run validate:node    # require host Node >=26, then run icon generator
-bun run package:dir      # build + unpacked macOS app
-bun run package          # build + DMG/ZIP via electron-builder
-bun run clean            # remove lib/ and dist/
+bun run dev
+bun run build
+bun run typecheck
+bun run test
+bun run lint
+bun run format:check
+bun run validate:node          # host Node >=26 + icon generator (mac for icns)
+bun run package:mac            # DMG/ZIP arm64+x64
+bun run package:win:x64        # NSIS + portable x64
+bun run package:win:arm64      # NSIS + portable arm64
+bun run merge:windows-latest-yml
+bun run verify:macos-release
+bun run verify:windows-release
+bun run clean
 ```
 
 ## CI / PACKAGING
 
-- PR workflow: macOS, Bun install, `typecheck`, `test`, `test:coverage`; separate Node 26 job runs `validate:node`. It does not run lint/format or a dirty-tree/icon diff guard after icon generation.
-- Release workflow: runs on `main` and `v*` tags, sets up Bun + Node 26, runs `bun run build`, creates `v$(package.json.version)` tag on `main` when missing, then `bun run package` builds again and uploads `dist/*.dmg` / `dist/*.zip`.
-- `electron-builder.yml`: output `dist/`, resources `build/`, macOS 11+, deterministic `GogMeet-${version}-${arch}.${ext}` DMG/ZIP targets for `arm64` and `x64`, `mergeASARs: false`, `hardenedRuntime: true`, built-in `mac.notarize: true`, `gatekeeperAssess: false`, and DMG `sign: false`.
-- `build/after-pack.cjs` is the only packaging hook. Electron Builder owns app signing and notarization; the app is stapled before its DMG/ZIP containers are created.
+- **PR:** matrix `macos-latest` + `windows-latest` — lint, format, typecheck, build, test:coverage; `validate-node` mac-only (icon drift including `icon.ico` / win tray PNGs).
+- **Release (`v*` tags):** parallel `release-mac` (Apple secrets required) and `release-win` (optional `WIN_CSC_*`; unsigned dogfood if absent). Windows: sequential arch builds → merge `latest.yml` → verify → upload.
+- **electron-builder:** mac DMG/ZIP; win NSIS (`perMachine: false`) + portable; global `artifactName` with `${arch}`; portable uses `*-portable` suffix.
+- **Secrets:** Apple CSC/notarization for mac; optional `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD`; `GOOGLE_OAUTH_CLIENT_ID` for Windows Connect in packaged builds.
 
 ## NOTES
 
-- EventKit permission is requested on first access; lifecycle invalidates the cached permission state on resume/unlock before scheduler restart.
-- Swift helper cache: `/tmp/googlemeet/googlemeet-events` plus `/tmp/googlemeet/source.hash`, mode `0o700`, hash-keyed.
-- Swift one-shot exit codes: `0` success, `2` permission denied, `3` no calendars, `4` runtime/helper error. Verify production classification before assuming every helper exit maps to structured `AppError`.
-- Swift output protocol: one JSON array line of exactly nine strings ordered as `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
-- Official releases are created only from `v${package.json.version}` tags. The tag workflow requires nonempty `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`; local `bun run package` remains allowed without them.
-- Official release verification mounts DMGs and extracts ZIPs, then validates each contained app. The app is signed, notarized, and stapled; a DMG and ZIP are containers and must not be described as stapled/notarized themselves.
-- Auto-open applies to non-all-day future meetings, 1-5 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists.
-- Full-screen alert fires 60s before browser auto-open, clamped to now; dismissing it cancels that event's pending browser open.
-- Scheduler polling: 2 min on AC, 4 min on battery; `forcePoll()` coalesces within 10s by scheduling one deferred follow-up, not by dropping every request.
-- Supported extracted meeting URLs today: Google Meet, Zoom (including `.zoom.us` subdomains), and Calendly wrappers. Add new wrappers by updating Swift extraction, main/preload allowlists, and tests together.
+- macOS: EventKit permission / AppleScript probes; lifecycle may auto-request when not-determined. Windows: never auto-OAuth.
+- Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`.
+- Windows offline: encrypted event cache; network failure may serve last sync.
+- Auto-open: non-all-day, 1–5 min before start; alert ~60s before open; dismiss cancels open.
+- Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
+- Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + TS url-extract + main/preload allowlists + tests.
+- Design / dogfood: `docs/windows-platform-support-design.md`, `docs/windows-dogfood.md`.

@@ -9,8 +9,10 @@ Pure TypeScript contracts and utilities shared by main, preload, and renderer. T
 | `ipc-channels.ts` | `IPC_CHANNELS`, `IpcChannelMap`, `PushChannelMap`, `IpcRequest`, `IpcResponse`. |
 | `meeting-event.ts` | `MeetingEvent` with branded IDs, dates, and optional meeting URL. |
 | `calendar-result.ts` | `CalendarResult` (`kind: "ok" | "err"`), `isCalendarOk()`, permission type. |
+| `calendar-ui-state.ts` | `CalendarUiState` / phase for tray + Settings Google account UI. |
+| `type-guards.ts` | `isObjectRecord` (generic; not under `main/swift`). |
 | `brand.ts` | `EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight` and validators. |
-| `errors.ts` | `AppError` taxonomy, helpers, and type guards. |
+| `errors.ts` | `AppError` taxonomy (`calendar-*`, validation, io, unknown), helpers, guards. |
 | `event-signature.ts` | Stable event/list signatures for scheduler push and renderer rerender gating. |
 | `result.ts` | Generic `Result<T,E>` and `AppResult<T>`. |
 | `settings.ts` | `AppSettings`, defaults, min/max constants. |
@@ -23,9 +25,10 @@ Pure TypeScript contracts and utilities shared by main, preload, and renderer. T
 ## IPC contracts
 
 - `IPC_CHANNELS` is the single source of channel names; keep it `as const`.
-- Invoke channels map to `{ request, response }` in `IpcChannelMap`.
+- Invoke channels map to `{ request, response }` in `IpcChannelMap` (includes `CALENDAR_DISCONNECT`, `CALENDAR_UI_STATE`).
 - Push channels (`SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`) map payloads in `PushChannelMap` and are main → renderer only.
 - Fire-and-forget channels (`ALERT_DISMISSED`, `SCHEDULER_FORCE_POLL`, `WINDOW_SET_HEIGHT`) still have typed request payloads.
+- Main-process bus event `calendar-status-updated` is **not** an IPC push; tray listens in main via `events.ts`.
 - Add a channel by updating shared channel maps first, then main handler, preload API, renderer caller, and tests.
 
 ## Model shapes

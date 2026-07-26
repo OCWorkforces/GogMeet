@@ -2,33 +2,33 @@
 
 ## OVERVIEW
 
-Core domain modules: calendar access facade, change watching, and persistent settings.
+Core domain modules: calendar access facade (provider-backed), change watching, and persistent settings.
 
 ## FILES
 
-| File                  | Exports                                                                                  | Purpose                                          |
-| --------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `calendar.ts`         | `getCalendarEventsResult()`, `requestCalendarPermission()`, `getCalendarPermissionStatus()`, `invalidateCalendarPermissionCache()`, `warmupCalendarProvider()`, `shouldAutoRequestCalendarPermission()`, `disconnectCalendar()` | Stable facade over `calendar/factory` providers |
-| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`                                       | Provider `startWatch`/`stopWatch` → `forcePoll()` |
-| `settings.ts`         | `AppSettings`, `DEFAULT_SETTINGS`, `loadSettings()`, `saveSettings()`, `getSettings()`   | JSON-persisted settings in `userData/`           |
+| File | Exports | Purpose |
+| --- | --- | --- |
+| `calendar.ts` | `getCalendarEventsResult`, `requestCalendarPermission`, `getCalendarPermissionStatus`, `invalidateCalendarPermissionCache`, `warmupCalendarProvider`, `shouldAutoRequestCalendarPermission`, `disconnectCalendar`, `getCalendarUiState`, `reportCalendarPollError` | Stable facade over `calendar/factory`; publishes `CalendarUiState` on the main bus |
+| `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher` | Provider `startWatch` / `stopWatch` → `forcePoll()` |
+| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings` | JSON settings in `userData/` |
 
 ## WHERE TO LOOK
 
-| Task                       | Location                                  |
-| -------------------------- | ----------------------------------------- |
-| Add a setting field        | `settings.ts` → `AppSettings` + `DEFAULT_SETTINGS` |
-| Narrow CalendarResult      | `../../shared/calendar-result.ts` → `isCalendarOk()` |
-| Platform calendar backends | `../calendar/` (factory + providers)      |
-| Swift binary internals     | `../swift/AGENTS.md` (Darwin provider only) |
-| Poll-trigger semantics     | `../scheduler/AGENTS.md`                  |
+| Task | Location |
+| --- | --- |
+| Add a setting field | `settings.ts` + `shared/settings.ts` |
+| Narrow CalendarResult | `shared/calendar-result.ts` → `isCalendarOk()` |
+| Platform backends | `../calendar/` (factory + providers) |
+| Swift internals | `../swift/AGENTS.md` (Darwin provider only) |
+| Tray empty/error states | `getCalendarUiState` / `calendar-status-updated` |
 
 ## NOTES
 
-- `calendar.ts` must **not** import `swift/*`. It delegates to `calendar/factory.ts`.
-- Darwin EventKit lives in `calendar/providers/darwin-eventkit.ts` (static `swift/*` imports OK there only).
-- Non-Darwin uses `stub-unsupported` until Wave 4 Google provider.
-- `calendar-watcher.ts` is poll-only when the provider omits `startWatch`.
-- `settings.ts` imports `isObjectRecord` from `shared/type-guards` — never from `swift/guards`.
-- `loadSettings()` returns `Result<AppSettings, string>`; missing file returns `DEFAULT_SETTINGS` via `isEnoent` predicate.
-- Permission status is cached in `calendar.ts`; `invalidateCalendarPermissionCache()` is called on power resume before `restartScheduler()`.
-- Lifecycle auto-requests permission only when `shouldAutoRequestCalendarPermission()` is true (Darwin).
+- **Must not** import `swift/*`. Delegate to `calendar/factory.ts`.
+- Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
+- Windows: `calendar/providers/google-calendar.ts` (OAuth + API).
+- Watch is poll-only when provider omits `startWatch` (Google/fixture).
+- `settings.ts` uses `shared/type-guards` (`isObjectRecord`), never `swift/guards`.
+- Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.
+- Lifecycle auto-request only when `shouldAutoRequestCalendarPermission()` (Darwin). Windows Connect is tray/Settings-only.
+- Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.

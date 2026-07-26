@@ -34,3 +34,4 @@
 ## NOTES
 
 - Calendly meeting URLs (`https://calendly.com/`) are supported. The browser handles the 302 redirect to the underlying Meet room transparently; the main process performs no redirect resolution.
+- Free-text URL discovery for cloud calendars lives in `calendar/url-extract.ts` (not here); allowlist enforcement remains in this package’s validation + `meet-url` egress.

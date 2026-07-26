@@ -8,7 +8,7 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `facade.ts`          | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
 | `index.ts`           | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning.                                                                                                      |
-| `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, pushes `CALENDAR_EVENTS_UPDATED`.                                                                           |
+| `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, calls `reportCalendarPollError` on failure, pushes `CALENDAR_EVENTS_UPDATED`. |
 | `state/`             | Internal sliced state; see `state/AGENTS.md`. External imports forbidden.                                                                                                      |
 | `browser-timer.ts`   | Browser-open timer and notification trigger.                                                                                                                                   |
 | `alert-timer.ts`     | Full-screen alert timer: 60s before browser auto-open, clamped to now when the browser-open time is already near.                                                             |

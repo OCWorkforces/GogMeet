@@ -6,7 +6,7 @@ Vitest workspace with four projects. `main` runs in Node with Electron mocks, `r
 
 | Project | Env | Setup | Scope |
 | --- | --- | --- | --- |
-| `main` | Node | `tests/setup.main.ts` | Electron main process, scheduler, Swift, IPC, windows, utilities. |
+| `main` | Node | `tests/setup.main.ts` | Electron main, scheduler, calendar providers, Swift, IPC, tray, utilities. |
 | `renderer` | jsdom | none | Browser-only UI rendering and interaction tests. |
 | `shared` | Node | none | Process-neutral shared contracts/utilities. |
 | `scripts` | Node | none | Repository automation scripts under `scripts/`; no Electron mocks. |
@@ -71,7 +71,7 @@ bun run test:coverage
 ## Known gaps
 
 - No integration tests spanning main + preload + renderer.
-- No real EventKit/Swift execution in CI.
+- No real EventKit/Swift/Google network execution in CI (mock fetch/exec).
 - No packaged Electron app smoke test.
 - Auto-updater download/install/relaunch lifecycle is mocked only.
 - Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings; keep file-local notes intact.

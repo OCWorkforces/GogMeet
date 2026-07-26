@@ -2,7 +2,7 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-OS process-platform helpers. Do not confuse with `utils/platform.ts` (meeting host detection).
+OS process-platform helpers. Do **not** confuse with `utils/platform.ts` (meeting host: Meet vs Zoom).
 
 ## FILES
 
@@ -12,5 +12,6 @@ OS process-platform helpers. Do not confuse with `utils/platform.ts` (meeting ho
 
 ## NOTES
 
-- Prefer these helpers over raw `process.platform === "…"` so call sites stay consistent and testable via module mock.
-- Windows calendar providers and packaging live in later waves; this package stays leaf/pure.
+- Prefer these helpers over raw `process.platform === "…"` (testable via module mock).
+- Leaf package: no calendar or Electron window logic here.
+- Factory/tray/chrome/notifications branch on these helpers for dual-platform behavior.

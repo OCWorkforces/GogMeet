@@ -25,7 +25,7 @@ Leaf modules wrapping Electron/OS platform APIs. No business logic, no cross-sub
 - Never import from `windows/` or `domain/`
 - Never call `allowSleep()` without a matching prior `preventSleep()`. Ref count must balance
 - Never request notification permission here. `notification.ts` is probe-only, prompt lives at call site
-- Never run auto-updater outside packaged builds. Always gate on `app.isPackaged`
+- Never run auto-updater outside packaged **non-portable** builds (`app.isPackaged` and not `isPortableInstall()`)
 - Never import renderer/preload code; communicate through lifecycle callbacks or the typed event bus.
 - Never call `shell.openExternal()` directly from `shortcuts.ts`. Route every meeting URL through `openMeetingUrl()` so the URL allowlist gate is enforced before egress.
 - Do not hard-code macOS-only settings URIs in `notification.ts`; use `getNotificationSettingsDeepLink()`.

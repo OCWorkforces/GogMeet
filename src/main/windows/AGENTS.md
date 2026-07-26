@@ -10,7 +10,7 @@ Auxiliary BrowserWindow factories beyond the main popover. Each is a singleton w
 |------|------|-------------|
 | `about-window.ts` | About panel: `alwaysOnTop`, `hiddenInset` titlebar, version-injected HTML, repository link, embeds `about-icon.svg` as data URI | `showAbout(mainWindow)` |
 | `alert-window.ts` | Full-screen meeting alert overlay with queue + duplicate-uid coalescing | `showAlert(event)` |
-| `settings-window.ts` | Settings UI; visible in Dock while open, hidden on close | `createSettingsWindow()` |
+| `settings-window.ts` | Settings UI; Dock show/hide on macOS only (`app.dock?.`); tray-only otherwise | `createSettingsWindow()` |
 
 ## WHERE TO LOOK
 
@@ -28,5 +28,6 @@ Auxiliary BrowserWindow factories beyond the main popover. Each is a singleton w
 - About window reads `about-icon.svg` once at module load (sync) and inlines it as `data:image/svg+xml,...`. Repository links are exact-match guarded against `packageJson.repository` before `shell.openExternal()`.
 - Alert window is tagged with `win.__alertUid = event.id` so rapid `showAlert()` calls with the same uid are dropped (active or queued). Different uids queue and fire sequentially after the prior window closes.
 - Alert payload omits `meetUrl` by design, the alert UI does not join meetings, dismissal only.
-- Settings window is the only window that toggles Dock visibility, the app is tray-only otherwise. IPC settings updates trigger `restartScheduler()` from the handler side, not from this file.
+- Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows. Scheduler restart on settings save is owned by IPC handlers, not this file.
+- Alert always-on-top uses `applyAlertAlwaysOnTop` (screen-saver level + all workspaces on Darwin; plain always-on-top on Windows).
 - Singleton pattern is identical across all three: module-level `let win: BrowserWindow | null`, focus existing if alive, null out on `closed`.

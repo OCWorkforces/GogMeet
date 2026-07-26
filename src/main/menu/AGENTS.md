@@ -1,39 +1,34 @@
 # Tray Context Menu
 
-Builds the Electron `MenuItemConstructorOptions[]` template installed on the macOS tray icon. Pure builder — no Electron `Menu` lifecycle, no state, no IPC.
+Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder — no `Menu` lifecycle, no IPC ownership (tray owns install/popup).
 
 ## FILES
 
-| File              | Role                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `meeting-menu.ts` | `buildMeetingMenuTemplate(events, showTomorrow, callbacks)` — Today / Tomorrow groups, footer |
+| File | Role |
+| --- | --- |
+| `meeting-menu.ts` | `buildMeetingMenuTemplate`, `buildCalendarTrayMenuTemplate` |
 
 ## CONTRACT
 
-Input:
-- `events: MeetingEvent[]` — full upcoming list from latest poll (filtered internally).
-- `showTomorrowMeetings: boolean` — from `settings.showTomorrowMeetings`.
-- `callbacks: { onAbout, onOpenSettings }` — invoked on click.
+### `buildMeetingMenuTemplate(events, showTomorrow, callbacks)`
 
-Output: `MenuItemConstructorOptions[]` ready for `Menu.buildFromTemplate()`. `tray.ts` owns `Menu.buildFromTemplate()` and `tray.setContextMenu()`.
+- Filters all-day / ended events; Today / Tomorrow groups; open via `buildMeetUrl` + `openMeetingUrl`.
+- Footer: Settings… / About / Quit (`CommandOrControl+Q`).
 
-## BEHAVIOR
+### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks)`
 
-- Filters out all-day events and events whose `endDate` is in the past.
-- Groups by `Today` (`startOfDay` ≤ start < `startOfTomorrow`) and `Tomorrow` (`startOfTomorrow` ≤ start < day-after-tomorrow).
-- "In progress" suffix when `startDate <= now`.
-- Items without `meetUrl` are rendered disabled (no `click` handler).
-- Click handler builds the URL via `utils/meet-url.ts:buildMeetUrl()` and opens via `openMeetingUrl()` (allowlisted).
-- Empty state: shows "No upcoming meetings" with the standard footer.
-- Always appends footer: Settings… / About GogMeet / Quit (Cmd+Q → `app.quit()`).
+- Input: `CalendarUiState` (permission, phase, errors, events, offline, oauthConfigured).
+- **Windows / non-Darwin:** Connect / Reconnect / Disconnect Google, error + Retry, offline hint, Outlook-coming-later copy.
+- **Darwin:** meeting list when granted; uses same meeting rows + footer.
+- Callbacks: `onAbout`, `onOpenSettings`, optional `onConnectGoogle`, `onDisconnectGoogle`, `onRetryPoll`.
 
 ## CONSUMERS
 
-`tray.ts` installs a placeholder native menu during setup, then calls `buildMeetingMenuTemplate()` whenever cached meetings change via `mainBus.on("meeting-list-updated", ...)`.
+`tray.ts` builds from UI state + cached meetings; refreshes on `meeting-list-updated` and `calendar-status-updated`. Installs with `setContextMenu()`; on Windows left-click also `popUpContextMenu`.
 
 ## ANTI-PATTERNS
 
-- Do not mutate `events` — caller owns the array.
-- Do not build or pop Electron `Menu` instances here; `tray.ts` owns the native menu lifecycle and keeps the menu installed before first click.
-- Do not call `shell.openExternal()` directly — always go through `openMeetingUrl()` (URL allowlist).
-- Do not import from `scheduler/` — menu is a presentation leaf.
+- Do not mutate `events` / `ui` arrays.
+- Do not call `Menu.buildFromTemplate` here — tray owns lifecycle.
+- Do not `shell.openExternal` for meetings — use `openMeetingUrl`.
+- Do not import scheduler internals.

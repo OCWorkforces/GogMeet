@@ -2,18 +2,20 @@
 
 ## OVERVIEW
 
-Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock. Covers Electron main, scheduler, Swift bridge, IPC, windows, tray/menu, system adapters, settings, preload, and shared contracts used by main.
+Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock. Covers Electron main, scheduler, calendar providers (factory/Google/fixture), Swift bridge, IPC, windows, tray/menu, system adapters, settings, preload.
 
 ## STRUCTURE
 
 ```
 tests/main/
 ├── scheduler*.test.ts       # scheduler state, timers, facade, poll races, auto-open deadlines
-├── swift/                   # parser-focused Swift output tests
+├── swift/                   # parser-focused Swift JSON Lines tests
+├── calendar*.test.ts        # domain facade, factory, fixture, token store
+├── url-extract*.test.ts     # shared Meet/Zoom/Calendly extraction
 ├── ipc*.test.ts             # channel constants, typed wrappers, handlers, registrar
-├── calendar*.test.ts        # calendar domain and watch sidecar boundaries
-├── *-window.test.ts         # BrowserWindow factories and alert/settings windows
-└── system/util suites       # power, shortcuts, notification, auto-launch, updater, URL helpers
+├── platform-os / window-chrome / after-pack
+├── *-window.test.ts         # BrowserWindow factories
+└── system/util suites       # power, shortcuts, notification, auto-launch, updater, tray
 ```
 
 ## SCHEDULER SUITES
@@ -27,12 +29,13 @@ tests/main/
 
 Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
 
-## CALENDAR / SWIFT
+## CALENDAR / PROVIDERS / SWIFT
 
-- `calendar.test.ts` covers `CalendarResult`, 9-string JSON Lines Swift output, diagnostics, and permission status/request cache behavior.
-- `swift/event-parser.test.ts` covers field parsing, diagnostics, sorting, URL/note cleanup, and `classifySwiftError()`.
-- `swift-binary-manager.test.ts` covers `/tmp/googlemeet` cache paths, source hash, compile target flags, retry/recompile behavior, and `promisify.custom` exec mocks.
-- `calendar-watch-sidecar.test.ts` covers the Node-managed `swift --watch` sidecar restart, debounce, stable-runtime reset, and stop behavior.
+- `calendar.test.ts` — domain facade over Darwin provider mocks, JSON Lines parse diagnostics, permission cache.
+- `calendar-factory.test.ts` / `fixture-calendar.test.ts` / `google-token-store.test.ts` — factory selection, K23 fixture gate, token schema.
+- `url-extract.test.ts` — Zoom → Meet → Calendly priority + allowlist.
+- `swift/event-parser.test.ts` — field parsing, diagnostics, `classifySwiftError` → `calendar-*` AppError.
+- `swift-binary-manager.test.ts` / `calendar-watch-sidecar.test.ts` — compile/cache/watch (mocked exec; no real EventKit in CI).
 
 ## IPC / PRELOAD
 
@@ -45,8 +48,9 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 ## WINDOWS / SYSTEM / UTILS
 
 - Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts`.
-- Tray/menu/windows: `tray.test.ts` covers Tray setup, preinstalled context menus, and cache-refresh rebuilds; `meeting-menu.test.ts`, `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts` cover their focused modules.
-- System adapters: `power.test.ts`, `shortcuts.test.ts`, `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
+- Tray/menu: `tray.test.ts` (setup, menus, Windows left-click popup, tooltips); `meeting-menu.test.ts`.
+- Windows: `alert-window`, `settings-window`, `browser-window`, `window-chrome`.
+- System: `power`, `shortcuts`, `notification` (platform deep-links), `auto-launch`, `auto-updater` (portable skip).
 - Domain/utils: `settings.test.ts`, `settings-defaults.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
 
 ## MOCKING RULES

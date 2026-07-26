@@ -13,7 +13,14 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 
 ```typescript
 window.api = {
-  calendar: { getEvents, requestPermission, getPermissionStatus, onEventsUpdated },
+  calendar: {
+    getEvents,
+    requestPermission,
+    getPermissionStatus,
+    disconnect,
+    getUiState,
+    onEventsUpdated,
+  },
   window: { setHeight },
   app: { openExternal, getVersion },
   settings: { get, set, onChanged },
@@ -63,6 +70,7 @@ There is no `models.ts` barrel. Import concrete files:
 - `../shared/settings.js` — `AppSettings`.
 - `../shared/alert.js` — `AlertPayload`.
 - `../shared/brand.js` — `asMeetUrl`, `clampWindowHeight`, branded types.
+- `../shared/calendar-ui-state.js` — `CalendarUiState` (via IPC response typing).
 
 ## Build constraints
 

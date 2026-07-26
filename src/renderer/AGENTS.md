@@ -9,7 +9,7 @@ Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML stri
 | Entry | HTML | Window | Role |
 |-------|------|--------|------|
 | `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
-| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | iOS toggles, auto-save with "✓ Saved" indicator |
+| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + **Google Calendar account** (connect/disconnect); auto-save |
 | `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
 
 ## STRUCTURE
@@ -48,10 +48,10 @@ src/renderer/
 
 ## SETTINGS WINDOW
 
-- Auto-save: toggle change → `window.api.settings.set()` → "✓ Saved" indicator
-- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle and closes over `saveIndicatorTimers`
-- `saveIndicatorTimers` Map cleaned on re-render, prevents leaks
-- Save failure reverts toggle + shows error message
+- Google Calendar section: `calendar.getUiState()` / `requestPermission` / `disconnect`; escape email and lastError.
+- Meeting prefs auto-save: toggle → `window.api.settings.set()` → "✓ Saved" indicator.
+- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle; `saveIndicatorTimers` cleaned on re-render.
+- Save failure reverts toggle + shows error message.
 
 ## ALERT WINDOW
 
