@@ -1,7 +1,7 @@
 import type { MeetingEvent } from "../../shared/meeting-event.js";
+import { cleanDescription } from "../calendar/clean-description.js";
 import {
   brandTimestamps,
-  cleanDescription,
   parseEventIdField,
   parseMeetUrlField,
   parseTimestampPair,
