@@ -8,7 +8,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 | --- | --- |
 | `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates on macOS + Windows, full and changed-source coverage, and Node 26 icon-drift validation (mac only). |
 | `release.yml` | Main pushes create a version tag only; `v*` tags run parallel `release-mac` and `release-win` jobs that package, verify, and upload to the same GitHub Release. |
-| `beta-release.yml` | Push to `develop` (e.g. after PR merge): packages macOS DMG/ZIP and publishes a **GitHub pre-release** with an auto-incremented beta tag. |
+| `beta-release.yml` | Push to `develop` (e.g. after PR merge): parallel **mac + Windows** packaging into one **GitHub pre-release** with an auto-incremented beta tag. |
 
 ## PR Check
 
@@ -23,17 +23,22 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 
 ## Beta Release (`develop`)
 
-- A `main` push creates and pushes `v${package.json.version}` only when missing. It never installs, packages, verifies, or uploads release assets.
-- On `v*` tags:
-  - **`release-mac`** (`macos-latest`): requires Apple signing/notarization secrets; `bun run package:mac`; `verify:macos-release`; uploads DMG/ZIP + `SHA256SUMS-mac.txt` (+ `latest-mac.yml` when present).
-  - **`release-win`** (`windows-latest`): optional `WIN_CSC_*` → export as `CSC_*` for Authenticode (unsigned dogfood if absent, K30); sequential `package:win:x64` then `package:win:arm64` with `--publish never`; `merge:windows-latest-yml` (K25); `REQUIRE_UPDATER_YML=1 verify:windows-release`; uploads four exes + `latest.yml` + `SHA256SUMS-win.txt`.
-- Both jobs attach to the same GitHub Release (`make_latest: true`). Prefer separate checksum fragments to avoid race overwrites.
-- Bake `GOOGLE_OAUTH_CLIENT_ID` into Windows builds via secrets when Connect Google must work in shipped installers.
-- Triggers on every push to `develop` (including PR merges). Concurrency group `beta-release-develop` serializes runs so beta numbers do not collide.
-- **Why release runs in the same workflow as tag creation:** GitHub does not start new workflow runs for pushes that use the default `GITHUB_TOKEN`. Creating `vX.Y.Z` on `main` therefore cannot rely on a follow-up “tag push” event to package. The `prepare` job ensures the version tag exists, and the `release` job packages/uploads in **that same run**.
-- `prepare`: on `main`, tag is `v${package.json.version}` (must be plain `X.Y.Z`); create/push the annotated tag if missing; set `run_release=true`. On `v*` tag push without `-beta-`, set `run_release=true`. Beta tags set `run_release=false`.
-  - **unsigned** — any secret missing (including no `CSC_LINK`) → `CSC_IDENTITY_AUTO_DISCOVERY=false`, package without Developer ID, **skip** verifier, warn in release notes about Gatekeeper.
-- Do not use `-beta-` tags for official releases; beta tags are owned by `beta-release.yml`.
+- Triggers on every push to `develop` (including PR merges). Concurrency group `beta-release-${{ github.ref }}` serializes runs so beta numbers do not collide.
+- **`prepare`** (`macos-latest`): compute next `v${base}-beta-N` / app version `${base}-beta.N`; create and push the annotated tag on the develop tip; open an empty GitHub **pre-release** shell (notes/body) so parallel jobs only attach assets.
+- **`beta-mac`** (`macos-latest`, needs prepare): temporarily set `package.json` version to the beta app version; `package:mac` signed when Apple secrets are complete else `CSC_IDENTITY_AUTO_DISCOVERY=false`; signed path runs `verify:macos-release`; uploads DMG/ZIP + `SHA256SUMS-mac.txt` (+ `latest-mac.yml` when present).
+- **`beta-win`** (`windows-latest`, needs prepare): same version bump; optional `WIN_CSC_*` → `CSC_*` (unsigned dogfood if absent, K30); sequential `package:win:x64` then `package:win:arm64`; `merge:windows-latest-yml` (K25); `REQUIRE_UPDATER_YML=1 verify:windows-release`; uploads four exes + `latest.yml` + `SHA256SUMS-win.txt`. Bake `GOOGLE_OAUTH_CLIENT_ID` when present so Connect Google works in beta installers.
+- Both platform jobs attach to the **same** pre-release (`prerelease: true`, `make_latest: false`). Use separate checksum fragments to avoid race overwrites.
+- Do not commit the temporary beta `package.json` version bump; the git tag always points at the untouched develop commit.
+- Do not use `-beta-` tags for official releases; beta tags are owned by this workflow (official `release.yml` skips them).
+
+## Official Release (`main` / `v*`)
+
+- A `main` push creates and pushes `v${package.json.version}` only when missing. Packaging runs in the **same** workflow (GITHUB_TOKEN tag pushes do not start new runs).
+- **`prepare`**: resolve/create the official tag; when `run_release=true`, open a GitHub **Release shell** (notes/body, `make_latest: true`) so parallel jobs only attach assets.
+- On `v*` tags (non-beta), when `run_release=true`:
+  - **`release-mac`**: Apple secrets → signed `package:mac` + verify, or unsigned fallback; uploads DMG/ZIP + `SHA256SUMS-mac.txt` (+ `latest-mac.yml` when present).
+  - **`release-win`**: LF checkout; optional `WIN_CSC_*`; sequential `package:win:x64` / `package:win:arm64`; merge `latest.yml`; verify; uploads four exes + `latest.yml` + `SHA256SUMS-win.txt`. Prefer `github.token` for `GH_TOKEN` (not an empty `secrets.GITHUB_TOKEN`).
+- Both attach to the **same** Release. Separate checksum fragments avoid race overwrites.
 
 ## Anti-Patterns
 

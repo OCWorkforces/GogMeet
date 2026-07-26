@@ -5,6 +5,8 @@ name: Release
 # Important: pushes made with the default GITHUB_TOKEN do not start new workflow
 # runs. So we must package in the same run that ensures the version tag exists
 # on main — not rely on a follow-up "tag push" event.
+#
+# Parallel release-mac + release-win attach assets to one GitHub Release.
 on:
   push:
     tags:
@@ -81,6 +83,34 @@ jobs:
 
           echo "run_release=false" >> "$GITHUB_OUTPUT"
           echo "tag=" >> "$GITHUB_OUTPUT"
+
+      # Create the release shell first so parallel mac/win jobs only attach files
+      # (avoids softprops races creating the same release twice).
+      - name: Create GitHub Release shell
+        if: steps.resolve.outputs.run_release == 'true'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          token: ${{ github.token }}
+          tag_name: ${{ steps.resolve.outputs.tag }}
+          name: ${{ steps.resolve.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            ## Release `${{ steps.resolve.outputs.tag }}`
+
+            Official dual-platform build from `${{ github.sha }}`.
+
+            | Platform | Artifacts |
+            | --- | --- |
+            | macOS | DMG + ZIP (`arm64`, `x64`) |
+            | Windows | NSIS installer + portable (`x64`, `arm64`) |
+
+            Prefer the NSIS `.exe` (not `-portable`) on Windows for auto-update.
+            Prefer the DMG matching your Mac architecture (`arm64` Apple Silicon, `x64` Intel).
 
   release-mac:
     name: Build and publish macOS release
@@ -181,21 +211,9 @@ jobs:
         with:
           token: ${{ github.token }}
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
-          generate_release_notes: true
           fail_on_unmatched_files: false
-          body: |
-            ## Release `${{ needs.prepare.outputs.tag }}`
-
-            | Field | Value |
-            | --- | --- |
-            | Platform | macOS + Windows (parallel jobs) |
-            | Signing (mac) | `${{ steps.signing.outputs.mode }}` |
-
-            ${{ steps.signing.outputs.mode == 'unsigned' && '**Unsigned mac build:** signing secrets were not fully configured (e.g. missing `CSC_LINK`). Gatekeeper may block install — use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine after install.' || '**Signed and notarized** when Apple credentials were present in CI.' }}
           files: |
             dist/GogMeet-*-arm64.dmg
             dist/GogMeet-*-arm64.zip
@@ -260,13 +278,14 @@ jobs:
       - name: Build Windows x64 (NSIS + portable)
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # package:win:* uses --publish never; softprops owns GitHub upload
+          GH_TOKEN: ${{ github.token }}
         run: bun run package:win:x64
 
       - name: Build Windows arm64 (NSIS + portable)
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: bun run package:win:arm64
 
       - name: Merge latest.yml for both NSIS arches
@@ -292,6 +311,7 @@ jobs:
             dist/GogMeet-*-arm64-portable.exe \
             dist/latest.yml \
             > dist/SHA256SUMS-win.txt
+          cat dist/SHA256SUMS-win.txt
 
       - name: Upload Windows release assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
@@ -300,8 +320,6 @@ jobs:
         with:
           token: ${{ github.token }}
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
