@@ -31,6 +31,7 @@ const {
   mockShouldAutoRequestCalendarPermission,
   mockStartCalendarWatcher,
   mockStopCalendarWatcher,
+  mockInitAutoUpdater,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -66,6 +67,7 @@ const {
   mockShouldAutoRequestCalendarPermission: vi.fn().mockReturnValue(true),
   mockStartCalendarWatcher: vi.fn(),
   mockStopCalendarWatcher: vi.fn(),
+  mockInitAutoUpdater: vi.fn(),
 }));
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -116,6 +118,10 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
 vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
   startCalendarWatcher: mockStartCalendarWatcher,
   stopCalendarWatcher: mockStopCalendarWatcher,
+}));
+
+vi.mock("../../src/main/system/auto-updater.js", () => ({
+  initAutoUpdater: mockInitAutoUpdater,
 }));
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
@@ -170,6 +176,9 @@ describe("lifecycle", () => {
 
       // Auto-launch synced with settings
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(false);
+
+      // Auto-updater wired for packaged installs
+      expect(mockInitAutoUpdater).toHaveBeenCalledOnce();
     });
 
     it("requests calendar permission when not determined and auto-request is allowed", async () => {

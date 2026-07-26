@@ -38,7 +38,43 @@ vi.mock("electron-log", () => ({
   default: mockLog,
 }));
 
-import { initAutoUpdater } from "../../src/main/system/auto-updater.js";
+import { initAutoUpdater, isPortableInstall } from "../../src/main/system/auto-updater.js";
+
+describe("isPortableInstall", () => {
+  const keys = [
+    "PORTABLE_EXECUTABLE_DIR",
+    "PORTABLE_EXECUTABLE_FILE",
+    "GOGMEET_PORTABLE",
+  ] as const;
+
+  afterEach(() => {
+    for (const k of keys) {
+      delete process.env[k];
+    }
+  });
+
+  it("is false when portable env vars are unset (NSIS-style)", () => {
+    for (const k of keys) {
+      delete process.env[k];
+    }
+    expect(isPortableInstall()).toBe(false);
+  });
+
+  it("is true when PORTABLE_EXECUTABLE_DIR is set", () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\\GogMeet";
+    expect(isPortableInstall()).toBe(true);
+  });
+
+  it("is true when PORTABLE_EXECUTABLE_FILE is set", () => {
+    process.env["PORTABLE_EXECUTABLE_FILE"] = "C:\\GogMeet\\GogMeet.exe";
+    expect(isPortableInstall()).toBe(true);
+  });
+
+  it("is true when GOGMEET_PORTABLE=1", () => {
+    process.env["GOGMEET_PORTABLE"] = "1";
+    expect(isPortableInstall()).toBe(true);
+  });
+});
 
 describe("initAutoUpdater", () => {
   beforeEach(() => {
@@ -46,10 +82,16 @@ describe("initAutoUpdater", () => {
     vi.useFakeTimers();
     mockAutoUpdater.autoDownload = false;
     mockAutoUpdater.autoInstallOnAppQuit = false;
+    delete process.env["PORTABLE_EXECUTABLE_DIR"];
+    delete process.env["PORTABLE_EXECUTABLE_FILE"];
+    delete process.env["GOGMEET_PORTABLE"];
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    delete process.env["PORTABLE_EXECUTABLE_DIR"];
+    delete process.env["PORTABLE_EXECUTABLE_FILE"];
+    delete process.env["GOGMEET_PORTABLE"];
   });
 
   it("returns early when app is not packaged", async () => {
@@ -61,8 +103,16 @@ describe("initAutoUpdater", () => {
     expect(mockAutoUpdater.on).not.toHaveBeenCalled();
     expect(mockAutoUpdater.checkForUpdates).not.toHaveBeenCalled();
 
-    // Restore for other tests
     Object.defineProperty(electron.app, "isPackaged", { value: true, writable: true });
+  });
+
+  it("skips updates for portable installs", () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\\portable";
+    initAutoUpdater();
+    expect(mockAutoUpdater.on).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith(
+      expect.stringContaining("Portable install"),
+    );
   });
 
   it("configures autoUpdater when app is packaged", () => {
@@ -92,13 +142,11 @@ describe("initAutoUpdater", () => {
   it("logs update-available event", () => {
     initAutoUpdater();
 
-    // Get the update-available handler
     const call = mockAutoUpdater.on.mock.calls.find(
       (c) => c[0] === "update-available",
     );
     expect(call).toBeDefined();
 
-    // Simulate event
     call![1]({ version: "2.0.0" });
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("2.0.0"));
   });

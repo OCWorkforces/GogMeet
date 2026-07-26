@@ -8,7 +8,7 @@ Leaf modules wrapping Electron/OS platform APIs. No business logic, no cross-sub
 | --- | --- |
 | `power.ts` | Power management: battery-aware `getPollInterval()` (2min AC / 4min battery), ref-counted sleep prevention (`preventSleep`/`allowSleep`), `powerMonitor` events |
 | `auto-launch.ts` | Login items: `enableAutoLaunch(enable)` via `app.setLoginItemSettings()` |
-| `auto-updater.ts` | `electron-updater` bootstrap. `initAutoUpdater()`. No-op when `app.isPackaged` is false |
+| `auto-updater.ts` | `electron-updater` bootstrap + `isPortableInstall()` (K26). Wired from lifecycle; skips unpackaged and portable |
 | `notification.ts` | Notification permission dialog + platform settings deep-link (`x-apple…` / `ms-settings:…`). `checkNotificationPermission()`, `getNotificationSettingsDeepLink()` |
 | `shortcuts.ts` | Global shortcut CmdOrCtrl+Shift+M opens the next upcoming meeting via `openMeetingUrl()` (allowlist-validated egress). Imports `scheduler/facade.js` for `getLastKnownEvents`. `registerShortcuts()` |
 
