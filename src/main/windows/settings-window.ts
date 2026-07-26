@@ -4,6 +4,7 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "../utils/browser-window.js";
+import { platformWindowChrome } from "../utils/window-chrome.js";
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -19,6 +20,7 @@ export function createSettingsWindow(): BrowserWindow {
     return settingsWindow;
   }
 
+  const chrome = platformWindowChrome("settings");
   const win = new BrowserWindow({
     width: 520,
     height: 480,
@@ -26,11 +28,9 @@ export function createSettingsWindow(): BrowserWindow {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    titleBarStyle: "hiddenInset",
-    vibrancy: "under-window",
-    visualEffectState: "active",
     alwaysOnTop: true,
     show: false,
+    ...chrome,
     webPreferences: {
       preload: getPreloadPath(),
       ...SECURE_WEB_PREFERENCES,

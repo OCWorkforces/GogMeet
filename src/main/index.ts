@@ -7,6 +7,7 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "./utils/browser-window.js";
+import { platformWindowChrome } from "./utils/window-chrome.js";
 
 // Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
 // These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
@@ -16,6 +17,17 @@ app.commandLine.appendSwitch("log-level", "3");
 // Enable strict sandboxing for all renderers (security best practice).
 // Preload uses only contextBridge + ipcRenderer (sandbox-compatible).
 app.enableSandbox();
+
+// Single-instance lock: required for desktop OAuth loopback later and avoids
+// duplicate trays/schedulers. Secondary launches exit immediately.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // Tray-only app: nothing to focus. Reserved for future tray balloon / menu.
+  });
+}
 
 // === Process-level error handlers ===
 process.on("uncaughtException", (error: Error) => {
@@ -44,6 +56,7 @@ app.setAboutPanelOptions({
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): BrowserWindow {
+  const chrome = platformWindowChrome("popover");
   const win = new BrowserWindow({
     width: 360,
     height: 480,
@@ -53,11 +66,7 @@ function createWindow(): BrowserWindow {
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    vibrancy: "popover",
-    visualEffectState: "active",
-    titleBarStyle: "hidden",
-    transparent: true,
-    hasShadow: true,
+    ...chrome,
     webPreferences: {
       preload: getPreloadPath(),
       ...SECURE_WEB_PREFERENCES,
@@ -89,28 +98,32 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
-app.whenReady().then(() => {
-  // Hide from Dock immediately
-  app.dock?.hide();
+// Only boot when we own the single-instance lock (quit path may still load this
+// module briefly before exit completes).
+if (gotSingleInstanceLock) {
+  app.whenReady().then(() => {
+    // Hide from Dock immediately (no-op on platforms without a dock)
+    app.dock?.hide();
 
-  mainWindow = createWindow();
-  initializeApp(mainWindow).catch((error: unknown) => {
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error("[main] initializeApp failed:", err);
-    dialog.showErrorBox("GogMeet Startup Error", err.message);
-    app.quit();
+    mainWindow = createWindow();
+    initializeApp(mainWindow).catch((error: unknown) => {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("[main] initializeApp failed:", err);
+      dialog.showErrorBox("GogMeet Startup Error", err.message);
+      app.quit();
+    });
   });
-});
 
-app.on("window-all-closed", () => {
-  // Prevent default quit — tray-only app stays alive
-  // No-op: keep app running in tray
-});
+  app.on("window-all-closed", () => {
+    // Prevent default quit — tray-only app stays alive
+    // No-op: keep app running in tray
+  });
 
-app.on("before-quit", () => {
-  // Allow quit from tray menu
-  shutdownApp();
-  if (mainWindow) {
-    mainWindow.destroy();
-  }
-});
+  app.on("before-quit", () => {
+    // Allow quit from tray menu
+    shutdownApp();
+    if (mainWindow) {
+      mainWindow.destroy();
+    }
+  });
+}

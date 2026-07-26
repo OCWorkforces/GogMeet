@@ -7,9 +7,10 @@
 | File | Role | Key Exports |
 |------|------|-------------|
 | `browser-window.ts` | BrowserWindow config factory, CSP enforcement (typed via `CSPSource`/`CSPDirectiveName`/`CSPDirective`/`CSP` template literal types) | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()`, `_resetCspForTest()` |
+| `window-chrome.ts` | Platform BrowserWindow chrome (vibrancy vs opaque) + alert always-on-top helper | `platformWindowChrome()`, `applyAlertAlwaysOnTop()`, `WindowChromeKind` |
 | `url-validation.ts` | URL allowlist + hostname-based validation (Google Meet, Zoom, Calendly) | `MEETING_URL_ALLOWLIST`, `isAllowedMeetUrl()`, `validateMeetUrl()` → `Result<MeetUrl, string>` |
 | `meet-url.ts` | Multi-platform meeting URL builder + shell opener | `buildMeetUrl()`, `openMeetingUrl()` |
-| `platform.ts` | Meeting platform detection (Google Meet vs Zoom) | `detectPlatform()` → `"google-meet" \| "zoom" \| undefined` |
+| `platform.ts` | Meeting platform detection (Google Meet vs Zoom) — **not** OS platform | `detectPlatform()` → `"google-meet" \| "zoom" \| undefined` |
 | `packageInfo.ts` | Lazy-load + cache `package.json` with runtime validation | `getPackageInfo()`, `clearPackageInfoCache()`, `isPackageInfoLoaded()`, `PackageInfo` |
 
 ## PATTERNS
@@ -21,6 +22,7 @@
 - **`packageInfo.ts` uses `readFileSync`** — only sync file I/O in the main process; acceptable because it's a one-time lazy load at startup, result is frozen (`Object.freeze`)
 - **`validateMeetUrl()`** returns `Result<MeetUrl, string>` — prefer this over `isAllowedMeetUrl()` when you need the branded type back
 - **`buildMeetUrl()` identity params** — uses `URL.searchParams.set()` for the identity hint (`authuser` for Google Meet, `uname` for Zoom). This replaces any existing duplicates and preserves the URL fragment. Do not return to manual `?`/`&` string concatenation; that path produced duplicate keys and dropped fragments.
+- **`platformWindowChrome(kind)`** — spread into BrowserWindow options; mac keeps vibrancy/`titleBarStyle`, Windows gets opaque `backgroundColor` without mac-only keys. OS checks live in `platform/os.ts`.
 
 ## ANTI-PATTERNS
 

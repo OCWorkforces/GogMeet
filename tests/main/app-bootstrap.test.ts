@@ -86,6 +86,26 @@ describe("main/index.ts", () => {
     expect(content).toContain('"before-quit"');
   });
 
+  it("requests a single-instance lock before boot", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/index.ts"),
+      "utf-8",
+    );
+
+    expect(content).toContain("requestSingleInstanceLock");
+    expect(content).toContain('"second-instance"');
+  });
+
+  it("uses platform window chrome for the popover", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/index.ts"),
+      "utf-8",
+    );
+
+    expect(content).toContain('from "./utils/window-chrome.js"');
+    expect(content).toContain('platformWindowChrome("popover")');
+  });
+
   it("uses correct window configuration", async () => {
     const content = await fs.readFile(
       path.join(root, "src/main/index.ts"),

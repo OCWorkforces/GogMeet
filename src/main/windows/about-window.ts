@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { getPackageInfo } from "../utils/packageInfo.js";
 import { readFileSync } from "node:fs";
 import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
+import { platformWindowChrome } from "../utils/window-chrome.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -108,6 +109,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 </body>
 </html>`;
 
+  const chrome = platformWindowChrome("about");
   const win = new BrowserWindow({
     width: 360,
     height: 340,
@@ -116,10 +118,8 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     maximizable: false,
     fullscreenable: false,
     alwaysOnTop: true,
-    titleBarStyle: "hiddenInset",
-    vibrancy: "under-window",
-    visualEffectState: "active",
     show: false,
+    ...chrome,
     webPreferences: { ...SECURE_WEB_PREFERENCES },
   });
 

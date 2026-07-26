@@ -7,6 +7,7 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "../utils/browser-window.js";
+import { applyAlertAlwaysOnTop, platformWindowChrome } from "../utils/window-chrome.js";
 
 import { typedSend } from "../ipc-handlers/shared.js";
 import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
@@ -89,6 +90,7 @@ function showAlertInternal(event: MeetingEvent): void {
     alertWindow = null;
   }
 
+  const chrome = platformWindowChrome("alert");
   const win = new BrowserWindow({
     width: 500,
     height: 480,
@@ -97,8 +99,8 @@ function showAlertInternal(event: MeetingEvent): void {
     maximizable: false,
     fullscreenable: false,
     alwaysOnTop: true,
-    titleBarStyle: "hiddenInset",
     show: false,
+    ...chrome,
     webPreferences: {
       preload: getPreloadPath(),
       ...SECURE_WEB_PREFERENCES,
@@ -108,8 +110,7 @@ function showAlertInternal(event: MeetingEvent): void {
   // Tag the window with its uid so we can coalesce while it's actively showing
   win.__alertUid = event.id;
   win.__alertStartMs = new Date(event.startDate).getTime();
-  win.setAlwaysOnTop(true, "screen-saver");
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  applyAlertAlwaysOnTop(win);
 
   loadWindowContent(win, "alert");
 
