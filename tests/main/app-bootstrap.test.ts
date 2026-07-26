@@ -53,6 +53,9 @@ describe("main/index.ts", () => {
     expect(content).toContain('from "../system/auto-launch.js"');
     expect(content).toContain('from "../system/notification.js"');
     expect(content).toContain('from "../system/shortcuts.js"');
+    // Calendar warmup goes through domain facade — never static swift imports
+    expect(content).toContain("warmupCalendarProvider");
+    expect(content).not.toContain('from "../swift/binary-manager.js"');
   });
 
   it("ipc-handlers/settings.ts imports scheduler from facade.js", async () => {
@@ -84,6 +87,26 @@ describe("main/index.ts", () => {
     expect(content).toContain("app.whenReady()");
     expect(content).toContain('"window-all-closed"');
     expect(content).toContain('"before-quit"');
+  });
+
+  it("requests a single-instance lock before boot", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/index.ts"),
+      "utf-8",
+    );
+
+    expect(content).toContain("requestSingleInstanceLock");
+    expect(content).toContain('"second-instance"');
+  });
+
+  it("uses platform window chrome for the popover", async () => {
+    const content = await fs.readFile(
+      path.join(root, "src/main/index.ts"),
+      "utf-8",
+    );
+
+    expect(content).toContain('from "./utils/window-chrome.js"');
+    expect(content).toContain('platformWindowChrome("popover")');
   });
 
   it("uses correct window configuration", async () => {

@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+const describeMac = process.platform === "darwin" ? describe : describe.skip;
+
 import { verifyReleaseArtifacts } from "../../scripts/macos-release-verifier-native.mjs";
 
 type ReleaseArtifact = {
@@ -55,7 +57,7 @@ async function createApp(root: string): Promise<void> {
   );
 }
 
-describe("verifyReleaseArtifacts", () => {
+describeMac("verifyReleaseArtifacts", () => {
   it("verifies both DMGs before attaching while preserving fixture ownership", async () => {
     // Given
     const fixtureRoot = await mkdtemp(join(tmpdir(), "gogmeet-dmg-verify-test-"));

@@ -7,6 +7,7 @@
 import { EventEmitter } from "node:events";
 
 import type { MeetingEvent } from "../shared/meeting-event.js";
+import type { CalendarUiState } from "../shared/calendar-ui-state.js";
 
 /**
  * Strongly-typed event map for the main-process event bus.
@@ -17,6 +18,8 @@ import type { MeetingEvent } from "../shared/meeting-event.js";
 export interface MainEvents {
   /** Fired after a successful calendar poll with the freshly fetched events. */
   "meeting-list-updated": [events: MeetingEvent[]];
+  /** Fired when calendar auth/connectivity UI state changes (tray menu). */
+  "calendar-status-updated": [status: CalendarUiState];
   /** Fired when macOS power state transitions between AC and battery. */
   "power-state-changed": [payload: { onAC: boolean }];
 }

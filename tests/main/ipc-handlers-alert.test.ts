@@ -11,6 +11,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 import { registerAlertHandlers } from "../../src/main/ipc-handlers/alert.js";
 import { ipcMain } from "electron";
 import { asTestEventId } from "../helpers/test-utils.js";
+import { authorizedOnEvent } from "../helpers/ipc-sender.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 
@@ -19,10 +20,6 @@ function getRegisteredHandler(channel: string) {
   return call?.[1];
 }
 
-const authorizedEvent = {
-  senderFrame: { url: "file:///app/lib/renderer/alert.html" },
-} as unknown as import("electron").IpcMainEvent;
-
 const unauthorizedHttpsEvent = {
   senderFrame: { url: "https://evil.com/" },
 } as unknown as import("electron").IpcMainEvent;
@@ -30,6 +27,8 @@ const unauthorizedHttpsEvent = {
 const unauthorizedHttpEvent = {
   senderFrame: { url: "http://malicious.example/" },
 } as unknown as import("electron").IpcMainEvent;
+
+const authorizedEvent = authorizedOnEvent("alert") as unknown as import("electron").IpcMainEvent;
 
 describe("registerAlertHandlers", () => {
   beforeEach(() => {

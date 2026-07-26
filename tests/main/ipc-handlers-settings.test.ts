@@ -29,6 +29,7 @@ vi.mock("../../src/main/system/auto-launch.js", () => ({
 
 import { registerSettingsHandlers } from "../../src/main/ipc-handlers/settings.js";
 import { ipcMain } from "electron";
+import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
@@ -38,9 +39,7 @@ function getRegisteredHandler(channel: string) {
   return call?.[1];
 }
 
-const authorizedEvent = {
-  senderFrame: { url: "file:///app/lib/renderer/index.html" },
-} as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
 
 describe("registerSettingsHandlers", () => {
   beforeEach(() => {

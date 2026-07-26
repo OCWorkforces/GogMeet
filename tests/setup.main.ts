@@ -1,5 +1,12 @@
+// Platform-absolute mock app root. Bare "/app" does not round-trip through
+// fileURLToPath on Windows (drive letter required). vi.hoisted so the value is
+// available inside the hoisted vi.mock factory.
+const { MOCK_APP_PATH } = vi.hoisted(() => ({
+  MOCK_APP_PATH: process.platform === "win32" ? "C:\\app" : "/app",
+}));
+
 vi.mock("electron", () => ({
-app: {
+  app: {
     getVersion: vi.fn().mockReturnValue("1.0.0"),
     quit: vi.fn(),
     dock: { hide: vi.fn(), show: vi.fn() },
@@ -9,7 +16,7 @@ app: {
     on: vi.fn(),
     showAboutPanel: vi.fn(),
     getPath: vi.fn().mockReturnValue("/tmp/test-user-data"),
-    getAppPath: vi.fn().mockReturnValue("/app"),
+    getAppPath: vi.fn().mockReturnValue(MOCK_APP_PATH),
   },
   commandLine: { appendSwitch: vi.fn() },
   ipcMain: {

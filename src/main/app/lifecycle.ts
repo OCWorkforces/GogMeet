@@ -13,6 +13,8 @@ import {
   getCalendarPermissionStatus,
   requestCalendarPermission,
   invalidateCalendarPermissionCache,
+  warmupCalendarProvider,
+  shouldAutoRequestCalendarPermission,
 } from "../domain/calendar.js";
 import {
   initPowerManagement,
@@ -27,7 +29,6 @@ import { getSettings, loadSettings } from "../domain/settings.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
-import { ensureBinary } from "../swift/binary-manager.js";
 import {
   reviveCalendarWatcher,
   startCalendarWatcher,
@@ -79,10 +80,10 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   };
 
   try {
-    // Pre-warm Swift binary in background — don't block init
-    tryRun("preWarmSwiftBinary", () => {
-      ensureBinary().catch((err: unknown) => {
-        console.warn("[lifecycle] Swift binary pre-warm failed:", err);
+    // Pre-warm calendar provider (Swift compile on Darwin) — don't block init
+    tryRun("warmupCalendarProvider", () => {
+      warmupCalendarProvider().catch((err: unknown) => {
+        console.warn("[lifecycle] Calendar provider pre-warm failed:", err);
       });
     });
 
@@ -101,7 +102,8 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       }),
       tryRunAsync("calendarPermission", async () => {
         const calendarPerm = await getCalendarPermissionStatus();
-        if (calendarPerm === "not-determined") {
+        // Darwin: request EventKit when not determined. Windows: never auto-OAuth (K16).
+        if (calendarPerm === "not-determined" && shouldAutoRequestCalendarPermission()) {
           console.log("[lifecycle] Calendar permission not determined — requesting...");
           await requestCalendarPermission();
         }
@@ -138,7 +140,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       syncAutoLaunch(settings.launchAtLogin);
     });
 
-    // Packaged builds only — no-ops when unpackaged (see auto-updater.ts)
+    // Packaged NSIS/app installs only — portable and dev skip (K11/K26)
     tryRun("initAutoUpdater", () => {
       initAutoUpdater();
     });

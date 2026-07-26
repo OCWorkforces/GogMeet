@@ -1,0 +1,38 @@
+# Normalize text to LF so Prettier/ESLint (endOfLine: "lf") pass on Windows CI.
+# Without this, Git for Windows autocrlf converts sources to CRLF on checkout and
+# `prettier/prettier` fails with "Delete ␍" while macOS stays green.
+
+* text=auto eol=lf
+
+# Explicit source / config / docs
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.swift text eol=lf
+*.rhai text eol=lf
+*.svg text eol=lf
+*.plist text eol=lf
+
+# Windows shell scripts may keep CRLF when present
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

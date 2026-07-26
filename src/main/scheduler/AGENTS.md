@@ -6,9 +6,9 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 
 | File                 | Role                                                                                                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `facade.ts`          | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, DI, `cancelPendingBrowserOpen`, force-poll coalescing. |
-| `index.ts`           | `scheduleEvents(events)`; hub for future + in-progress paths, late-join arming, stale pruning.                                                                                   |
-| `late-join.ts`       | Grace window helpers: `getLateJoinGraceMs`, `isLateJoinEligible` (`firedEvents` only — never `cancelledEvents`), settings injection.                                           |
+| `facade.ts`          | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
+| `index.ts`           | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning.                                                                                                      |
+| `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, calls `reportCalendarPollError` on failure, pushes `CALENDAR_EVENTS_UPDATED`. |
 | `poll.ts`            | Fetches calendar, `recordCalendarResult`, schedules timers, emits `meeting-list-updated`, hash-gates renderer push.                                                             |
 | `state/`             | Internal sliced state; see `state/AGENTS.md`. External imports forbidden.                                                                                                      |
 | `browser-timer.ts`   | Browser-open timer; optional native Notification; dynamic body; late-join grace cutoff marks fired without open.                                                               |

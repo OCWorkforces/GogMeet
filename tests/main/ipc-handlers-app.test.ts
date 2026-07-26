@@ -16,6 +16,7 @@ vi.mock("../../src/main/utils/join-meeting.js", () => ({
 
 import { registerAppHandlers } from "../../src/main/ipc-handlers/app.js";
 import { ipcMain, app } from "electron";
+import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 const mockApp = vi.mocked(app);
@@ -25,13 +26,11 @@ function getRegisteredHandler(channel: string) {
   return call?.[1];
 }
 
-const authorizedEvent = {
-  senderFrame: { url: "file:///app/lib/renderer/index.html" },
-} as unknown as import("electron").IpcMainInvokeEvent;
-
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
 } as unknown as import("electron").IpcMainInvokeEvent;
+
+const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
 
 describe("registerAppHandlers", () => {
   beforeEach(() => {

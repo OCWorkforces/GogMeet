@@ -58,6 +58,7 @@ publish:
   provider: github
   owner: OCWorkforces
   repo: GogMeet
+  releaseType: release
 
 # === DMG-SPECIFIC ===
 dmg:
@@ -67,6 +68,35 @@ dmg:
   shrink: true
   # Don't sign DMG (not required, causes notarization issues)
   sign: false
+
+# === WINDOWS ===
+# Build per arch separately for official artifacts (K15):
+#   electron-builder --win nsis portable --x64
+#   electron-builder --win nsis portable --arm64
+# Do not use --x64 --arm64 in one NSIS invocation (dual-arch single installer).
+win:
+  target:
+    - nsis
+    - portable
+  # Path relative to buildResources (`build/`)
+  icon: icon.ico
+  # electron-builder 26+: hash algorithms live under signtoolOptions (top-level
+  # signingHashAlgorithms is rejected by the WindowsConfiguration schema).
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
+
+nsis:
+  oneClick: false
+  # Per-user default for tray utility / no-admin updates (K7)
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: GogMeet
+
+portable:
+  artifactName: "${productName}-${version}-${arch}-portable.${ext}"
 
 afterPack: build/after-pack.cjs
 afterSign: build/notarize.cjs
