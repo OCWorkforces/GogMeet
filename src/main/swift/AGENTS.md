@@ -11,9 +11,9 @@ Runtime compilation and parsing layer for the macOS EventKit helper. Source live
 | `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
 | `calendar-watch-sidecar.ts` | Sidecar process used by calendar change watching. |
 | `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
-| `event-field-parser.ts` | Parse individual JSON record fields and optional values. |
-| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `AppError`. |
-| `guards.ts` | Swift helper type guards and validation helpers. |
+| `event-field-parser.ts` | Parse individual JSON record fields and optional values (no description cleaning — use `calendar/clean-description.ts`). |
+| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to neutral `calendar-*` AppError kinds. |
+| `guards.ts` | Exec/tuple guards for helper I/O; imports `isObjectRecord` from `shared/type-guards`. |
 
 ## Binary cache
 

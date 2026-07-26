@@ -5,8 +5,6 @@
 
 import { isObjectRecord } from "../../shared/type-guards.js";
 
-export { isObjectRecord } from "../../shared/type-guards.js";
-
 /** Shape of an error from `child_process.execFile` or `runSwiftHelper`. All
  * fields are optional because Node assigns them dynamically on the Error. */
 export interface ExecErrorLike {

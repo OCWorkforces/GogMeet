@@ -53,8 +53,10 @@ Validators return `Result<T,string>` and are used at Swift parser ingress, prelo
 
 - Generic `Result<T,E>` uses `ok: true | false`.
 - `AppResult<T>` is `Result<T, AppError>`.
-- `AppError.kind` variants: `swift-permission-denied`, `swift-no-calendars`, `swift-runtime`, `validation`, `io`, `unknown`.
+- `AppError.kind` variants: `calendar-permission-denied`, `calendar-no-calendars`, `calendar-runtime`, `calendar-auth`, `calendar-network`, `validation`, `io`, `unknown`.
+- Prefer `isCalendarPermissionDenied` / `isCalendarRuntime` (etc.) over ad-hoc kind checks.
 - `errFrom()` wraps unknown thrown values; `formatAppError()` creates user-facing text.
+- `isObjectRecord` lives in `type-guards.ts` (not under `main/swift/`).
 - `parseJsonObject(raw, field, validate)` parses JSON, requires a plain object, then delegates validation. Parse/shape failures return `validation` errors.
 
 ## Rules

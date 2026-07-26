@@ -3,9 +3,6 @@ import type { EventId, IsoUtc, MeetUrl } from "../../shared/brand.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../shared/brand.js";
 import { parseIsoUtc } from "./event-validator.js";
 
-/** Re-export pure cleaner from calendar/ so existing EventKit parse imports keep working. */
-export { cleanDescription } from "../calendar/clean-description.js";
-
 /** Parsed timestamp pair as native Date objects (pre-brand). */
 export interface ParsedTimestamps {
   readonly start: Date;

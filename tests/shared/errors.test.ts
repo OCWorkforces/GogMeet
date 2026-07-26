@@ -4,10 +4,10 @@ import {
   errFrom,
   formatAppError,
   isAppErrorKind,
+  isCalendarNoCalendars,
+  isCalendarPermissionDenied,
+  isCalendarRuntime,
   isIoError,
-  isSwiftNoCalendars,
-  isSwiftPermissionDenied,
-  isSwiftRuntime,
   isUnknownError,
   isValidationError,
   type AppError,
@@ -59,58 +59,48 @@ describe("errFrom", () => {
 });
 
 describe("formatAppError", () => {
-  it("formats swift-permission-denied with both keyword and message", () => {
+  it("formats calendar-permission-denied with both keyword and message", () => {
     const out = formatAppError({
-      kind: "swift-permission-denied",
+      kind: "calendar-permission-denied",
       message: "no access",
     });
     expect(out.toLowerCase()).toContain("permission");
     expect(out).toContain("no access");
   });
 
-  it("formats calendar-permission-denied the same as the swift alias", () => {
+  it("formats calendar-no-calendars", () => {
     const out = formatAppError({
-      kind: "calendar-permission-denied",
-      message: "no access",
-    });
-    expect(out).toBe(
-      formatAppError({ kind: "swift-permission-denied", message: "no access" }),
-    );
-  });
-
-  it("formats calendar-runtime without Swift helper wording", () => {
-    const out = formatAppError({
-      kind: "calendar-runtime",
-      message: "backend down",
-    });
-    expect(out).toContain("Calendar error");
-    expect(out).toContain("backend down");
-    expect(out.toLowerCase()).not.toContain("swift helper");
-  });
-
-  it("formats swift-no-calendars", () => {
-    const out = formatAppError({
-      kind: "swift-no-calendars",
+      kind: "calendar-no-calendars",
       message: "empty",
     });
     expect(out.toLowerCase()).toContain("no calendars");
     expect(out).toContain("empty");
   });
 
-  it("includes exit code when present for swift-runtime", () => {
+  it("includes exit code when present for calendar-runtime", () => {
     const out = formatAppError({
-      kind: "swift-runtime",
+      kind: "calendar-runtime",
       message: "boom",
       exitCode: 4,
     });
     expect(out).toContain("4");
     expect(out).toContain("boom");
+    expect(out).toContain("Calendar error");
   });
 
   it("omits exit code section when absent", () => {
-    const out = formatAppError({ kind: "swift-runtime", message: "boom" });
+    const out = formatAppError({ kind: "calendar-runtime", message: "boom" });
     expect(out).toContain("boom");
     expect(out).not.toMatch(/\(exit/);
+  });
+
+  it("formats calendar-auth and calendar-network", () => {
+    expect(
+      formatAppError({ kind: "calendar-auth", message: "token expired" }),
+    ).toContain("authentication");
+    expect(
+      formatAppError({ kind: "calendar-network", message: "timeout" }),
+    ).toContain("network");
   });
 
   it("formats validation errors with field name", () => {
@@ -162,15 +152,15 @@ describe("type guards", () => {
 
   it("per-variant guards correctly identify each kind", () => {
     expect(
-      isSwiftPermissionDenied({
-        kind: "swift-permission-denied",
+      isCalendarPermissionDenied({
+        kind: "calendar-permission-denied",
         message: "x",
       }),
     ).toBe(true);
-    expect(isSwiftNoCalendars({ kind: "swift-no-calendars", message: "x" })).toBe(
-      true,
-    );
-    expect(isSwiftRuntime({ kind: "swift-runtime", message: "x" })).toBe(true);
+    expect(
+      isCalendarNoCalendars({ kind: "calendar-no-calendars", message: "x" }),
+    ).toBe(true);
+    expect(isCalendarRuntime({ kind: "calendar-runtime", message: "x" })).toBe(true);
     expect(
       isValidationError({ kind: "validation", field: "f", message: "m" }),
     ).toBe(true);
@@ -178,15 +168,15 @@ describe("type guards", () => {
     expect(isUnknownError({ kind: "unknown", message: "x" })).toBe(true);
 
     // Negatives
-    expect(isUnknownError({ kind: "swift-runtime", message: "x" })).toBe(false);
+    expect(isUnknownError({ kind: "calendar-runtime", message: "x" })).toBe(false);
     expect(
-      isValidationError({ kind: "swift-no-calendars", message: "x" }),
+      isValidationError({ kind: "calendar-no-calendars", message: "x" }),
     ).toBe(false);
   });
 });
 
 describe("SwiftHelperError.toAppError", () => {
-  it("maps PERMISSION_DENIED (exit 2) to swift-permission-denied", () => {
+  it("maps PERMISSION_DENIED (exit 2) to calendar-permission-denied", () => {
     const e = new SwiftHelperError(
       "permission-denied",
       "denied",
@@ -194,11 +184,11 @@ describe("SwiftHelperError.toAppError", () => {
       undefined,
     );
     const app = e.toAppError();
-    expect(app.kind).toBe("swift-permission-denied");
+    expect(app.kind).toBe("calendar-permission-denied");
     expect(app.message).toBe("denied");
   });
 
-  it("maps NO_CALENDARS (exit 3) to swift-no-calendars", () => {
+  it("maps NO_CALENDARS (exit 3) to calendar-no-calendars", () => {
     const e = new SwiftHelperError(
       "no-calendars",
       "no cal",
@@ -206,11 +196,11 @@ describe("SwiftHelperError.toAppError", () => {
       undefined,
     );
     const app = e.toAppError();
-    expect(app.kind).toBe("swift-no-calendars");
+    expect(app.kind).toBe("calendar-no-calendars");
     expect(app.message).toBe("no cal");
   });
 
-  it("maps OTHER (exit 4) to swift-runtime with exitCode preserved", () => {
+  it("maps OTHER (exit 4) to calendar-runtime with exitCode preserved", () => {
     const e = new SwiftHelperError(
       "swift-error",
       "boom",
@@ -218,27 +208,27 @@ describe("SwiftHelperError.toAppError", () => {
       "stderr text",
     );
     const app = e.toAppError();
-    expect(app.kind).toBe("swift-runtime");
-    if (app.kind === "swift-runtime") {
+    expect(app.kind).toBe("calendar-runtime");
+    if (app.kind === "calendar-runtime") {
       expect(app.message).toBe("boom");
       expect(app.exitCode).toBe(SWIFT_EXIT_CODES.OTHER);
     }
   });
 
-  it("maps unrecognized exit codes to swift-runtime with exitCode preserved", () => {
+  it("maps unrecognized exit codes to calendar-runtime with exitCode preserved", () => {
     const e = new SwiftHelperError("unknown", "weird", 99, undefined);
     const app = e.toAppError();
-    expect(app.kind).toBe("swift-runtime");
-    if (app.kind === "swift-runtime") {
+    expect(app.kind).toBe("calendar-runtime");
+    if (app.kind === "calendar-runtime") {
       expect(app.exitCode).toBe(99);
     }
   });
 
-  it("maps undefined exit code to swift-runtime without exitCode field", () => {
+  it("maps undefined exit code to calendar-runtime without exitCode field", () => {
     const e = new SwiftHelperError("unknown", "no code", undefined, undefined);
     const app = e.toAppError();
-    expect(app.kind).toBe("swift-runtime");
-    if (app.kind === "swift-runtime") {
+    expect(app.kind).toBe("calendar-runtime");
+    if (app.kind === "calendar-runtime") {
       expect(app.exitCode).toBeUndefined();
     }
   });

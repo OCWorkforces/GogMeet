@@ -37,18 +37,18 @@ export class SwiftHelperError extends Error {
   toAppError(): AppError {
     switch (this.exitCode) {
       case SWIFT_EXIT_CODES.PERMISSION_DENIED:
-        return { kind: "swift-permission-denied", message: this.message };
+        return { kind: "calendar-permission-denied", message: this.message };
       case SWIFT_EXIT_CODES.NO_CALENDARS:
-        return { kind: "swift-no-calendars", message: this.message };
+        return { kind: "calendar-no-calendars", message: this.message };
       case SWIFT_EXIT_CODES.OTHER:
         return {
-          kind: "swift-runtime",
+          kind: "calendar-runtime",
           message: this.message,
           exitCode: this.exitCode,
         };
       default:
         return {
-          kind: "swift-runtime",
+          kind: "calendar-runtime",
           message: this.message,
           ...(this.exitCode !== undefined ? { exitCode: this.exitCode } : {}),
         };
