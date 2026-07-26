@@ -4,7 +4,7 @@
  * Order:
  * 1. Dev fixture when unpackaged + GOGMEET_CALENDAR_FIXTURE (K23)
  * 2. Darwin → EventKit (K17)
- * 3. Else → stub until Wave 4 Google
+ * 3. Else → Google Calendar (Windows MVP)
  *
  * Providers that touch Swift are loaded only via dynamic import on Darwin so
  * Windows never pulls in the Swift graph.
@@ -40,14 +40,14 @@ export async function getActiveCalendarProvider(): Promise<CalendarProvider> {
     return cached;
   }
 
-  const { createStubUnsupportedProvider } = await import("./providers/stub-unsupported.js");
-  cached = createStubUnsupportedProvider();
+  const { createGoogleCalendarProvider } = await import("./providers/google-calendar.js");
+  cached = createGoogleCalendarProvider();
   return cached;
 }
 
 /**
  * Drop the cached provider and stop any active watch.
- * Call after disconnect / provider setting changes (Wave 4+).
+ * Call after disconnect / provider setting changes.
  */
 export function resetCalendarProvider(): void {
   if (cached !== null) {

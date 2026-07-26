@@ -150,13 +150,14 @@ describe("factory fixture gate (K23)", () => {
     process.env["GOGMEET_CALENDAR_FIXTURE"] = fixturePath;
     appState.isPackaged = true;
     const provider = await getActiveCalendarProvider();
-    expect(provider.id).toBe("stub-unsupported");
+    // Packaged non-Darwin → Google provider (not fixture)
+    expect(provider.id).toBe("google-calendar");
   });
 
-  it("uses stub when unpackaged without env", async () => {
+  it("uses google-calendar when unpackaged without env on non-Darwin", async () => {
     appState.isPackaged = false;
     delete process.env["GOGMEET_CALENDAR_FIXTURE"];
     const provider = await getActiveCalendarProvider();
-    expect(provider.id).toBe("stub-unsupported");
+    expect(provider.id).toBe("google-calendar");
   });
 });

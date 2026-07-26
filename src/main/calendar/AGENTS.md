@@ -13,8 +13,11 @@ Platform calendar backends behind a stable domain facade (`domain/calendar.ts`).
 | `clean-description.ts` | Pure notes cleaner (shared by EventKit parse + future cloud) |
 | `url-extract.ts` | Pure Meet/Zoom/Calendly URL extraction (Zoom → Meet → Calendly) |
 | `providers/darwin-eventkit.ts` | Swift EventKit + AppleScript (Darwin only; static-imports `swift/*`) |
-| `providers/stub-unsupported.ts` | Non-Darwin placeholder until Google (Wave 4) |
+| `providers/google-calendar.ts` | Google Calendar API + OAuth (Windows MVP) |
+| `providers/stub-unsupported.ts` | Legacy placeholder (unused in factory after Wave 4) |
 | `providers/fixture-calendar.ts` | Dev/test JSON fixture provider (unpackaged + env only) |
+| `auth/*` | Google PKCE loopback, encrypted token store, client ID |
+| `offline-cache.ts` | Encrypted `calendar-cache.enc` for offline fallback |
 
 ## RULES
 

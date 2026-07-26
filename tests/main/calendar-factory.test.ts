@@ -30,11 +30,11 @@ describe("calendar factory", () => {
     expect(provider.id).toBe("darwin-eventkit");
   });
 
-  it("selects stub-unsupported on non-Darwin", async () => {
+  it("selects google-calendar on non-Darwin", async () => {
     platformState.darwin = false;
     const { getActiveCalendarProvider } = await import("../../src/main/calendar/factory.js");
     const provider = await getActiveCalendarProvider();
-    expect(provider.id).toBe("stub-unsupported");
+    expect(provider.id).toBe("google-calendar");
   });
 
   it("caches the provider until reset", async () => {
@@ -48,22 +48,6 @@ describe("calendar factory", () => {
     resetCalendarProvider();
     const c = await getActiveCalendarProvider();
     expect(c).not.toBe(a);
-    expect(c.id).toBe("stub-unsupported");
-  });
-});
-
-describe("stub-unsupported provider", () => {
-  it("returns denied permission and error events", async () => {
-    const { createStubUnsupportedProvider } = await import(
-      "../../src/main/calendar/providers/stub-unsupported.js"
-    );
-    const provider = createStubUnsupportedProvider();
-    expect(await provider.getPermissionStatus()).toBe("denied");
-    expect(await provider.requestPermission()).toBe("denied");
-    const events = await provider.getEvents();
-    expect(events.kind).toBe("err");
-    if (events.kind === "err") {
-      expect(events.error.toLowerCase()).toContain("calendar");
-    }
+    expect(c.id).toBe("google-calendar");
   });
 });
