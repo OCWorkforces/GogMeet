@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 import type { CalendarResult } from "../../src/shared/calendar-result.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
@@ -28,7 +29,20 @@ vi.mock("../../src/main/system/power.js", () => ({
 vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi
     .fn()
-    .mockReturnValue({ openBeforeMinutes: 1, windowAlert: true }),
+    .mockReturnValue({
+    schemaVersion: 2,
+    openBeforeMinutes: 1,
+    launchAtLogin: false,
+    showTomorrowMeetings: true,
+    windowAlert: true,
+    autoOpenEnabled: true,
+    alertLeadSeconds: 60,
+    nativeNotifications: true,
+    lateJoinGraceMinutes: 0,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+  }),
 }));
 
 const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");

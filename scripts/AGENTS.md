@@ -12,6 +12,7 @@ Repository automation scripts for local development and asset generation. These 
 | `verify-macos-release.mjs`         | Official macOS release verifier: inventories deterministic containers and inspects their extracted apps. Wired to `bun run verify:macos-release`. |
 | `verify-windows-release.mjs`       | Windows release inventory verifier (NSIS + portable x64/arm64; optional latest.yml both arches). Wired to `bun run verify:windows-release`. |
 | `merge-windows-latest-yml.mjs`     | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds (K25). Wired to `bun run merge:windows-latest-yml`. |
+| `next-beta-tag.mjs`                | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version. Used by `.github/workflows/beta-release.yml`; unit-tested in `tests/scripts/next-beta-tag.test.ts`. |
 
 ## `dev.ts` Contract
 
@@ -40,6 +41,13 @@ Repository automation scripts for local development and asset generation. These 
 - Spawns `node scripts/generate-calendar-tray-icons.mjs` under the same host Node and forwards its exit status. The `NODE_VALIDATE_SKIP_GENERATE=1` env var skips the spawn for unit tests; do not use it in CI.
 - Pure helpers (`parseMajor`, `validateNodeVersion`, `runValidation`) are exported and injected so `tests/scripts/validate-node.test.ts` can drive every branch without needing host Node 26 or running the real generator.
 - Electron embeds its own Node runtime for the packaged app. The host Node 26 enforced here is only for contributor tooling — do not change `engines.node` or conflate it with Electron's embedded runtime.
+
+## `next-beta-tag.mjs` Contract
+
+- Pure ESM helper: `computeNextBeta(base, tagList)` → `{ base, betaNumber, tag, appVersion }`.
+- Tag form: `vX.Y.Z-beta-N`; app version form: `X.Y.Z-beta.N`.
+- CLI: `node scripts/next-beta-tag.mjs [--base 1.16.0] [--tags $'...']` prints JSON.
+- Used by `.github/workflows/beta-release.yml`; unit tests in `tests/scripts/next-beta-tag.test.ts`.
 
 ## `verify-macos-release.mjs` Contract
 

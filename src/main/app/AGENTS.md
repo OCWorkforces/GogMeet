@@ -28,3 +28,5 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 - Power resume/unlock: `invalidateCalendarPermissionCache()` then `restartScheduler()`.
 - Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.
 - Both files are for `index.ts` only.
+- Resume/unlock callback order: `invalidateCalendarPermissionCache()` → `reviveCalendarWatcher()` → `restartScheduler()` so authorization and the watch sidecar recover after sleep/lock.
+- `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged`.

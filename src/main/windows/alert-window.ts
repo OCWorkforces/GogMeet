@@ -11,9 +11,9 @@ import { applyAlertAlwaysOnTop, platformWindowChrome } from "../utils/window-chr
 
 import { typedSend } from "../ipc-handlers/shared.js";
 import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
-import type { EventId } from "../../shared/brand.js";
+import type { EventId, IsoUtc } from "../../shared/brand.js";
 
-function toAlertPayload(event: MeetingEvent): AlertPayload {
+function toAlertPayload(event: MeetingEvent, autoOpenAt?: IsoUtc): AlertPayload {
   const payload: AlertPayload = {
     id: event.id,
     title: event.title,
@@ -21,9 +21,13 @@ function toAlertPayload(event: MeetingEvent): AlertPayload {
     endDate: event.endDate,
     calendarName: event.calendarName,
     isAllDay: event.isAllDay,
+    hasMeetUrl: !!event.meetUrl,
   };
   if (event.description !== undefined) {
     payload.description = event.description;
+  }
+  if (autoOpenAt !== undefined) {
+    payload.autoOpenAt = autoOpenAt;
   }
   return payload;
 }
@@ -39,7 +43,7 @@ function processNextAlert(): void {
   setImmediate(() => showAlertInternal(next));
 }
 
-export function showAlert(event: MeetingEvent): void {
+export function showAlert(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
   const startMs = new Date(event.startDate).getTime();
   // Coalesce duplicates: skip if same uid+startMs is already showing or queued.
   // If same uid but different startMs, the meeting was rescheduled — replace.
@@ -78,10 +82,10 @@ export function showAlert(event: MeetingEvent): void {
   }
 
   isAlertShowing = true;
-  showAlertInternal(event);
+  showAlertInternal(event, autoOpenAt);
 }
 
-function showAlertInternal(event: MeetingEvent): void {
+function showAlertInternal(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
   // Dismiss any existing alert (defensive — should not happen given the queue)
   if (alertWindow && !alertWindow.isDestroyed()) {
     // Defensive teardown — treat as a replacement so we don't cancel a pending browser-open.
@@ -116,7 +120,7 @@ function showAlertInternal(event: MeetingEvent): void {
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;
-    typedSend(win.webContents, IPC_CHANNELS.ALERT_SHOW, toAlertPayload(event));
+    typedSend(win.webContents, IPC_CHANNELS.ALERT_SHOW, toAlertPayload(event, autoOpenAt));
     // Measure rendered content height before showing to avoid a visible resize flash.
     // ready-to-show fires when first paint is ready, so the DOM is laid out and
     // getBoundingClientRect() returns accurate values without an arbitrary timer.

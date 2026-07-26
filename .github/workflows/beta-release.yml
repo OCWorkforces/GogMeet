@@ -1,0 +1,197 @@
+name: Beta Release
+
+# Builds and publishes a macOS beta pre-release whenever code lands on develop
+# (typically after a PR merge). Tags look like v1.16.0-beta-1, v1.16.0-beta-2, …
+on:
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  beta-release:
+    name: Build and publish beta
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compute next beta version and tag
+        id: beta
+        run: |
+          set -euo pipefail
+
+          git fetch --tags origin 2>/dev/null || true
+
+          BASE="$(bun -e 'const p = await Bun.file("package.json").json(); process.stdout.write(String(p.version).split("-")[0])')"
+          PREFIX="v${BASE}-beta-"
+
+          # Collect local + remote tags for this base (shared script picks max N+1)
+          TAGS="$(
+            {
+              git tag -l "${PREFIX}*" 2>/dev/null || true
+              git ls-remote --tags origin "refs/tags/${PREFIX}*" 2>/dev/null | awk '{print $2}' || true
+            } | sort -u
+          )"
+
+          RESULT="$(node scripts/next-beta-tag.mjs --base "$BASE" --tags "$TAGS")"
+          echo "Computed: $RESULT"
+
+          TAG="$(node -e 'const r=JSON.parse(process.argv[1]); process.stdout.write(r.tag)' "$RESULT")"
+          APP_VERSION="$(node -e 'const r=JSON.parse(process.argv[1]); process.stdout.write(r.appVersion)' "$RESULT")"
+          NEXT="$(node -e 'const r=JSON.parse(process.argv[1]); process.stdout.write(String(r.betaNumber))' "$RESULT")"
+
+          echo "Next beta: $TAG (app version $APP_VERSION)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "beta_number=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Detect signing credentials
+        id: signing
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] \
+            && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] \
+            && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+            echo "Signing + notarize credentials present — official-style beta package"
+          else
+            echo "mode=unsigned" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing/notarize secrets incomplete. Beta will be packaged without Developer ID signing/notarization (Gatekeeper will block casual installs)."
+          fi
+
+      - name: Set package.json version for beta artifacts
+        run: |
+          set -euo pipefail
+          APP_VERSION="${{ steps.beta.outputs.app_version }}"
+          bun -e '
+            const fs = require("fs");
+            const path = "package.json";
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = process.env.APP_VERSION;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+            console.log("package.json version ->", pkg.version);
+          '
+        env:
+          APP_VERSION: ${{ steps.beta.outputs.app_version }}
+
+      - name: Build and package (signed + notarized)
+        if: steps.signing.outputs.mode == 'signed'
+        run: bun run package
+        env:
+          # package script uses --publish never; softprops owns the GitHub release upload
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      - name: Build and package (unsigned / local-style)
+        if: steps.signing.outputs.mode == 'unsigned'
+        run: bun run package
+        env:
+          # Prevent electron-builder from auto-discovering a CI machine identity
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify signed release containers
+        if: steps.signing.outputs.mode == 'signed'
+        run: bun run verify:macos-release
+
+      - name: List dist artifacts
+        run: |
+          set -euo pipefail
+          ls -la dist/ || true
+          ls -la dist/GogMeet-*.dmg dist/GogMeet-*.zip 2>/dev/null || {
+            echo "::error::Expected GogMeet DMG/ZIP artifacts missing from dist/"
+            exit 1
+          }
+
+      - name: Create release checksums
+        run: |
+          set -euo pipefail
+          shasum -a 256 \
+            dist/GogMeet-*-arm64.dmg \
+            dist/GogMeet-*-arm64.zip \
+            dist/GogMeet-*-x64.dmg \
+            dist/GogMeet-*-x64.zip \
+            > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+
+      - name: Create beta tag
+        env:
+          # Explicit token so tag push works with contents:write
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.beta.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Tag the merge commit on develop (not the version-bumped working tree)
+          git tag -a "$TAG" -m "Beta release $TAG"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
+
+      - name: Publish GitHub pre-release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          # Prefer github.token; omit empty secrets.GITHUB_TOKEN overrides that break the action
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          # github.token is always available in Actions; do not pass secrets.GITHUB_TOKEN
+          # (an empty secret value is treated as "token unset" by this action).
+          token: ${{ github.token }}
+          tag_name: ${{ steps.beta.outputs.tag }}
+          name: ${{ steps.beta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## Beta pre-release `${{ steps.beta.outputs.tag }}`
+
+            Auto-built from `develop` (`${{ github.sha }}`).
+
+            | Field | Value |
+            | --- | --- |
+            | Base version | `${{ steps.beta.outputs.base }}` |
+            | Beta number | `${{ steps.beta.outputs.beta_number }}` |
+            | App version | `${{ steps.beta.outputs.app_version }}` |
+            | Signing | `${{ steps.signing.outputs.mode }}` |
+
+            ### Install notes
+            - Prefer the DMG matching your Mac architecture (`arm64` Apple Silicon, `x64` Intel).
+            - **Unsigned betas** may be blocked by Gatekeeper; use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine after install.
+            - **Signed/notarized betas** install like production builds when credentials were present in CI.
+
+            This is a **pre-release** and is not marked as Latest.
+          files: |
+            dist/GogMeet-*-arm64.dmg
+            dist/GogMeet-*-arm64.zip
+            dist/GogMeet-*-x64.dmg
+            dist/GogMeet-*-x64.zip
+            dist/SHA256SUMS.txt

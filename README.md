@@ -27,11 +27,14 @@ Outlook / Microsoft 365 on Windows is planned for a later Graph-based release. S
 
 ![Settings](assets/setting-page.png)
 
-_Settings for auto-open timing, launch at login, tomorrow's meetings, and alert behavior._
+_Settings for auto-open timing, launch at login, tomorrow's meetings, alert, notifications, and quiet hours._
 
 ## Download
 
-Grab the latest packaged build from the [GitHub Releases page](https://github.com/OCWorkforces/GogMeet/releases).
+- **Official (Latest):** [GitHub Releases](https://github.com/OCWorkforces/GogMeet/releases) — signed and notarized builds from `main` / version tags.
+- **Beta (pre-release):** same page, filter **Pre-release** — auto-built from `develop` as `vX.Y.Z-beta-N` (for example `v1.16.0-beta-1`). Prefer the DMG for your architecture (`arm64` Apple Silicon, `x64` Intel).
+
+Unsigned or ad-hoc beta builds may be blocked by Gatekeeper; see [Troubleshooting](#troubleshooting).
 
 | Asset | Platform |
 | --- | --- |

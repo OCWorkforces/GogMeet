@@ -93,7 +93,7 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(unauthorizedEvent);
-      expect(result).toEqual({ kind: "err", error: "unauthorized" });
+      expect(result).toEqual({ kind: "err", error: "unauthorized", code: "unknown" });
     });
 
     it("returns error on exception", async () => {
@@ -105,7 +105,11 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ kind: "err", error: "Calendar error" });
+      expect(result).toEqual({
+        kind: "err",
+        error: "Calendar error",
+        code: "unknown",
+      });
     });
 
     it("returns stringified error for non-Error exceptions", async () => {
@@ -115,7 +119,7 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ kind: "err", error: "string error" });
+      expect(result).toEqual({ kind: "err", error: "string error", code: "unknown" });
     });
   });
 

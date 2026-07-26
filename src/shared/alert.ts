@@ -32,4 +32,8 @@ export interface AlertPayload {
   isAllDay: boolean;
   /** Optional event description/notes */
   description?: string;
+  /** When browser auto-open is scheduled (ISO UTC); used for countdown copy */
+  autoOpenAt?: IsoUtc;
+  /** Whether a joinable meeting URL exists (URL itself stays in main) */
+  hasMeetUrl?: boolean;
 }

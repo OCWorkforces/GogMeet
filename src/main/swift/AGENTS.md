@@ -6,10 +6,10 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 
 | File | Role |
 | --- | --- |
-| `binary-manager.ts` | Locate Swift source, coordinate cache/compile, run helper. |
+| `binary-manager.ts` | Locate Swift source, coordinate cache/compile, run helper. Classifies exit 2/3/4 without recompile. |
 | `binary-cache.ts` | Hash Swift source and manage `/tmp/googlemeet/` binary/cache paths. |
 | `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
-| `calendar-watch-sidecar.ts` | Sidecar process used by calendar change watching. |
+| `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES**. |
 | `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
 | `event-field-parser.ts` | Parse individual JSON record fields and optional values (no description cleaning — use `calendar/clean-description.ts`). |
 | `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to neutral `calendar-*` AppError kinds. |
@@ -21,49 +21,39 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 - Binary: `…/googlemeet-events`.
 - Hash sidecar: `…/source.hash`.
 - Recompile when source hash changes or binary is missing.
-- Compile with arch-aware target and optimization flags (`-Osize`, `-whole-module-optimization`); optional strip after compile.
-- Compile retries use 5 attempts with 1s/2s/4s/8s sleeps; the 30s cap is present but not reached with the current attempt count.
+- **Do not recompile** on semantic exits 2 (permission), 3 (no calendars), 4 (helper error) — throw `SwiftHelperError` so domain returns structured `CalendarResult` codes.
 
 ## Source paths
 
-- Development/bundled main path: `SWIFT_SRC_DEV` resolves `../..` from `lib/main/index.cjs` back to project root, then `src/main/googlemeet-events.swift`.
-- Packaged path: `process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift`.
-- `electron-builder.yml` must keep Swift source in `asarUnpack`; `swiftc` cannot read from ASAR.
-
-Do not change these paths without verifying both `bun run dev` and packaged `electron-builder --mac --dir` layout.
+- Dev/bundled: from `lib/main/index.cjs` → project `src/main/googlemeet-events.swift`.
+- Packaged: `process.resourcesPath/app.asar.unpacked/src/main/googlemeet-events.swift`.
+- `electron-builder.yml` must keep Swift source in `asarUnpack`.
 
 ## Swift protocol
 
-Output is one JSON array line with exactly nine strings:
+JSON Lines: nine strings per line — `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
 
-```json
-["uid", "title", "startISO", "endISO", "url", "calName", "allDay", "email", "notes"]
-```
+| Exit | Meaning | Production mapping |
+| --- | --- | --- |
+| `0` | Success | parse events |
+| `2` | Permission denied | `CalendarResult` code `permission-denied` |
+| `3` | No calendars | `no-calendars` |
+| `4` | Runtime/helper error | `runtime` |
 
-Exit codes:
+## Watch sidecar
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Success. |
-| `2` | Calendar permission denied. |
-| `3` | No calendars. |
-| `4` | Runtime/helper error. |
-
-`SwiftHelperError` helpers classify these codes, but verify the production call path before assuming every helper exit reaches `CalendarResult` as a structured `AppError`.
+- Debounce CHANGED ~2s; exponential restart backoff up to MAX_RETRIES (5).
+- After give-up: **cooldown** then reset retries and spawn again.
+- `reviveWatchSidecar()` / domain `reviveCalendarWatcher()` used on power resume.
+- SIGTERM → SIGKILL after grace; stable runtime resets retry budget.
 
 ## Parsing rules
 
-- `uid` → `EventId` via `asEventId()`.
-- `startISO` / `endISO` → `IsoUtc` via `asIsoUtc()`.
-- `url` → `MeetUrl` via structural `asMeetUrl()` only; host allowlist is enforced later at egress.
-- Empty optional fields become `undefined`; all-day field parses to boolean.
-- Invalid lines are rejected through typed errors; do not silently drop malformed rows unless existing parser tests specify that behavior.
-- `parseTimestampPair(startStr, endStr)` rejects `end < start` by returning `null`, so the row is treated as malformed and dropped rather than producing a `MeetingEvent` with a negative duration.
+- `uid` → `EventId`; timestamps → `IsoUtc`.
+- `url` → `MeetUrl` only if `validateMeetUrl` succeeds (HTTPS + host allowlist).
+- Empty optionals → `undefined`; invalid lines → diagnostics / drop per parser tests.
 
 ## Rules
 
-- Do not import Electron/window/scheduler modules here; this is a leaf used by `domain/calendar.ts`.
-- Keep Swift stdout/stderr and exit-code handling mapped into `CalendarResult` / `AppError` taxonomy.
-- Do not suppress compile/run errors with empty catches.
-- Tests must mock `node:child_process` with `promisify.custom` because production uses promisified `execFile`.
-- Watch sidecar retries sleep 1s/2s/4s/8s/16s, resets retry budget after 60s stable runtime, and escalates SIGTERM to SIGKILL after 5s.
+- Leaf package: no Electron/window/scheduler imports (domain is the consumer).
+- Tests mock `node:child_process` with `promisify.custom`.

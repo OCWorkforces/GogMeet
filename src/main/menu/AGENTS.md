@@ -14,6 +14,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 - Filters all-day / ended events; Today / Tomorrow groups; open via `buildMeetUrl` + `openMeetingUrl`.
 - Footer: Settings… / About / Quit (`CommandOrControl+Q`).
+- `status: CalendarStatus` — optional last poll status from `domain/calendar-status.ts`.
 
 ### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks)`
 
@@ -32,3 +33,6 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 - Do not call `Menu.buildFromTemplate` here — tray owns lifecycle.
 - Do not `shell.openExternal` for meetings — use `openMeetingUrl`.
 - Do not import scheduler internals.
+- Meetings with URLs use a **submenu**: Join (`joinMeetingById`) + Copy Link (`clipboard` + `buildMeetUrl`). No direct `openMeetingUrl` from top-level click.
+- Footer actions: **Join Next Meeting** (`pickJoinTarget` + `joinMeetingById`), **Refresh** (`forcePoll`), Settings…, About, Quit.
+- Do not open meetings with raw `shell.openExternal` — Join always through `joinMeetingById`.

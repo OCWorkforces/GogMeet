@@ -1,5 +1,10 @@
 name: Release
 
+# Official releases for version tags vX.Y.Z (not vX.Y.Z-beta-N).
+#
+# Important: pushes made with the default GITHUB_TOKEN do not start new workflow
+# runs. So we must package in the same run that ensures the version tag exists
+# on main — not rely on a follow-up "tag push" event.
 on:
   push:
     tags:
@@ -11,9 +16,13 @@ permissions:
   contents: write
 
 jobs:
-  create-version-tag:
-    if: github.ref == 'refs/heads/main'
+  prepare:
+    name: Resolve release tag
     runs-on: macos-latest
+    timeout-minutes: 10
+    outputs:
+      run_release: ${{ steps.resolve.outputs.run_release }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,26 +33,66 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Create tag from package.json version
+      - name: Resolve whether to run official release
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          VERSION="v$(node -p "require('./package.json').version")"
-          if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists, skipping"
+
+          if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            VERSION="v$(node -p "require('./package.json').version")"
+            if [[ "$VERSION" == *"-beta-"* ]] || [[ "$VERSION" == *"-"* ]]; then
+              echo "::error::package.json version for official release must be X.Y.Z without prerelease suffix, got ${VERSION#v}"
+              exit 1
+            fi
+
+            echo "Official version tag: $VERSION"
+            git fetch --tags origin 2>/dev/null || true
+
+            if git ls-remote --exit-code origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+              echo "Tag $VERSION already exists on origin"
+            else
+              echo "Creating and pushing tag $VERSION"
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag -a "$VERSION" -m "Release $VERSION"
+              git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${VERSION}"
+            fi
+
+            echo "run_release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$VERSION"
-          git push origin "$VERSION"
+
+          # Tag push path (manual re-tag or external tag create)
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            if [[ "$TAG" == *"-beta-"* ]]; then
+              echo "Skipping beta tag $TAG (owned by beta-release.yml)"
+              echo "run_release=false" >> "$GITHUB_OUTPUT"
+              echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "run_release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "run_release=false" >> "$GITHUB_OUTPUT"
+          echo "tag=" >> "$GITHUB_OUTPUT"
 
   release-mac:
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Build and publish macOS release
+    needs: prepare
+    if: needs.prepare.outputs.run_release == 'true'
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -51,7 +100,20 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Preflight official mac release credentials
+      - name: Preflight version tag
+        env:
+          EXPECTED_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          expected_tag="v$(bun -e 'const packageInfo = await Bun.file("package.json").json(); process.stdout.write(packageInfo.version)')"
+          if [ "$EXPECTED_TAG" != "$expected_tag" ]; then
+            echo "::error::Release tag $EXPECTED_TAG does not match package.json version $expected_tag"
+            exit 1
+          fi
+          echo "Version preflight OK for $EXPECTED_TAG"
+
+      - name: Detect signing credentials
+        id: signing
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -60,20 +122,20 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
           set -euo pipefail
-          required=(CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_SPECIFIC_PASSWORD)
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::Required official release credential is missing: $name"
-              exit 1
-            fi
-          done
-          expected_tag="v$(bun -e 'const packageInfo = await Bun.file("package.json").json(); process.stdout.write(packageInfo.version)')"
-          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
-            echo "::error::Release tag $GITHUB_REF_NAME does not match package.json version $expected_tag"
-            exit 1
+          # Full signed+notarized path only when the complete secret set is present.
+          # Missing CSC_LINK (or any other secret) falls back to unsigned packaging.
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] \
+            && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] \
+            && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+            echo "Signing + notarize credentials present — signed official package"
+          else
+            echo "mode=unsigned" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing/notarize secrets incomplete (e.g. no CSC_LINK). Packaging unsigned; Gatekeeper may block casual installs. verify:macos-release will be skipped."
           fi
 
       - name: Build, sign, notarize, and package (mac)
+        if: steps.signing.outputs.mode == 'signed'
         run: bun run package:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -82,8 +144,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
-      - name: Verify mac release containers
+      - name: Build and package (unsigned fallback)
+        if: steps.signing.outputs.mode == 'unsigned'
+        run: bun run package:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify signed release containers
+        if: steps.signing.outputs.mode == 'signed'
         run: bun run verify:macos-release
+
+      - name: List dist artifacts
+        run: |
+          set -euo pipefail
+          ls -la dist/ || true
+          ls -la dist/GogMeet-*.dmg dist/GogMeet-*.zip 2>/dev/null || {
+            echo "::error::Expected GogMeet DMG/ZIP artifacts missing from dist/"
+            exit 1
+          }
 
       - name: Create mac checksum fragment
         run: |
@@ -94,11 +172,30 @@ jobs:
             dist/GogMeet-*-x64.dmg \
             dist/GogMeet-*-x64.zip \
             > dist/SHA256SUMS-mac.txt
+          cat dist/SHA256SUMS-mac.txt
 
       - name: Upload mac release assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          body: |
+            ## Release `${{ needs.prepare.outputs.tag }}`
+
+            | Field | Value |
+            | --- | --- |
+            | Platform | macOS + Windows (parallel jobs) |
+            | Signing (mac) | `${{ steps.signing.outputs.mode }}` |
+
+            ${{ steps.signing.outputs.mode == 'unsigned' && '**Unsigned mac build:** signing secrets were not fully configured (e.g. missing `CSC_LINK`). Gatekeeper may block install — use **System Settings → Privacy & Security → Open Anyway**, or remove quarantine after install.' || '**Signed and notarized** when Apple credentials were present in CI.' }}
           files: |
             dist/GogMeet-*-arm64.dmg
             dist/GogMeet-*-arm64.zip
@@ -106,12 +203,13 @@ jobs:
             dist/GogMeet-*-x64.zip
             dist/SHA256SUMS-mac.txt
             dist/latest-mac.yml
-          fail_on_unmatched_files: false
-          make_latest: true
 
   release-win:
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Build and publish Windows release
+    needs: prepare
+    if: needs.prepare.outputs.run_release == 'true'
     runs-on: windows-latest
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
@@ -119,6 +217,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -126,14 +225,17 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Preflight tag matches package.json
+      - name: Preflight version tag
+        env:
+          EXPECTED_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           set -euo pipefail
           expected_tag="v$(bun -e 'const packageInfo = await Bun.file("package.json").json(); process.stdout.write(packageInfo.version)')"
-          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
-            echo "::error::Release tag $GITHUB_REF_NAME does not match package.json version $expected_tag"
+          if [ "$EXPECTED_TAG" != "$expected_tag" ]; then
+            echo "::error::Release tag $EXPECTED_TAG does not match package.json version $expected_tag"
             exit 1
           fi
+          echo "Version preflight OK for $EXPECTED_TAG"
 
       - name: Configure optional Windows code signing
         env:
@@ -153,7 +255,6 @@ jobs:
       - name: Build Windows x64 (NSIS + portable)
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          # package:win:* uses --publish never; upload after latest.yml merge (K25)
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run package:win:x64
 
@@ -174,7 +275,6 @@ jobs:
       - name: Create Windows checksum fragment
         run: |
           set -euo pipefail
-          # Prefer sha256sum on Linux/Git Bash; fall back to shasum
           if command -v sha256sum >/dev/null 2>&1; then
             HASH=sha256sum
           else
@@ -190,8 +290,16 @@ jobs:
 
       - name: Upload Windows release assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
           files: |
             dist/GogMeet-*-x64.exe
             dist/GogMeet-*-arm64.exe
@@ -199,5 +307,3 @@ jobs:
             dist/GogMeet-*-arm64-portable.exe
             dist/latest.yml
             dist/SHA256SUMS-win.txt
-          fail_on_unmatched_files: true
-          make_latest: true

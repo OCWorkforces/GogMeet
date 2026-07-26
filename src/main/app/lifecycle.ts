@@ -29,7 +29,11 @@ import { getSettings, loadSettings } from "../domain/settings.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
-import { startCalendarWatcher, stopCalendarWatcher } from "../domain/calendar-watcher.js";
+import {
+  reviveCalendarWatcher,
+  startCalendarWatcher,
+  stopCalendarWatcher,
+} from "../domain/calendar-watcher.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
 
 /**
@@ -118,6 +122,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     tryRun("initPowerManagement", () =>
       initPowerManagement(() => {
         invalidateCalendarPermissionCache();
+        reviveCalendarWatcher();
         restartScheduler();
       }),
     );

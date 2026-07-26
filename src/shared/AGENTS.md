@@ -1,6 +1,6 @@
 # Shared — Cross-Process Contracts
 
-Pure TypeScript contracts and utilities shared by main, preload, and renderer. This layer must not import Electron, Node process APIs, DOM globals, or project-specific runtime singletons.
+Pure TypeScript contracts and utilities shared by main, preload, and renderer. Must not import Electron, Node process APIs, or DOM globals.
 
 ## Files
 
@@ -21,8 +21,10 @@ Pure TypeScript contracts and utilities shared by main, preload, and renderer. T
 | `parse-json.ts` | JSON object parser + validator bridge returning `AppResult<T>`. |
 | `utils/escape-html.ts` | XSS escaping for HTML string renderers. |
 | `utils/time.ts` | Shared date/time formatting helpers. |
+| `ipc-channels.ts` | Channel names, `IpcChannelMap` (includes `APP_JOIN_MEETING` → `Result`), `PushChannelMap`. |
+| `settings.ts` | **Schema v2** `AppSettings`, defaults, clamps, `isInQuietHours`. |
 
-## IPC contracts
+## Settings schema (v2)
 
 - `IPC_CHANNELS` is the single source of channel names; keep it `as const`.
 - Invoke channels map to `{ request, response }` in `IpcChannelMap` (includes `CALENDAR_DISCONNECT`, `CALENDAR_UI_STATE`).
@@ -30,14 +32,17 @@ Pure TypeScript contracts and utilities shared by main, preload, and renderer. T
 - Fire-and-forget channels (`ALERT_DISMISSED`, `SCHEDULER_FORCE_POLL`, `WINDOW_SET_HEIGHT`) still have typed request payloads.
 - Main-process bus event `calendar-status-updated` is **not** an IPC push; tray listens in main via `events.ts`.
 - Add a channel by updating shared channel maps first, then main handler, preload API, renderer caller, and tests.
+`AppSettings`: `schemaVersion` (2), `openBeforeMinutes` (**0–10**), `launchAtLogin`, `showTomorrowMeetings`, `windowAlert`, `autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, `quietHoursEnabled`, `quietHoursStart`/`End` (`HH:mm`, midnight wrap via `isInQuietHours`).
 
-## Model shapes
+Defaults preserve historical behavior (auto-open on, alert lead 60s, late-join 0, quiet hours off).
 
-`MeetingEvent` fields: `id: EventId`, `title`, `startDate: IsoUtc`, `endDate: IsoUtc`, optional `meetUrl: MeetUrl`, `calendarName`, `isAllDay`, optional `userEmail`, optional `description`.
+## IPC notes
 
-`CalendarResult` intentionally differs from generic `Result`: use `kind: "ok" | "err"`, not `ok: boolean`. Narrow with `isCalendarOk()` or `result.kind === "ok"`; never use `'error' in result`.
+- `APP_OPEN_EXTERNAL` / `APP_JOIN_MEETING` responses are `Result<void, string>`.
+- Push: `SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`.
+- Fire-and-forget still type their payloads (`ALERT_DISMISSED`, etc.).
 
-`AlertPayload` is a display-only projection: `id`, `title`, `startDate`, `endDate`, `calendarName`, `isAllDay`, optional `description`. It intentionally omits `meetUrl`; the alert renderer must not gain URL-opening capability.
+## Brands / allowlist
 
 `AppSettings`: `schemaVersion`, `openBeforeMinutes` (1–5), `launchAtLogin`, `showTomorrowMeetings`, `windowAlert`. Defaults live in `DEFAULT_SETTINGS`.
 
@@ -64,7 +69,6 @@ Validators return `Result<T,string>` and are used at Swift parser ingress, prelo
 
 ## Rules
 
-- No barrel files; import concrete shared modules.
-- No `satisfies`, `enum`, or `namespace`.
-- Keep shared modules side-effect-free and safe for all three processes.
-- User-facing strings rendered into HTML must pass through `escapeHtml()`.
+- No barrels; no Electron/Node/DOM.
+- No `satisfies` / `enum` / `namespace`.
+- Side-effect-free modules only.

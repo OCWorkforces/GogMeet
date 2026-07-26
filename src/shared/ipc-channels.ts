@@ -4,6 +4,7 @@ import type { CalendarUiState } from "./calendar-ui-state.js";
 import type { EventId, MeetUrl, WindowHeight } from "./brand.js";
 import type { AppSettings } from "./settings.js";
 import type { AlertPayload } from "./alert.js";
+import type { Result } from "./result.js";
 
 /** IPC channel names — single source of truth */
 export const IPC_CHANNELS = {
@@ -14,6 +15,7 @@ export const IPC_CHANNELS = {
   CALENDAR_UI_STATE: "calendar:ui-state",
   WINDOW_SET_HEIGHT: "window:set-height",
   APP_OPEN_EXTERNAL: "app:open-external",
+  APP_JOIN_MEETING: "app:join-meeting",
   APP_GET_VERSION: "app:get-version",
   SETTINGS_GET: "settings:get",
   SETTINGS_SET: "settings:set",
@@ -39,7 +41,14 @@ export interface IpcChannelMap {
   [IPC_CHANNELS.CALENDAR_DISCONNECT]: { request: void; response: void };
   [IPC_CHANNELS.CALENDAR_UI_STATE]: { request: void; response: CalendarUiState };
   [IPC_CHANNELS.WINDOW_SET_HEIGHT]: { request: { height: WindowHeight }; response: void };
-  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: { request: { url: MeetUrl }; response: void };
+  [IPC_CHANNELS.APP_OPEN_EXTERNAL]: {
+    request: { url: MeetUrl };
+    response: Result<void, string>;
+  };
+  [IPC_CHANNELS.APP_JOIN_MEETING]: {
+    request: { id: EventId };
+    response: Result<void, string>;
+  };
   [IPC_CHANNELS.APP_GET_VERSION]: { request: void; response: string };
   [IPC_CHANNELS.SETTINGS_GET]: { request: void; response: AppSettings };
   [IPC_CHANNELS.SETTINGS_SET]: { request: Partial<AppSettings>; response: AppSettings };

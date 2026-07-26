@@ -14,6 +14,7 @@ import type { MeetingEvent } from "../shared/meeting-event.js";
 import type { CalendarUiState } from "../shared/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
 import { getSettings } from "./domain/settings.js";
+import { getLastCalendarStatus } from "./domain/calendar-status.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
@@ -87,6 +88,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     ...ui,
     events: cachedMeetings ?? ui.events,
   };
+  const status = getLastCalendarStatus();
 
   if (cachedMeetings && snapshot.permission === "not-determined" && isDarwin()) {
     return buildCalendarTrayMenuTemplate(
@@ -98,6 +100,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
       },
       getSettings().showTomorrowMeetings,
       menuCallbacks(mainWindow),
+      status,
     );
   }
 
@@ -115,6 +118,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     snapshot.events ? snapshot : { ...snapshot, events },
     getSettings().showTomorrowMeetings,
     menuCallbacks(mainWindow),
+    status,
   );
 }
 

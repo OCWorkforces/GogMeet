@@ -1,6 +1,7 @@
 import { forcePoll } from "../scheduler/facade.js";
 import { getActiveCalendarProvider } from "../calendar/factory.js";
 import type { CalendarProvider } from "../calendar/provider.js";
+import { reviveWatchSidecar } from "../swift/calendar-watch-sidecar.js";
 
 let started = false;
 let watchProvider: CalendarProvider | null = null;
@@ -49,4 +50,16 @@ export function stopCalendarWatcher(): void {
   }
   watchProvider = null;
   console.log("[calendar-watcher] Stopped");
+}
+
+/**
+ * Attempt to recover a failed/given-up sidecar (resume/unlock). No-op if never
+ * started or currently stopped intentionally. Only EventKit uses a reviveable sidecar.
+ */
+export function reviveCalendarWatcher(): void {
+  if (!started) return;
+  if (watchProvider?.id === "darwin-eventkit" || watchProvider === null) {
+    // null: start still in-flight; safe to attempt sidecar revive on Darwin builds
+    reviveWatchSidecar();
+  }
 }

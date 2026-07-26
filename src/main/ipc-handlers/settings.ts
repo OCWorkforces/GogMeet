@@ -3,8 +3,26 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ip
 import { getSettings, updateSettings } from "../domain/settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
-import { DEFAULT_SETTINGS } from "../../shared/settings.js";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings.js";
+import { forcePoll } from "../scheduler/facade.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
+
+/** Keys that require restartScheduler() to reschedule timers / re-evaluate gates */
+const TIMING_KEYS = new Set<keyof AppSettings>([
+  "openBeforeMinutes",
+  "windowAlert",
+  "autoOpenEnabled",
+  "alertLeadSeconds",
+  "lateJoinGraceMinutes",
+  "quietHoursEnabled",
+  "quietHoursStart",
+  "quietHoursEnd",
+  "nativeNotifications",
+]);
+
+function settingsRequireSchedulerRestart(partial: Partial<AppSettings>): boolean {
+  return (Object.keys(partial) as (keyof AppSettings)[]).some((k) => TIMING_KEYS.has(k));
+}
 
 export function registerSettingsHandlers(win: BrowserWindow): void {
   typedHandle(
@@ -24,23 +42,18 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
       if (!validateSender(event)) return { ...DEFAULT_SETTINGS };
       try {
         const updated = await updateSettings(partial);
-        restartScheduler(); // Apply new timing immediately
 
-        // Sync auto-launch if the setting changed
+        if (settingsRequireSchedulerRestart(partial)) {
+          restartScheduler();
+        } else if (typeof partial.showTomorrowMeetings === "boolean") {
+          void forcePoll();
+        }
+
         if (typeof partial.launchAtLogin === "boolean") {
           syncAutoLaunch(partial.launchAtLogin);
         }
 
-        // Notify popover window to refresh if settings affect display
-        if (
-          partial.showTomorrowMeetings !== undefined ||
-          partial.launchAtLogin !== undefined ||
-          partial.openBeforeMinutes !== undefined ||
-          partial.windowAlert !== undefined
-        ) {
-          typedSend(win.webContents, IPC_CHANNELS.SETTINGS_CHANGED, updated);
-        }
-
+        typedSend(win.webContents, IPC_CHANNELS.SETTINGS_CHANGED, updated);
         return updated;
       } catch (err) {
         console.error("[ipc] SETTINGS_SET error:", err);

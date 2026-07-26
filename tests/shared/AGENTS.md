@@ -8,11 +8,10 @@ Tests for `src/shared/` modules. Vitest project `shared`, Node environment, **no
 
 ```
 tests/shared/
-├── errors.test.ts        # AppError discriminated union, errFrom(), formatAppError(),
-│                         # the isXxx type guards, and SwiftHelperError.toAppError()
-├── event-signature.test.ts # stable event/list signature fields and ordering
-└── parse-json.test.ts    # parseJsonObject(): JSON parse + validator integration,
-                          # error mapping into AppResult<T> via the validation kind
+├── errors.test.ts           # AppError taxonomy + SwiftHelperError bridge
+├── event-signature.test.ts  # stable event/list signatures
+├── parse-json.test.ts       # parseJsonObject → AppResult
+└── pick-join-target.test.ts # prefer in-progress joinable meeting
 ```
 
 ## CONVENTIONS

@@ -5,6 +5,12 @@ import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
+  ALERT_LEAD_SECONDS_MIN,
+  ALERT_LEAD_SECONDS_MAX,
+  LATE_JOIN_GRACE_MINUTES_MIN,
+  LATE_JOIN_GRACE_MINUTES_MAX,
+  SETTINGS_SCHEMA_VERSION,
+  isHHmm,
 } from "../../shared/settings.js";
 import type { AppSettings } from "../../shared/settings.js";
 import { ok, err } from "../../shared/result.js";
@@ -21,12 +27,79 @@ function getSettingsPath(): string {
   return join(userDataPath, "settings.json");
 }
 
-function clampOpenBeforeMinutes(value: number): number {
-  return Math.max(OPEN_BEFORE_MINUTES_MIN, Math.min(OPEN_BEFORE_MINUTES_MAX, value));
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
 function isEnoent(e: unknown): e is { code: unknown } {
   return isObjectRecord(e) && e["code"] === "ENOENT";
+}
+
+function parseSettingsRecord(parsed: Record<string, unknown>): AppSettings {
+  // Migrate legacy fullScreenAlert → windowAlert
+  if (
+    typeof parsed["fullScreenAlert"] === "boolean" &&
+    typeof parsed["windowAlert"] !== "boolean"
+  ) {
+    parsed["windowAlert"] = parsed["fullScreenAlert"];
+  }
+
+  return {
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    openBeforeMinutes: clamp(
+      typeof parsed["openBeforeMinutes"] === "number"
+        ? parsed["openBeforeMinutes"]
+        : DEFAULT_SETTINGS.openBeforeMinutes,
+      OPEN_BEFORE_MINUTES_MIN,
+      OPEN_BEFORE_MINUTES_MAX,
+    ),
+    launchAtLogin:
+      typeof parsed["launchAtLogin"] === "boolean"
+        ? parsed["launchAtLogin"]
+        : DEFAULT_SETTINGS.launchAtLogin,
+    showTomorrowMeetings:
+      typeof parsed["showTomorrowMeetings"] === "boolean"
+        ? parsed["showTomorrowMeetings"]
+        : DEFAULT_SETTINGS.showTomorrowMeetings,
+    windowAlert:
+      typeof parsed["windowAlert"] === "boolean"
+        ? parsed["windowAlert"]
+        : DEFAULT_SETTINGS.windowAlert,
+    autoOpenEnabled:
+      typeof parsed["autoOpenEnabled"] === "boolean"
+        ? parsed["autoOpenEnabled"]
+        : DEFAULT_SETTINGS.autoOpenEnabled,
+    alertLeadSeconds: clamp(
+      typeof parsed["alertLeadSeconds"] === "number"
+        ? parsed["alertLeadSeconds"]
+        : DEFAULT_SETTINGS.alertLeadSeconds,
+      ALERT_LEAD_SECONDS_MIN,
+      ALERT_LEAD_SECONDS_MAX,
+    ),
+    nativeNotifications:
+      typeof parsed["nativeNotifications"] === "boolean"
+        ? parsed["nativeNotifications"]
+        : DEFAULT_SETTINGS.nativeNotifications,
+    lateJoinGraceMinutes: clamp(
+      typeof parsed["lateJoinGraceMinutes"] === "number"
+        ? parsed["lateJoinGraceMinutes"]
+        : DEFAULT_SETTINGS.lateJoinGraceMinutes,
+      LATE_JOIN_GRACE_MINUTES_MIN,
+      LATE_JOIN_GRACE_MINUTES_MAX,
+    ),
+    quietHoursEnabled:
+      typeof parsed["quietHoursEnabled"] === "boolean"
+        ? parsed["quietHoursEnabled"]
+        : DEFAULT_SETTINGS.quietHoursEnabled,
+    quietHoursStart:
+      typeof parsed["quietHoursStart"] === "string" && isHHmm(parsed["quietHoursStart"])
+        ? parsed["quietHoursStart"]
+        : DEFAULT_SETTINGS.quietHoursStart,
+    quietHoursEnd:
+      typeof parsed["quietHoursEnd"] === "string" && isHHmm(parsed["quietHoursEnd"])
+        ? parsed["quietHoursEnd"]
+        : DEFAULT_SETTINGS.quietHoursEnd,
+  };
 }
 
 export async function loadSettings(): Promise<Result<AppSettings, string>> {
@@ -59,41 +132,26 @@ export async function loadSettings(): Promise<Result<AppSettings, string>> {
       : formatAppError(parsedResult.error);
     return err(`Failed to parse settings JSON: ${detail}`);
   }
-  const parsed = parsedResult.value;
 
-  // Migrate legacy fullScreenAlert → windowAlert
-  if (
-    parsed &&
-    typeof parsed["fullScreenAlert"] === "boolean" &&
-    typeof parsed["windowAlert"] !== "boolean"
-  ) {
-    parsed["windowAlert"] = parsed["fullScreenAlert"];
+  const previousVersion =
+    typeof parsedResult.value["schemaVersion"] === "number"
+      ? parsedResult.value["schemaVersion"]
+      : 1;
+  settingsCache = parseSettingsRecord(parsedResult.value);
+  settingsLoaded = true;
+
+  // Rewrite on migrate so disk always reflects schemaVersion 2
+  if (previousVersion < SETTINGS_SCHEMA_VERSION) {
+    try {
+      await saveSettings(settingsCache);
+    } catch (e) {
+      console.warn("[settings] Failed to rewrite migrated settings:", e);
+    }
   }
 
-  // Validate and construct settings object
-  settingsCache = {
-    schemaVersion: DEFAULT_SETTINGS.schemaVersion,
-    openBeforeMinutes: clampOpenBeforeMinutes(
-      typeof parsed["openBeforeMinutes"] === "number"
-        ? parsed["openBeforeMinutes"]
-        : DEFAULT_SETTINGS.openBeforeMinutes,
-    ),
-    launchAtLogin:
-      typeof parsed["launchAtLogin"] === "boolean"
-        ? parsed["launchAtLogin"]
-        : DEFAULT_SETTINGS.launchAtLogin,
-    showTomorrowMeetings:
-      typeof parsed["showTomorrowMeetings"] === "boolean"
-        ? parsed["showTomorrowMeetings"]
-        : DEFAULT_SETTINGS.showTomorrowMeetings,
-    windowAlert:
-      typeof parsed["windowAlert"] === "boolean"
-        ? parsed["windowAlert"]
-        : DEFAULT_SETTINGS.windowAlert,
-  };
-  settingsLoaded = true;
   return ok(settingsCache);
 }
+
 export async function saveSettings(settings: AppSettings): Promise<void> {
   const userDataPath = app.getPath("userData");
   await mkdir(userDataPath, { recursive: true });
@@ -117,31 +175,56 @@ export async function updateSettings(partial: Partial<AppSettings>): Promise<App
       "Settings not loaded — loadSettings() must be called during app initialization",
     );
   }
-  // Merge with current cache
-  const merged: AppSettings = {
-    ...settingsCache,
-  };
+  const merged: AppSettings = { ...settingsCache };
 
-  // Only apply known properties
   if (typeof partial.openBeforeMinutes === "number") {
-    merged.openBeforeMinutes = clampOpenBeforeMinutes(partial.openBeforeMinutes);
+    merged.openBeforeMinutes = clamp(
+      partial.openBeforeMinutes,
+      OPEN_BEFORE_MINUTES_MIN,
+      OPEN_BEFORE_MINUTES_MAX,
+    );
   }
-
   if (typeof partial.launchAtLogin === "boolean") {
     merged.launchAtLogin = partial.launchAtLogin;
   }
-
   if (typeof partial.showTomorrowMeetings === "boolean") {
     merged.showTomorrowMeetings = partial.showTomorrowMeetings;
   }
-
   if (typeof partial.windowAlert === "boolean") {
     merged.windowAlert = partial.windowAlert;
   }
+  if (typeof partial.autoOpenEnabled === "boolean") {
+    merged.autoOpenEnabled = partial.autoOpenEnabled;
+  }
+  if (typeof partial.alertLeadSeconds === "number") {
+    merged.alertLeadSeconds = clamp(
+      partial.alertLeadSeconds,
+      ALERT_LEAD_SECONDS_MIN,
+      ALERT_LEAD_SECONDS_MAX,
+    );
+  }
+  if (typeof partial.nativeNotifications === "boolean") {
+    merged.nativeNotifications = partial.nativeNotifications;
+  }
+  if (typeof partial.lateJoinGraceMinutes === "number") {
+    merged.lateJoinGraceMinutes = clamp(
+      partial.lateJoinGraceMinutes,
+      LATE_JOIN_GRACE_MINUTES_MIN,
+      LATE_JOIN_GRACE_MINUTES_MAX,
+    );
+  }
+  if (typeof partial.quietHoursEnabled === "boolean") {
+    merged.quietHoursEnabled = partial.quietHoursEnabled;
+  }
+  if (typeof partial.quietHoursStart === "string" && isHHmm(partial.quietHoursStart)) {
+    merged.quietHoursStart = partial.quietHoursStart;
+  }
+  if (typeof partial.quietHoursEnd === "string" && isHHmm(partial.quietHoursEnd)) {
+    merged.quietHoursEnd = partial.quietHoursEnd;
+  }
 
-  // Save and update cache
+  merged.schemaVersion = SETTINGS_SCHEMA_VERSION;
   await saveSettings(merged);
   settingsCache = { ...merged };
-
   return getSettings();
 }

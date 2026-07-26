@@ -101,6 +101,16 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Overwriting `latest.yml` with sequential publish without `merge:windows-latest-yml`.
 - Hand-editing generated icons; regenerate via `scripts/generate-calendar-tray-icons.mjs`.
 - Claiming EventKit multi-source parity for Windows Google MVP.
+| Join a meeting | `src/main/utils/join-meeting.ts`, `utils/meet-url.ts`, menu/shortcuts/IPC | all paths use `joinMeetingById` → `buildMeetUrl` + `openMeetingUrl` + `cancelPendingBrowserOpen` |
+| Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings schema v2; alert Join via EventId (no meetUrl in payload) |
+| `src/shared/ipc-channels.ts` | contract | high | channel names, request/response maps (includes `APP_JOIN_MEETING`), push maps |
+| `domain/calendar-status.ts` | cache | tray menu | last poll ok/err status for menu error rows |
+| `utils/join-meeting.ts` | join hub | menu/hotkey/IPC | `joinMeetingById` + mark opened |
+| `utils/log.ts` | logging | bootstrap | electron-log scopes for main diagnostics |
+| `renderer/settings/index.ts` | page entry | settings | schema v2 toggles, auto-save |
+- Meeting hostnames live in `src/shared/meet-url-allowlist.ts`. Parser ingress uses `validateMeetUrl()`; egress uses `openMeetingUrl()` / `joinMeetingById`.
+- All user join paths (menu, hotkey, renderer, alert) must call `joinMeetingById` so auto-open is suppressed after a successful open.
+- Meeting URL egress through direct `shell.openExternal()`; use `openMeetingUrl()` / `joinMeetingById`, or a documented exact allowlist for non-meeting URLs (`openSystemSettings`).
 
 ## COMMANDS
 
@@ -138,3 +148,7 @@ bun run clean
 - Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + TS url-extract + main/preload allowlists + tests.
 - Design / dogfood: `docs/windows-platform-support-design.md`, `docs/windows-dogfood.md`.
+- Beta workflow (`.github/workflows/beta-release.yml`): push to `develop` publishes a GitHub **pre-release** with auto-incremented tag `v${version}-beta-N` and DMG/ZIP assets; signing/notarize when secrets are present, otherwise unsigned package.
+- Official release workflow: on `main`, ensure `v$(package.json.version)` exists and **package/upload in the same run** (GITHUB_TOKEN tag pushes do not re-trigger workflows). Also runs for non-beta `v*` tags. Signed+notarized when all Apple secrets are set; otherwise unsigned fallback (skip verifier). Upload DMG/ZIP + `SHA256SUMS.txt` as Latest.
+- Auto-open applies to non-all-day future meetings when `autoOpenEnabled`; open offset is 0–10 minutes before start; Google Meet gets `authuser`, Zoom gets `uname` when email exists. Manual joins go through `joinMeetingById` and mark the event opened.
+- Develop beta tags: `vX.Y.Z-beta-N` (see `.github/workflows/beta-release.yml`). Official tags: exact `v${package.json.version}` from `main`.

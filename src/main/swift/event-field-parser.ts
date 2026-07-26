@@ -1,6 +1,7 @@
 import type { Result } from "../../shared/result.js";
 import type { EventId, IsoUtc, MeetUrl } from "../../shared/brand.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../shared/brand.js";
+import { asEventId, asIsoUtc } from "../../shared/brand.js";
+import { validateMeetUrl } from "../utils/url-validation.js";
 import { parseIsoUtc } from "./event-validator.js";
 
 /** Parsed timestamp pair as native Date objects (pre-brand). */
@@ -43,6 +44,6 @@ export function parseMeetUrlField(raw: string): MeetUrl | undefined {
   // Normalize: prepend https:// if no scheme present (calendar events may
   // store bare URLs like "zoom.us/j/123" without a protocol prefix).
   const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const result = asMeetUrl(normalized);
+  const result = validateMeetUrl(normalized);
   return result.ok ? result.value : undefined;
 }

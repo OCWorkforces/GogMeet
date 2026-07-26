@@ -29,3 +29,7 @@ Leaf modules wrapping Electron/OS platform APIs. No business logic, no cross-sub
 - Never import renderer/preload code; communicate through lifecycle callbacks or the typed event bus.
 - Never call `shell.openExternal()` directly from `shortcuts.ts`. Route every meeting URL through `openMeetingUrl()` so the URL allowlist gate is enforced before egress.
 - Do not hard-code macOS-only settings URIs in `notification.ts`; use `getNotificationSettingsDeepLink()`.
+| `auto-updater.ts` | `initAutoUpdater()` — **called from lifecycle**; no-op when unpackaged; GitHub Releases feed |
+| `shortcuts.ts` | `Cmd+Shift+M` → `pickJoinTarget` + `joinMeetingById`; non-modal Notification feedback |
+- `shortcuts.ts` may use `scheduler/facade.js` (`getLastKnownEvents`) and `domain/calendar.js` for live fetch fallback — keep join via `joinMeetingById`.
+- Never open meetings with raw `shell.openExternal` — use `joinMeetingById` / `openMeetingUrl`.

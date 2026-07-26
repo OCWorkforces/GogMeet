@@ -166,7 +166,13 @@ async function init() {
       }
     },
     onGrantAccess: () => void grantAccess(),
-    onOpenExternal: (url) => window.api.app.openExternal(url),
+    onJoinMeeting: (eventId) => {
+      void window.api.app.joinMeeting(eventId).then((result) => {
+        if (!result.ok) {
+          console.error("[renderer] Join failed:", result.error);
+        }
+      });
+    },
   });
 
   // Listen for calendar updates pushed from main process — events included in push payload

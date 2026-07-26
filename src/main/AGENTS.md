@@ -18,6 +18,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `ipc-handlers/` | per-domain handlers | typed IPC |
 | `menu/` | `meeting-menu.ts` | tray menu templates (meetings + Windows Connect CTAs) |
 | `utils/` | browser-window, window-chrome, meet-url, url-validation, platform (meeting host) | security + helpers |
+| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `calendar-status.ts`, `settings.ts` | EventKit, watcher, last poll status, settings v2 JSON/migrations |
 
 ## Lifecycle order
 
@@ -33,6 +34,8 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 8. `initAutoUpdater()` — packaged non-portable only.
 
 `shutdownApp()`: power cleanup → stop scheduler → stop watcher → unregister shortcuts.
+7. `initPowerManagement` on resume/unlock: `invalidateCalendarPermissionCache()` → `reviveCalendarWatcher()` → `restartScheduler()`.
+9. `initAutoUpdater()` (no-op when unpackaged).
 
 ## Architecture rules
 
@@ -47,6 +50,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 - `typedHandle` / `typedSend`; always validate sender for renderer-originated IPC.
 - Meeting egress: `openMeetingUrl` / allowlist; rebrand fire-and-forget payloads in main.
 - Sandbox + context isolation + no Node in renderers.
+- Meeting joins go through `utils/join-meeting.ts` (`joinMeetingById`); URL egress uses `openMeetingUrl()` → `Result`. Non-meeting links use documented helpers (`openSystemSettings`, About repo exact match).
 
 ## Tray invariants
 
@@ -60,3 +64,4 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 - Swift source `asarUnpack` for packaged mac builds.
 - Windows Google requires `GOOGLE_OAUTH_CLIENT_ID` at runtime/package.
 - Fixture: unpackaged + `GOGMEET_CALENDAR_FIXTURE` path only.
+- `index.ts` configures `electron-log` via `utils/log.ts` and suppresses Chromium DNS sorter warnings with `log-level=3`.

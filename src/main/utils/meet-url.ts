@@ -1,5 +1,7 @@
 import { shell } from "electron";
 import type { MeetingEvent } from "../../shared/meeting-event.js";
+import type { Result } from "../../shared/result.js";
+import { err, ok } from "../../shared/result.js";
 import { isAllowedMeetUrl } from "./url-validation.js";
 import { detectPlatform } from "./platform.js";
 
@@ -42,14 +44,19 @@ export function buildMeetUrl(event: MeetingEvent): string {
 
 /**
  * Validate and open a meeting URL in the default browser.
- * Logs errors on failure.
+ * Returns a Result so callers can surface failures; never throws.
  */
-export async function openMeetingUrl(url: string): Promise<void> {
+export async function openMeetingUrl(url: string): Promise<Result<void, string>> {
   if (!isAllowedMeetUrl(url)) {
     console.error("[meet-url] Blocked disallowed URL:", url);
-    return;
+    return err("MeetUrl hostname is not in the allowlist");
   }
-  await shell.openExternal(url).catch((err) => {
-    console.error("[meet-url] Failed to open URL:", url, err);
-  });
+  try {
+    await shell.openExternal(url);
+    return ok(undefined);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[meet-url] Failed to open URL:", url, e);
+    return err(message);
+  }
 }

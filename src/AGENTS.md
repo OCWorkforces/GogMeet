@@ -65,3 +65,4 @@ Egress allowlisting remains in `buildMeetUrl` / `openMeetingUrl` / `APP_OPEN_EXT
 ## Tests
 
 Vitest: `tests/main/` (Node + Electron mocks), `tests/renderer/` (jsdom), `tests/shared/`, `tests/scripts/`. Helpers in `tests/helpers/test-utils.ts`.
+- Joins: `joinMeetingById` for user-initiated open; never skip mark-opened.

@@ -247,7 +247,8 @@ describe("tray module exports", () => {
     const trayInstance = getLatestTrayInstance(Tray);
     expect(Menu.buildFromTemplate).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ label: "Loading…", enabled: false }),
+        expect.objectContaining({ label: "No upcoming meetings", enabled: false }),
+        expect.objectContaining({ label: "Refresh" }),
       ]),
     );
     expect(trayInstance.setContextMenu).toHaveBeenCalledWith({});

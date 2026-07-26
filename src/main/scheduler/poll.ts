@@ -1,4 +1,5 @@
 import { getCalendarEventsResult, reportCalendarPollError } from "../domain/calendar.js";
+import { recordCalendarResult } from "../domain/calendar-status.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { eventListSignature } from "../../shared/event-signature.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";
@@ -49,6 +50,7 @@ export async function poll(isCurrentGeneration: () => boolean = () => true): Pro
   try {
     const result = await getCalendarEventsResult();
     if (!isCurrentGeneration()) return;
+    recordCalendarResult(result);
     if (isCalendarOk(result)) {
       setConsecutiveErrors(0);
       scheduleEvents(result.events);

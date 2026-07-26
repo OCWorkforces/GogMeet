@@ -2,7 +2,9 @@
 
 ## OVERVIEW
 
-Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML string templates with `escapeHtml()` for XSS protection. Shared types imported from `../shared/` (AppState, AlertPayload, branded types).
+Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework; HTML string templates with `escapeHtml()`. Shared types from `../shared/`.
+
+Primary meeting list UX for users is the **native tray menu**; the main BrowserWindow (popover entry) may stay hidden while still receiving pushes for height/list experiments.
 
 ## ENTRY POINTS
 
@@ -11,33 +13,29 @@ Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework, innerHTML stri
 | `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
 | `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + **Google Calendar account** (connect/disconnect); auto-save |
 | `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
+| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | Schema v2 toggles, auto-save |
 
 ## STRUCTURE
 
 ```
 src/renderer/
-├── index.ts          # Main popover UI
+├── index.ts          # List UI entry
 ├── events/           # data-action event delegation
 ├── lib/              # pure event-push filtering/signature helpers
 ├── rendering/        # body renderer
 ├── settings/         # Settings window entry
 ├── alert/            # Full-screen alert entry
-├── styles/           # CSS reset + popover styles
-└── utils/            # DOM query helpers shared by renderer entries/delegation
+├── styles/           # CSS reset + list styles
+└── utils/            # DOM query helpers
 ```
-
-## RENDERING
-
-- `rendering/body.ts` owns meeting list, permission/error/empty states, and all user content via `escapeHtml()`.
-- `index.ts` owns the outer dialog/footer; `body.ts` owns body states/list only.
-- Title, description, URL: always escaped before innerHTML
 
 ## EVENT HANDLING
 
-- `events/delegation.ts`, `data-action` attribute delegation on `#app`
-- Actions: `refresh`, `retry`, `grant-access`, `join-meeting`
+- `events/delegation.ts` on `#app` with `data-action`
+- Actions: `refresh`, `retry`, `grant-access`, `join-meeting` (uses **`data-event-id`**, not raw URL)
+- Join → `window.api.app.joinMeeting(eventId)`
 
-## STATE MACHINE (index.ts)
+## SETTINGS WINDOW (schema v2)
 
 `AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
 
@@ -55,26 +53,13 @@ src/renderer/
 
 ## ALERT WINDOW
 
-- Triggered by `window.api.alert.onShowAlert()` push channel; callback receives `AlertPayload` (from `shared/alert.ts`), not raw MeetingEvent.
-- Shows meeting title, time, description (all escaped)
-- Title uses `-webkit-line-clamp: 2` with `overflow-wrap: anywhere` — 2-line ellipsis; wrapping prevents clipping for long/Vietnamese titles
-- Keyboard: Escape dismisses; non-Escape keys do not dismiss.
-- Error boundary: try/catch around rendering with fallback DOM
+- Payload: `AlertPayload` with optional `hasMeetUrl` / `autoOpenAt` — **no meetUrl string**
+- Join button when `hasMeetUrl` → `app.joinMeeting(id)` then dismiss
+- Dismiss → `alert.notifyDismissed(id)` (cancels pending auto-open)
+- Escape dismisses
 
-## CONVENTIONS
+## CONVENTIONS / ANTI-PATTERNS
 
-- Never use innerHTML with user content without `escapeHtml()`
-- All UI is string template concatenation, no framework
-- `data-action` event delegation, no inline handlers
-- State changes trigger full re-render, no diffing
-- Popover CSS lives in `styles/`; settings and alert use entry-local `styles.css` imported by their entry points
-- DOM element casts (`as HTMLElement`) are accepted for freshly queried elements in vanilla TS.
-- `RendererState.version` starts empty and is populated from `window.api.app.getVersion()` during init.
-- `window.api` is typed in `env.d.ts` via `import type { Api } from "../preload/index.js"`.
-- `onEventsUpdated(callback: (events: MeetingEvent[]) => void)` receives pushed event arrays directly.
-
-## ANTI-PATTERNS
-
-- Never bypass `escapeHtml()` for any user-controlled string in innerHTML
-- Never store DOM references across renders, full re-render replaces innerHTML
-- Never use `onclick` inline handlers, use `data-action` delegation
+- Always `escapeHtml` user content in templates
+- Never put meeting URLs in alert payloads or join buttons as openable strings
+- Full re-render on state change; no cross-render DOM refs

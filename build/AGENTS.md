@@ -28,6 +28,7 @@ Electron Builder resources and packaging hooks. Operational packaging code, not 
 - Official Windows artifacts: separate `--x64` and `--arm64` invocations (not dual-arch single NSIS).
 - Swift source must stay `asarUnpack` for mac packaged builds.
 - Do not hand-edit generated `icon.icns` / `icon.ico` / tray PNGs.
+- Keep `allow-jit`, Calendar, and Apple Events grants. `allow-unsigned-executable-memory` remains for Electron 43 + hardened runtime unless package smoke proves it can be removed.
 
 ## Anti-patterns
 

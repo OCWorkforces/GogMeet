@@ -8,17 +8,16 @@ import { platformWindowChrome } from "../utils/window-chrome.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/**
- * In-page navigation target used by the Close form.
- *
- * Inline `onclick` / scripts are blocked by the app CSP (`script-src 'self'`),
- * and `window.close()` is unreliable for main-created BrowserWindows. The
- * form navigates here; main intercepts and calls `win.close()`.
- */
-const ABOUT_CLOSE_URL = "gogmeet://about-close";
-
 /** Reference to the singleton About BrowserWindow (null when not open). */
 let aboutWindow: BrowserWindow | null = null;
+
+/**
+ * Sentinel URL used only to request close from the sandboxed about page.
+ * Inline `onclick` / `window.close()` are unreliable under the app CSP
+ * (`script-src 'self'`) and Chromium's script-close rules for main-created windows.
+ * Navigation is intercepted in main and never loads.
+ */
+const ABOUT_CLOSE_URL = "https://gogmeet.local/__about_close__";
 
 const aboutIconSvg = readFileSync(
   path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
@@ -26,12 +25,9 @@ const aboutIconSvg = readFileSync(
 );
 const ABOUT_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
 
-function isAboutCloseUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "gogmeet:" && parsed.hostname === "about-close";
-  } catch {
-    return false;
+function closeAboutWindow(win: BrowserWindow): void {
+  if (!win.isDestroyed()) {
+    win.close();
   }
 }
 
@@ -97,9 +93,6 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     padding: 0 20px;
     margin-bottom: 24px;
   }
-  .close-form {
-    -webkit-app-region: no-drag;
-  }
   button {
     font-family: inherit;
     font-size: 13px;
@@ -126,9 +119,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   <h1>${appName}</h1>
   <div class="version">Version ${version}</div>
   <div class="copyright">${packageJson.description}</div>
-  <form class="close-form" action="${ABOUT_CLOSE_URL}" method="get">
-    <button type="submit">Close</button>
-  </form>
+  <button type="button" id="about-close">Close</button>
 </body>
 </html>`;
 
@@ -146,20 +137,6 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     webPreferences: { ...SECURE_WEB_PREFERENCES },
   });
 
-  const handleNavigation = (event: { preventDefault: () => void }, url: string): void => {
-    event.preventDefault();
-    if (isAboutCloseUrl(url) && !win.isDestroyed()) {
-      win.close();
-    }
-  };
-
-  win.webContents.on("will-navigate", (event, url) => {
-    handleNavigation(event, url);
-  });
-  win.webContents.on("will-frame-navigate", (event) => {
-    handleNavigation(event, event.url);
-  });
-
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url === packageJson.repository) {
       shell.openExternal(url).catch((err) => {
@@ -169,7 +146,36 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     return { action: "deny" };
   });
 
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  // Block in-page navigations; treat the close sentinel as a main-process close request.
+  // Global CSP (`script-src 'self'`) blocks inline onclick handlers on this data: page.
+  const onNavigate = (event: { preventDefault: () => void; url: string }): void => {
+    event.preventDefault();
+    if (event.url === ABOUT_CLOSE_URL) {
+      closeAboutWindow(win);
+    }
+  };
+  win.webContents.on("will-navigate", onNavigate);
+  win.webContents.on("will-frame-navigate", onNavigate);
+
+  win.webContents.on("before-input-event", (_event, input) => {
+    if (input.type === "keyDown" && input.key === "Escape") {
+      closeAboutWindow(win);
+    }
+  });
+
+  win
+    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    .then(() => {
+      if (win.isDestroyed()) return;
+      // Wire the Close button without inline script (CSP-safe). Navigation is
+      // intercepted above and closed from the main process.
+      return win.webContents.executeJavaScript(
+        `document.getElementById("about-close")?.addEventListener("click",()=>{location.href=${JSON.stringify(ABOUT_CLOSE_URL)};});`,
+      );
+    })
+    .catch((err: unknown) => {
+      console.error("[About] Failed to load or wire about window:", err);
+    });
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;

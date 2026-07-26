@@ -32,6 +32,7 @@ const {
   mockStartCalendarWatcher,
   mockStopCalendarWatcher,
   mockInitAutoUpdater,
+  mockReviveCalendarWatcher,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -68,6 +69,7 @@ const {
   mockStartCalendarWatcher: vi.fn(),
   mockStopCalendarWatcher: vi.fn(),
   mockInitAutoUpdater: vi.fn(),
+  mockReviveCalendarWatcher: vi.fn(),
 }));
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -118,6 +120,7 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
 vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
   startCalendarWatcher: mockStartCalendarWatcher,
   stopCalendarWatcher: mockStopCalendarWatcher,
+  reviveCalendarWatcher: mockReviveCalendarWatcher,
 }));
 
 vi.mock("../../src/main/system/auto-updater.js", () => ({

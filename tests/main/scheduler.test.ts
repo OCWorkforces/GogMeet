@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 import { asTestEventId, asTestIsoUtc, createMockEvent } from "../helpers/test-utils.js";
 
@@ -37,11 +38,18 @@ vi.mock("../../src/main/system/power.js", () => ({
 // Mock settings module — scheduler reads openBeforeMinutes via getSettings()
 vi.mock("../../src/main/domain/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({
-    schemaVersion: 1,
+    schemaVersion: 2,
     openBeforeMinutes: 3,
     launchAtLogin: false,
     showTomorrowMeetings: true,
     windowAlert: true,
+    autoOpenEnabled: true,
+    alertLeadSeconds: 60,
+    nativeNotifications: true,
+    lateJoinGraceMinutes: 0,
+    quietHoursEnabled: false,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
   }),
   loadSettings: vi.fn().mockResolvedValue({ ok: true, value: {} }),
 }));
@@ -727,6 +735,7 @@ describe("scheduleEvents", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "permission denied",
     });
 
@@ -756,6 +765,7 @@ describe("scheduleEvents", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "permission denied",
     });
 
@@ -868,6 +878,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       kind: "err",
+      code: "unknown",
       error: "Calendar access denied",
     });
 
@@ -1297,6 +1308,9 @@ describe("REGRESSION: same-id reschedule from in-progress to future start", () =
     expect(alertFiredEvents.has("rs4")).toBe(true);
     expect(alertTimers.has("rs4")).toBe(false);
     expect(mockShowAlert).toHaveBeenCalledTimes(1);
-    expect(mockShowAlert).toHaveBeenCalledWith(expect.objectContaining({ id: "rs4" }));
+    expect(mockShowAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "rs4" }),
+      expect.anything(),
+    );
   });
 });

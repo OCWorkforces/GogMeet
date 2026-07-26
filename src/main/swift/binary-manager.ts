@@ -14,8 +14,18 @@ import {
   verifyBinaryHash,
 } from "./binary-cache.js";
 import { compileWithRetries, stripBinary } from "./binary-compiler.js";
+import { classifySwiftError, SWIFT_EXIT_CODES } from "./event-validator.js";
 
 const execFileAsync = promisify(execFile);
+
+/** Exit codes that are semantic helper outcomes — do not recompile on these. */
+function isSemanticSwiftExit(exitCode: number | undefined): boolean {
+  return (
+    exitCode === SWIFT_EXIT_CODES.PERMISSION_DENIED ||
+    exitCode === SWIFT_EXIT_CODES.NO_CALENDARS ||
+    exitCode === SWIFT_EXIT_CODES.OTHER
+  );
+}
 
 let hashVerified = false;
 let ensureBinaryInFlight: Promise<void> | null = null;
@@ -159,6 +169,13 @@ export async function runSwiftHelper(): Promise<string> {
     });
     return stdout.trim();
   } catch (err) {
+    // Structured EventKit outcomes (permission / no calendars / helper error)
+    // must surface as SwiftHelperError — never force a recompile.
+    const classified = classifySwiftError(err);
+    if (isSemanticSwiftExit(classified.exitCode)) {
+      throw classified;
+    }
+
     // Binary may be corrupted, incompatible, or its hash drifted — force
     // recompile and retry once.
     console.warn("[binary-manager] Swift binary failed, recompiling...");
@@ -183,7 +200,18 @@ export async function runSwiftHelper(): Promise<string> {
       return stdout.trim();
     } catch (retryErr) {
       console.error("[binary-manager] Swift binary recompile failed:", retryErr);
-      throw retryErr;
+      // Classify structured exits on the retry path too.
+      const retryClassified = classifySwiftError(retryErr);
+      if (isSemanticSwiftExit(retryClassified.exitCode)) {
+        throw retryClassified;
+      }
+      // Preserve SwiftHelperError if already classified as unknown with a message
+      if (retryErr instanceof Error && retryErr.name === "SwiftHelperError") {
+        throw retryErr;
+      }
+      throw retryClassified.exitCode !== undefined || retryClassified.kind !== "unknown"
+        ? retryClassified
+        : retryErr;
     }
   }
 }

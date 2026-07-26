@@ -9,9 +9,11 @@ Vitest workspace with four projects. `main` runs in Node with Electron mocks, `r
 | `main` | Node | `tests/setup.main.ts` | Electron main, scheduler, calendar providers, Swift, IPC, tray, utilities. |
 | `renderer` | jsdom | none | Browser-only UI rendering and interaction tests. |
 | `shared` | Node | none | Process-neutral shared contracts/utilities. |
-| `scripts` | Node | none | Repository automation scripts under `scripts/`; no Electron mocks. |
+| `scripts` | Node | none | Repository automation scripts under `scripts/` (validate-node, release verifier, **next-beta-tag**); no Electron mocks. |
 
-Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` is small and covered here; `tests/bench/` is benchmark-only and not part of the normal Vitest workspace.
+Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` covers automation helpers; `tests/bench/` is benchmark-only and not part of the normal Vitest workspace.
+
+Main project coverage in `vitest.workspace.ts` includes **soft thresholds** (lines/statements 60, functions 55, branches 45) to catch large regressions.
 
 ## Structure
 
@@ -74,4 +76,5 @@ bun run test:coverage
 - No real EventKit/Swift/Google network execution in CI (mock fetch/exec).
 - No packaged Electron app smoke test.
 - Auto-updater download/install/relaunch lifecycle is mocked only.
+- Auto-updater download/install/relaunch lifecycle is mocked only; lifecycle asserts `initAutoUpdater` is called.
 - Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings; keep file-local notes intact.

@@ -32,3 +32,11 @@ Core domain modules: calendar access facade (provider-backed), change watching, 
 - Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.
 - Lifecycle auto-request only when `shouldAutoRequestCalendarPermission()` (Darwin). Windows Connect is tray/Settings-only.
 - Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.
+Core domain modules: calendar access, change watching, last-poll status for the tray menu, and persistent settings (schema v2).
+| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`, `reviveCalendarWatcher()` | Sidecar `swift --watch`; change → `forcePoll()`; revive after give-up/resume |
+| `calendar-status.ts`  | `recordCalendarResult()`, `getLastCalendarStatus()` | Last poll ok/err for tray menu error rows |
+| `settings.ts`         | `loadSettings()`, `saveSettings()`, `getSettings()`, `updateSettings()` | JSON-persisted settings in `userData/`; schema v2 migrate/rewrite |
+| Menu status rows           | `calendar-status.ts` + `menu/meeting-menu.ts` |
+- `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change. `reviveCalendarWatcher()` resets sidecar give-up state (used from lifecycle on resume).
+- `poll.ts` must call `recordCalendarResult()` after every fetch so the tray menu can show permission/runtime rows.
+- Schema v2 fields: `autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours. `openBeforeMinutes` range is **0–10**. Load rewrites `settings.json` when migrating from v1.
