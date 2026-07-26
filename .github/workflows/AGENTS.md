@@ -7,7 +7,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 | File | Role |
 | --- | --- |
 | `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates on macOS + Windows, full and changed-source coverage, and Node 26 icon-drift validation (mac only). |
-| `release.yml` | Main pushes create a version tag only; the resulting `v*` tag run packages, verifies, and uploads the official release (mac today; Windows release job is Wave 7). |
+| `release.yml` | Main pushes create a version tag only; `v*` tags run parallel `release-mac` and `release-win` jobs that package, verify, and upload to the same GitHub Release. |
 
 ## PR Check
 
@@ -22,10 +22,11 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 ## Release
 
 - A `main` push creates and pushes `v${package.json.version}` only when missing. It never installs, packages, verifies, or uploads release assets.
-- The resulting `v*` tag run installs with Bun `1.3.14`, requires the tag to match `package.json`, and runs `bun run package` exactly once.
-- Before packaging, the tag run fails closed unless `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` are nonempty. These are the standard Electron Builder signing/notarization variables.
-- `bun run verify:macos-release` is a required normal-success gate before checksums and upload. It verifies each contained app from both DMGs and ZIPs, not the container as a stapled artifact.
-- The only uploaded containers are deterministic `GogMeet-${version}-{arm64,x64}.{dmg,zip}` files plus `SHA256SUMS.txt`.
+- On `v*` tags:
+  - **`release-mac`** (`macos-latest`): requires Apple signing/notarization secrets; `bun run package:mac`; `verify:macos-release`; uploads DMG/ZIP + `SHA256SUMS-mac.txt` (+ `latest-mac.yml` when present).
+  - **`release-win`** (`windows-latest`): optional `WIN_CSC_*` → export as `CSC_*` for Authenticode (unsigned dogfood if absent, K30); sequential `package:win:x64` then `package:win:arm64` with `--publish never`; `merge:windows-latest-yml` (K25); `REQUIRE_UPDATER_YML=1 verify:windows-release`; uploads four exes + `latest.yml` + `SHA256SUMS-win.txt`.
+- Both jobs attach to the same GitHub Release (`make_latest: true`). Prefer separate checksum fragments to avoid race overwrites.
+- Bake `GOOGLE_OAUTH_CLIENT_ID` into Windows builds via secrets when Connect Google must work in shipped installers.
 
 ## Anti-Patterns
 
