@@ -104,18 +104,12 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     );
   }
 
-  if (!cachedMeetings && !cachedUi) {
-    return [
-      { label: "Loading…", enabled: false },
-      { type: "separator" },
-      { label: "Settings...", click: () => createSettingsWindow() },
-      { label: "About GogMeet", click: () => showAbout(mainWindow) },
-      { label: "Quit", accelerator: "CommandOrControl+Q", click: () => app.quit() },
-    ];
-  }
-
+  // Always build a full menu (Join Next / Refresh / footer) so the first
+  // tray activation has usable items — not a bare Loading placeholder.
   return buildCalendarTrayMenuTemplate(
-    snapshot.events ? snapshot : { ...snapshot, events },
+    snapshot.events !== undefined && snapshot.events !== null
+      ? snapshot
+      : { ...snapshot, events: events.length > 0 ? events : [] },
     getSettings().showTomorrowMeetings,
     menuCallbacks(mainWindow),
     status,

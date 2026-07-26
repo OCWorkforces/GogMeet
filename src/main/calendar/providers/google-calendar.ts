@@ -281,6 +281,7 @@ export function createGoogleCalendarProvider(): CalendarProvider {
               kind: "calendar-permission-denied",
               message: "Connect Google Calendar from the tray menu or Settings.",
             }),
+            code: "permission-denied",
           };
         }
 
@@ -300,6 +301,7 @@ export function createGoogleCalendarProvider(): CalendarProvider {
                   kind: "calendar-auth",
                   message: "Google session expired. Please reconnect.",
                 }),
+                code: "permission-denied",
               };
             }
             try {
@@ -315,6 +317,7 @@ export function createGoogleCalendarProvider(): CalendarProvider {
                     kind: "calendar-auth",
                     message: "Google session expired. Please reconnect.",
                   }),
+                  code: "permission-denied",
                 };
               }
               throw retryErr;
@@ -335,18 +338,13 @@ export function createGoogleCalendarProvider(): CalendarProvider {
               kind: "calendar-network",
               message: message || "Can't reach Google Calendar",
             }),
+            code: "runtime",
           };
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error("[calendar:google] getEvents error:", err);
-        return {
-          kind: "err",
-          error: formatAppError({
-            kind: "calendar-runtime",
-            message,
-          }),
-        };
+        return { kind: "err", error: formatAppError({ kind: "calendar-runtime", message }), code: "runtime" };
       }
     },
 

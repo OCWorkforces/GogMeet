@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { formatAppError } from "../../../shared/errors.js";
-import type { CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
+import type { CalendarErrorCode, CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
 import { ensureBinary, runSwiftHelper } from "../../swift/binary-manager.js";
 import { startWatchSidecar, stopWatchSidecar } from "../../swift/calendar-watch-sidecar.js";
 import { parseEvents } from "../../swift/event-parser.js";
@@ -24,6 +24,15 @@ async function runAppleScript(script: string): Promise<string> {
  * macOS EventKit calendar provider (Swift helper + AppleScript permission probes).
  * Only loaded on Darwin via the factory dynamic import path.
  */
+
+function calendarErrorCodeFromSwift(err: SwiftHelperError): CalendarErrorCode {
+  const appErr = err.toAppError();
+  if (appErr.kind === "calendar-permission-denied") return "permission-denied";
+  if (appErr.kind === "calendar-no-calendars") return "no-calendars";
+  if (appErr.kind === "calendar-runtime") return "runtime";
+  return "unknown";
+}
+
 export function createDarwinEventKitProvider(): CalendarProvider {
   return {
     id: "darwin-eventkit",
@@ -40,12 +49,12 @@ export function createDarwinEventKitProvider(): CalendarProvider {
         if (err instanceof SwiftHelperError) {
           const appErr = err.toAppError();
           console.error("[calendar:darwin] getEvents error:", err);
-          return { kind: "err", error: formatAppError(appErr) };
+          return { kind: "err", error: formatAppError(appErr), code: calendarErrorCodeFromSwift(err) };
         }
         const stderr = getErrorStderr(err);
         const message = stderr || (err instanceof Error ? err.message : "Unknown error");
         console.error("[calendar:darwin] getEvents error:", err);
-        return { kind: "err", error: message };
+        return { kind: "err", error: message, code: "unknown" };
       }
     },
 

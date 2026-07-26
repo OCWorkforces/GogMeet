@@ -119,6 +119,7 @@ export function createFixtureCalendarProvider(filePath: string): CalendarProvide
             kind: "calendar-runtime",
             message: `Fixture calendar failed: ${message}`,
           }),
+          code: "runtime",
         };
       }
     },

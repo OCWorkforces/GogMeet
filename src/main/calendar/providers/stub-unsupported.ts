@@ -19,6 +19,7 @@ export function createStubUnsupportedProvider(): CalendarProvider {
           kind: "calendar-runtime",
           message: UNSUPPORTED_MESSAGE,
         }),
+        code: "runtime",
       };
     },
     async getPermissionStatus(): Promise<CalendarPermission> {
