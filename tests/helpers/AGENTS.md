@@ -2,12 +2,18 @@
 
 ## OVERVIEW
 
-`tests/helpers/test-utils.ts` is the single source of shared factories and brand validators used across the `main`, `renderer`, and `shared` Vitest projects. It has no test-runner-specific imports (no `vi`, no `expect`), so it is safe to import from any project.
+Shared factories used across the `main`, `renderer`, and `shared` Vitest projects.
+
+| File | Role |
+| --- | --- |
+| `test-utils.ts` | Brand validators + meeting/settings fixtures (no `vi` / `expect`) |
+| `ipc-sender.ts` | Platform-correct authorized `file://` sender fixtures for IPC tests |
 
 Import path convention from test files (note `.js` extension even for `.ts` source — matches project ESM resolution):
 
 ```typescript
 import { createMockEvent, asTestEventId } from "../helpers/test-utils.js";
+import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 ```
 
 ## EXPORTED HELPERS
@@ -16,7 +22,8 @@ import { createMockEvent, asTestEventId } from "../helpers/test-utils.js";
 | --------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `createMockEvent`     | `(overrides?: Partial<MeetingEvent>) => MeetingEvent`                     | Fully-formed `MeetingEvent`. Defaults: id `"test-id"`, start `+5m`, end `+35m`, canonical Meet URL, calendar `"Work"`, `isAllDay: false`, `userEmail: "user@example.com"`. |
 | `createMockSettings`  | `(overrides?: Partial<AppSettings>) => AppSettings`                       | `AppSettings` derived from `DEFAULT_SETTINGS` with shallow overrides.                  |
-| `createMockIpcEvent`  | `(sender?: Partial<WebContents>) => IpcMainInvokeEvent`                   | Minimal `IpcMainInvokeEvent` with a `file:///app/index.html` sender. Use `sender` overrides to swap `getURL`, `isDestroyed`, `send` for `validateSender()` cases.        |
+| `authorizedInvokeEvent` / `authorizedOnEvent` / `rendererFileUrl` | see `ipc-sender.ts` | Build packaged renderer `file://` URLs via `pathToFileURL(app.getAppPath()...)` so Windows CI accepts them. Do not hardcode `file:///app/lib/renderer/...`. |
+| `createMockIpcEvent`  | `(sender?: Partial<WebContents>) => IpcMainInvokeEvent`                   | Minimal `IpcMainInvokeEvent` with a generic file sender. Prefer `authorizedInvokeEvent` when testing `validateSender()`. |
 | `isoFromNow`          | `(minutes: number, now?: number) => string`                               | ISO-8601 UTC timestamp `minutes` minutes from `now` (defaults to `Date.now()`). Accepts negatives for past times. |
 | `asTestEventId`       | `(raw: string) => EventId`                                                | Throwing wrapper around `asEventId` from `src/shared/brand.js`.                        |
 | `asTestIsoUtc`        | `(raw: string) => IsoUtc`                                                 | Throwing wrapper around `asIsoUtc`.                                                    |

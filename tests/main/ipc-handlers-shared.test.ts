@@ -6,19 +6,20 @@ import {
   MAX_WINDOW_HEIGHT,
 } from "../../src/main/ipc-handlers/shared.js";
 import type { IpcMainInvokeEvent, IpcMainEvent } from "electron";
+import {
+  authorizedInvokeEvent,
+  authorizedOnEvent,
+  rendererFileUrl,
+} from "../helpers/ipc-sender.js";
 
 describe("validateSender (invoke)", () => {
   it("accepts an exact packaged index renderer file", () => {
-    const event = {
-      senderFrame: { url: "file:///app/lib/renderer/index.html" },
-    } as IpcMainInvokeEvent;
+    const event = authorizedInvokeEvent("index") as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });
 
-  it.each(["settings", "alert"])("accepts exact packaged %s renderer file", (page) => {
-    const event = {
-      senderFrame: { url: `file:///app/lib/renderer/${page}.html` },
-    } as IpcMainInvokeEvent;
+  it.each(["settings", "alert"] as const)("accepts exact packaged %s renderer file", (page) => {
+    const event = authorizedInvokeEvent(page) as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(true);
   });
 
@@ -62,15 +63,21 @@ describe("validateSender (invoke)", () => {
     expect(validateSender(event)).toBe(false);
   });
 
+  it("rejects a non-exact packaged renderer page", () => {
+    // other.html is under the renderer dir but not an allowlisted entry
+    const url = rendererFileUrl("index").replace("index.html", "other.html");
+    const event = { senderFrame: { url } } as IpcMainInvokeEvent;
+    expect(validateSender(event)).toBe(false);
+  });
+
   it.each([
-    "file:///app/lib/renderer/other.html",
-    "file:///app/lib/renderer/index.html?unexpected=true",
-    "file:///app/lib/renderer/index.html#unexpected",
-    "file:///tmp/lib/renderer/index.html",
-    "file://evil.example/app/lib/renderer/index.html",
-  ])("rejects a non-exact packaged renderer file: %s", (url) => {
+    () => `${rendererFileUrl("index")}?unexpected=true`,
+    () => `${rendererFileUrl("index")}#unexpected`,
+    () => "file:///tmp/lib/renderer/index.html",
+    () => "file://evil.example/app/lib/renderer/index.html",
+  ])("rejects a non-exact packaged renderer file: %s", (urlFactory) => {
     const event = {
-      senderFrame: { url },
+      senderFrame: { url: urlFactory() },
     } as IpcMainInvokeEvent;
     expect(validateSender(event)).toBe(false);
   });
@@ -99,9 +106,7 @@ describe("validateSender (invoke)", () => {
 
 describe("validateOnSender (fire-and-forget)", () => {
   it("accepts an exact packaged renderer file", () => {
-    const event = {
-      senderFrame: { url: "file:///app/lib/renderer/index.html" },
-    } as IpcMainEvent;
+    const event = authorizedOnEvent("index") as IpcMainEvent;
     expect(validateOnSender(event)).toBe(true);
   });
 
@@ -160,9 +165,7 @@ describe("typedHandle", () => {
     expect(handleCall).toBeDefined();
 
     const handler = handleCall![1];
-    const mockEvent = {
-      senderFrame: { url: "file:///app/lib/renderer/index.html" },
-    } as unknown as IpcMainInvokeEvent;
+    const mockEvent = authorizedInvokeEvent("index") as unknown as IpcMainInvokeEvent;
 
     await handler(mockEvent, { openBeforeMinutes: 2 });
     expect(capturedRequest).toEqual({ openBeforeMinutes: 2 });
