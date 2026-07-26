@@ -1,33 +1,52 @@
 import { forcePoll } from "../scheduler/facade.js";
-import { startWatchSidecar, stopWatchSidecar } from "../swift/calendar-watch-sidecar.js";
+import { getActiveCalendarProvider } from "../calendar/factory.js";
+import type { CalendarProvider } from "../calendar/provider.js";
 
 let started = false;
+let watchProvider: CalendarProvider | null = null;
 
 /**
- * Start the Swift `--watch` sidecar that listens for
- * `EKEventStoreChangedNotification` from macOS EventKit. When a change is
- * detected (debounced inside the sidecar), triggers an immediate `forcePoll()`
- * so the popover and tray menu reflect the latest calendar state without
- * waiting for the next scheduled poll (2–4 min).
+ * Start calendar change watching for the active provider.
  *
- * Non-critical — scheduler polling continues even if the sidecar fails.
+ * On Darwin this starts the Swift `--watch` sidecar (EventKit change
+ * notifications → debounced `forcePoll()`). On Windows the stub/Google
+ * providers omit `startWatch` (poll-only).
+ *
+ * Non-critical — scheduler polling continues even if watch fails.
  * Idempotent: subsequent calls are no-ops until `stopCalendarWatcher()`.
  */
 export function startCalendarWatcher(): void {
   if (started) return;
   started = true;
-  startWatchSidecar(() => {
-    void forcePoll();
-  });
-  console.log("[calendar-watcher] Sidecar started (EKEventStoreChangedNotification)");
+  void getActiveCalendarProvider()
+    .then((provider) => {
+      if (!started) return;
+      watchProvider = provider;
+      if (provider.startWatch) {
+        provider.startWatch(() => {
+          void forcePoll();
+        });
+        console.log(`[calendar-watcher] Watch started (provider=${provider.id})`);
+      } else {
+        console.log(`[calendar-watcher] No watch for provider=${provider.id} (poll-only)`);
+      }
+    })
+    .catch((err: unknown) => {
+      console.warn("[calendar-watcher] Failed to start watch:", err);
+    });
 }
 
 /**
- * Stop the Swift watch sidecar. Safe to call multiple times.
+ * Stop the active provider watch. Safe to call multiple times.
  */
 export function stopCalendarWatcher(): void {
-  if (!started) return;
+  if (!started && watchProvider === null) return;
   started = false;
-  stopWatchSidecar();
+  try {
+    watchProvider?.stopWatch?.();
+  } catch (err) {
+    console.warn("[calendar-watcher] stopWatch failed:", err);
+  }
+  watchProvider = null;
   console.log("[calendar-watcher] Stopped");
 }

@@ -2,14 +2,14 @@
 
 ## OVERVIEW
 
-Core domain modules: calendar access, change watching, and persistent settings.
+Core domain modules: calendar access facade, change watching, and persistent settings.
 
 ## FILES
 
 | File                  | Exports                                                                                  | Purpose                                          |
 | --------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `calendar.ts`         | `getCalendarEventsResult()`, `requestCalendarPermission()`, `getCalendarPermissionStatus()`, `invalidateCalendarPermissionCache()` | Swift EventKit queries, returns `CalendarResult`; exposes cache invalidation hook |
-| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`                                       | Sidecar `swift --watch`; on change it calls `forcePoll()` |
+| `calendar.ts`         | `getCalendarEventsResult()`, `requestCalendarPermission()`, `getCalendarPermissionStatus()`, `invalidateCalendarPermissionCache()`, `warmupCalendarProvider()`, `shouldAutoRequestCalendarPermission()`, `disconnectCalendar()` | Stable facade over `calendar/factory` providers |
+| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`                                       | Provider `startWatch`/`stopWatch` → `forcePoll()` |
 | `settings.ts`         | `AppSettings`, `DEFAULT_SETTINGS`, `loadSettings()`, `saveSettings()`, `getSettings()`   | JSON-persisted settings in `userData/`           |
 
 ## WHERE TO LOOK
@@ -17,17 +17,18 @@ Core domain modules: calendar access, change watching, and persistent settings.
 | Task                       | Location                                  |
 | -------------------------- | ----------------------------------------- |
 | Add a setting field        | `settings.ts` → `AppSettings` + `DEFAULT_SETTINGS` |
-| Narrow CalendarResult      | `calendar.ts` → `isCalendarOk()` guard    |
-| Hook a calendar-change event | `calendar-watcher.ts` → hardwired `void forcePoll()` callback |
-| Swift binary internals     | `../swift/AGENTS.md`                      |
+| Narrow CalendarResult      | `../../shared/calendar-result.ts` → `isCalendarOk()` |
+| Platform calendar backends | `../calendar/` (factory + providers)      |
+| Swift binary internals     | `../swift/AGENTS.md` (Darwin provider only) |
 | Poll-trigger semantics     | `../scheduler/AGENTS.md`                  |
 
 ## NOTES
 
-- `calendar.ts` imports directly from `../swift/binary-manager.js`, `../swift/event-parser.js`, `../swift/event-validator.js`. No barrel re-exports.
-- `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change events. macOS only; no-op elsewhere.
-- `settings.ts` is eager-loaded during lifecycle init **before** `startScheduler()` so the scheduler reads a warm cache on first poll.
-- `loadSettings()` returns `Result<AppSettings, AppError>`; missing file returns `DEFAULT_SETTINGS` via `isEnoent` predicate.
-- `saveSettings()` writes formatted JSON to the app `userData` settings path and updates the in-memory cache after successful writes.
-- Import these modules from `domain/`; do not add root-level calendar/settings shims for new callers.
-- `calendar.ts` caches the EventKit permission status across calls. The cache is invalidated via `invalidateCalendarPermissionCache()`; lifecycle calls it on power resume/unlock before `restartScheduler()` so the next poll re-reads EventKit authorization.
+- `calendar.ts` must **not** import `swift/*`. It delegates to `calendar/factory.ts`.
+- Darwin EventKit lives in `calendar/providers/darwin-eventkit.ts` (static `swift/*` imports OK there only).
+- Non-Darwin uses `stub-unsupported` until Wave 4 Google provider.
+- `calendar-watcher.ts` is poll-only when the provider omits `startWatch`.
+- `settings.ts` imports `isObjectRecord` from `shared/type-guards` — never from `swift/guards`.
+- `loadSettings()` returns `Result<AppSettings, string>`; missing file returns `DEFAULT_SETTINGS` via `isEnoent` predicate.
+- Permission status is cached in `calendar.ts`; `invalidateCalendarPermissionCache()` is called on power resume before `restartScheduler()`.
+- Lifecycle auto-requests permission only when `shouldAutoRequestCalendarPermission()` is true (Darwin).

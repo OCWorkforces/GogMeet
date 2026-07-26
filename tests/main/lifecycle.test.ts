@@ -27,6 +27,10 @@ const {
   mockGetCalendarEventsResult,
   mockInvalidateCalendarPermissionCache,
   mockInitPowerCallbacks,
+  mockWarmupCalendarProvider,
+  mockShouldAutoRequestCalendarPermission,
+  mockStartCalendarWatcher,
+  mockStopCalendarWatcher,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -58,7 +62,11 @@ const {
   mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
-}))
+  mockWarmupCalendarProvider: vi.fn().mockResolvedValue(undefined),
+  mockShouldAutoRequestCalendarPermission: vi.fn().mockReturnValue(true),
+  mockStartCalendarWatcher: vi.fn(),
+  mockStopCalendarWatcher: vi.fn(),
+}));
 
 // Mock all subsystem modules that lifecycle.ts imports
 vi.mock("../../src/main/app/ipc.js", () => ({
@@ -101,7 +109,14 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarEventsResult: mockGetCalendarEventsResult,
   invalidateCalendarPermissionCache: mockInvalidateCalendarPermissionCache,
-}))
+  warmupCalendarProvider: mockWarmupCalendarProvider,
+  shouldAutoRequestCalendarPermission: mockShouldAutoRequestCalendarPermission,
+}));
+
+vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
+  startCalendarWatcher: mockStartCalendarWatcher,
+  stopCalendarWatcher: mockStopCalendarWatcher,
+}));
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   initPowerCallbacks: mockInitPowerCallbacks,
@@ -157,14 +172,26 @@ describe("lifecycle", () => {
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(false);
     });
 
-    it("requests calendar permission when not determined", async () => {
+    it("requests calendar permission when not determined and auto-request is allowed", async () => {
       mockGetCalendarPermissionStatus.mockResolvedValueOnce("not-determined");
+      mockShouldAutoRequestCalendarPermission.mockReturnValueOnce(true);
 
       await initializeApp(mockWindow);
 
       expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
       expect(mockRequestCalendarPermission).toHaveBeenCalledOnce();
       // Scheduler should still start after permission request
+      expect(mockStartScheduler).toHaveBeenCalledOnce();
+    });
+
+    it("skips auto permission request when shouldAutoRequest is false (Windows)", async () => {
+      mockGetCalendarPermissionStatus.mockResolvedValueOnce("not-determined");
+      mockShouldAutoRequestCalendarPermission.mockReturnValueOnce(false);
+
+      await initializeApp(mockWindow);
+
+      expect(mockGetCalendarPermissionStatus).toHaveBeenCalledOnce();
+      expect(mockRequestCalendarPermission).not.toHaveBeenCalled();
       expect(mockStartScheduler).toHaveBeenCalledOnce();
     });
 

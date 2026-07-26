@@ -8,7 +8,8 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | --- | --- | --- |
 | Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | app bootstrap (single-instance lock), tray, event bus, Swift source |
 | `app/` | `lifecycle.ts`, `ipc.ts` | initialization order, shutdown, IPC registration |
-| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `settings.ts` | EventKit calls, calendar watcher, settings JSON/migrations |
+| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `settings.ts` | Calendar facade, watcher, settings JSON/migrations |
+| `calendar/` | `provider.ts`, `factory.ts`, `providers/*`, `clean-description.ts` | CalendarProvider backends (Darwin EventKit, stub, later Google) |
 | `platform/` | `os.ts` | OS predicates (`isDarwin` / `isWin32`); not meeting-host detection |
 | `windows/` | `about-window.ts`, `alert-window.ts`, `settings-window.ts` | secure BrowserWindow singletons |
 | `system/` | `power.ts`, `shortcuts.ts`, `auto-launch.ts`, `auto-updater.ts`, `notification.ts` | OS integration |
@@ -22,12 +23,12 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 `initializeApp(win)` must keep this order unless tests and startup dependencies are updated:
 
-1. `ensureBinary()` pre-warms the Swift helper in the background; init does not block on it.
+1. `warmupCalendarProvider()` pre-warms the active provider (Swift compile on Darwin) in the background; init does not block on it.
 2. `registerIpcHandlers(win)` wires invoke/on handlers before renderer calls can arrive.
-3. `loadSettings()` and the calendar permission check run in parallel; settings load is critical, permission errors are collected.
+3. `loadSettings()` and the calendar permission check run in parallel; settings load is critical, permission errors are collected. Auto-request permission only on Darwin.
 4. `setupTray(win)` creates the tray and menu subscriptions.
 5. `setTrayTitleCallback(updateTrayTitle)`, `setSchedulerWindow(win)`, and `initPowerCallbacks(...)` inject scheduler dependencies.
-6. `startScheduler()` starts polling, then `startCalendarWatcher()` starts the EventKit sidecar.
+6. `startScheduler()` starts polling, then `startCalendarWatcher()` starts provider watch (EventKit sidecar on Darwin; no-op stub on Windows).
 7. `initPowerManagement(() => restartScheduler())`, `initPowerEvents()`, `registerShortcuts()`, notification check, auto-launch sync.
 
 `shutdownApp()` cleans power management, stops scheduler, then stops the calendar watcher.
@@ -37,7 +38,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 - `events.ts` is the decoupling seam. Scheduler emits `meeting-list-updated`; tray subscribes and refreshes its installed native context menu.
 - `scheduler/facade.ts` is the only scheduler import allowed outside `scheduler/`.
 - `scheduler/state/` is internal-only, enforced by `.sentrux/rules.toml` (`state-internal-only`).
-- `swift/` is a leaf dependency used by `domain/calendar.ts`; do not make Swift modules depend on app/window/scheduler code.
+- `swift/` is a leaf used only by `calendar/providers/darwin-eventkit.ts` and internal swift modules; do not import `swift/*` from domain, lifecycle, or Windows providers.
 - `app/` can depend on subsystems; subsystems should not depend on `app/`.
 - BrowserWindow options come from `utils/browser-window.ts` secure defaults unless a window has a documented exception.
 
