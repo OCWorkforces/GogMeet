@@ -698,7 +698,8 @@ win:
     - nsis
     - portable
   icon: build/icon.ico
-  signingHashAlgorithms: [sha256]
+  signtoolOptions:
+    signingHashAlgorithms: [sha256]
   # artifactName global: ${productName}-${version}-${arch}.${ext}
 
 nsis:
@@ -1362,7 +1363,8 @@ Today local midnight → +2 days; skip cancelled and self-declined.
 win:
   target: [nsis, portable]
   icon: build/icon.ico
-  signingHashAlgorithms: [sha256]
+  signtoolOptions:
+    signingHashAlgorithms: [sha256]
 
 nsis:
   oneClick: false

@@ -78,9 +78,13 @@ win:
   target:
     - nsis
     - portable
-  icon: build/icon.ico
-  signingHashAlgorithms:
-    - sha256
+  # Path relative to buildResources (`build/`)
+  icon: icon.ico
+  # electron-builder 26+: hash algorithms live under signtoolOptions (top-level
+  # signingHashAlgorithms is rejected by the WindowsConfiguration schema).
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
 
 nsis:
   oneClick: false
