@@ -84,13 +84,21 @@ describe("settings-window", () => {
       expect(options.webPreferences?.nodeIntegration).toBe(false);
     });
 
-    it("uses hiddenInset title bar style", async () => {
+    it("applies platform chrome (mac title bar / Windows opaque)", async () => {
       const { createSettingsWindow } = await getModule();
       const { BrowserWindow } = await getElectron();
       createSettingsWindow();
 
       const options = vi.mocked(BrowserWindow).mock.calls[0][0];
-      expect(options.titleBarStyle).toBe("hiddenInset");
+      // platformWindowChrome("settings"): hiddenInset vibrancy on Darwin;
+      // opaque backgroundColor only on Windows.
+      if (process.platform === "darwin") {
+        expect(options.titleBarStyle).toBe("hiddenInset");
+        expect(options.vibrancy).toBe("under-window");
+      } else {
+        expect(options.titleBarStyle).toBeUndefined();
+        expect(options.backgroundColor).toBe("#1c1c1e");
+      }
     });
 
     it("has alwaysOnTop enabled", async () => {
