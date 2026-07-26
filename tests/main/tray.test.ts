@@ -139,6 +139,13 @@ describe("tray module exports", () => {
 
     expect(typeof trayModule.setupTray).toBe("function");
     expect(typeof trayModule.updateTrayTitle).toBe("function");
+    expect(typeof trayModule.truncateTrayTooltip).toBe("function");
+  });
+
+  it("truncateTrayTooltip caps length with ellipsis", async () => {
+    const { truncateTrayTooltip } = await import("../../src/main/tray.js");
+    expect(truncateTrayTooltip("short")).toBe("short");
+    expect(truncateTrayTooltip("a".repeat(70), 10)).toBe("aaaaaaaaa\u2026");
   });
 
   it("setupTray creates a Tray instance", async () => {

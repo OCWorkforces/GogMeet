@@ -427,7 +427,7 @@ describe("buildMeetingMenuTemplate", () => {
 
       const quitItem = findItem(items, "Quit");
       expect(quitItem).toBeDefined();
-      expect(quitItem?.accelerator).toBe("Cmd+Q");
+      expect(quitItem?.accelerator).toBe("CommandOrControl+Q");
       quitItem?.click?.(
         {} as Electron.MenuItem,
         undefined,

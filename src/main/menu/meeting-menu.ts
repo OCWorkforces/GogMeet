@@ -34,7 +34,7 @@ export function buildMeetingMenuTemplate(
       { type: "separator" },
       { label: "Settings...", click: () => callbacks.onOpenSettings() },
       { label: "About GogMeet", click: () => callbacks.onAbout() },
-      { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
+      { label: "Quit", accelerator: "CommandOrControl+Q", click: () => app.quit() },
     ];
   }
 
@@ -95,7 +95,7 @@ export function buildMeetingMenuTemplate(
   items.push({ label: "About GogMeet", click: () => callbacks.onAbout() });
   items.push({
     label: "Quit",
-    accelerator: "Cmd+Q",
+    accelerator: "CommandOrControl+Q",
     click: () => app.quit(),
   });
 

@@ -18,6 +18,7 @@ import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
+import { isDarwin } from "./platform/os.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,7 +43,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     { type: "separator" },
     { label: "Settings...", click: () => createSettingsWindow() },
     { label: "About GogMeet", click: () => showAbout(mainWindow) },
-    { label: "Quit", accelerator: "Cmd+Q", click: () => app.quit() },
+    { label: "Quit", accelerator: "CommandOrControl+Q", click: () => app.quit() },
   ];
 }
 
@@ -125,12 +126,50 @@ export function destroyTray(): void {
   }
 }
 
-/** Max characters to show for the event title portion of the tray label */
+/** Max characters for the event title portion of the macOS status-item title */
 const TRAY_TITLE_MAX_CHARS = 12;
 
+/** Windows notification-area tooltip practical limit (characters). */
+const TRAY_TOOLTIP_MAX_CHARS = 63;
+
+const DEFAULT_TRAY_TOOLTIP = "GogMeet";
+
 /**
- * Update the tray status bar title next to the icon.
- * Pass null or empty string to clear.
+ * Build the countdown label shared by macOS title and Windows tooltip.
+ */
+function formatTrayCountdownLabel(
+  title: string,
+  minsRemaining?: number,
+  inMeeting?: boolean,
+): string {
+  const truncated =
+    title.length > TRAY_TITLE_MAX_CHARS ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026" : title;
+  if (minsRemaining !== undefined && minsRemaining > 0) {
+    if (inMeeting) {
+      return truncated + " " + formatRemainingTime(minsRemaining);
+    }
+    const suffix = minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
+    return truncated + suffix;
+  }
+  return truncated;
+}
+
+/**
+ * Truncate a string to maxLen with an ellipsis when needed.
+ * Exported for unit tests.
+ */
+export function truncateTrayTooltip(text: string, maxLen: number = TRAY_TOOLTIP_MAX_CHARS): string {
+  if (text.length <= maxLen) return text;
+  if (maxLen <= 1) return "\u2026";
+  return text.slice(0, maxLen - 1) + "\u2026";
+}
+
+/**
+ * Update the tray countdown label.
+ * - macOS: status item title via `tray.setTitle`
+ * - Windows (and others): length-capped tooltip via `tray.setToolTip`
+ *
+ * Pass null or empty string to clear (tooltip resets to "GogMeet").
  * Pass minsRemaining to append " in X mins" / " in 1 min" countdown suffix.
  * Pass inMeeting=true to use "Xh Ym" format instead of "in X mins".
  */
@@ -140,22 +179,21 @@ export function updateTrayTitle(
   inMeeting?: boolean, // when true, use "Xh Ym" format instead of "in X mins"
 ): void {
   if (!tray) return;
-  if (!title) {
-    tray.setTitle("");
+
+  if (isDarwin()) {
+    if (!title) {
+      tray.setTitle("");
+      return;
+    }
+    tray.setTitle(formatTrayCountdownLabel(title, minsRemaining, inMeeting));
     return;
   }
-  const truncated =
-    title.length > TRAY_TITLE_MAX_CHARS ? title.slice(0, TRAY_TITLE_MAX_CHARS) + "\u2026" : title;
-  if (minsRemaining !== undefined && minsRemaining > 0) {
-    if (inMeeting) {
-      // In-meeting format: "Title 1h 23m" or "Title 45m"
-      tray.setTitle(truncated + " " + formatRemainingTime(minsRemaining));
-    } else {
-      // Pre-meeting format: "Title in 15 mins"
-      const suffix = minsRemaining === 1 ? " in 1 min" : ` in ${minsRemaining} mins`;
-      tray.setTitle(truncated + suffix);
-    }
-  } else {
-    tray.setTitle(truncated);
+
+  // Windows / non-Darwin: setTitle is not useful; use tooltip (Wave 5 polishes further).
+  if (!title) {
+    tray.setToolTip(DEFAULT_TRAY_TOOLTIP);
+    return;
   }
+  const label = formatTrayCountdownLabel(title, minsRemaining, inMeeting);
+  tray.setToolTip(truncateTrayTooltip(`${DEFAULT_TRAY_TOOLTIP} — ${label}`));
 }
