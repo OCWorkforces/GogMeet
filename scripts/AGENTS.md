@@ -11,6 +11,7 @@ Repository automation scripts for local development and asset generation. These 
 | `validate-node.mjs`                | Host-Node 26 guard: parses `process.versions.node`, then runs the icon generator under host Node. Wired to `bun run validate:node` and the PR-check `validate-node` job. |
 | `verify-macos-release.mjs`         | Official macOS release verifier: inventories deterministic containers and inspects their extracted apps. Wired to `bun run verify:macos-release`. |
 | `verify-windows-release.mjs`       | Windows release inventory verifier (NSIS + portable x64/arm64; optional latest.yml both arches). Wired to `bun run verify:windows-release`. |
+| `merge-windows-latest-yml.mjs`     | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds (K25). Wired to `bun run merge:windows-latest-yml`. |
 
 ## `dev.ts` Contract
 

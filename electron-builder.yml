@@ -86,5 +86,12 @@ nsis:
 portable:
   artifactName: "${productName}-${version}-${arch}-portable.${ext}"
 
+# GitHub Releases feed for electron-updater (mac latest-mac.yml, win latest.yml)
+publish:
+  provider: github
+  owner: OCWorkforces
+  repo: GogMeet
+  releaseType: release
+
 afterPack: build/after-pack.cjs
 afterSign: build/notarize.cjs
