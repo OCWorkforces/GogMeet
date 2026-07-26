@@ -11,40 +11,94 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { MeetingEvent } from "../shared/meeting-event.js";
+import type { CalendarUiState } from "../shared/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
 import { getSettings } from "./domain/settings.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
-import { buildMeetingMenuTemplate } from "./menu/meeting-menu.js";
+import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
 import { isDarwin } from "./platform/os.js";
+import {
+  disconnectCalendar,
+  getCalendarUiState,
+  requestCalendarPermission,
+} from "./domain/calendar.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let tray: Tray | null = null;
 let cachedMeetings: MeetingEvent[] | null = null;
+let cachedUi: CalendarUiState | null = null;
 let themeListener: (() => void) | null = null;
 let meetingsListener: ((events: MeetingEvent[]) => void) | null = null;
+let statusListener: ((status: CalendarUiState) => void) | null = null;
 
 let beforeQuitRegistered = false;
 
+function menuCallbacks(mainWindow: BrowserWindow) {
+  return {
+    onAbout: () => showAbout(mainWindow),
+    onOpenSettings: () => createSettingsWindow(),
+    onConnectGoogle: () => {
+      void requestCalendarPermission().then((status) => {
+        if (status === "granted") {
+          void forcePoll();
+        }
+      });
+    },
+    onDisconnectGoogle: () => {
+      void disconnectCalendar().then(() => {
+        cachedMeetings = null;
+        refreshContextMenu(mainWindow);
+      });
+    },
+    onRetryPoll: () => {
+      void forcePoll();
+    },
+  };
+}
+
 function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructorOptions[] {
-  const cachedEvents = cachedMeetings;
-  if (cachedEvents) {
-    return buildMeetingMenuTemplate(cachedEvents, getSettings().showTomorrowMeetings, {
-      onAbout: () => showAbout(mainWindow),
-      onOpenSettings: () => createSettingsWindow(),
-    });
+  const ui = cachedUi ?? getCalendarUiState();
+  const events = cachedMeetings ?? ui.events ?? [];
+
+  // Merge latest meetings into UI snapshot for the menu builder
+  const snapshot: CalendarUiState = {
+    ...ui,
+    events: cachedMeetings ?? ui.events,
+  };
+
+  // If we only have events (classic success path) and UI still default, treat as ready
+  if (cachedMeetings && snapshot.permission === "not-determined" && isDarwin()) {
+    return buildCalendarTrayMenuTemplate(
+      {
+        ...snapshot,
+        permission: "granted",
+        phase: cachedMeetings.length === 0 ? "empty" : "ready",
+        events: cachedMeetings,
+      },
+      getSettings().showTomorrowMeetings,
+      menuCallbacks(mainWindow),
+    );
   }
 
-  return [
-    { label: "Loading…", enabled: false },
-    { type: "separator" },
-    { label: "Settings...", click: () => createSettingsWindow() },
-    { label: "About GogMeet", click: () => showAbout(mainWindow) },
-    { label: "Quit", accelerator: "CommandOrControl+Q", click: () => app.quit() },
-  ];
+  if (!cachedMeetings && !cachedUi) {
+    return [
+      { label: "Loading…", enabled: false },
+      { type: "separator" },
+      { label: "Settings...", click: () => createSettingsWindow() },
+      { label: "About GogMeet", click: () => showAbout(mainWindow) },
+      { label: "Quit", accelerator: "CommandOrControl+Q", click: () => app.quit() },
+    ];
+  }
+
+  return buildCalendarTrayMenuTemplate(
+    snapshot.events ? snapshot : { ...snapshot, events },
+    getSettings().showTomorrowMeetings,
+    menuCallbacks(mainWindow),
+  );
 }
 
 function refreshContextMenu(mainWindow: BrowserWindow): void {
@@ -98,6 +152,17 @@ export function setupTray(mainWindow: BrowserWindow): void {
     mainBus.on("meeting-list-updated", meetingsListener);
   }
 
+  if (!statusListener) {
+    statusListener = (status: CalendarUiState): void => {
+      cachedUi = status;
+      if (status.events) {
+        cachedMeetings = status.events;
+      }
+      refreshContextMenu(mainWindow);
+    };
+    mainBus.on("calendar-status-updated", statusListener);
+  }
+
   refreshContextMenu(mainWindow);
 
   tray.on("click", () => {
@@ -114,7 +179,12 @@ export function destroyTray(): void {
     mainBus.off("meeting-list-updated", meetingsListener);
     meetingsListener = null;
   }
+  if (statusListener) {
+    mainBus.off("calendar-status-updated", statusListener);
+    statusListener = null;
+  }
   cachedMeetings = null;
+  cachedUi = null;
   beforeQuitRegistered = false; // Allow re-registration if tray is recreated
   if (themeListener) {
     nativeTheme.removeListener("updated", themeListener);

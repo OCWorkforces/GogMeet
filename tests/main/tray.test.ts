@@ -43,6 +43,17 @@ vi.mock("electron", () => ({
 
 vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarUiState: vi.fn().mockReturnValue({
+    permission: "not-determined",
+    phase: "disconnected",
+    lastError: null,
+    accountEmail: null,
+    events: null,
+    offline: false,
+    oauthConfigured: false,
+  }),
+  requestCalendarPermission: vi.fn().mockResolvedValue("granted"),
+  disconnectCalendar: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
