@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { formatAppError } from "../../../shared/errors.js";
-import type { CalendarErrorCode, CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
+import type {
+  CalendarErrorCode,
+  CalendarPermission,
+  CalendarResult,
+} from "../../../shared/calendar-result.js";
 import { ensureBinary, runSwiftHelper } from "../../swift/binary-manager.js";
 import { startWatchSidecar, stopWatchSidecar } from "../../swift/calendar-watch-sidecar.js";
 import { parseEvents } from "../../swift/event-parser.js";
@@ -49,7 +53,11 @@ export function createDarwinEventKitProvider(): CalendarProvider {
         if (err instanceof SwiftHelperError) {
           const appErr = err.toAppError();
           console.error("[calendar:darwin] getEvents error:", err);
-          return { kind: "err", error: formatAppError(appErr), code: calendarErrorCodeFromSwift(err) };
+          return {
+            kind: "err",
+            error: formatAppError(appErr),
+            code: calendarErrorCodeFromSwift(err),
+          };
         }
         const stderr = getErrorStderr(err);
         const message = stderr || (err instanceof Error ? err.message : "Unknown error");

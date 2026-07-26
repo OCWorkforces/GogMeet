@@ -344,7 +344,11 @@ export function createGoogleCalendarProvider(): CalendarProvider {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error("[calendar:google] getEvents error:", err);
-        return { kind: "err", error: formatAppError({ kind: "calendar-runtime", message }), code: "runtime" };
+        return {
+          kind: "err",
+          error: formatAppError({ kind: "calendar-runtime", message }),
+          code: "runtime",
+        };
       }
     },
 
