@@ -272,7 +272,8 @@ dist/GogMeet-<version>-arm64-portable.exe
 
 - **Unsigned** builds are fine for dogfood (SmartScreen may warn). Authenticode is optional (`WIN_CSC_*` — Wave 7 release path).
 - Do not treat macOS `bun run package` / `package:mac` output as a Windows build.
-- Merged `latest.yml` for auto-update is Wave 7; local package steps may leave per-arch yml fragments.
+- After both arches: `bun run merge:windows-latest-yml` then `REQUIRE_UPDATER_YML=1 bun run verify:windows-release`.
+- NSIS installs can auto-update from GitHub Releases (`latest.yml`); **portable** builds never auto-update.
 
 ---
 
