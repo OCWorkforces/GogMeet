@@ -1,8 +1,9 @@
 /**
  * after-pack.cjs — macOS binary optimizations
  *
- * This hook runs after Electron packages the app but before DMG creation.
- * It strips debug symbols and removes unused locale files to reduce app size.
+ * This hook runs after Electron packages the app but before DMG/NSIS creation.
+ * On macOS it strips debug symbols and removes unused locale files to reduce
+ * app size. On non-darwin platforms it no-ops (Windows layout is not .app).
  *
  * Runs for both ARM64 and x64 macOS builds.
  */
@@ -15,6 +16,14 @@ const ARCH_ARM64 = 3;
 
 
 exports.default = async function(context) {
+  // Windows/Linux packages use a different layout; stripping targets macOS .app only.
+  if (context.electronPlatformName !== "darwin") {
+    console.log(
+      `\n[after-pack] Skipping binary optimizations for ${context.electronPlatformName}\n`,
+    );
+    return;
+  }
+
   const archLabel =
     context.arch === ARCH_ARM64 || context.arch === "arm64"
       ? "ARM64"
