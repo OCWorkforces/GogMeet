@@ -49,6 +49,12 @@ const api = {
     getPermissionStatus: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_PERMISSION_STATUS>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS),
 
+    disconnect: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_DISCONNECT>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_DISCONNECT),
+
+    getUiState: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_UI_STATE>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_UI_STATE),
+
     onEventsUpdated: (callback: (events: MeetingEvent[]) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, events: MeetingEvent[]): void => {
         callback(events);

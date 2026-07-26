@@ -22,8 +22,8 @@ describe("IPC_CHANNELS", () => {
     expect(IPC_CHANNELS.ALERT_SHOW).toBe("alert:show");
   });
 
-  it("has 13 channels total", () => {
-    expect(Object.keys(IPC_CHANNELS)).toHaveLength(13);
+  it("has 15 channels total", () => {
+    expect(Object.keys(IPC_CHANNELS)).toHaveLength(15);
   });
 
   it("uses colon-separated naming convention", () => {

@@ -5,16 +5,37 @@ const {
   mockGetCalendarEventsResult,
   mockRequestCalendarPermission,
   mockGetCalendarPermissionStatus,
+  mockDisconnectCalendar,
+  mockGetCalendarUiState,
+  mockForcePoll,
 } = vi.hoisted(() => ({
   mockGetCalendarEventsResult: vi.fn(),
   mockRequestCalendarPermission: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn(),
+  mockDisconnectCalendar: vi.fn(),
+  mockGetCalendarUiState: vi.fn().mockReturnValue({
+    permission: "not-determined",
+    phase: "disconnected",
+    lastError: null,
+    accountEmail: null,
+    events: null,
+    offline: false,
+    oauthConfigured: false,
+  }),
+  mockForcePoll: vi.fn(),
 }));
 
 vi.mock("../../src/main/domain/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
+  disconnectCalendar: mockDisconnectCalendar,
+  getCalendarUiState: mockGetCalendarUiState,
+  reportCalendarPollError: vi.fn(),
+}));
+
+vi.mock("../../src/main/scheduler/facade.js", () => ({
+  forcePoll: mockForcePoll,
 }));
 
 import { registerCalendarHandlers } from "../../src/main/ipc-handlers/calendar.js";
@@ -40,9 +61,9 @@ describe("registerCalendarHandlers", () => {
     vi.clearAllMocks();
   });
 
-  it("registers 3 handlers", () => {
+  it("registers 5 handlers", () => {
     registerCalendarHandlers();
-    expect(mockIpcMain.handle).toHaveBeenCalledTimes(3);
+    expect(mockIpcMain.handle).toHaveBeenCalledTimes(5);
   });
 
   describe("calendar:get-events", () => {

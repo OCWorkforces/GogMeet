@@ -1,15 +1,57 @@
 import "./styles.css";
 import type { AppSettings } from "../../shared/settings.js";
+import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
+import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
 import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
 } from "../../shared/settings.js";
 import { queryRequiredElement } from "../utils/dom.js";
+import { escapeHtml } from "../../shared/utils/escape-html.js";
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
+let calendarUi: CalendarUiState = defaultCalendarUiState();
 let isSaving = false;
+let isCalendarBusy = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function calendarAccountSectionHtml(): string {
+  const connected = calendarUi.permission === "granted";
+  const email = calendarUi.accountEmail ? escapeHtml(calendarUi.accountEmail) : "Google Calendar";
+  const statusLine = connected
+    ? `Connected as ${email}`
+    : calendarUi.oauthConfigured
+      ? "Not connected — required on Windows for meeting reminders"
+      : "OAuth client ID not configured (GOOGLE_OAUTH_CLIENT_ID)";
+  const actionLabel = connected
+    ? "Disconnect"
+    : calendarUi.permission === "denied"
+      ? "Reconnect Google Calendar"
+      : "Connect Google Calendar";
+  const actionId = connected ? "calendar-disconnect-btn" : "calendar-connect-btn";
+  const disabled = isCalendarBusy || (!connected && !calendarUi.oauthConfigured) ? " disabled" : "";
+
+  return `
+      <div class="settings-section-heading">Google Calendar</div>
+      <div class="setting-row">
+        <div class="setting-row-inner">
+          <label class="setting-label">📅 Account</label>
+          <span class="setting-description">${statusLine}</span>
+        </div>
+        <div class="setting-control">
+          <button type="button" class="setting-button" id="${actionId}"${disabled}>
+            ${isCalendarBusy ? "Working…" : actionLabel}
+          </button>
+        </div>
+      </div>
+      ${
+        calendarUi.lastError
+          ? `<p class="settings-error">${escapeHtml(calendarUi.lastError)}</p>`
+          : ""
+      }
+  `;
+}
 
 function render(errorMessage?: string): void {
   const app = document.getElementById("app");
@@ -37,6 +79,7 @@ function render(errorMessage?: string): void {
       </div>
     </div>
     <div class="settings-content">
+      ${calendarAccountSectionHtml()}
       <div class="settings-section-heading">Meeting Preferences</div>
       <div class="setting-row">
         <div class="setting-row-inner">
@@ -114,6 +157,46 @@ function render(errorMessage?: string): void {
   setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
   setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
   setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
+  setupCalendarAccountListeners();
+}
+
+function setupCalendarAccountListeners(): void {
+  const connectBtn = document.getElementById("calendar-connect-btn");
+  const disconnectBtn = document.getElementById("calendar-disconnect-btn");
+
+  connectBtn?.addEventListener("click", () => {
+    void (async () => {
+      if (isCalendarBusy) return;
+      isCalendarBusy = true;
+      render();
+      try {
+        await window.api.calendar.requestPermission();
+        calendarUi = await window.api.calendar.getUiState();
+      } catch {
+        // keep previous state
+      } finally {
+        isCalendarBusy = false;
+        render();
+      }
+    })();
+  });
+
+  disconnectBtn?.addEventListener("click", () => {
+    void (async () => {
+      if (isCalendarBusy) return;
+      isCalendarBusy = true;
+      render();
+      try {
+        await window.api.calendar.disconnect();
+        calendarUi = await window.api.calendar.getUiState();
+      } catch {
+        // keep previous state
+      } finally {
+        isCalendarBusy = false;
+        render();
+      }
+    })();
+  });
 }
 
 function showSaveIndicator(id: string, text: string): void {
@@ -244,6 +327,11 @@ async function init(): Promise<void> {
     settings = await window.api.settings.get();
   } catch {
     // Use default if load fails; render will show no error
+  }
+  try {
+    calendarUi = await window.api.calendar.getUiState();
+  } catch {
+    calendarUi = defaultCalendarUiState();
   }
   render();
 }
