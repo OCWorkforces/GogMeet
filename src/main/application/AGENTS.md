@@ -2,18 +2,19 @@
 
 ## OVERVIEW
 
-Application layer: **ports** (interfaces) and **use cases**. Populated in **Wave 2**.
+Application layer: **ports** (interfaces) and **use cases**.
 
-## STRUCTURE (target)
+## STRUCTURE
 
 ```text
 application/
 ├── ports/       # CalendarPort, SettingsStorePort, MeetingOpenerPort, SchedulerPort, ClockPort, EventPublisherPort
-└── use-cases/   # JoinMeeting, GetMeetings, Load/UpdateSettings, permission, disconnect
+└── use-cases/   # JoinMeeting, GetMeetings, settings, permission, disconnect
 ```
 
 ## RULES
 
 - Ports are TypeScript interfaces only (no Electron).
-- Use cases depend on ports + `src/domain`, not on concrete adapters.
-- Free-function facades in `src/main/facades/` become one-line delegates after Wave 2.
+- Use cases depend on ports + `src/domain`, not concrete adapters.
+- Free-function facades in `src/main/facades/` and `utils/join-meeting.ts` are one-line delegates with module-level default bind.
+- Production defaults are production-safe without lifecycle bind; `composition/bind-composition.ts` formalizes wiring.
