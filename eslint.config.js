@@ -7,7 +7,7 @@ import prettierConfig from "eslint-config-prettier";
 import boundaries from "eslint-plugin-boundaries";
 
 /**
- * Clean Architecture layer elements (Wave 0).
+ * Clean Architecture layer elements.
  * More-specific patterns first; `main-rest` is the catch-all for remaining main code.
  * @see docs/clean-architecture-refactor-plan.md — Import boundary enforcement
  */
@@ -96,8 +96,8 @@ export default [
       // Prettier as a lint rule (run last; combined with eslint-config-prettier below)
       "prettier/prettier": "error",
 
-      // ── Clean Architecture boundaries (Wave 0: warn only) ──────────────
-      // Escalate domain/application purity to error in Wave 3 (PR-3.4).
+      // ── Clean Architecture layer boundaries (warn; escalate later) ──
+      // Escalate domain/application purity to error when ready.
       // Sentrux is secondary/local — see .sentrux/rules.toml header + CA plan.
       "boundaries/dependencies": [
         "warn",
@@ -130,7 +130,7 @@ export default [
                 },
               },
             },
-            // Shared: process isolation (may import domain after Wave 1)
+            // Shared: process isolation (may import domain)
             {
               from: { element: { type: "shared" } },
               disallow: {
@@ -222,7 +222,7 @@ export default [
                 },
               },
             },
-            // Facades must not import Swift (Wave 3 will fix calendar-watcher)
+            // Facades must not import Swift (calendar-watcher still violates)
             {
               from: { element: { type: "facades" } },
               disallow: {

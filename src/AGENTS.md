@@ -15,14 +15,14 @@ Application source is split by Electron process. Keep process boundaries strict:
 
 - `main/` — lifecycle, tray, scheduler, windows, IPC, **calendar providers** (EventKit + Google). See `src/main/AGENTS.md`.
 - `main/facades/` — calendar facade, watcher, settings (main application surface; not pure domain).
-- `main/application/`, `main/infrastructure/`, `main/composition/` — CA layers (scaffold Wave 0; logic in later waves).
+- `main/application/`, `main/infrastructure/`, `main/composition/` — CA layers (ports, use-cases, adapters, composition root).
 - `main/calendar/` — `CalendarProvider` factory, Google OAuth/API, Darwin adapter, url-extract, offline cache.
 - `main/platform/` — OS predicates (`isDarwin` / `isWin32`); **not** meeting-host detection.
 - `main/swift/` — EventKit helper compile/run/JSON Lines parse (**Darwin provider leaf only**).
-- `domain/` — pure domain (CA Wave 1+). See `src/domain/AGENTS.md`.
+- `domain/` — pure domain (entities, policies, services). See `src/domain/AGENTS.md`.
 - `renderer/` — popover, settings (incl. Google account), alert. See `src/renderer/AGENTS.md`.
 - `preload/` — `window.api` bridge. See `src/preload/AGENTS.md`.
-- `shared/` — contracts, brands, errors, IPC maps, pure utilities. See `src/shared/AGENTS.md`.
+- `shared/` — IPC maps and thin cross-process DTOs. See `src/shared/AGENTS.md`.
 - `assets/` — tray icons (mac 18/36 + win 16/32); load via `nativeImage.createFromPath()`.
 
 ## Where to change things

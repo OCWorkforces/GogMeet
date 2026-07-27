@@ -458,7 +458,7 @@ describe("IPC guard — setHeight dedup (Task 1c)", () => {
   });
 });
 
-describe("Wave 2: Skip re-render when events unchanged (Task 2a)", () => {
+describe("Skip re-render when events unchanged", () => {
   it("skips render when events key is identical to previous", () => {
     const render = vi.fn();
     let lastEventsKey = "";
@@ -596,7 +596,7 @@ describe("Wave 2: Skip re-render when events unchanged (Task 2a)", () => {
   });
 });
 
-describe("Wave 2: Debounce visibility-change poll (Task 2b)", () => {
+describe("Debounce visibility-change poll", () => {
   it("skips loadEvents when visibility changes within 5s", () => {
     const loadEvents = vi.fn();
     let lastPollTime = 0;

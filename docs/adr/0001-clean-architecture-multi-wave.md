@@ -16,11 +16,11 @@ GogMeet (~10k LOC Electron) has partial seams (`CalendarProvider`, facades, type
 Adopt a **hybrid Clean Architecture** mapped to Electron multi-process:
 
 1. Process shells stay: `main` / `preload` / `renderer`.
-2. Pure core: `src/domain/` (Wave 1+).
-3. Impure former `src/main/domain/` renamed to **`src/main/facades/`** (Wave 0) before pure domain lands.
-4. Phase A (default): Waves 0–2 + selective Wave 3 — ports, use cases, selective adapters.
-5. Phase B (optional): scheduler SchedulePlan, full composition root, cleanup.
-6. **No permanent re-export / deprecated shims** (K27); temporary re-exports deleted same-wave.
+2. Pure core: `src/domain/`.
+3. Impure former `src/main/domain/` renamed to **`src/main/facades/`** before pure domain lands.
+4. Default MVP: pure domain, ports, use cases, selective adapters.
+5. Optional later: scheduler SchedulePlan split, full composition root, cleanup.
+6. **No permanent re-export / deprecated shims**; temporary re-exports must be deleted once callers move.
 7. Manual composition root; no DI container.
 8. `eslint-plugin-boundaries` is the CI gate; sentrux is secondary/local.
 
@@ -28,7 +28,7 @@ Adopt a **hybrid Clean Architecture** mapped to Electron multi-process:
 
 - Agents and humans must treat `facades/` as the main application surface until use cases absorb call sites.
 - Pure `src/domain/` must never import Electron/FS/Swift.
-- Feature work continues via existing facades until Wave 6 retires free functions if AppGraph owns them.
+- Feature work continues via existing facades until free functions are retired if AppGraph owns them.
 
 ## Alternatives considered
 

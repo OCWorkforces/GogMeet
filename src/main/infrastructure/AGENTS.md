@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-Driven adapters implementing application ports. Selective population in **Wave 3** (Phase A): JsonSettingsStore, ShellMeetingOpener. Calendar providers remain under `src/main/calendar/` in Phase A.
+Driven adapters implementing application ports. Planned adapters: JsonSettingsStore, ShellMeetingOpener. Calendar providers currently remain under `src/main/calendar/`.
 
 ## RULES
 

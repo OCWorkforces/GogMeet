@@ -10,7 +10,7 @@ const UNSUPPORTED_MESSAGE =
 
 /**
  * Placeholder provider for platforms without a wired calendar backend.
- * Wave 4 replaces this on Windows with the Google Calendar provider.
+ * Windows uses the Google Calendar provider in production; this stub is residual.
  */
 export function createStubUnsupportedProvider(): CalendarProvider {
   return {

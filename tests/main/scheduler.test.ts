@@ -902,7 +902,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 });
 
-describe("Wave 2: Dirty flag for title resolution", () => {
+describe("Dirty flag for title resolution", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     _resetForTest();

@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-**Pure** domain layer (Clean Architecture Wave 1). Zero Electron, `node:fs`, network, or Swift process dependencies.
+**Pure** domain layer (Clean Architecture). Zero Electron, `node:fs`, network, or Swift process dependencies.
 
 ## STRUCTURE
 

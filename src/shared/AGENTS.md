@@ -1,6 +1,6 @@
 # Shared — Cross-Process Contracts
 
-IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Entities and pure domain policy live in `src/domain/`** (Wave 1). Shared must not import Electron, Node process APIs, or DOM globals.
+IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Entities and pure domain policy live in `src/domain/`**. Shared must not import Electron, Node process APIs, or DOM globals.
 
 ## Files
 

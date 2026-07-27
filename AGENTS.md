@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-07-27
-**Branch:** develop (CA Wave 0: main/domain → main/facades)
+**Branch:** develop (main/domain → main/facades)
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -28,7 +28,7 @@ GogMeet/
 │   ├── facades/     # calendar facade, watcher, settings (main-process application surface)
 │   ├── platform/    # OS helpers (isDarwin/isWin32) — not meeting-host detection
 │   └── swift/       # EventKit compile/run/JSON Lines (Darwin provider only)
-├── src/domain/      # pure domain (CA Wave 1+) — entities/policies; no Electron
+├── src/domain/      # pure domain  — entities/policies; no Electron
 ├── src/preload/     # sandboxed context bridge exposing typed window.api
 ├── src/renderer/    # vanilla TS pages: popover, settings, alert
 ├── src/shared/      # contracts, brands, results, errors, IPC maps, pure utilities

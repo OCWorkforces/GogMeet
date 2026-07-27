@@ -1,9 +1,6 @@
-# Wave 0 CA note (2026-07-27):
-# - `src.main.domain` paths rewritten to `src.main.facades`.
-# - Stale denials remain until eslint-plugin-boundaries owns CI edges:
-#   utils→scheduler (join-meeting), alert-window→scheduler, menu→scheduler.
-# - Full reconciliation table: docs/clean-architecture-refactor-plan.md
-# - Sentrux is NOT wired into package.json / GitHub CI; eslint is the hard gate.
+# Architecture note: `src.main.domain` paths rewritten to `src.main.facades`.
+# Stale denials remain until eslint-plugin-boundaries owns CI edges.
+# Sentrux is NOT wired into package.json / GitHub CI; eslint is the hard gate.
 
 # ════════════════════════════════════════════════════════════════
 # GLOBAL CONSTRAINTS
