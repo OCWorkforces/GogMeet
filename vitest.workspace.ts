@@ -38,6 +38,26 @@ export default defineConfig({
           },
         },
       },
+
+      {
+        test: {
+          name: 'domain',
+          environment: 'node',
+          include: ['tests/domain/**/*.test.ts'],
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json-summary'],
+            include: ['src/domain/**/*.ts'],
+            exclude: ['src/domain/**/*.d.ts'],
+            thresholds: {
+              lines: 80,
+              functions: 80,
+              branches: 70,
+              statements: 80,
+            },
+          },
+        },
+      },
       {
         test: {
           name: 'shared',
