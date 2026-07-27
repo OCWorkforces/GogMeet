@@ -96,11 +96,10 @@ export default [
       // Prettier as a lint rule (run last; combined with eslint-config-prettier below)
       "prettier/prettier": "error",
 
-      // ── Clean Architecture layer boundaries (warn; escalate later) ──
-      // Escalate domain/application purity to error when ready.
-      // Sentrux is secondary/local — see .sentrux/rules.toml header + CA plan.
+      // ── Clean Architecture layer boundaries (error) ──
+      // Sentrux is secondary/local — see .sentrux/rules.toml header.
       "boundaries/dependencies": [
-        "warn",
+        "error",
         {
           default: "allow",
           policies: [
@@ -222,7 +221,7 @@ export default [
                 },
               },
             },
-            // Facades must not import Swift (calendar-watcher still violates)
+            // Facades must not import Swift
             {
               from: { element: { type: "facades" } },
               disallow: {
