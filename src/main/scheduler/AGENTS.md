@@ -7,7 +7,9 @@ Core scheduling engine for polling Calendar, scheduling per-event timers, updati
 | File                 | Role                                                                                                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `facade.ts`          | Sole public entry. Owns `startScheduler`, `stopScheduler`, `restartScheduler`, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, and force-poll coalescing state. |
-| `index.ts`           | `scheduleEvents(events)`; central scheduling hub and stale-entry pruning.                                                                                                      |
+| `index.ts`           | `scheduleEvents(events)` — builds snapshot, calls pure `planSchedule`, then `interpretSchedulePlan`.                                                                          |
+| `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers).                                                                                                                           |
+| `adapters/interpret-schedule.ts` | Applies `SchedulePlan` actions (arm/cancel timers, prune).                                                                                                           |
 | `poll.ts`            | Fetches calendar, hashes event list, emits `meeting-list-updated`, calls `reportCalendarPollError` on failure, pushes `CALENDAR_EVENTS_UPDATED`. |
 | `poll.ts`            | Fetches calendar, `recordCalendarResult`, schedules timers, emits `meeting-list-updated`, hash-gates renderer push.                                                             |
 | `state/`             | Internal sliced state; see `state/AGENTS.md`. External imports forbidden.                                                                                                      |
