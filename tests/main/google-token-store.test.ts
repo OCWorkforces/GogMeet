@@ -70,6 +70,9 @@ describe("google-token-store", () => {
     const loaded = await loadGoogleTokens();
     expect(loaded).not.toBeNull();
     expect(loaded?.accessToken).toBe("access");
+    expect(loaded?.refreshToken).toBe("refresh");
+    expect(loaded?.clientId).toBe("test-client-id.apps.googleusercontent.com");
+    expect(loaded?.authSchemaVersion).toBe(1);
     expect(loaded?.email).toBe("user@example.com");
     expect(loaded?.scope).toBe("openid");
   });

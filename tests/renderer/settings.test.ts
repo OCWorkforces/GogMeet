@@ -212,17 +212,25 @@ describe("settings/index.ts", () => {
   });
 
   it("saves auto-open and window-alert toggles after reload", async () => {
-    for (const id of ["auto-open-toggle", "window-alert-toggle", "native-notif-toggle", "quiet-hours-toggle"]) {
+    const idToKey: Record<string, keyof AppSettings> = {
+      "auto-open-toggle": "autoOpenEnabled",
+      "window-alert-toggle": "windowAlert",
+      "native-notif-toggle": "nativeNotifications",
+      "quiet-hours-toggle": "quietHoursEnabled",
+    };
+    for (const [id, key] of Object.entries(idToKey)) {
       const setSettings = vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => ({
         ...DEFAULT_SETTINGS,
         ...partial,
       }));
       await loadSettingsRenderer(setSettings);
       const el = document.getElementById(id);
-      if (!(el instanceof HTMLInputElement)) continue;
-      el.checked = !el.checked;
-      el.dispatchEvent(new Event("change"));
+      expect(el).toBeInstanceOf(HTMLInputElement);
+      const input = el as HTMLInputElement;
+      input.checked = !input.checked;
+      input.dispatchEvent(new Event("change"));
       await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+      expect(setSettings.mock.calls.some((c) => key in (c[0] ?? {}))).toBe(true);
       vi.resetModules();
       document.body.innerHTML = '<div id="app"></div>';
     }

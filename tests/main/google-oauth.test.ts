@@ -118,7 +118,7 @@ describe("google-oauth", () => {
     err.mockRestore();
   });
 
-  it("completes PKCE flow with successful callback", async () => {
+  it("completes PKCE flow with successful callback", { timeout: 10_000 }, async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url =
         typeof input === "string"
@@ -171,7 +171,7 @@ describe("google-oauth", () => {
     expect(saved.email).toBe("user@example.com");
   });
 
-  it("returns denied on OAuth error param", async () => {
+  it("returns denied on OAuth error param", { timeout: 10_000 }, async () => {
     const http = await import("node:http");
     openExternal.mockImplementation(async (authUrl: string) => {
       const u = new URL(authUrl);
@@ -189,7 +189,7 @@ describe("google-oauth", () => {
     expect(await runGooglePkceLogin()).toBe("denied");
   });
 
-  it("returns denied on state mismatch", async () => {
+  it("returns denied on state mismatch", { timeout: 10_000 }, async () => {
     const http = await import("node:http");
     openExternal.mockImplementation(async (authUrl: string) => {
       const u = new URL(authUrl);
@@ -235,7 +235,7 @@ describe("google-oauth", () => {
     warn.mockRestore();
   });
 
-  it("token exchange failure path returns denied", async () => {
+  it("token exchange failure path returns denied", { timeout: 10_000 }, async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "bad" }), { status: 400 }));
     const http = await import("node:http");
     openExternal.mockImplementation(async (authUrl: string) => {

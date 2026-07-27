@@ -641,20 +641,28 @@ describe("status rows and calendar tray extras", () => {
   });
 
   it("runtime error status shows retry path labels", () => {
+    const onRetryPoll = vi.fn();
     const items = buildCalendarTrayMenuTemplate(
       {
         permission: "granted",
         phase: "error",
-        lastError: "network",
+        lastError: "network failure",
         accountEmail: null,
         events: null,
         offline: false,
         oauthConfigured: true,
       },
       false,
-      { ...baseCallbacks, onRetryPoll: vi.fn() },
+      { ...baseCallbacks, onRetryPoll },
       { kind: "err", code: "runtime", error: "network failure", updatedAt: Date.now() },
     );
-    expect(items.length).toBeGreaterThan(0);
+    const labels = items.map((i) => i.label).filter((l): l is string => typeof l === "string");
+    expect(labels.some((l) => l.includes("network failure") || l === "Calendar error")).toBe(true);
+    const retry = items.find((i) => i.label === "Retry");
+    expect(retry).toBeDefined();
+    retry?.click?.(undefined as never, undefined as never, undefined as never);
+    expect(onRetryPoll).toHaveBeenCalledOnce();
+    // Footer still present for refresh
+    expect(items.some((i) => i.label === "Refresh")).toBe(true);
   });
 });

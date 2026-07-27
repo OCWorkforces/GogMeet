@@ -99,6 +99,6 @@ describe("createJoinMeeting", () => {
     fetchCalendar.mockResolvedValue({ kind: "ok", events: [] });
     const join = create();
     const result = await join.execute(asTestEventId("missing"));
-    expect(result.ok).toBe(false);
+    expect(result).toEqual({ ok: false, error: "Meeting not found" });
   });
 });

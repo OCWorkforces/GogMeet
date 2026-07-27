@@ -71,4 +71,21 @@ describe("setupDelegatedEvents", () => {
     document.querySelector(".x")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onForcePoll).not.toHaveBeenCalled();
   });
+
+  it("single listener still routes after innerHTML re-render", () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const onForcePoll = vi.fn();
+    setupDelegatedEvents({
+      onForcePoll,
+      onGrantAccess: vi.fn(),
+      onJoinMeeting: vi.fn(),
+    });
+    // Simulate multiple renders swapping button content
+    for (let i = 0; i < 3; i++) {
+      document.getElementById("app")!.innerHTML =
+        '<button data-action="refresh">Refresh</button>';
+    }
+    document.querySelector<HTMLButtonElement>('[data-action="refresh"]')!.click();
+    expect(onForcePoll).toHaveBeenCalledOnce();
+  });
 });
