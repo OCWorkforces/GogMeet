@@ -259,6 +259,31 @@ export default [
     },
   },
 
+
+  // Application layer: no Electron / Node I/O (ports only)
+  {
+    files: ["src/main/application/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "electron",
+              message: "Application layer must not import Electron; use ports.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["node:fs", "node:fs/*", "fs", "fs/*", "child_process", "node:child_process"],
+              message: "Application layer must not import Node I/O; use infrastructure adapters.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Disable all formatting rules conflicting with Prettier — MUST be last.
   prettierConfig,
 ];
