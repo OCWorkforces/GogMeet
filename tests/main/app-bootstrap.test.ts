@@ -50,6 +50,8 @@ describe("main/index.ts", () => {
     expect(content).toContain('from "./ipc.js"');
     expect(content).toContain('from "../scheduler/facade.js"');
     expect(content).toContain('from "../facades/settings.js"');
+    expect(content).toContain('from "../composition/bind-composition.js"');
+    expect(content).toContain("bindComposition");
     expect(content).toContain('from "../system/auto-launch.js"');
     expect(content).toContain('from "../system/notification.js"');
     expect(content).toContain('from "../system/shortcuts.js"');

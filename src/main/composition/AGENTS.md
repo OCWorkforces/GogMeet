@@ -2,10 +2,14 @@
 
 ## OVERVIEW
 
-Composition root / binder. **Wave 2 PR-2.5:** `bindPhaseA()`. **Phase B Wave 5:** full `createAppGraph`.
+Composition root / binder.
+
+| File | Role |
+| --- | --- |
+| `bind-composition.ts` | `bindComposition()` — rebinds calendar, settings, join defaults |
 
 ## RULES
 
-- Pure wiring only: construct adapters + use cases; no network/OAuth/eager FS writes beyond lazy factories.
-- Called first from `initializeApp` (before IPC) once binders land.
-- No dual algorithm bodies — bind the single use-case implementation.
+- Pure wiring only: no network/OAuth/eager FS writes beyond lazy factories.
+- Call as the **first line** of `initializeApp` (before IPC).
+- Free functions keep module-level defaults so the app works even without this call.

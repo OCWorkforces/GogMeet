@@ -1,22 +1,30 @@
 import type { EventId } from "../../domain/entities/brand.js";
-import type { CalendarResult } from "../../domain/entities/calendar-result.js";
-import { isCalendarOk } from "../../domain/entities/calendar-result.js";
-import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import type { Result } from "../../domain/entities/result.js";
-import { err, ok } from "../../domain/entities/result.js";
+import { createJoinMeeting, type JoinMeeting } from "../application/use-cases/join-meeting.js";
 import { getCalendarEventsResult } from "../facades/calendar.js";
 import { cancelPendingBrowserOpen, getLastKnownEvents } from "../scheduler/facade.js";
-import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
 import { openMeetingUrl } from "./meet-url.js";
 
-function calendarErrMessage(c: CalendarResult | null): string {
-  if (c === null) return "No calendar data available";
-  if (!isCalendarOk(c)) return c.error;
-  return "Unknown calendar error";
+function createDefaultJoinMeeting(): JoinMeeting {
+  return createJoinMeeting({
+    getLastKnownEvents: () => getLastKnownEvents(),
+    fetchCalendarEvents: () => getCalendarEventsResult(),
+    opener: { open: (url) => openMeetingUrl(url) },
+    cancelPendingBrowserOpen: (id) => {
+      cancelPendingBrowserOpen(id);
+    },
+  });
 }
 
-function findEvent(c: CalendarResult, id: EventId): MeetingEvent | undefined {
-  return isCalendarOk(c) ? c.events.find((e) => e.id === id) : undefined;
+let _impl: JoinMeeting = createDefaultJoinMeeting();
+
+/** Test / composition override — default is already production-safe. */
+export function bindJoinMeeting(impl: JoinMeeting): void {
+  _impl = impl;
+}
+
+export function rebindJoinMeetingDefaults(): void {
+  _impl = createDefaultJoinMeeting();
 }
 
 /**
@@ -24,29 +32,5 @@ function findEvent(c: CalendarResult, id: EventId): MeetingEvent | undefined {
  * pending auto-open for that event. All menu / hotkey / IPC join paths use this.
  */
 export async function joinMeetingById(id: EventId): Promise<Result<void, string>> {
-  let calendar: CalendarResult | null = getLastKnownEvents();
-  let event = calendar !== null ? findEvent(calendar, id) : undefined;
-
-  // Fallback once: null/err cache, missing id, or empty meetUrl
-  const needsFetch =
-    calendar === null || !isCalendarOk(calendar) || event === undefined || !event.meetUrl;
-
-  if (needsFetch) {
-    calendar = await getCalendarEventsResult();
-    event = isCalendarOk(calendar) ? findEvent(calendar, id) : undefined;
-  }
-
-  if (calendar === null) return err(calendarErrMessage(null));
-  if (!isCalendarOk(calendar)) return err(calendar.error);
-  if (!event) return err("Meeting not found");
-
-  const url = buildMeetUrl(event);
-  if (!url) return err("No joinable meeting URL");
-
-  const opened = await openMeetingUrl(url);
-  if (!opened.ok) return opened;
-
-  // Suppress pending auto-open / mark fired so we never double-open
-  cancelPendingBrowserOpen(id);
-  return ok(undefined);
+  return _impl.execute(id);
 }

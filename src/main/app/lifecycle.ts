@@ -35,6 +35,7 @@ import {
   stopCalendarWatcher,
 } from "../facades/calendar-watcher.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
+import { bindComposition } from "../composition/bind-composition.js";
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -80,6 +81,11 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   };
 
   try {
+    // Composition: bind use-case defaults before IPC
+    tryRunCritical("bindComposition", () => {
+      bindComposition();
+    });
+
     // Pre-warm calendar provider (Swift compile on Darwin) — don't block init
     tryRun("warmupCalendarProvider", () => {
       warmupCalendarProvider().catch((err: unknown) => {

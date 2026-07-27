@@ -33,6 +33,7 @@ const {
   mockStopCalendarWatcher,
   mockInitAutoUpdater,
   mockReviveCalendarWatcher,
+  mockBindComposition,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -70,6 +71,7 @@ const {
   mockStopCalendarWatcher: vi.fn(),
   mockInitAutoUpdater: vi.fn(),
   mockReviveCalendarWatcher: vi.fn(),
+  mockBindComposition: vi.fn().mockReturnValue({ bound: true }),
 }));
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -125,6 +127,10 @@ vi.mock("../../src/main/facades/calendar-watcher.js", () => ({
 
 vi.mock("../../src/main/system/auto-updater.js", () => ({
   initAutoUpdater: mockInitAutoUpdater,
+}));
+
+vi.mock("../../src/main/composition/bind-composition.js", () => ({
+  bindComposition: mockBindComposition,
 }));
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({

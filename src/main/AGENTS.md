@@ -9,9 +9,9 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | bootstrap (single-instance), tray, bus, Swift **source** (Darwin) |
 | `app/` | `lifecycle.ts`, `ipc.ts` | init order, shutdown, IPC registration |
 | `facades/` | `calendar.ts`, `calendar-watcher.ts`, `calendar-status.ts`, `settings.ts` | calendar facade + UI status, watcher, last poll status, settings v2 |
-| `application/` | ports, use-cases | CA Wave 2+ (scaffold empty in Wave 0) |
-| `infrastructure/` | adapters | CA Wave 3+ (scaffold empty in Wave 0) |
-| `composition/` | bindPhaseA / AppGraph | CA Wave 2.5+ (scaffold empty in Wave 0) |
+| `application/` | ports, use-cases | ports + use-case factories |
+| `infrastructure/` | adapters | driven adapters (settings store, opener, …) |
+| `composition/` | `bind-composition.ts` | wires use-case defaults at bootstrap |
 | `calendar/` | factory, providers, auth, url-extract, offline-cache | CalendarProvider backends |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |

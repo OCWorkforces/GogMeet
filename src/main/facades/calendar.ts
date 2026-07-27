@@ -8,13 +8,155 @@ import { isGoogleOAuthInFlight } from "../calendar/auth/google-oauth.js";
 import { loadGoogleTokens } from "../calendar/auth/google-token-store.js";
 import { isDarwin } from "../platform/os.js";
 import { mainBus } from "../events.js";
+import type { CalendarPort } from "../application/ports/calendar-port.js";
+import type { EventPublisherPort } from "../application/ports/event-publisher-port.js";
+import { createGetMeetings, type GetMeetings } from "../application/use-cases/get-meetings.js";
+import {
+  createRequestCalendarAccess,
+  type RequestCalendarAccess,
+} from "../application/use-cases/request-calendar-access.js";
+import {
+  createGetCalendarPermissionStatus,
+  type GetCalendarPermissionStatus,
+} from "../application/use-cases/get-calendar-permission-status.js";
+import {
+  createDisconnectCalendar,
+  type DisconnectCalendar,
+} from "../application/use-cases/disconnect-calendar.js";
 
 let cachedPermissionStatus: CalendarPermission | null = null;
 let uiState: CalendarUiState = defaultCalendarUiState();
 
-function publishUiState(partial: Partial<CalendarUiState>): void {
+function setUiState(partial: Partial<CalendarUiState>): void {
   uiState = { ...uiState, ...partial };
-  mainBus.emit("calendar-status-updated", uiState);
+}
+
+function replaceUiState(state: CalendarUiState): void {
+  uiState = state;
+}
+
+function setCachedPermission(status: CalendarPermission | null): void {
+  cachedPermissionStatus = status;
+}
+
+/** CalendarPort adapter over the active factory provider. */
+async function getCalendarPort(): Promise<CalendarPort> {
+  return getActiveCalendarProvider();
+}
+
+/** Lazy CalendarPort so factory selection runs per call (fixture/warmup). */
+function lazyCalendarPort(): CalendarPort {
+  return {
+    getEvents: async () => (await getCalendarPort()).getEvents(),
+    getPermissionStatus: async () => (await getCalendarPort()).getPermissionStatus(),
+    requestPermission: async () => (await getCalendarPort()).requestPermission(),
+    disconnect: async () => {
+      await (await getCalendarPort()).disconnect?.();
+    },
+    warmup: async () => {
+      await (await getCalendarPort()).warmup?.();
+    },
+  };
+}
+
+const publisher: EventPublisherPort = {
+  publishCalendarStatus(state: CalendarUiState): void {
+    mainBus.emit("calendar-status-updated", state);
+  },
+};
+
+function oauthDeps() {
+  return {
+    getAccountEmail: async (): Promise<string | null> => (await loadGoogleTokens())?.email ?? null,
+    isOAuthConfigured: (): boolean => isGoogleOAuthConfigured(),
+    isOAuthInFlight: (): boolean => isGoogleOAuthInFlight(),
+  };
+}
+
+function createDefaultGetMeetings(): GetMeetings {
+  const oauth = oauthDeps();
+  return createGetMeetings({
+    calendar: lazyCalendarPort(),
+    publisher,
+    getAccountEmail: oauth.getAccountEmail,
+    isOAuthConfigured: oauth.isOAuthConfigured,
+    getUiState: () => uiState,
+    setUiState,
+    setCachedPermission: (s) => {
+      cachedPermissionStatus = s;
+    },
+  });
+}
+
+function createDefaultRequestAccess(): RequestCalendarAccess {
+  const oauth = oauthDeps();
+  return createRequestCalendarAccess({
+    calendar: lazyCalendarPort(),
+    publisher,
+    getAccountEmail: oauth.getAccountEmail,
+    isOAuthConfigured: oauth.isOAuthConfigured,
+    getUiState: () => uiState,
+    setUiState,
+    setCachedPermission: (s) => {
+      cachedPermissionStatus = s;
+    },
+  });
+}
+
+function createDefaultPermissionStatus(): GetCalendarPermissionStatus {
+  const oauth = oauthDeps();
+  return createGetCalendarPermissionStatus({
+    calendar: lazyCalendarPort(),
+    publisher,
+    isOAuthInFlight: oauth.isOAuthInFlight,
+    getCachedPermission: () => cachedPermissionStatus,
+    setCachedPermission: (s) => {
+      cachedPermissionStatus = s;
+    },
+    getAccountEmail: oauth.getAccountEmail,
+    isOAuthConfigured: oauth.isOAuthConfigured,
+    getUiState: () => uiState,
+    setUiState,
+  });
+}
+
+function createDefaultDisconnect(): DisconnectCalendar {
+  return createDisconnectCalendar({
+    calendar: lazyCalendarPort(),
+    publisher,
+    resetProvider: () => {
+      resetCalendarProvider();
+    },
+    isOAuthConfigured: () => isGoogleOAuthConfigured(),
+    setCachedPermission,
+    setUiState: replaceUiState,
+  });
+}
+
+let _getMeetings: GetMeetings = createDefaultGetMeetings();
+let _requestAccess: RequestCalendarAccess = createDefaultRequestAccess();
+let _permissionStatus: GetCalendarPermissionStatus = createDefaultPermissionStatus();
+let _disconnect: DisconnectCalendar = createDefaultDisconnect();
+
+/** Test / composition override for calendar use cases. */
+export function bindCalendarUseCases(bindings: {
+  getMeetings?: GetMeetings;
+  requestAccess?: RequestCalendarAccess;
+  permissionStatus?: GetCalendarPermissionStatus;
+  disconnect?: DisconnectCalendar;
+}): void {
+  if (bindings.getMeetings) _getMeetings = bindings.getMeetings;
+  if (bindings.requestAccess) _requestAccess = bindings.requestAccess;
+  if (bindings.permissionStatus) _permissionStatus = bindings.permissionStatus;
+  if (bindings.disconnect) _disconnect = bindings.disconnect;
+}
+
+/** Reset module-level defaults (tests / composition re-bind). */
+export function rebindCalendarDefaults(): void {
+  _getMeetings = createDefaultGetMeetings();
+  _requestAccess = createDefaultRequestAccess();
+  _permissionStatus = createDefaultPermissionStatus();
+  _disconnect = createDefaultDisconnect();
 }
 
 /** Synchronous snapshot for tray menu builders. */
@@ -24,33 +166,7 @@ export function getCalendarUiState(): CalendarUiState {
 
 /** Fetch calendar events — returns structured result with events or error. */
 export async function getCalendarEventsResult(): Promise<CalendarResult> {
-  const provider = await getActiveCalendarProvider();
-  const result = await provider.getEvents();
-
-  if (result.kind === "ok") {
-    const email = (await loadGoogleTokens())?.email ?? uiState.accountEmail;
-    publishUiState({
-      permission: "granted",
-      phase: result.events.length === 0 ? "empty" : "ready",
-      lastError: null,
-      events: result.events,
-      offline: false,
-      accountEmail: email,
-      oauthConfigured: isGoogleOAuthConfigured(),
-    });
-    cachedPermissionStatus = "granted";
-  } else {
-    const permission = await provider.getPermissionStatus().catch(() => "denied" as const);
-    cachedPermissionStatus = permission;
-    publishUiState({
-      permission,
-      phase: "error",
-      lastError: result.error,
-      oauthConfigured: isGoogleOAuthConfigured(),
-    });
-  }
-
-  return result;
+  return _getMeetings.execute();
 }
 
 /**
@@ -59,57 +175,12 @@ export async function getCalendarEventsResult(): Promise<CalendarResult> {
  * Windows: OAuth when invoked from tray/Settings — not from lifecycle auto path.
  */
 export async function requestCalendarPermission(): Promise<CalendarPermission> {
-  publishUiState({
-    phase: "connecting",
-    lastError: null,
-    oauthConfigured: isGoogleOAuthConfigured(),
-  });
-
-  const provider = await getActiveCalendarProvider();
-  const status = await provider.requestPermission();
-  cachedPermissionStatus = status;
-
-  if (status === "granted") {
-    const email = (await loadGoogleTokens())?.email ?? null;
-    publishUiState({
-      permission: "granted",
-      phase: "ready",
-      lastError: null,
-      accountEmail: email,
-      oauthConfigured: isGoogleOAuthConfigured(),
-    });
-  } else {
-    publishUiState({
-      permission: status,
-      phase: status === "denied" ? "error" : "disconnected",
-      lastError: status === "denied" ? "Google Calendar was not connected." : null,
-      oauthConfigured: isGoogleOAuthConfigured(),
-    });
-  }
-
-  return status;
+  return _requestAccess.execute();
 }
 
 /** Check current calendar permission state without triggering a new dialog when cached. */
 export async function getCalendarPermissionStatus(): Promise<CalendarPermission> {
-  if (isGoogleOAuthInFlight()) return "not-determined";
-  if (cachedPermissionStatus !== null) return cachedPermissionStatus;
-  const provider = await getActiveCalendarProvider();
-  cachedPermissionStatus = await provider.getPermissionStatus();
-
-  publishUiState({
-    permission: cachedPermissionStatus,
-    phase:
-      cachedPermissionStatus === "granted"
-        ? uiState.events && uiState.events.length > 0
-          ? "ready"
-          : "empty"
-        : "disconnected",
-    oauthConfigured: isGoogleOAuthConfigured(),
-    accountEmail: (await loadGoogleTokens())?.email ?? uiState.accountEmail,
-  });
-
-  return cachedPermissionStatus;
+  return _permissionStatus.execute();
 }
 
 /** Invalidate cached permission — call on power state resume as a safety net. */
@@ -127,31 +198,22 @@ export function shouldAutoRequestCalendarPermission(): boolean {
 
 /** Pre-warm the active provider (Swift compile on Darwin / token soft-refresh on Google). */
 export async function warmupCalendarProvider(): Promise<void> {
-  const provider = await getActiveCalendarProvider();
-  await provider.warmup?.();
+  await lazyCalendarPort().warmup?.();
 }
 
 /** Disconnect Google / reset provider. Clears permission cache and UI state. */
 export async function disconnectCalendar(): Promise<void> {
-  const provider = await getActiveCalendarProvider();
-  await provider.disconnect?.();
-  resetCalendarProvider();
-  cachedPermissionStatus = null;
-  publishUiState({
-    ...defaultCalendarUiState(),
-    oauthConfigured: isGoogleOAuthConfigured(),
-    phase: "disconnected",
-    permission: "not-determined",
-  });
+  return _disconnect.execute();
 }
 
 /** Apply a poll-level error while optionally retaining last events for offline UI. */
 export function reportCalendarPollError(error: string, lastEvents: MeetingEvent[] | null): void {
-  publishUiState({
+  setUiState({
     phase: lastEvents && lastEvents.length > 0 ? "offline-cached" : "error",
     lastError: error,
     events: lastEvents,
     offline: !!(lastEvents && lastEvents.length > 0),
     oauthConfigured: isGoogleOAuthConfigured(),
   });
+  mainBus.emit("calendar-status-updated", uiState);
 }
