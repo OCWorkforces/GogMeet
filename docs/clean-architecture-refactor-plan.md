@@ -1478,3 +1478,4 @@ flowchart TD
 | 2026-07-27 | **Accepted** | Design review consensus (0 open issues); promoted to `docs/clean-architecture-refactor-plan.md` |
 | 2026-07-27 | **Accepted revision 4** | Zero leftover re-exports policy (K27); PR-1.4 + PR-6.1 mandatory shim deletion; Phase A go/no-go shim audit; inventory table |
 | 2026-07-27 | **Wave 0 implemented** | Renamed `main/domain` → `main/facades`; scaffolded `src/domain`, application, infrastructure, composition; ADR 0001; eslint-plugin-boundaries warn; sentrux path rewrite |
+| 2026-07-27 | **Wave 1 implemented** | Pure `src/domain/` entities/policies/services; no re-export shims; domain vitest project; buildMeetUrl split from openMeetingUrl |
