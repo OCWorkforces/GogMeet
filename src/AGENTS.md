@@ -32,12 +32,12 @@ Application source is split by Electron process. Keep process boundaries strict:
 | Add IPC channel | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer |
 | Calendar facade / UI status | `main/facades/calendar.ts`, `shared/calendar-ui-state.ts`, `main/events.ts` |
 | Calendar backend (mac/win) | `main/calendar/factory.ts`, `providers/*`, `auth/*` |
-| Shared meeting URL extract | `main/calendar/url-extract.ts` (+ Swift `findMeetUrl` for EventKit wire) |
+| Shared meeting URL extract | `domain/services/url-extract.ts` (+ Swift `findMeetUrl` for EventKit wire) |
 | Swift EventKit wire protocol | `main/swift/*`, `main/googlemeet-events.swift` |
 | Scheduler | `main/scheduler/facade.ts` only from outside scheduler |
 | Settings schema | `shared/settings.ts`, `main/facades/settings.ts`, settings renderer |
 | URL allowlist | `main/utils/url-validation.ts` + preload mirror + tests |
-| Meeting host (Meet vs Zoom) | `main/utils/platform.ts` — **not** OS platform |
+| Meeting host (Meet vs Zoom) | `domain/services/platform.ts` — **not** OS platform |
 | OS branching | `main/platform/os.ts` |
 | Window chrome | `main/utils/window-chrome.ts`, `main/windows/*` |
 | Auto-update | `main/system/auto-updater.ts` (portable skipped) |
@@ -59,7 +59,7 @@ Application source is split by Electron process. Keep process boundaries strict:
 Add new meeting hosts after updating **both** extraction paths and allowlists:
 
 1. Swift `findMeetUrl` in `googlemeet-events.swift` (Zoom → Meet → Calendly order).
-2. `main/calendar/url-extract.ts` regex priority for cloud providers.
+2. `domain/services/url-extract.ts` regex priority for cloud providers.
 3. `MEETING_URL_ALLOWLIST` + preload hostname mirror.
 4. Tests for extract, allowlist, and meet-url passthrough.
 
