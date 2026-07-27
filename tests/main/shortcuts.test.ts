@@ -70,7 +70,7 @@ function shortcutsGraph() {
 
 describe("shortcuts", () => {
   let registerShortcuts: (graph: ReturnType<typeof shortcutsGraph>) => void;
-  let pickJoinTarget: typeof import("../../src/main/system/shortcuts.js").pickJoinTarget;
+  let pickJoinTarget: typeof import("../../src/domain/services/pick-join-target.js").pickJoinTarget;
   let globalShortcut: {
     register: ReturnType<typeof vi.fn>;
     unregisterAll: ReturnType<typeof vi.fn>;
@@ -82,7 +82,7 @@ describe("shortcuts", () => {
 
     const mod = await import("../../src/main/system/shortcuts.js");
     registerShortcuts = mod.registerShortcuts;
-    pickJoinTarget = mod.pickJoinTarget;
+    pickJoinTarget = (await import("../../src/domain/services/pick-join-target.js")).pickJoinTarget;
 
     const electron = await import("electron");
     globalShortcut = electron.globalShortcut as unknown as typeof globalShortcut;

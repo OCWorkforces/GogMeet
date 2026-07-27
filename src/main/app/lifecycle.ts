@@ -104,7 +104,7 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
       }),
     ]);
 
-    tryRunCritical("setupTray", () => setupTray(mainWindow));
+    tryRunCritical("setupTray", () => setupTray(mainWindow, graph));
     tryRun("setTrayTitleCallback", () => graph.scheduler.setTrayTitleCallback(updateTrayTitle));
     tryRun("setSchedulerWindow", () => graph.scheduler.setWindow(mainWindow));
     tryRun("initPowerCallbacks", () =>

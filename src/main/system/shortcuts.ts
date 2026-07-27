@@ -4,8 +4,6 @@ import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
 import type { AppGraph } from "../composition/app-graph.js";
 import log from "electron-log";
 
-export { pickJoinTarget } from "../../domain/services/pick-join-target.js";
-
 let registered = false;
 
 function notifyUser(title: string, body: string): void {

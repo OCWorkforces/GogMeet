@@ -162,7 +162,7 @@ describe("lifecycle", () => {
       expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Tray set up with main window
-      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow);
+      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Scheduler receives tray callback and window reference
       expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 type MockTrayInstance = {
   setToolTip: ReturnType<typeof vi.fn>;
@@ -187,7 +188,7 @@ describe("tray module exports", () => {
     const { Tray } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     expect(Tray).toHaveBeenCalled();
   });
@@ -197,7 +198,7 @@ describe("tray module exports", () => {
     const { Tray } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     const trayInstance = getLatestTrayInstance(Tray);
     expect(trayInstance.setToolTip).toHaveBeenCalledWith("GogMeet");
@@ -208,7 +209,7 @@ describe("tray module exports", () => {
     const { nativeTheme } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     expect(nativeTheme.on).toHaveBeenCalledWith(
       "updated",
@@ -224,8 +225,8 @@ describe("tray module exports", () => {
     vi.mocked(app.once).mockClear();
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);           // First call: registers before-quit
-    setupTray(mockWindow);           // Second call: should skip
+    setupTray(mockWindow, testAppGraph());           // First call: registers before-quit
+    setupTray(mockWindow, testAppGraph());           // Second call: should skip
 
     const beforeQuitCalls = vi.mocked(app.once).mock.calls.filter(
       (c: unknown[]) => c[0] === "before-quit",
@@ -241,7 +242,7 @@ describe("tray module exports", () => {
     const mockWindow = new BrowserWindow();
 
     // When: setup registers the tray item.
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     // Then: the native tray menu is already installed for the first status-item activation.
     const trayInstance = getLatestTrayInstance(Tray);
@@ -261,7 +262,7 @@ describe("tray module exports", () => {
 
     // Given: a tray exists with its initial loading menu installed.
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.setContextMenu).mockClear();
 
@@ -279,7 +280,7 @@ describe("tray module exports", () => {
     const { BrowserWindow, Tray } = await import("electron");
 
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
 
     const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
@@ -300,7 +301,7 @@ describe("tray module exports", () => {
 
     vi.mocked(forcePoll).mockClear();
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.popUpContextMenu).mockClear();
 
