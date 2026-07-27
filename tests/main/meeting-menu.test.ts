@@ -8,6 +8,12 @@ vi.mock("../../src/main/utils/system-settings.js", () => ({
   openSystemSettings: vi.fn(),
 }));
 
+const platformState = vi.hoisted(() => ({ darwin: true }));
+vi.mock("../../src/main/platform/os.js", () => ({
+  isDarwin: () => platformState.darwin,
+  isWin32: () => !platformState.darwin,
+}));
+
 // Fixed "now" for deterministic tests: 2026-04-08 at 14:00 local time
 const NOW = new Date("2026-04-08T14:00:00");
 
@@ -73,6 +79,7 @@ describe("buildMeetingMenuTemplate", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
+    platformState.darwin = true;
 
     vi.resetModules();
     const mod = await import("../../src/main/menu/meeting-menu.js");
@@ -568,6 +575,8 @@ describe("status rows and calendar tray extras", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
+    // Darwin path uses statusRows (permission-denied Privacy labels). Windows uses Connect Google.
+    platformState.darwin = true;
     vi.resetModules();
     const mod = await import("../../src/main/menu/meeting-menu.js");
     buildCalendarTrayMenuTemplate = mod.buildCalendarTrayMenuTemplate;
@@ -580,7 +589,7 @@ describe("status rows and calendar tray extras", () => {
     vi.useRealTimers();
   });
 
-  it("permission-denied status adds access denied row", () => {
+  it("permission-denied status adds access denied row (Darwin)", () => {
     const items = buildCalendarTrayMenuTemplate(
       {
         permission: "denied",
@@ -602,6 +611,35 @@ describe("status rows and calendar tray extras", () => {
           (i.label.includes("access denied") || i.label.includes("Privacy")),
       ),
     ).toBe(true);
+  });
+
+  it("permission-denied shows Connect Google CTA (Windows)", async () => {
+    platformState.darwin = false;
+    vi.resetModules();
+    const mod = await import("../../src/main/menu/meeting-menu.js");
+    buildCalendarTrayMenuTemplate = mod.buildCalendarTrayMenuTemplate;
+    const onConnectGoogle = vi.fn();
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "denied",
+        phase: "error",
+        lastError: "denied",
+        accountEmail: null,
+        events: [],
+        offline: false,
+        oauthConfigured: true,
+      },
+      true,
+      { ...baseCallbacks, onConnectGoogle, onRetryPoll: vi.fn() },
+      { kind: "err", code: "permission-denied", error: "denied", updatedAt: Date.now() },
+    );
+    expect(items.some((i) => i.label === "No calendar connected")).toBe(true);
+    const connect = items.find(
+      (i) => typeof i.label === "string" && i.label.includes("Reconnect Google"),
+    );
+    expect(connect).toBeDefined();
+    connect?.click?.(undefined as never, undefined as never, undefined as never);
+    expect(onConnectGoogle).toHaveBeenCalledOnce();
   });
 
   it("shows tomorrow section when enabled", () => {

@@ -514,51 +514,56 @@ describe("runSwiftHelper", () => {
     await expect(mod.runSwiftHelper()).rejects.toThrow("retry failure");
   });
 
-  it("throws when the recompile itself fails during retry", async () => {
-    vi.useFakeTimers();
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
-    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+  it(
+    "throws when the recompile itself fails during retry",
+    { timeout: 30_000 },
+    async () => {
+      vi.useFakeTimers();
+      try {
+        const expectedHash = await sha256Hex(FAKE_SOURCE);
+        setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+        accessMock.mockResolvedValueOnce(undefined);
+        accessMock.mockRejectedValueOnce(new Error("ENOENT"));
 
-    // Binary run fails once, then 5 compile attempts × 2 swiftc calls all fail
-    execFileAsyncMock
-      .mockRejectedValueOnce(new Error("first binary failure"))
-      .mockRejectedValueOnce(new Error("swiftc fail 1a"))
-      .mockRejectedValueOnce(new Error("swiftc fail 1b"))
-      .mockRejectedValueOnce(new Error("swiftc fail 2a"))
-      .mockRejectedValueOnce(new Error("swiftc fail 2b"))
-      .mockRejectedValueOnce(new Error("swiftc fail 3a"))
-      .mockRejectedValueOnce(new Error("swiftc fail 3b"))
-      .mockRejectedValueOnce(new Error("swiftc fail 4a"))
-      .mockRejectedValueOnce(new Error("swiftc fail 4b"))
-      .mockRejectedValueOnce(new Error("swiftc fail 5a"))
-      .mockRejectedValueOnce(new Error("swiftc fail 2"));
+        // Binary run fails once, then 5 compile attempts × 2 swiftc calls all fail
+        execFileAsyncMock
+          .mockRejectedValueOnce(new Error("first binary failure"))
+          .mockRejectedValueOnce(new Error("swiftc fail 1a"))
+          .mockRejectedValueOnce(new Error("swiftc fail 1b"))
+          .mockRejectedValueOnce(new Error("swiftc fail 2a"))
+          .mockRejectedValueOnce(new Error("swiftc fail 2b"))
+          .mockRejectedValueOnce(new Error("swiftc fail 3a"))
+          .mockRejectedValueOnce(new Error("swiftc fail 3b"))
+          .mockRejectedValueOnce(new Error("swiftc fail 4a"))
+          .mockRejectedValueOnce(new Error("swiftc fail 4b"))
+          .mockRejectedValueOnce(new Error("swiftc fail 5a"))
+          .mockRejectedValueOnce(new Error("swiftc fail 2"));
 
-    const mod = await loadModule();
-    const thrownPromise = mod.runSwiftHelper().then(
-      () => ({ ok: true as const }),
-      (err: Error) => ({ ok: false as const, err }),
-    );
-    // runSwiftHelper goes through ~30 async operations before registering the
-    // first sleep() timer (binary fail → cleanup × 2 → ensureBinary again →
-    // mkdir + readFile + access → compileOnce → execFile × 2 → catch → sleep).
-    // advanceTimersByTimeAsync only flushes 1 microtask level before checking
-    // for timers, so pre-flush the queue to ensure sleep() is registered first.
-    for (let f = 0; f < 50; f++) await Promise.resolve();
-    for (let i = 0; i < 10; i++) {
-      await vi.advanceTimersByTimeAsync(30_000);
-      // Flush between advances so each retry's next sleep() gets registered
-      // before the next advance (each retry needs ~7 microtask ticks).
-      for (let f = 0; f < 15; f++) await Promise.resolve();
-    }
-    const result = await thrownPromise;
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.err.message).toContain("swiftc fail 2");
-    }
-    vi.useRealTimers();
-  });
+        const mod = await loadModule();
+        const thrownPromise = mod.runSwiftHelper().then(
+          () => ({ ok: true as const }),
+          (err: Error) => ({ ok: false as const, err }),
+        );
+        // runSwiftHelper goes through many async ops before sleep() registers a timer.
+        // Flush microtasks generously so CI (Windows especially) does not hang on
+        // real time waiting for unadvanced fake timers.
+        for (let f = 0; f < 100; f++) await Promise.resolve();
+        for (let i = 0; i < 12; i++) {
+          await vi.advanceTimersByTimeAsync(30_000);
+          for (let f = 0; f < 30; f++) await Promise.resolve();
+        }
+        // Drain any remaining timer chain
+        await vi.runAllTimersAsync();
+        const result = await thrownPromise;
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.err.message).toContain("swiftc fail 2");
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 });
 
 describe("path resolution", () => {
