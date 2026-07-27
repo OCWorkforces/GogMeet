@@ -2,21 +2,6 @@ import { app, dialog, type BrowserWindow } from "electron";
 import { setupTray } from "../tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import {
-  startScheduler,
-  stopScheduler,
-  restartScheduler,
-  setSchedulerWindow,
-  setTrayTitleCallback,
-  initPowerCallbacks,
-} from "../scheduler/facade.js";
-import {
-  getCalendarPermissionStatus,
-  requestCalendarPermission,
-  invalidateCalendarPermissionCache,
-  warmupCalendarProvider,
-  shouldAutoRequestCalendarPermission,
-} from "../facades/calendar.js";
-import {
   initPowerManagement,
   initPowerEvents,
   cleanupPowerManagement,
@@ -25,17 +10,20 @@ import {
   allowSleep,
 } from "../system/power.js";
 import { updateTrayTitle } from "../tray.js";
-import { getSettings, loadSettings } from "../facades/settings.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
-import {
-  reviveCalendarWatcher,
-  startCalendarWatcher,
-  stopCalendarWatcher,
-} from "../facades/calendar-watcher.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
-import { bindComposition } from "../composition/bind-composition.js";
+import { createAppGraph, type AppGraph } from "../composition/app-graph.js";
+import { stopScheduler } from "../scheduler/facade.js";
+import { stopCalendarWatcher } from "../facades/calendar-watcher.js";
+
+/** Active graph for this process (set during initializeApp). */
+let activeGraph: AppGraph | null = null;
+
+export function getActiveAppGraph(): AppGraph | null {
+  return activeGraph;
+}
 
 /**
  * Initialize all app subsystems after Electron is ready.
@@ -81,72 +69,69 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
   };
 
   try {
-    // Composition: bind use-case defaults before IPC
-    tryRunCritical("bindComposition", () => {
-      bindComposition();
+    // Composition root: wire adapters/use-case defaults before IPC
+    let graph!: AppGraph;
+    tryRunCritical("createAppGraph", () => {
+      graph = createAppGraph();
+      activeGraph = graph;
     });
 
     // Pre-warm calendar provider (Swift compile on Darwin) — don't block init
     tryRun("warmupCalendarProvider", () => {
-      warmupCalendarProvider().catch((err: unknown) => {
+      graph.calendar.warmup().catch((err: unknown) => {
         console.warn("[lifecycle] Calendar provider pre-warm failed:", err);
       });
     });
 
     // Register IPC handlers before any async ops — renderer may call channels early
-    tryRunCritical("registerIpcHandlers", () => registerIpcHandlers(mainWindow));
+    tryRunCritical("registerIpcHandlers", () => registerIpcHandlers(mainWindow, graph));
 
     // Load settings and check calendar permission in parallel
-    // loadSettings is critical (must succeed before scheduler starts);
-    // calendarPermission is non-critical (errors collected, no throw)
     await Promise.all([
       tryRunAsyncCritical("loadSettings", async () => {
-        const result = await loadSettings();
+        const result = await graph.settings.load();
         if (!result.ok) {
           console.warn("[lifecycle] Settings load warning:", result.error);
         }
       }),
       tryRunAsync("calendarPermission", async () => {
-        const calendarPerm = await getCalendarPermissionStatus();
-        // Darwin: request EventKit when not determined. Windows: never auto-OAuth (K16).
-        if (calendarPerm === "not-determined" && shouldAutoRequestCalendarPermission()) {
+        const calendarPerm = await graph.calendar.getPermissionStatus();
+        // Darwin: request EventKit when not determined. Windows: never auto-OAuth.
+        if (calendarPerm === "not-determined" && graph.calendar.shouldAutoRequestPermission()) {
           console.log("[lifecycle] Calendar permission not determined — requesting...");
-          await requestCalendarPermission();
+          await graph.calendar.requestPermission();
         }
       }),
     ]);
 
     tryRunCritical("setupTray", () => setupTray(mainWindow));
-    tryRun("setTrayTitleCallback", () => setTrayTitleCallback(updateTrayTitle));
-    tryRun("setSchedulerWindow", () => setSchedulerWindow(mainWindow));
+    tryRun("setTrayTitleCallback", () => graph.scheduler.setTrayTitleCallback(updateTrayTitle));
+    tryRun("setSchedulerWindow", () => graph.scheduler.setWindow(mainWindow));
     tryRun("initPowerCallbacks", () =>
-      initPowerCallbacks({ getPollInterval, preventSleep, allowSleep }),
+      graph.scheduler.initPowerCallbacks({ getPollInterval, preventSleep, allowSleep }),
     );
 
-    tryRun("startScheduler", () => startScheduler());
-    tryRun("startCalendarWatcher", () => startCalendarWatcher());
+    tryRun("startScheduler", () => graph.scheduler.start());
+    tryRun("startCalendarWatcher", () => graph.watcher.start());
     tryRun("initPowerManagement", () =>
       initPowerManagement(() => {
-        invalidateCalendarPermissionCache();
-        reviveCalendarWatcher();
-        restartScheduler();
+        graph.calendar.invalidatePermissionCache();
+        graph.watcher.revive();
+        graph.scheduler.restart();
       }),
     );
     tryRun("initPowerEvents", () => initPowerEvents());
-    tryRun("registerShortcuts", () => registerShortcuts());
+    tryRun("registerShortcuts", () => registerShortcuts(graph));
 
-    // Check notification permission on first run
     tryRun("checkNotificationPermission", () => {
       void checkNotificationPermission();
     });
 
-    // Sync auto-launch setting on startup
     tryRun("syncAutoLaunch", () => {
-      const settings = getSettings();
+      const settings = graph.settings.get();
       syncAutoLaunch(settings.launchAtLogin);
     });
 
-    // Packaged NSIS/app installs only — portable and dev skip (K11/K26)
     tryRun("initAutoUpdater", () => {
       initAutoUpdater();
     });
@@ -169,7 +154,15 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
  */
 export function shutdownApp(): void {
   cleanupPowerManagement();
-  stopScheduler();
-  stopCalendarWatcher();
+  const graph = activeGraph;
+  if (graph) {
+    graph.scheduler.stop();
+    graph.watcher.stop();
+  } else {
+    // No graph (tests / early quit) — fall back to free-function stop.
+    stopScheduler();
+    stopCalendarWatcher();
+  }
   unregisterShortcuts();
+  activeGraph = null;
 }

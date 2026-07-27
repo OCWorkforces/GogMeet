@@ -11,7 +11,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `facades/` | `calendar.ts`, `calendar-watcher.ts`, `calendar-status.ts`, `settings.ts` | calendar facade + UI status, watcher, last poll status, settings v2 |
 | `application/` | ports, use-cases | ports + use-case factories |
 | `infrastructure/` | adapters | driven adapters (settings store, opener, …) |
-| `composition/` | `bind-composition.ts` | wires use-case defaults at bootstrap |
+| `composition/` | `app-graph.ts`, `bind-composition.ts` | `createAppGraph` + use-case default rebind |
 | `calendar/` | factory, providers, auth, url-extract, offline-cache | CalendarProvider backends |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |

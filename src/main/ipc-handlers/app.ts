@@ -2,11 +2,10 @@ import { app, type IpcMainInvokeEvent } from "electron";
 import { asEventId, asMeetUrl } from "../../domain/entities/brand.js";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
 import { err } from "../../domain/entities/result.js";
-import { joinMeetingById } from "../utils/join-meeting.js";
-import { openMeetingUrl } from "../utils/meet-url.js";
+import type { AppGraph } from "../composition/app-graph.js";
 import { typedHandle, validateSender } from "./shared.js";
 
-export function registerAppHandlers(): void {
+export function registerAppHandlers(graph: AppGraph): void {
   typedHandle(
     IPC_CHANNELS.APP_OPEN_EXTERNAL,
     async (
@@ -16,10 +15,9 @@ export function registerAppHandlers(): void {
       if (!validateSender(event)) return err("Unauthorized");
       const raw = payload?.url;
       if (typeof raw !== "string") return err("Invalid URL payload");
-      // Re-validate at the main trust boundary (do not trust preload brand alone)
       const branded = asMeetUrl(raw);
       if (!branded.ok) return err(branded.error);
-      return openMeetingUrl(branded.value);
+      return graph.opener.open(branded.value);
     },
   );
 
@@ -34,7 +32,7 @@ export function registerAppHandlers(): void {
       if (typeof raw !== "string") return err("Invalid event id");
       const branded = asEventId(raw);
       if (!branded.ok) return err(branded.error);
-      return joinMeetingById(branded.value);
+      return graph.join.byId(branded.value);
     },
   );
 
