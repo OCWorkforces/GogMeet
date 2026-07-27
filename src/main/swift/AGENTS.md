@@ -6,14 +6,14 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 
 | File | Role |
 | --- | --- |
-| `binary-manager.ts` | Locate Swift source, coordinate cache/compile, run helper. Classifies exit 2/3/4 without recompile. |
-| `binary-cache.ts` | Hash Swift source and manage `/tmp/googlemeet/` binary/cache paths. |
-| `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior. |
-| `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES**. |
-| `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields. |
-| `event-field-parser.ts` | Parse individual JSON record fields and optional values (no description cleaning — use `calendar/clean-description.ts`). |
-| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to neutral `calendar-*` AppError kinds. |
-| `guards.ts` | Exec/tuple guards for helper I/O; imports `isObjectRecord` from `shared/type-guards`. |
+| `binary-manager.ts` | Locate Swift source, coordinate cache/compile, run helper. Classifies exit 2/3/4 without recompile |
+| `binary-cache.ts` | Hash Swift source and manage `{tmpdir}/googlemeet/` binary/cache paths |
+| `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior |
+| `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES** |
+| `event-parser.ts` | Parse 9-field Swift lines into `MeetingEvent[]` with branded fields |
+| `event-field-parser.ts` | Parse individual JSON record fields (description cleaning → domain `clean-description`) |
+| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `calendar-*` AppError kinds |
+| `guards.ts` | Exec/tuple guards; imports `isObjectRecord` from `domain/entities/type-guards` |
 
 ## Binary cache
 
@@ -21,7 +21,7 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 - Binary: `…/googlemeet-events`.
 - Hash sidecar: `…/source.hash`.
 - Recompile when source hash changes or binary is missing.
-- **Do not recompile** on semantic exits 2 (permission), 3 (no calendars), 4 (helper error) — throw `SwiftHelperError` so domain returns structured `CalendarResult` codes.
+- **Do not recompile** on semantic exits 2 (permission), 3 (no calendars), 4 (helper error) — throw `SwiftHelperError` so callers return structured `CalendarResult` codes.
 
 ## Source paths
 
@@ -44,7 +44,7 @@ JSON Lines: nine strings per line — `uid`, `title`, `startISO`, `endISO`, `url
 
 - Debounce CHANGED ~2s; exponential restart backoff up to MAX_RETRIES (5).
 - After give-up: **cooldown** then reset retries and spawn again.
-- `reviveWatchSidecar()` / domain `reviveCalendarWatcher()` used on power resume.
+- `reviveWatchSidecar()` / facade `reviveCalendarWatcher()` / `graph.watcher.revive()` on power resume.
 - SIGTERM → SIGKILL after grace; stable runtime resets retry budget.
 
 ## Parsing rules
@@ -55,5 +55,5 @@ JSON Lines: nine strings per line — `uid`, `title`, `startISO`, `endISO`, `url
 
 ## Rules
 
-- Leaf package: no Electron/window/scheduler imports (domain is the consumer).
+- Leaf package relative to calendar: no Electron/window/scheduler imports. Sole production importer is Darwin EventKit provider.
 - Tests mock `node:child_process` with `promisify.custom`.

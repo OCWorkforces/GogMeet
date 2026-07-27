@@ -14,7 +14,7 @@
 | `log.ts` | electron-log bootstrap | `configureMainLogging()` |
 | `system-settings.ts` | Open OS settings (non-meeting egress) | `openSystemSettings()` |
 
-## MOVED TO DOMAIN / INFRASTRUCTURE
+## CANONICAL HOMES (not in this package)
 
 | Concern | Canonical home |
 | --- | --- |
@@ -28,3 +28,4 @@
 - Before meeting URL egress, use `openMeetingUrl()` / `joinMeetingById` / graph surfaces.
 - Join paths must use `joinMeetingById` (not raw unenriched openExternal).
 - Do not re-export domain or infrastructure modules from this package.
+- Prefer `createShellMeetingOpener` from infrastructure for new composition wiring; `openMeetingUrl` remains the free-function convenience for scheduler adapters.
