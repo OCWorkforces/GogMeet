@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Api } from "../../src/preload/index.js";
-import type { CalendarPermission } from "../../src/shared/calendar-result.js";
-import type { CalendarResult } from "../../src/shared/calendar-result.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { CalendarPermission } from "../../src/domain/entities/calendar-result.js";
+import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, createMockSettings } from "../helpers/test-utils.js";
 
 /**
@@ -458,7 +458,7 @@ describe("IPC guard — setHeight dedup (Task 1c)", () => {
   });
 });
 
-describe("Wave 2: Skip re-render when events unchanged (Task 2a)", () => {
+describe("Skip re-render when events unchanged", () => {
   it("skips render when events key is identical to previous", () => {
     const render = vi.fn();
     let lastEventsKey = "";
@@ -596,7 +596,7 @@ describe("Wave 2: Skip re-render when events unchanged (Task 2a)", () => {
   });
 });
 
-describe("Wave 2: Debounce visibility-change poll (Task 2b)", () => {
+describe("Debounce visibility-change poll", () => {
   it("skips loadEvents when visibility changes within 5s", () => {
     const loadEvents = vi.fn();
     let lastPollTime = 0;

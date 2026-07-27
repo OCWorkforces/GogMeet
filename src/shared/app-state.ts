@@ -1,4 +1,4 @@
-import type { MeetingEvent } from "./meeting-event.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
 
 export type AppState =
   | { type: "loading" }

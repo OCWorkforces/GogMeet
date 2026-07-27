@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 type MockTrayInstance = {
   setToolTip: ReturnType<typeof vi.fn>;
@@ -23,6 +24,7 @@ vi.mock("electron", () => ({
       .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
     this.popUpContextMenu = vi.fn();
     this.setContextMenu = vi.fn();
+    this.destroy = vi.fn();
   }),
   Menu: { buildFromTemplate: vi.fn().mockReturnValue({}) },
   shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
@@ -33,7 +35,7 @@ vi.mock("electron", () => ({
       .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)), isEmpty: vi.fn().mockReturnValue(false) }),
     createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
   },
-  nativeTheme: { shouldUseDarkColors: false, on: vi.fn() },
+  nativeTheme: { shouldUseDarkColors: false, on: vi.fn(), removeListener: vi.fn() },
   BrowserWindow: vi.fn().mockImplementation(function (this: {
     on: ReturnType<typeof vi.fn>;
   }) {
@@ -41,7 +43,7 @@ vi.mock("electron", () => ({
   }),
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   getCalendarUiState: vi.fn().mockReturnValue({
     permission: "not-determined",
@@ -60,7 +62,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   forcePoll: vi.fn(),
 }));
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
+vi.mock("../../src/domain/services/build-meet-url.js", () => ({
   buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl || ""),
 }));
 
@@ -68,7 +70,7 @@ vi.mock("../../src/main/windows/about-window.js", () => ({
   showAbout: vi.fn(),
 }));
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
 }));
 
@@ -112,7 +114,7 @@ describe("formatRemainingTime", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const timeModule = await import("../../src/shared/utils/time.js");
+    const timeModule = await import("../../src/domain/services/time.js");
     formatRemainingTime = timeModule.formatRemainingTime;
   });
 
@@ -187,7 +189,7 @@ describe("tray module exports", () => {
     const { Tray } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     expect(Tray).toHaveBeenCalled();
   });
@@ -197,7 +199,7 @@ describe("tray module exports", () => {
     const { Tray } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     const trayInstance = getLatestTrayInstance(Tray);
     expect(trayInstance.setToolTip).toHaveBeenCalledWith("GogMeet");
@@ -208,7 +210,7 @@ describe("tray module exports", () => {
     const { nativeTheme } = await import("electron");
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     expect(nativeTheme.on).toHaveBeenCalledWith(
       "updated",
@@ -224,8 +226,8 @@ describe("tray module exports", () => {
     vi.mocked(app.once).mockClear();
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow);           // First call: registers before-quit
-    setupTray(mockWindow);           // Second call: should skip
+    setupTray(mockWindow, testAppGraph());           // First call: registers before-quit
+    setupTray(mockWindow, testAppGraph());           // Second call: should skip
 
     const beforeQuitCalls = vi.mocked(app.once).mock.calls.filter(
       (c: unknown[]) => c[0] === "before-quit",
@@ -241,7 +243,7 @@ describe("tray module exports", () => {
     const mockWindow = new BrowserWindow();
 
     // When: setup registers the tray item.
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
 
     // Then: the native tray menu is already installed for the first status-item activation.
     const trayInstance = getLatestTrayInstance(Tray);
@@ -261,7 +263,7 @@ describe("tray module exports", () => {
 
     // Given: a tray exists with its initial loading menu installed.
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.setContextMenu).mockClear();
 
@@ -279,7 +281,7 @@ describe("tray module exports", () => {
     const { BrowserWindow, Tray } = await import("electron");
 
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
 
     const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
@@ -300,7 +302,7 @@ describe("tray module exports", () => {
 
     vi.mocked(forcePoll).mockClear();
     const mockWindow = new BrowserWindow();
-    setupTray(mockWindow);
+    setupTray(mockWindow, testAppGraph());
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.popUpContextMenu).mockClear();
 
@@ -312,5 +314,134 @@ describe("tray module exports", () => {
     expect(forcePoll).toHaveBeenCalled();
     expect(trayInstance.popUpContextMenu).not.toHaveBeenCalled();
   });
-});
 
+  it("updateTrayTitle sets Darwin title and Windows tooltip", async () => {
+    platformState.darwin = true;
+    const { setupTray, updateTrayTitle, destroyTray } = await import("../../src/main/tray.js");
+    const { Tray } = await import("electron");
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
+    setupTray(mockWindow, testAppGraph());
+    const trayInstance = getLatestTrayInstance(Tray);
+    updateTrayTitle("Standup Meeting Title", 12, false);
+    expect(trayInstance.setTitle).toHaveBeenCalled();
+    updateTrayTitle(null);
+    expect(trayInstance.setTitle).toHaveBeenCalledWith("");
+
+    platformState.darwin = false;
+    vi.resetModules();
+    const tray2 = await import("../../src/main/tray.js");
+    const electron = await import("electron");
+    tray2.setupTray({} as never, testAppGraph());
+    const inst = getLatestTrayInstance(electron.Tray);
+    tray2.updateTrayTitle("Win Meet", 5, true);
+    expect(inst.setToolTip).toHaveBeenCalled();
+    tray2.destroyTray();
+  });
+
+  it("destroyTray removes listeners and is idempotent", async () => {
+    vi.resetModules();
+    const { setupTray, destroyTray } = await import("../../src/main/tray.js");
+    const { Tray, nativeTheme } = await import("electron");
+    vi.mocked(nativeTheme.on).mockClear();
+    vi.mocked(nativeTheme.removeListener).mockClear();
+    const mockWindow = {} as Parameters<typeof setupTray>[0];
+    setupTray(mockWindow, testAppGraph());
+    const trayInstance = getLatestTrayInstance(Tray);
+    trayInstance.destroy = vi.fn();
+    const themeCalls = vi.mocked(nativeTheme.on).mock.calls.filter((c) => c[0] === "updated");
+    const themeHandler = themeCalls[themeCalls.length - 1]?.[1];
+    expect(themeHandler).toBeTypeOf("function");
+    destroyTray();
+    expect(trayInstance.destroy).toHaveBeenCalled();
+    expect(nativeTheme.removeListener).toHaveBeenCalledWith("updated", themeHandler);
+    destroyTray();
+  });
+
+  it("status listener rebuilds menu and offline tooltip on Windows", async () => {
+    platformState.darwin = false;
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { mainBus } = await import("../../src/main/events.js");
+    const { Tray } = await import("electron");
+    setupTray({} as never, testAppGraph());
+    const trayInstance = getLatestTrayInstance(Tray);
+    vi.mocked(trayInstance.setContextMenu).mockClear();
+    mainBus.emit("calendar-status-updated", {
+      permission: "granted",
+      phase: "ready",
+      lastError: null,
+      accountEmail: "u@example.com",
+      events: [createMockEvent()],
+      offline: true,
+      oauthConfigured: true,
+    });
+    expect(trayInstance.setContextMenu).toHaveBeenCalled();
+  });
+
+  it("theme update swaps tray image", async () => {
+    vi.resetModules();
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { nativeTheme, Tray } = await import("electron");
+    vi.mocked(nativeTheme.on).mockClear();
+    setupTray({} as never, testAppGraph());
+    const trayInstance = getLatestTrayInstance(Tray);
+    const themeCalls = vi.mocked(nativeTheme.on).mock.calls.filter((c) => c[0] === "updated");
+    const themeHandler = themeCalls[themeCalls.length - 1]?.[1] as (() => void) | undefined;
+    expect(themeHandler).toBeTypeOf("function");
+    vi.mocked(trayInstance.setImage).mockClear();
+    themeHandler?.();
+    expect(trayInstance.setImage).toHaveBeenCalled();
+  });
+
+  it("menu callbacks invoke graph surfaces", async () => {
+    const join = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+    const forcePoll = vi.fn().mockResolvedValue(undefined);
+    const requestPermission = vi.fn().mockResolvedValue("granted");
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const graph = testAppGraph({
+      join: { byId: join },
+      scheduler: {
+        forcePoll,
+        getLastKnownEvents: () => null,
+        cancelPendingBrowserOpen: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        restart: vi.fn(),
+        setWindow: vi.fn(),
+        setTrayTitleCallback: vi.fn(),
+        initPowerCallbacks: vi.fn(),
+      },
+      calendar: {
+        getEvents: vi.fn(),
+        requestPermission,
+        getPermissionStatus: vi.fn(),
+        disconnect,
+        getUiState: () => ({
+          permission: "not-determined",
+          phase: "disconnected",
+          lastError: null,
+          accountEmail: null,
+          events: null,
+          offline: false,
+          oauthConfigured: true,
+        }),
+        warmup: vi.fn(),
+        invalidatePermissionCache: vi.fn(),
+        shouldAutoRequestPermission: () => false,
+        reportPollError: vi.fn(),
+      },
+    });
+    platformState.darwin = false;
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { Menu } = await import("electron");
+    setupTray({} as never, graph);
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      label?: string;
+      click?: () => void;
+      submenu?: Array<{ label?: string; click?: () => void }>;
+    }>;
+    const connect = template?.find((i) => i.label?.includes("Connect"));
+    connect?.click?.();
+    await Promise.resolve();
+    expect(requestPermission).toHaveBeenCalled();
+  });
+});

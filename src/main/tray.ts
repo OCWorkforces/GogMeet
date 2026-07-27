@@ -1,4 +1,5 @@
 import type { BrowserWindow } from "electron";
+import type { AppGraph } from "./composition/app-graph.js";
 import {
   Tray,
   nativeImage,
@@ -10,22 +11,16 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { MeetingEvent } from "../shared/meeting-event.js";
-import type { CalendarUiState } from "../shared/calendar-ui-state.js";
+import type { EventId } from "../domain/entities/brand.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
+import type { CalendarUiState } from "../domain/entities/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
-import { getSettings } from "./domain/settings.js";
-import { getLastCalendarStatus } from "./domain/calendar-status.js";
-import { formatRemainingTime } from "../shared/utils/time.js";
+import { getLastCalendarStatus } from "./facades/calendar-status.js";
+import { formatRemainingTime } from "../domain/services/time.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
-import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
 import { isDarwin } from "./platform/os.js";
-import {
-  disconnectCalendar,
-  getCalendarUiState,
-  requestCalendarPermission,
-} from "./domain/calendar.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +36,8 @@ let lastToolTip: string | null = null;
 let lastContextMenu: Electron.Menu | null = null;
 
 let beforeQuitRegistered = false;
+/** Graph used for tray actions (set in setupTray). */
+let trayGraph: AppGraph | null = null;
 
 /** Max characters for the event title portion of the macOS status-item title */
 const TRAY_TITLE_MAX_CHARS = 12;
@@ -57,31 +54,41 @@ function assetsDir(): string {
   return path.join(__dirname, "..", "..", "src", "assets");
 }
 
-function menuCallbacks(mainWindow: BrowserWindow) {
+function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
   return {
     onAbout: () => showAbout(mainWindow),
     onOpenSettings: () => createSettingsWindow(),
     onConnectGoogle: () => {
-      void requestCalendarPermission().then((status) => {
+      void graph.calendar.requestPermission().then((status) => {
         if (status === "granted") {
-          void forcePoll();
+          void graph.scheduler.forcePoll();
         }
       });
     },
     onDisconnectGoogle: () => {
-      void disconnectCalendar().then(() => {
+      void graph.calendar.disconnect().then(() => {
         cachedMeetings = null;
         refreshContextMenu(mainWindow);
       });
     },
     onRetryPoll: () => {
-      void forcePoll();
+      void graph.scheduler.forcePoll();
+    },
+    onJoinMeeting: (id: EventId) => {
+      void graph.join.byId(id);
+    },
+    onForcePoll: () => {
+      void graph.scheduler.forcePoll();
     },
   };
 }
 
 function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructorOptions[] {
-  const ui = cachedUi ?? getCalendarUiState();
+  const graph = trayGraph;
+  if (!graph) {
+    return [{ label: "Loading…", enabled: false }];
+  }
+  const ui = cachedUi ?? graph.calendar.getUiState();
   const events = cachedMeetings ?? ui.events ?? [];
 
   const snapshot: CalendarUiState = {
@@ -98,8 +105,8 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
         phase: cachedMeetings.length === 0 ? "empty" : "ready",
         events: cachedMeetings,
       },
-      getSettings().showTomorrowMeetings,
-      menuCallbacks(mainWindow),
+      graph.settings.get().showTomorrowMeetings,
+      menuCallbacks(mainWindow, graph),
       status,
     );
   }
@@ -110,8 +117,8 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     snapshot.events !== undefined && snapshot.events !== null
       ? snapshot
       : { ...snapshot, events: events.length > 0 ? events : [] },
-    getSettings().showTomorrowMeetings,
-    menuCallbacks(mainWindow),
+    graph.settings.get().showTomorrowMeetings,
+    menuCallbacks(mainWindow, graph),
     status,
   );
 }
@@ -228,7 +235,8 @@ export function buildWindowsTrayTooltip(
   return truncateTrayTooltip(full);
 }
 
-export function setupTray(mainWindow: BrowserWindow): void {
+export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
+  trayGraph = graph;
   // IMPORTANT: use nativeImage.createFromPath() — it understands asar virtual paths.
   // fs.readFileSync() does NOT resolve asar paths in the main process and will throw,
   // which silently prevents the tray from ever being created.
@@ -272,7 +280,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
   refreshContextMenu(mainWindow);
 
   tray.on("click", () => {
-    void forcePoll();
+    void graph.scheduler.forcePoll();
     // Windows: left-click should open the menu (right-click uses setContextMenu).
     // macOS: keep click = refresh only; menu is the status-item context menu.
     if (!isDarwin() && tray && lastContextMenu) {
@@ -286,6 +294,7 @@ export function setupTray(mainWindow: BrowserWindow): void {
  * Safe to call multiple times.
  */
 export function destroyTray(): void {
+  trayGraph = null;
   if (meetingsListener) {
     mainBus.off("meeting-list-updated", meetingsListener);
     meetingsListener = null;
@@ -330,6 +339,6 @@ export function updateTrayTitle(
     return;
   }
 
-  const offline = getCalendarUiState().offline;
+  const offline = (trayGraph?.calendar.getUiState() ?? cachedUi)?.offline ?? false;
   applyToolTip(buildWindowsTrayTooltip(title, minsRemaining, inMeeting, offline));
 }

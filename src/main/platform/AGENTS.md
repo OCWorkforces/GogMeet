@@ -2,7 +2,7 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-OS process-platform helpers. Do **not** confuse with `utils/platform.ts` (meeting host: Meet vs Zoom).
+OS process-platform helpers. Do **not** confuse with `domain/services/platform.ts` (meeting host: Meet vs Zoom).
 
 ## FILES
 

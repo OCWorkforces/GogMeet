@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { asEventId } from "../../shared/brand.js";
-import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
+import { asEventId } from "../../domain/entities/brand.js";
+import type { AppGraph } from "../composition/app-graph.js";
 import { validateOnSender } from "./shared.js";
 
 /**
@@ -11,7 +11,7 @@ import { validateOnSender } from "./shared.js";
  * full-screen meeting alert. Cancels any pending browser auto-open timer
  * for the event and marks it as fired so refresh polls do not re-arm it.
  */
-export function registerAlertHandlers(): void {
+export function registerAlertHandlers(graph: AppGraph): void {
   ipcMain.on(IPC_CHANNELS.ALERT_DISMISSED, (event, payload: unknown) => {
     if (!validateOnSender(event)) return;
     if (typeof payload !== "object" || payload === null) return;
@@ -19,6 +19,6 @@ export function registerAlertHandlers(): void {
     if (typeof rawId !== "string") return;
     const result = asEventId(rawId);
     if (!result.ok) return;
-    cancelPendingBrowserOpen(result.value);
+    graph.scheduler.cancelPendingBrowserOpen(result.value);
   });
 }

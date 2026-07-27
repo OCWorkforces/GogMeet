@@ -1,5 +1,5 @@
 import { state, setActiveTitleEventId, markTitleDirty } from "./state/index.js";
-import type { EventId } from "../../shared/brand.js";
+import type { EventId } from "../../domain/entities/brand.js";
 import { resolveActiveTitleEvent, startInMeetingCountdown } from "./countdown.js";
 
 /** How long before meeting start to show the tray title (ms) */

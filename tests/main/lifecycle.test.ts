@@ -82,7 +82,7 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: mockUpdateTrayTitle,
 }));
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: mockGetSettings,
   loadSettings: mockLoadSettings,
 }));
@@ -108,7 +108,7 @@ vi.mock("../../src/main/system/power.js", () => ({
   allowSleep: mockAllowSleep,
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarEventsResult: mockGetCalendarEventsResult,
@@ -117,7 +117,7 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
   shouldAutoRequestCalendarPermission: mockShouldAutoRequestCalendarPermission,
 }));
 
-vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
+vi.mock("../../src/main/facades/calendar-watcher.js", () => ({
   startCalendarWatcher: mockStartCalendarWatcher,
   stopCalendarWatcher: mockStopCalendarWatcher,
   reviveCalendarWatcher: mockReviveCalendarWatcher,
@@ -126,6 +126,15 @@ vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
 vi.mock("../../src/main/system/auto-updater.js", () => ({
   initAutoUpdater: mockInitAutoUpdater,
 }));
+
+vi.mock("../../src/main/composition/app-graph.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../src/main/composition/app-graph.js")>();
+  return {
+    ...mod,
+    createAppGraph: (opts?: Parameters<typeof mod.createAppGraph>[0]) =>
+      mod.createAppGraph({ skipBind: true, ...opts }),
+  };
+});
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   initPowerCallbacks: mockInitPowerCallbacks,
@@ -150,10 +159,10 @@ describe("lifecycle", () => {
       await initializeApp(mockWindow);
 
       // IPC handlers registered with main window
-      expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow);
+      expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Tray set up with main window
-      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow);
+      expect(mockSetupTray).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Scheduler receives tray callback and window reference
       expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(

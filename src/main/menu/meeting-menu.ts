@@ -1,12 +1,11 @@
 import { app, clipboard, type MenuItemConstructorOptions } from "electron";
-import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/utils/time.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
-import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
-import type { CalendarStatus } from "../domain/calendar-status.js";
-import { forcePoll } from "../scheduler/facade.js";
-import { joinMeetingById } from "../utils/join-meeting.js";
-import { buildMeetUrl } from "../utils/meet-url.js";
+import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../domain/services/time.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
+import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
+import type { EventId } from "../../domain/entities/brand.js";
+import type { CalendarStatus } from "../facades/calendar-status.js";
+import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
 import { openSystemSettings } from "../utils/system-settings.js";
 import { isDarwin } from "../platform/os.js";
 
@@ -16,6 +15,10 @@ export interface MenuCallbacks {
   onConnectGoogle?: () => void;
   onDisconnectGoogle?: () => void;
   onRetryPoll?: () => void;
+  /** Join a meeting by id (typically graph.join.byId). */
+  onJoinMeeting: (id: EventId) => void;
+  /** Force calendar poll (typically graph.scheduler.forcePoll). */
+  onForcePoll: () => void;
 }
 
 function statusRows(status: CalendarStatus): MenuItemConstructorOptions[] {
@@ -47,7 +50,11 @@ function statusRows(status: CalendarStatus): MenuItemConstructorOptions[] {
   ];
 }
 
-function meetingItem(event: MeetingEvent, now: Date): MenuItemConstructorOptions {
+function meetingItem(
+  event: MeetingEvent,
+  now: Date,
+  callbacks: MenuCallbacks,
+): MenuItemConstructorOptions {
   const hasUrl = !!event.meetUrl;
   const isInProgress = new Date(event.startDate) <= now;
   const timeLabel = isInProgress
@@ -67,7 +74,7 @@ function meetingItem(event: MeetingEvent, now: Date): MenuItemConstructorOptions
       {
         label: "Join",
         click: () => {
-          void joinMeetingById(event.id);
+          callbacks.onJoinMeeting(event.id);
         },
       },
       {
@@ -84,6 +91,7 @@ function meetingItem(event: MeetingEvent, now: Date): MenuItemConstructorOptions
 function meetingDayRows(
   events: MeetingEvent[],
   showTomorrowMeetings: boolean,
+  callbacks: MenuCallbacks,
 ): MenuItemConstructorOptions[] {
   const now = new Date();
   const todayStart = startOfDay(now);
@@ -114,7 +122,7 @@ function meetingDayRows(
   if (todayEvents.length > 0) {
     items.push({ label: "Today", enabled: false });
     for (const event of todayEvents) {
-      items.push(meetingItem(event, now));
+      items.push(meetingItem(event, now, callbacks));
     }
   }
 
@@ -122,7 +130,7 @@ function meetingDayRows(
     if (items.length > 0) items.push({ type: "separator" });
     items.push({ label: "Tomorrow", enabled: false });
     for (const event of tomorrowEvents) {
-      items.push(meetingItem(event, now));
+      items.push(meetingItem(event, now, callbacks));
     }
   }
 
@@ -142,13 +150,13 @@ function footerItems(
       enabled: next !== null,
       click: () => {
         if (!next) return;
-        void joinMeetingById(next.id);
+        callbacks.onJoinMeeting(next.id);
       },
     },
     {
       label: "Refresh",
       click: () => {
-        void forcePoll();
+        callbacks.onForcePoll();
       },
     },
     { type: "separator" },
@@ -201,7 +209,7 @@ export function buildMeetingMenuTemplate(
     if (todayEvents.length > 0) {
       items.push({ label: "Today", enabled: false });
       for (const event of todayEvents) {
-        items.push(meetingItem(event, now));
+        items.push(meetingItem(event, now, callbacks));
       }
     }
 
@@ -209,7 +217,7 @@ export function buildMeetingMenuTemplate(
       if (todayEvents.length > 0) items.push({ type: "separator" });
       items.push({ label: "Tomorrow", enabled: false });
       for (const event of tomorrowEvents) {
-        items.push(meetingItem(event, now));
+        items.push(meetingItem(event, now, callbacks));
       }
     }
   }
@@ -285,7 +293,7 @@ export function buildCalendarTrayMenuTemplate(
   }
 
   if (ui.events !== null) {
-    const dayRows = meetingDayRows(ui.events, showTomorrowMeetings);
+    const dayRows = meetingDayRows(ui.events, showTomorrowMeetings, callbacks);
     // Avoid double "No upcoming meetings" when empty and status already empty-ish
     items.push(...dayRows);
     if (ui.offline) {

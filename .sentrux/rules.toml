@@ -1,3 +1,7 @@
+# Architecture note: `src.main.domain` paths rewritten to `src.main.facades`.
+# Stale denials remain until eslint-plugin-boundaries owns CI edges.
+# Sentrux is NOT wired into package.json / GitHub CI; eslint is the hard gate.
+
 # ════════════════════════════════════════════════════════════════
 # GLOBAL CONSTRAINTS
 # ════════════════════════════════════════════════════════════════
@@ -342,9 +346,9 @@ deny = [
   "src.main.ipc-handlers -> src.main.scheduler.poll",
   "src.main.ipc-handlers -> src.main.scheduler.index",
   "src.main.ipc-handlers -> src.main.scheduler.state.*",
-  "src.main.domain -> src.main.scheduler.poll",
-  "src.main.domain -> src.main.scheduler.index",
-  "src.main.domain -> src.main.scheduler.state.*",
+  "src.main.facades -> src.main.scheduler.poll",
+  "src.main.facades -> src.main.scheduler.index",
+  "src.main.facades -> src.main.scheduler.state.*",
   "src.main.auto-launch -> src.main.scheduler.*",
   "src.main.auto-updater -> src.main.scheduler.*",
   "src.main.notification -> src.main.scheduler.*",
@@ -366,7 +370,7 @@ allow = [
   "src.main.app -> src.main.scheduler.facade",
   "src.main.tray -> src.main.scheduler.facade",
   "src.main.ipc-handlers -> src.main.scheduler.facade",
-  "src.main.domain -> src.main.scheduler.facade",
+  "src.main.facades -> src.main.scheduler.facade",
   "src.main.system -> src.main.scheduler.facade",
   "src.main.shortcuts -> src.main.scheduler.facade",
 ]
@@ -379,7 +383,7 @@ deny = [
   "src.main.app -> src.main.scheduler.state.*",
   "src.main.tray -> src.main.scheduler.state.*",
   "src.main.ipc-handlers -> src.main.scheduler.state.*",
-  "src.main.domain -> src.main.scheduler.state.*",
+  "src.main.facades -> src.main.scheduler.state.*",
   "src.main.system -> src.main.scheduler.state.*",
   "src.main.windows -> src.main.scheduler.state.*",
 ]

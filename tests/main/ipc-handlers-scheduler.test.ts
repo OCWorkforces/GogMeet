@@ -12,6 +12,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 import { registerSchedulerHandlers } from "../../src/main/ipc-handlers/scheduler.js";
 import { ipcMain } from "electron";
 import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 
@@ -36,12 +37,12 @@ describe("registerSchedulerHandlers", () => {
   });
 
   it("registers exactly 1 fire-and-forget handler via ipcMain.on", () => {
-    registerSchedulerHandlers();
+    registerSchedulerHandlers(testAppGraph());
     expect(mockIpcMain.on).toHaveBeenCalledTimes(1);
   });
 
   it("registers handler under the scheduler:force-poll channel", () => {
-    registerSchedulerHandlers();
+    registerSchedulerHandlers(testAppGraph());
     expect(mockIpcMain.on).toHaveBeenCalledWith(
       "scheduler:force-poll",
       expect.any(Function),
@@ -49,13 +50,13 @@ describe("registerSchedulerHandlers", () => {
   });
 
   it("does not register via ipcMain.handle (fire-and-forget, not invoke)", () => {
-    registerSchedulerHandlers();
+    registerSchedulerHandlers(testAppGraph());
     expect(mockIpcMain.handle).not.toHaveBeenCalled();
   });
 
   describe("scheduler:force-poll handler", () => {
     it("calls forcePoll() when sender is authorized (file:// renderer)", () => {
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
       expect(handler).toBeDefined();
 
@@ -64,7 +65,7 @@ describe("registerSchedulerHandlers", () => {
     });
 
     it("rejects unauthorized https:// sender — forcePoll() not invoked", () => {
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
 
       handler!(unauthorizedEvent);
@@ -72,7 +73,7 @@ describe("registerSchedulerHandlers", () => {
     });
 
     it("rejects unauthorized http:// sender — forcePoll() not invoked", () => {
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
 
       handler!(httpUnauthorizedEvent);
@@ -84,7 +85,7 @@ describe("registerSchedulerHandlers", () => {
         senderFrame: { url: "file:///etc/passwd" },
       } as unknown as import("electron").IpcMainEvent;
 
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
 
       handler!(badFileEvent);
@@ -94,7 +95,7 @@ describe("registerSchedulerHandlers", () => {
     it("returns undefined (fire-and-forget, not a Promise)", () => {
       mockForcePoll.mockReturnValue(Promise.resolve());
 
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
 
       const result = handler!(authorizedEvent);
@@ -104,7 +105,7 @@ describe("registerSchedulerHandlers", () => {
     it("does not throw when forcePoll() rejects (void wrapper swallows)", () => {
       mockForcePoll.mockReturnValue(Promise.reject(new Error("poll failed")));
 
-      registerSchedulerHandlers();
+      registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");
 
       expect(() => handler!(authorizedEvent)).not.toThrow();

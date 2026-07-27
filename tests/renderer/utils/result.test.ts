@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Result } from "../../../src/shared/result.js";
-import { ok, err } from "../../../src/shared/result.js";
+import type { Result } from "../../../src/domain/entities/result.js";
+import { ok, err } from "../../../src/domain/entities/result.js";
 
 /**
  * Result<T,E> is the discriminated union used by the renderer's brand

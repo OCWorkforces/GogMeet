@@ -2,48 +2,47 @@
 
 ## OVERVIEW
 
-Shared factories used across the `main`, `renderer`, and `shared` Vitest projects.
+Shared factories used across Vitest projects.
 
 | File | Role |
 | --- | --- |
 | `test-utils.ts` | Brand validators + meeting/settings fixtures (no `vi` / `expect`) |
 | `ipc-sender.ts` | Platform-correct authorized `file://` sender fixtures for IPC tests |
+| `app-graph.ts` | `testAppGraph(overrides)` → `createTestAppGraph` for handler/lifecycle suites |
 
-Import path convention from test files (note `.js` extension even for `.ts` source — matches project ESM resolution):
+Import path convention (note `.js` extension):
 
 ```typescript
 import { createMockEvent, asTestEventId } from "../helpers/test-utils.js";
 import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 ```
 
 ## EXPORTED HELPERS
 
-| Helper                | Signature                                                                 | Purpose                                                                                |
-| --------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `createMockEvent`     | `(overrides?: Partial<MeetingEvent>) => MeetingEvent`                     | Fully-formed `MeetingEvent`. Defaults: id `"test-id"`, start `+5m`, end `+35m`, canonical Meet URL, calendar `"Work"`, `isAllDay: false`, `userEmail: "user@example.com"`. |
-| `createMockSettings`  | `(overrides?: Partial<AppSettings>) => AppSettings`                       | `AppSettings` derived from `DEFAULT_SETTINGS` with shallow overrides.                  |
-| `authorizedInvokeEvent` / `authorizedOnEvent` / `rendererFileUrl` | see `ipc-sender.ts` | Build packaged renderer `file://` URLs via `pathToFileURL(app.getAppPath()...)` so Windows CI accepts them. Do not hardcode `file:///app/lib/renderer/...`. |
-| `createMockIpcEvent`  | `(sender?: Partial<WebContents>) => IpcMainInvokeEvent`                   | Minimal `IpcMainInvokeEvent` with a generic file sender. Prefer `authorizedInvokeEvent` when testing `validateSender()`. |
-| `isoFromNow`          | `(minutes: number, now?: number) => string`                               | ISO-8601 UTC timestamp `minutes` minutes from `now` (defaults to `Date.now()`). Accepts negatives for past times. |
-| `asTestEventId`       | `(raw: string) => EventId`                                                | Throwing wrapper around `asEventId` from `src/shared/brand.js`.                        |
-| `asTestIsoUtc`        | `(raw: string) => IsoUtc`                                                 | Throwing wrapper around `asIsoUtc`.                                                    |
-| `asTestMeetUrl`       | `(raw: string) => MeetUrl`                                                | Throwing wrapper around `asMeetUrl`.                                                   |
+| Helper | Purpose |
+| --- | --- |
+| `createMockEvent` | Fully-formed `MeetingEvent` with sensible defaults |
+| `createMockSettings` | `AppSettings` from `DEFAULT_SETTINGS` + shallow overrides |
+| `authorizedInvokeEvent` / `authorizedOnEvent` / `rendererFileUrl` | Packaged renderer `file://` senders via `pathToFileURL(app.getAppPath()...)` |
+| `createMockIpcEvent` | Minimal invoke event; prefer authorized helpers for `validateSender` |
+| `isoFromNow` | ISO-8601 UTC offset from now |
+| `asTestEventId` / `asTestIsoUtc` / `asTestMeetUrl` | Throw-on-invalid wrappers around domain brand validators |
+| `testAppGraph` | Minimal production-shaped `AppGraph` with optional surface overrides |
 
 ## CONTRACTS
 
-- **Throw-on-invalid branding.** `asTestEventId` / `asTestIsoUtc` / `asTestMeetUrl` call the underlying `Result<T,string>` validator via the internal `unwrapBrand()` and **throw** on `ok === false`. Use these only for known-good fixtures; tests that need to assert validation failure should call `asEventId` / `asIsoUtc` / `asMeetUrl` from `src/shared/brand.js` directly and inspect the `Result`.
-- **Defaults are stable.** `createMockEvent`'s defaults match the convention legacy `makeEvent` factories converged on. If you need a different shape, pass `overrides` instead of mutating the helper — production code may rely on the existing defaults across many suites.
-- **Defaults are time-relative.** `createMockEvent()` calls `isoFromNow()` at invocation time, so each call produces fresh timestamps. Combine with `vi.useFakeTimers()` + `vi.setSystemTime()` for deterministic windows.
-- **Sender mocks are shallow.** `createMockIpcEvent({ getURL: () => "https://evil.example" })` only overrides the methods you supply. Production code touches `sender.getURL`, `sender.isDestroyed`, and `sender.send`; everything else is structurally cast through `unknown`.
-- **No Electron at import time.** The file imports types from `electron` (`IpcMainInvokeEvent`, `WebContents`) but never the runtime — safe to import from `tests/shared/*` and `tests/renderer/*`.
+- **Throw-on-invalid branding.** Use `asTest*` only for known-good fixtures. Assert validation failures with domain `asEventId` / `asMeetUrl` / `asIsoUtc` and inspect `Result`.
+- Brands import from **`src/domain/entities/brand.js`** (not shared).
+- **Defaults are time-relative.** Combine with fake timers for deterministic windows.
+- **No Electron at import time** in `test-utils.ts` (type-only electron imports). `ipc-sender` and graph helpers may touch mocked Electron in main tests.
+- Prefer `testAppGraph({ skipBind: true, ... })` patterns that match `createTestAppGraph` options when suites mock facades.
 
 ## LEGACY FACTORIES
 
-Older suites still ship per-file factories rather than these helpers:
-
-| Per-file factory  | Where                     | Notes                                                                |
-| ----------------- | ------------------------- | -------------------------------------------------------------------- |
-| `makeEvent`       | scheduler-* tests          | Equivalent to `createMockEvent`; new tests should prefer the helper. |
-| `makeSwiftLine`   | `swift/event-parser.test.ts` | Produces a nine-string JSON Lines calendar record fixture; no shared replacement yet. |
+| Per-file factory | Where | Notes |
+| --- | --- | --- |
+| `makeEvent` | scheduler-* tests | Prefer `createMockEvent` for new tests |
+| `makeSwiftLine` | `swift/event-parser.test.ts` | Nine-string JSON Lines fixture; no shared replacement yet |
 
 When extending an existing suite, match the surrounding style; when starting a new test file, use the helpers above.

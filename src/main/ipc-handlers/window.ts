@@ -1,5 +1,5 @@
 import { ipcMain, type BrowserWindow } from "electron";
-import { clampWindowHeight } from "../../shared/brand.js";
+import { clampWindowHeight } from "../../domain/entities/brand.js";
 import { IPC_CHANNELS, type IpcRequest } from "../../shared/ipc-channels.js";
 import { validateOnSender } from "./shared.js";
 

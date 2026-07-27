@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 import { asTestEventId } from "../helpers/test-utils.js";
 
 // Mock electron
@@ -11,7 +11,7 @@ vi.mock("electron", () => ({
 }));
 
 // Mock calendar module so startScheduler's initial poll() resolves quickly
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
@@ -24,7 +24,7 @@ vi.mock("../../src/main/system/power.js", () => ({
 }));
 
 // Mock settings
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({
     schemaVersion: 2,
     openBeforeMinutes: 1,

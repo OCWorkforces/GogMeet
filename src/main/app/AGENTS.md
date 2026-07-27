@@ -4,14 +4,14 @@
 
 ## OVERVIEW
 
-App-level orchestration: subsystem init/shutdown and IPC handler wiring. Imported by `src/main/index.ts`.
+App-level orchestration: composition root, subsystem init/shutdown, and IPC handler wiring. Imported by `src/main/index.ts`.
 
 ## FILES
 
 | File | Exports | Role |
 | --- | --- | --- |
-| `lifecycle.ts` | `initializeApp`, `shutdownApp` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Settings before scheduler; auto-updater last. |
-| `ipc.ts` | `registerIpcHandlers` | Registers handlers from `ipc-handlers/`. |
+| `lifecycle.ts` | `initializeApp`, `shutdownApp`, `getActiveAppGraph` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Creates `AppGraph` first; settings before scheduler; auto-updater last. |
+| `ipc.ts` | `registerIpcHandlers(win, graph)` | Registers handlers from `ipc-handlers/` with the graph. |
 
 ## WHERE TO LOOK
 
@@ -19,14 +19,16 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 | --- | --- |
 | Add subsystem to startup | `lifecycle.ts` → `initializeApp()` |
 | Cleanup on quit | `lifecycle.ts` → `shutdownApp()` |
-| Register IPC module | `ipc.ts` → `registerIpcHandlers()` |
+| Register IPC module | `ipc.ts` → `registerIpcHandlers(win, graph)` |
+| Active graph (rare) | `getActiveAppGraph()` |
 
 ## NOTES
 
-- Imports: `domain/` (calendar, settings, watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, tray — **not** `swift/binary-manager` (warmup via `warmupCalendarProvider`).
-- Calendar permission: status always checked; `requestCalendarPermission` only when `shouldAutoRequestCalendarPermission()` (Darwin).
-- Power resume/unlock: `invalidateCalendarPermissionCache()` then `restartScheduler()`.
+- **First critical step:** `createAppGraph()` then assign `activeGraph`.
+- All subsequent calendar/settings/scheduler/watcher/tray/shortcuts use `graph.*` surfaces.
+- Calendar permission: status always checked; `requestPermission` only when `shouldAutoRequestPermission()` (Darwin).
+- Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
 - Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.
-- Both files are for `index.ts` only.
-- Resume/unlock callback order: `invalidateCalendarPermissionCache()` → `reviveCalendarWatcher()` → `restartScheduler()` so authorization and the watch sidecar recover after sleep/lock.
-- `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged`.
+- `shutdownApp` prefers graph stop; falls back to free-function `stopScheduler` / `stopCalendarWatcher` if no graph (tests / early quit).
+- Both files are for `index.ts` only (plus tests).
+- `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged` or portable.

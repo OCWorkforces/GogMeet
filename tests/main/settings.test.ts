@@ -19,12 +19,12 @@ const MOCK_USER_DATA_PATH = "/tmp/gogmeet-settings-test";
   saveSettings,
   getSettings,
   updateSettings,
-} from "../../src/main/domain/settings.js";
+} from "../../src/main/facades/settings.js";
 import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-} from "../../src/shared/settings.js";
+} from "../../src/domain/entities/settings.js";
 describe("settings", () => {
   const settingsPath = join(MOCK_USER_DATA_PATH, "settings.json");
 

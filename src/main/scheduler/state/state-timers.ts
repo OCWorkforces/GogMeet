@@ -2,7 +2,7 @@
  * around long enough to dedupe rapid delete-and-readd polls but allows eventual re-fire. */
 export const FIRED_EVENT_TTL_MS: number = 15 * 60 * 1000;
 
-import type { EventId, MeetUrl } from "../../../shared/brand.js";
+import type { EventId, MeetUrl } from "../../../domain/entities/brand.js";
 
 export interface ScheduledEventSnapshot {
   title: string;

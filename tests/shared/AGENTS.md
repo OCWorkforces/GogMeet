@@ -2,29 +2,24 @@
 
 ## OVERVIEW
 
-Tests for `src/shared/` modules. Vitest project `shared`, Node environment, **no Electron mocks**, no jsdom. Source files under `src/shared/` are consumed by main, preload, and renderer alike, so they must stay free of process-specific globals — and so do their tests.
+Vitest project `shared`: Node environment, **no Electron mocks**, no jsdom. Intended for residual `src/shared/**` contract tests.
 
-## FILES
+Most pure logic that used to live under shared (brands, errors, pick-join-target, parse-json, event-signature, url validation) now lives in **`src/domain/`** with suites under **`tests/domain/`**.
 
-```
-tests/shared/
-├── errors.test.ts           # AppError taxonomy + SwiftHelperError bridge
-├── event-signature.test.ts  # stable event/list signatures
-├── parse-json.test.ts       # parseJsonObject → AppResult
-└── pick-join-target.test.ts # prefer in-progress joinable meeting
-```
+## CURRENT STATE
 
-## CONVENTIONS
+`tests/shared/` may contain few or no `*.test.ts` files after the domain extract. The Vitest project remains registered with `passWithNoTests: true`.
 
-- Import from `../../src/shared/...` by default. The documented exception is `errors.test.ts`, which imports `SwiftHelperError` from `src/main/swift/event-validator.js` to verify the `toAppError()` bridge.
-- All fallible APIs return `Result<T, E>` / `AppResult<T> = Result<T, AppError>`. Tests assert on the `ok` discriminant (`if (result.ok) { ... } else { ... }`) — no `try/catch` around pure functions.
-- `AppError` is a tagged union with calendar (`calendar-permission-denied` | `calendar-no-calendars` | `calendar-runtime` | `calendar-auth` | `calendar-network`), `validation`, `io`, and `unknown` kinds. Use `isCalendarPermissionDenied`, `isValidationError`, … rather than ad-hoc shape checks.
-- `parseJsonObject(json, label, validator)` always returns `AppResult<T>`; tests cover three failure modes (`SyntaxError` → `validation`, non-object root → `validation` with `"Expected JSON object"`, validator-returned `err`) and the success path.
-- Fixtures may stay inline; branded fixtures can use `tests/helpers/test-utils.ts` wrappers such as `asTestEventId`.
+When adding tests:
 
-## ANTI-PATTERNS
+| Concern | Prefer |
+| --- | --- |
+| Brands, Result, AppError, settings, MeetingEvent | `tests/domain/` |
+| IPC channel constants / maps | often covered in `tests/main/ipc-channels.test.ts` |
+| Thin shared DTOs only | `tests/shared/` |
 
-- Never import `electron`, Node process modules, or arbitrary main-process modules; keep the documented `SwiftHelperError` bridge exception isolated.
-- Never load `tests/setup.main.ts` from this project — it is gated to the `main` workspace.
-- Never duck-type errors with `"error" in result`; always narrow on `result.ok` and `error.kind`.
-- Keep shared tests deterministic; pin time only when the shared utility itself is time-dependent.
+## RULES
+
+- Do not import Electron or arbitrary main-process modules.
+- Do not load `tests/setup.main.ts`.
+- Keep tests deterministic.

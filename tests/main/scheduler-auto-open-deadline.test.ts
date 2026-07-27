@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventId } from "../../src/shared/brand.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { EventId } from "../../src/domain/entities/brand.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 import {
   asTestEventId,
@@ -24,7 +24,7 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: getSettingsMock,
 }));
 
@@ -32,16 +32,20 @@ vi.mock("../../src/main/windows/alert-window.js", () => ({
   showAlert: vi.fn(),
 }));
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
+vi.mock("../../src/domain/services/build-meet-url.js", () => ({
   buildMeetUrl: vi
     .fn()
-    .mockReturnValue("https://meet.google.com/abc-def-ghi?authuser=user@example.com"),
+    .mockReturnValue("https://meet.google.com/abc-def-ghi?authuser=user%40test.com"),
+}));
+
+vi.mock("../../src/main/utils/meet-url.js", () => ({
   openMeetingUrl: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const { scheduleEvents } = await import("../../src/main/scheduler/index.js");
 const { scheduleBrowserTimer } = await import("../../src/main/scheduler/browser-timer.js");
-const { buildMeetUrl, openMeetingUrl } = await import("../../src/main/utils/meet-url.js");
+const { buildMeetUrl } = await import("../../src/domain/services/build-meet-url.js");
+const { openMeetingUrl } = await import("../../src/main/utils/meet-url.js");
 const stateModule = await import("../../src/main/scheduler/state/index.js");
 
 const BASE_NOW = new Date("2026-06-18T12:00:00.000Z").getTime();

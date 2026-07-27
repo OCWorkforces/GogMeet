@@ -2,22 +2,21 @@
 
 ## OVERVIEW
 
-Vanilla TypeScript UI for 3 BrowserWindow contexts. No framework; HTML string templates with `escapeHtml()`. Shared types from `../shared/`.
+Vanilla TypeScript UI for three BrowserWindow contexts. No framework; HTML string templates with `escapeHtml()`. Types from `../shared/` and `../domain/`.
 
 Primary meeting list UX for users is the **native tray menu**; the main BrowserWindow (popover entry) may stay hidden while still receiving pushes for height/list experiments.
 
 ## ENTRY POINTS
 
 | Entry | HTML | Window | Role |
-|-------|------|--------|------|
+| --- | --- | --- | --- |
 | `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
-| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + **Google Calendar account** (connect/disconnect); auto-save |
-| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom animations, `alert:show` push channel |
-| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible) | Schema v2 toggles, auto-save |
+| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + Google account connect/disconnect; auto-save |
+| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom; `alert:show` push |
 
 ## STRUCTURE
 
-```
+```text
 src/renderer/
 ├── index.ts          # List UI entry
 ├── events/           # data-action event delegation
@@ -29,37 +28,38 @@ src/renderer/
 └── utils/            # DOM query helpers
 ```
 
+## LIST WINDOW
+
+- `AppState` lives in `src/shared/app-state.ts` and is imported by `index.ts` and `rendering/body.ts`.
+- States: `loading` → `no-permission` → `no-events` → `has-events` → `error`.
+- `loadEvents()` uses `window.api.calendar.getEvents()`; pushes deliver `MeetingEvent[]` via `onEventsUpdated`.
+- Refresh/retry call `window.api.scheduler.forcePoll()` (fire-and-forget), not a second local fetch path only.
+- Visibility-aware refresh when stale; `lastPollTime` gates first-show fetch.
+
 ## EVENT HANDLING
 
-- `events/delegation.ts` on `#app` with `data-action`
-- Actions: `refresh`, `retry`, `grant-access`, `join-meeting` (uses **`data-event-id`**, not raw URL)
-- Join → `window.api.app.joinMeeting(eventId)`
+- `events/delegation.ts` on `#app` with `data-action`.
+- Actions: `refresh`, `retry`, `grant-access`, `join-meeting` (uses **`data-event-id`**, not raw URL).
+- Join → `window.api.app.joinMeeting(eventId)`.
 
 ## SETTINGS WINDOW (schema v2)
 
-`AppState` is defined in `src/shared/app-state.ts` and imported by both `index.ts` and `rendering/body.ts`. No longer duplicated. States: `loading` → `no-permission` → `no-events` → `has-events` → `error`
-
-- `loadEvents()` fetches cached events via `window.api.calendar.getEvents()`; pushes deliver `MeetingEvent[]` directly through `onEventsUpdated(callback: (events: MeetingEvent[]) => void)`.
-- `window.api.scheduler.forcePoll()` — fires `scheduler:force-poll` IPC (fire-and-forget); refresh/retry buttons call this instead of `loadEvents()` directly
-- Visibility-aware: refreshes on show when stale; push updates arrive through `onEventsUpdated()`.
-- `lastPollTime = Date.now()` prevents redundant fetch on first show
-
-## SETTINGS WINDOW
-
 - Google Calendar section: `calendar.getUiState()` / `requestPermission` / `disconnect`; escape email and lastError.
 - Meeting prefs auto-save: toggle → `window.api.settings.set()` → "✓ Saved" indicator.
-- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle; `saveIndicatorTimers` cleaned on re-render.
-- Save failure reverts toggle + shows error message.
+- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle; clear timers on re-render.
+- Save failure reverts toggle + shows error.
+- Timing fields include `openBeforeMinutes` (0–10), `autoOpenEnabled`, `alertLeadSeconds`, quiet hours, `nativeNotifications`, `lateJoinGraceMinutes`, `showTomorrowMeetings`, `launchAtLogin`.
 
 ## ALERT WINDOW
 
-- Payload: `AlertPayload` with optional `hasMeetUrl` / `autoOpenAt` — **no meetUrl string**
-- Join button when `hasMeetUrl` → `app.joinMeeting(id)` then dismiss
-- Dismiss → `alert.notifyDismissed(id)` (cancels pending auto-open)
-- Escape dismisses
+- Payload: `AlertPayload` with optional `hasMeetUrl` / `autoOpenAt` — **no meetUrl string**.
+- Join when `hasMeetUrl` → `app.joinMeeting(id)` then dismiss.
+- Dismiss → `alert.notifyDismissed(id)` (cancels pending auto-open).
+- Escape dismisses.
 
 ## CONVENTIONS / ANTI-PATTERNS
 
-- Always `escapeHtml` user content in templates
-- Never put meeting URLs in alert payloads or join buttons as openable strings
-- Full re-render on state change; no cross-render DOM refs
+- Always `escapeHtml` user content in templates.
+- Never put meeting URLs in alert payloads or join buttons as openable strings.
+- Full re-render on state change; no cross-render DOM refs.
+- Never import from `src/main/`.

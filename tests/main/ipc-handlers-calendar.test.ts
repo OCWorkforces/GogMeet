@@ -25,7 +25,7 @@ const {
   mockForcePoll: vi.fn(),
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
@@ -41,6 +41,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 import { registerCalendarHandlers } from "../../src/main/ipc-handlers/calendar.js";
 import { ipcMain } from "electron";
 import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 
@@ -61,7 +62,7 @@ describe("registerCalendarHandlers", () => {
   });
 
   it("registers 5 handlers", () => {
-    registerCalendarHandlers();
+    registerCalendarHandlers(testAppGraph());
     expect(mockIpcMain.handle).toHaveBeenCalledTimes(5);
   });
 
@@ -79,7 +80,7 @@ describe("registerCalendarHandlers", () => {
       ];
       mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", events });
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:get-events");
       expect(handler).toBeDefined();
 
@@ -88,7 +89,7 @@ describe("registerCalendarHandlers", () => {
     });
 
     it("returns unauthorized for blocked sender", async () => {
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(unauthorizedEvent);
@@ -100,7 +101,7 @@ describe("registerCalendarHandlers", () => {
         new Error("Calendar error"),
       );
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
@@ -114,7 +115,7 @@ describe("registerCalendarHandlers", () => {
     it("returns stringified error for non-Error exceptions", async () => {
       mockGetCalendarEventsResult.mockRejectedValue("string error");
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
@@ -126,7 +127,7 @@ describe("registerCalendarHandlers", () => {
     it("returns permission status for authorized sender", async () => {
       mockRequestCalendarPermission.mockResolvedValue("granted");
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:request-permission");
 
       const result = await handler!(authorizedEvent);
@@ -134,7 +135,7 @@ describe("registerCalendarHandlers", () => {
     });
 
     it("returns denied for unauthorized sender", async () => {
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:request-permission");
 
       const result = await handler!(unauthorizedEvent);
@@ -144,7 +145,7 @@ describe("registerCalendarHandlers", () => {
     it("returns denied on exception", async () => {
       mockRequestCalendarPermission.mockRejectedValue(new Error("fail"));
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:request-permission");
 
       const result = await handler!(authorizedEvent);
@@ -156,7 +157,7 @@ describe("registerCalendarHandlers", () => {
     it("returns status for authorized sender", async () => {
       mockGetCalendarPermissionStatus.mockResolvedValue("granted");
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:permission-status");
 
       const result = await handler!(authorizedEvent);
@@ -164,7 +165,7 @@ describe("registerCalendarHandlers", () => {
     });
 
     it("returns denied for unauthorized sender", async () => {
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:permission-status");
 
       const result = await handler!(unauthorizedEvent);
@@ -174,11 +175,49 @@ describe("registerCalendarHandlers", () => {
     it("returns denied on exception", async () => {
       mockGetCalendarPermissionStatus.mockRejectedValue(new Error("fail"));
 
-      registerCalendarHandlers();
+      registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:permission-status");
 
       const result = await handler!(authorizedEvent);
       expect(result).toBe("denied");
+    });
+  });
+
+  describe("calendar:disconnect and ui-state", () => {
+    it("disconnect ignores unauthorized", async () => {
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:disconnect");
+      await handler!(unauthorizedEvent);
+      expect(mockDisconnectCalendar).not.toHaveBeenCalled();
+    });
+
+    it("disconnect swallows errors", async () => {
+      mockDisconnectCalendar.mockRejectedValue(new Error("disc fail"));
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:disconnect");
+      await handler!(authorizedEvent);
+      expect(err).toHaveBeenCalled();
+      err.mockRestore();
+    });
+
+    it("ui-state returns default for unauthorized", async () => {
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:ui-state");
+      const result = await handler!(unauthorizedEvent);
+      expect(result).toMatchObject({ phase: "disconnected" });
+    });
+
+    it("ui-state returns default on throw", async () => {
+      mockGetCalendarUiState.mockImplementation(() => {
+        throw new Error("ui fail");
+      });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:ui-state");
+      const result = await handler!(authorizedEvent);
+      expect(result).toMatchObject({ phase: "disconnected" });
+      err.mockRestore();
     });
   });
 });

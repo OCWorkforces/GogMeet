@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { EventId } from "../../src/shared/brand.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { EventId } from "../../src/domain/entities/brand.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { asTestEventId, createMockEvent } from "../helpers/test-utils.js";
 
 vi.mock("../../src/main/windows/alert-window.js", () => ({

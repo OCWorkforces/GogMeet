@@ -160,4 +160,37 @@ describe("factory fixture gate (K23)", () => {
     const provider = await getActiveCalendarProvider();
     expect(provider.id).toBe("google-calendar");
   });
+
+
+  it("handles object-with-events shape and missing file", async () => {
+    await writeFile(
+      fixturePath,
+      JSON.stringify({
+        events: [
+          {
+            id: "o1",
+            title: "Obj",
+            startDate: "2026-04-08T15:00:00.000Z",
+            endDate: "2026-04-08T15:30:00.000Z",
+            calendarName: "Work",
+            isAllDay: false,
+          },
+        ],
+      }),
+    );
+    process.env["GOGMEET_CALENDAR_FIXTURE"] = fixturePath;
+    const provider = createFixtureCalendarProvider(fixturePath);
+    const result = await provider.getEvents();
+    expect(result.kind).toBe("ok");
+    const bad = createFixtureCalendarProvider(join(dir, "missing.json"));
+    const errResult = await bad.getEvents();
+    expect(errResult.kind).toBe("err");
+  });
+
+  it("permission helpers always granted", async () => {
+    await writeFile(fixturePath, "[]");
+    const provider = createFixtureCalendarProvider(fixturePath);
+    expect(await provider.getPermissionStatus()).toBe("granted");
+    expect(await provider.requestPermission()).toBe("granted");
+  });
 });

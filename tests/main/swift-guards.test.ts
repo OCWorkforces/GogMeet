@@ -4,7 +4,7 @@ import {
   getErrorStderr,
   isStringTupleOfLength,
 } from "../../src/main/swift/guards.js";
-import { isObjectRecord } from "../../src/shared/type-guards.js";
+import { isObjectRecord } from "../../src/domain/entities/type-guards.js";
 
 describe("isObjectRecord (shared)", () => {
   it("returns true for plain objects", () => {

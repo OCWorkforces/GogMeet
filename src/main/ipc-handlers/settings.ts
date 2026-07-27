@@ -1,10 +1,8 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
-import { getSettings, updateSettings } from "../domain/settings.js";
-import { restartScheduler } from "../scheduler/facade.js";
+import type { AppGraph } from "../composition/app-graph.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
-import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings.js";
-import { forcePoll } from "../scheduler/facade.js";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../domain/entities/settings.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 /** Keys that require restartScheduler() to reschedule timers / re-evaluate gates */
@@ -24,12 +22,12 @@ function settingsRequireSchedulerRestart(partial: Partial<AppSettings>): boolean
   return (Object.keys(partial) as (keyof AppSettings)[]).some((k) => TIMING_KEYS.has(k));
 }
 
-export function registerSettingsHandlers(win: BrowserWindow): void {
+export function registerSettingsHandlers(win: BrowserWindow, graph: AppGraph): void {
   typedHandle(
     IPC_CHANNELS.SETTINGS_GET,
     (event: IpcMainInvokeEvent): IpcResponse<typeof IPC_CHANNELS.SETTINGS_GET> => {
       if (!validateSender(event)) return { ...DEFAULT_SETTINGS };
-      return getSettings();
+      return graph.settings.get();
     },
   );
 
@@ -41,12 +39,12 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
     ): Promise<IpcResponse<typeof IPC_CHANNELS.SETTINGS_SET>> => {
       if (!validateSender(event)) return { ...DEFAULT_SETTINGS };
       try {
-        const updated = await updateSettings(partial);
+        const updated = await graph.settings.update(partial);
 
         if (settingsRequireSchedulerRestart(partial)) {
-          restartScheduler();
+          graph.scheduler.restart();
         } else if (typeof partial.showTomorrowMeetings === "boolean") {
-          void forcePoll();
+          void graph.scheduler.forcePoll();
         }
 
         if (typeof partial.launchAtLogin === "boolean") {
@@ -57,7 +55,7 @@ export function registerSettingsHandlers(win: BrowserWindow): void {
         return updated;
       } catch (err) {
         console.error("[ipc] SETTINGS_SET error:", err);
-        return getSettings();
+        return graph.settings.get();
       }
     },
   );

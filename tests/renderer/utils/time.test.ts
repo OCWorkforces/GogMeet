@@ -5,7 +5,7 @@ import {
   formatRemainingTime,
   startOfDay,
   startOfTomorrow,
-} from "../../../src/shared/utils/time.js";
+} from "../../../src/domain/services/time.js";
 
 describe("isTomorrow", () => {
   // Pin to a deterministic local time. 2026-06-15T12:00:00 (local) sits
