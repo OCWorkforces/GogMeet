@@ -39,6 +39,20 @@ export default defineConfig({
         },
       },
 
+
+      {
+        test: {
+          name: 'application',
+          environment: 'node',
+          include: ['tests/application/**/*.test.ts'],
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json-summary'],
+            include: ['src/main/application/**/*.ts'],
+            exclude: ['src/main/application/**/*.d.ts'],
+          },
+        },
+      },
       {
         test: {
           name: 'domain',
