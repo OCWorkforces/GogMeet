@@ -125,6 +125,109 @@ describe("settings/index.ts", () => {
     });
     expect(setSettings).toHaveBeenNthCalledWith(2, { launchAtLogin: true });
   });
+
+  it("connect and disconnect calendar buttons update UI state", async () => {
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+    const getUiState = vi
+      .fn()
+      .mockResolvedValueOnce({
+        permission: "not-determined",
+        phase: "disconnected",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: true,
+      })
+      .mockResolvedValueOnce({
+        permission: "granted",
+        phase: "ready",
+        lastError: null,
+        accountEmail: "u@example.com",
+        events: [],
+        offline: false,
+        oauthConfigured: true,
+      })
+      .mockResolvedValue({
+        permission: "not-determined",
+        phase: "disconnected",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: true,
+      });
+    const requestPermission = vi.fn().mockResolvedValue("granted");
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("api", {
+      settings: {
+        get: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS }),
+        set: vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+          ...DEFAULT_SETTINGS,
+          ...p,
+        })),
+      },
+      calendar: {
+        getUiState,
+        requestPermission,
+        disconnect,
+      },
+    });
+    await import("../../src/renderer/settings/index.js");
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    await vi.waitFor(() => {
+      expect(document.getElementById("calendar-connect-btn")).toBeTruthy();
+    });
+    document.getElementById("calendar-connect-btn")!.click();
+    await vi.waitFor(() => expect(requestPermission).toHaveBeenCalled());
+    await vi.waitFor(() => expect(getUiState).toHaveBeenCalled());
+  });
+
+  it("reverts toggle when save throws", async () => {
+    const setSettings = vi.fn().mockRejectedValue(new Error("fail"));
+    await loadSettingsRenderer(setSettings);
+    const toggle = getLaunchAtLoginToggle();
+    expect(toggle.checked).toBe(false);
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+    await vi.waitFor(() => expect(toggle.checked).toBe(false));
+  });
+
+  it("saves show-tomorrow toggle", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings);
+    const el = document.getElementById("show-tomorrow-toggle");
+    expect(el).toBeInstanceOf(HTMLInputElement);
+    if (el instanceof HTMLInputElement) {
+      el.checked = !el.checked;
+      el.dispatchEvent(new Event("change"));
+    }
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+    expect(setSettings.mock.calls.some((c) => "showTomorrowMeetings" in (c[0] ?? {}))).toBe(true);
+  });
+
+  it("saves auto-open and window-alert toggles after reload", async () => {
+    for (const id of ["auto-open-toggle", "window-alert-toggle", "native-notif-toggle", "quiet-hours-toggle"]) {
+      const setSettings = vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => ({
+        ...DEFAULT_SETTINGS,
+        ...partial,
+      }));
+      await loadSettingsRenderer(setSettings);
+      const el = document.getElementById(id);
+      if (!(el instanceof HTMLInputElement)) continue;
+      el.checked = !el.checked;
+      el.dispatchEvent(new Event("change"));
+      await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+      vi.resetModules();
+      document.body.innerHTML = '<div id="app"></div>';
+    }
+  });
+
 });
 
 describe("settings constants", () => {
@@ -225,4 +328,7 @@ describe("settings dropdown validation", () => {
       expect(value >= 1 && value <= 5).toBe(true);
     }
   });
+
+
+
 });

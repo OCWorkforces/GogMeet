@@ -182,4 +182,42 @@ describe("registerCalendarHandlers", () => {
       expect(result).toBe("denied");
     });
   });
+
+  describe("calendar:disconnect and ui-state", () => {
+    it("disconnect ignores unauthorized", async () => {
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:disconnect");
+      await handler!(unauthorizedEvent);
+      expect(mockDisconnectCalendar).not.toHaveBeenCalled();
+    });
+
+    it("disconnect swallows errors", async () => {
+      mockDisconnectCalendar.mockRejectedValue(new Error("disc fail"));
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:disconnect");
+      await handler!(authorizedEvent);
+      expect(err).toHaveBeenCalled();
+      err.mockRestore();
+    });
+
+    it("ui-state returns default for unauthorized", async () => {
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:ui-state");
+      const result = await handler!(unauthorizedEvent);
+      expect(result).toMatchObject({ phase: "disconnected" });
+    });
+
+    it("ui-state returns default on throw", async () => {
+      mockGetCalendarUiState.mockImplementation(() => {
+        throw new Error("ui fail");
+      });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerCalendarHandlers(testAppGraph());
+      const handler = getRegisteredHandler("calendar:ui-state");
+      const result = await handler!(authorizedEvent);
+      expect(result).toMatchObject({ phase: "disconnected" });
+      err.mockRestore();
+    });
+  });
 });

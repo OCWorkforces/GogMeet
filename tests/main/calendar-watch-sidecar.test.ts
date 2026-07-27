@@ -360,4 +360,96 @@ describe("calendar-watch-sidecar", () => {
       mod.stopWatchSidecar();
     });
   });
+
+  describe("CHANGED debounce and cooldown", () => {
+    it("debounces CHANGED lines and invokes onChange", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValue(child);
+      const onChange = vi.fn();
+      mod.startWatchSidecar(onChange);
+      await vi.advanceTimersByTimeAsync(0);
+
+      child.stdout.emit("data", Buffer.from("CHANGED\n"));
+      child.stdout.emit("data", Buffer.from("CHANGED\n"));
+      expect(onChange).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(onChange).toHaveBeenCalledTimes(1);
+
+      mod.stopWatchSidecar();
+    });
+
+    it("cooldown after max retries resets and respawns", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      spawnMock.mockImplementation(() => {
+        throw new Error("spawn fail");
+      });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      for (const d of [1000, 2000, 4000, 8000, 16000]) {
+        await vi.advanceTimersByTimeAsync(d);
+      }
+      // give-up cooldown 5 minutes
+      spawnMock.mockImplementation(() => makeChild());
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("Cooldown elapsed"));
+      expect(spawnMock.mock.calls.length).toBeGreaterThan(6);
+      mod.stopWatchSidecar();
+      err.mockRestore();
+      log.mockRestore();
+    });
+
+    it("reviveWatchSidecar restarts after give-up with no child", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      // Exhaust retries via spawn failures → give-up + cooldown (stopped remains false)
+      spawnMock.mockImplementation(() => {
+        throw new Error("spawn fail");
+      });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      for (const d of [1000, 2000, 4000, 8000, 16000]) {
+        await vi.advanceTimersByTimeAsync(d);
+      }
+      // At give-up: no child, cooldown armed, not stopped — revive clears cooldown and re-spawns
+      spawnMock.mockReset();
+      spawnMock.mockReturnValue(makeChild());
+      log.mockClear();
+      mod.reviveWatchSidecar();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining("Revive requested"),
+      );
+      expect(spawnMock).toHaveBeenCalled();
+      mod.stopWatchSidecar();
+      err.mockRestore();
+      log.mockRestore();
+    });
+
+    it("onChange errors are swallowed", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValue(child);
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {
+        throw new Error("callback boom");
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      child.stdout.emit("data", Buffer.from("CHANGED\n"));
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(err).toHaveBeenCalledWith(
+        expect.stringContaining("onChange callback threw"),
+        expect.anything(),
+      );
+      mod.stopWatchSidecar();
+      err.mockRestore();
+    });
+  });
 });

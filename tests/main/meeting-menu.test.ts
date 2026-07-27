@@ -560,3 +560,101 @@ describe("buildMeetingMenuTemplate", () => {
     });
   });
 });
+
+describe("status rows and calendar tray extras", () => {
+  let buildCalendarTrayMenuTemplate: typeof import("../../src/main/menu/meeting-menu.js").buildCalendarTrayMenuTemplate;
+  let buildMeetingMenuTemplate: typeof import("../../src/main/menu/meeting-menu.js").buildMeetingMenuTemplate;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    vi.resetModules();
+    const mod = await import("../../src/main/menu/meeting-menu.js");
+    buildCalendarTrayMenuTemplate = mod.buildCalendarTrayMenuTemplate;
+    buildMeetingMenuTemplate = mod.buildMeetingMenuTemplate;
+    onJoinMeeting.mockClear();
+    onForcePoll.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("permission-denied status adds access denied row", () => {
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "denied",
+        phase: "error",
+        lastError: "denied",
+        accountEmail: null,
+        events: [],
+        offline: false,
+        oauthConfigured: true,
+      },
+      true,
+      { ...baseCallbacks, onConnectGoogle: vi.fn(), onRetryPoll: vi.fn() },
+      { kind: "err", code: "permission-denied", error: "denied", updatedAt: Date.now() },
+    );
+    expect(
+      items.some(
+        (i) =>
+          typeof i.label === "string" &&
+          (i.label.includes("access denied") || i.label.includes("Privacy")),
+      ),
+    ).toBe(true);
+  });
+
+  it("shows tomorrow section when enabled", () => {
+    const tomorrow = makeEvent({
+      id: "tmr",
+      title: "Tomorrow standup",
+      startDate: asTestIsoUtc(tomorrowAt(10).toISOString()),
+      endDate: asTestIsoUtc(tomorrowAt(11).toISOString()),
+    });
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "ready",
+        lastError: null,
+        accountEmail: null,
+        events: [tomorrow],
+        offline: false,
+        oauthConfigured: true,
+      },
+      true,
+      baseCallbacks,
+    );
+    expect(items.some((i) => i.label === "Tomorrow")).toBe(true);
+  });
+
+  it("Join Next and Refresh invoke callbacks", () => {
+    const evt = makeEvent({
+      meetUrl: "https://meet.google.com/abc-defg-hij" as never,
+    });
+    const items = buildMeetingMenuTemplate([evt], true, baseCallbacks);
+    const joinNext = items.find((i) => i.label === "Join Next Meeting");
+    const refresh = items.find((i) => i.label === "Refresh");
+    joinNext?.click?.(undefined as never, undefined as never, undefined as never);
+    refresh?.click?.(undefined as never, undefined as never, undefined as never);
+    expect(onJoinMeeting).toHaveBeenCalled();
+    expect(onForcePoll).toHaveBeenCalled();
+  });
+
+  it("runtime error status shows retry path labels", () => {
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "error",
+        lastError: "network",
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: true,
+      },
+      false,
+      { ...baseCallbacks, onRetryPoll: vi.fn() },
+      { kind: "err", code: "runtime", error: "network failure", updatedAt: Date.now() },
+    );
+    expect(items.length).toBeGreaterThan(0);
+  });
+});

@@ -68,4 +68,37 @@ describe("createJoinMeeting", () => {
     const result = await join.execute(event.id);
     expect(result).toEqual({ ok: false, error: "Meeting not found" });
   });
+
+  it("returns calendar error when last-known is err and fetch fails", async () => {
+    getLastKnown.mockReturnValue({
+      kind: "err",
+      error: "no access",
+      code: "permission-denied",
+    });
+    fetchCalendar.mockResolvedValue({
+      kind: "err",
+      error: "still no",
+      code: "permission-denied",
+    });
+    const join = create();
+    const result = await join.execute(event.id);
+    expect(result).toEqual({ ok: false, error: "still no" });
+  });
+
+  it("returns error when event has no meetUrl after fetch", async () => {
+    const bare = createMockEvent({ meetUrl: undefined });
+    getLastKnown.mockReturnValue({ kind: "ok", events: [bare] });
+    fetchCalendar.mockResolvedValue({ kind: "ok", events: [bare] });
+    const join = create();
+    const result = await join.execute(bare.id);
+    expect(result).toEqual({ ok: false, error: "No joinable meeting URL" });
+  });
+
+  it("returns not found when cache null and fetch empty", async () => {
+    getLastKnown.mockReturnValue(null);
+    fetchCalendar.mockResolvedValue({ kind: "ok", events: [] });
+    const join = create();
+    const result = await join.execute(asTestEventId("missing"));
+    expect(result.ok).toBe(false);
+  });
 });

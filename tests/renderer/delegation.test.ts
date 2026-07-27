@@ -1,77 +1,74 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { setupDelegatedEvents } from "../../src/renderer/events/delegation.js";
 
-describe("event delegation", () => {
-  it('clicking [data-action="refresh"] is caught by delegated listener on #app', () => {
-    document.body.innerHTML =
-      '<div id="app"><button data-action="refresh">Refresh</button></div>';
-    const app = document.getElementById("app")!;
-    const handler = vi.fn();
-    app.addEventListener("click", (e) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>(
-        "[data-action]",
-      );
-      if (target?.dataset["action"] === "refresh") handler();
-    });
-    document
-      .querySelector<HTMLButtonElement>('[data-action="refresh"]')!
-      .click();
-    expect(handler).toHaveBeenCalledOnce();
+describe("setupDelegatedEvents", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
   });
 
-  it('clicking [data-action="join-meeting"] provides data-event-id to handler', () => {
-    document.body.innerHTML =
-      '<div id="app"><button data-action="join-meeting" data-event-id="evt-1">Join</button></div>';
-    const app = document.getElementById("app")!;
-    let capturedId = "";
-    app.addEventListener("click", (e) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>(
-        "[data-action]",
-      );
-      if (target?.dataset["action"] === "join-meeting") {
-        capturedId = target.dataset["eventId"] ?? "";
-      }
-    });
-    document
-      .querySelector<HTMLButtonElement>('[data-action="join-meeting"]')!
-      .click();
-    expect(capturedId).toBe("evt-1");
+  it("no-ops when #app is missing", () => {
+    expect(() =>
+      setupDelegatedEvents({
+        onForcePoll: vi.fn(),
+        onGrantAccess: vi.fn(),
+        onJoinMeeting: vi.fn(),
+      }),
+    ).not.toThrow();
   });
 
-  it("clicking outside [data-action] elements does not trigger handlers", () => {
+  it("routes refresh and retry to onForcePoll", () => {
     document.body.innerHTML =
-      '<div id="app"><span class="no-action">text</span></div>';
-    const app = document.getElementById("app")!;
-    const handler = vi.fn();
-    app.addEventListener("click", (e) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>(
-        "[data-action]",
-      );
-      if (target) handler();
+      '<div id="app"><button data-action="refresh">R</button><button data-action="retry">T</button></div>';
+    const onForcePoll = vi.fn();
+    setupDelegatedEvents({
+      onForcePoll,
+      onGrantAccess: vi.fn(),
+      onJoinMeeting: vi.fn(),
     });
-    document.querySelector<HTMLSpanElement>(".no-action")!.click();
-    expect(handler).not.toHaveBeenCalled();
+    document.querySelector<HTMLButtonElement>('[data-action="refresh"]')!.click();
+    document.querySelector<HTMLButtonElement>('[data-action="retry"]')!.click();
+    expect(onForcePoll).toHaveBeenCalledTimes(2);
   });
 
-  it("only one listener needed regardless of render count", () => {
-    // Simulate multiple renders by replacing innerHTML multiple times
-    document.body.innerHTML = '<div id="app"></div>';
-    const app = document.getElementById("app")!;
-    const clickCounts: number[] = [];
-    // Setup ONE delegated listener
-    app.addEventListener("click", (e) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>(
-        "[data-action]",
-      );
-      if (target?.dataset["action"] === "refresh") clickCounts.push(1);
+  it("routes grant-access", () => {
+    document.body.innerHTML =
+      '<div id="app"><button data-action="grant-access">G</button></div>';
+    const onGrantAccess = vi.fn();
+    setupDelegatedEvents({
+      onForcePoll: vi.fn(),
+      onGrantAccess,
+      onJoinMeeting: vi.fn(),
     });
-    // Simulate 3 renders (replacing innerHTML)
-    for (let i = 0; i < 3; i++) {
-      app.innerHTML = '<button data-action="refresh">Refresh</button>';
-    }
-    // One click should only trigger handler once
-    document
-      .querySelector<HTMLButtonElement>('[data-action="refresh"]')!
-      .click();
-    expect(clickCounts).toHaveLength(1);
+    document.querySelector<HTMLButtonElement>('[data-action="grant-access"]')!.click();
+    expect(onGrantAccess).toHaveBeenCalledOnce();
+  });
+
+  it("routes join-meeting with event id and ignores missing id", () => {
+    document.body.innerHTML = `<div id="app">
+      <button data-action="join-meeting" data-event-id="evt-1">J</button>
+      <button data-action="join-meeting">NoId</button>
+    </div>`;
+    const onJoinMeeting = vi.fn();
+    setupDelegatedEvents({
+      onForcePoll: vi.fn(),
+      onGrantAccess: vi.fn(),
+      onJoinMeeting,
+    });
+    document.querySelectorAll<HTMLButtonElement>('[data-action="join-meeting"]')[0]!.click();
+    document.querySelectorAll<HTMLButtonElement>('[data-action="join-meeting"]')[1]!.click();
+    expect(onJoinMeeting).toHaveBeenCalledOnce();
+    expect(onJoinMeeting).toHaveBeenCalledWith("evt-1");
+  });
+
+  it("ignores clicks without data-action", () => {
+    document.body.innerHTML = '<div id="app"><span class="x">text</span></div>';
+    const onForcePoll = vi.fn();
+    setupDelegatedEvents({
+      onForcePoll,
+      onGrantAccess: vi.fn(),
+      onJoinMeeting: vi.fn(),
+    });
+    document.querySelector(".x")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onForcePoll).not.toHaveBeenCalled();
   });
 });

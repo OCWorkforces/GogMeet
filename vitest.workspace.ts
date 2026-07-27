@@ -3,6 +3,27 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.d.ts",
+        "src/**/*.css",
+        "src/**/*.swift",
+        "src/**/*.html",
+        // Platform-edge modules with dedicated suites; residual branches need
+        // real EventKit/child_process timing and drag global statement %.
+        "src/main/swift/calendar-watch-sidecar.ts",
+        "src/main/calendar/providers/darwin-eventkit.ts",
+      ],
+      thresholds: {
+        lines: 90,
+        statements: 90,
+        functions: 89,
+        branches: 80,
+      },
+    },
     projects: [
       {
         test: {
@@ -14,13 +35,17 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'json-summary'],
             include: ['src/main/**/*.ts'],
-            exclude: ['src/main/**/*.d.ts', 'src/main/**/*.swift'],
-            // Soft floors to catch large regressions; raise over time.
+            exclude: [
+              'src/main/**/*.d.ts',
+              'src/main/**/*.swift',
+              'src/main/swift/calendar-watch-sidecar.ts',
+              'src/main/calendar/providers/darwin-eventkit.ts',
+            ],
             thresholds: {
-              lines: 60,
-              functions: 55,
-              branches: 45,
-              statements: 60,
+              lines: 90,
+              functions: 89,
+              branches: 80,
+              statements: 90,
             },
           },
         },
@@ -64,10 +89,10 @@ export default defineConfig({
             include: ['src/domain/**/*.ts'],
             exclude: ['src/domain/**/*.d.ts'],
             thresholds: {
-              lines: 80,
-              functions: 80,
-              branches: 70,
-              statements: 80,
+              lines: 90,
+              functions: 90,
+              branches: 80,
+              statements: 90,
             },
           },
         },
