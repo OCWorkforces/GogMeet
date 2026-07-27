@@ -31,6 +31,7 @@ import { registerSettingsHandlers } from "../../src/main/ipc-handlers/settings.j
 import { ipcMain } from "electron";
 import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
 import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 
@@ -53,7 +54,7 @@ describe("registerSettingsHandlers", () => {
       webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
     } as unknown as import("electron").BrowserWindow;
 
-    registerSettingsHandlers(mockWin);
+    registerSettingsHandlers(mockWin, testAppGraph());
     expect(mockIpcMain.handle).toHaveBeenCalledTimes(2);
   });
 
@@ -61,6 +62,7 @@ describe("registerSettingsHandlers", () => {
     it("returns current settings for authorized sender", async () => {
       registerSettingsHandlers(
         {} as unknown as import("electron").BrowserWindow,
+        testAppGraph(),
       );
       const handler = getRegisteredHandler("settings:get");
 
@@ -71,6 +73,7 @@ describe("registerSettingsHandlers", () => {
     it("returns fresh DEFAULT_SETTINGS without calling getSettings for unauthorized sender", async () => {
       registerSettingsHandlers(
         {} as unknown as import("electron").BrowserWindow,
+        testAppGraph(),
       );
       const handler = getRegisteredHandler("settings:get");
 
@@ -91,7 +94,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       const result = await handler!(authorizedEvent, { openBeforeMinutes: 3 });
@@ -107,7 +110,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { launchAtLogin: true });
@@ -118,7 +121,7 @@ describe("registerSettingsHandlers", () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { openBeforeMinutes: 2 });
@@ -132,7 +135,7 @@ describe("registerSettingsHandlers", () => {
       const updated = { ...DEFAULT_SETTINGS, showTomorrowMeetings: false };
       mockUpdateSettings.mockResolvedValue(updated);
 
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { showTomorrowMeetings: false });
@@ -146,7 +149,7 @@ describe("registerSettingsHandlers", () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       const result = await handler!(
@@ -171,7 +174,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { launchAtLogin: true });
@@ -187,7 +190,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
 
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { showTomorrowMeetings: false });
@@ -200,7 +203,7 @@ describe("registerSettingsHandlers", () => {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
       } as unknown as import("electron").BrowserWindow;
       mockUpdateSettings.mockResolvedValue(DEFAULT_SETTINGS);
-      registerSettingsHandlers(mockWin);
+      registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { quietHoursEnabled: true });

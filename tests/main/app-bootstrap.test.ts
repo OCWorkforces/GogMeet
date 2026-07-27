@@ -49,25 +49,23 @@ describe("main/index.ts", () => {
     expect(content).toContain('from "../tray.js"');
     expect(content).toContain('from "./ipc.js"');
     expect(content).toContain('from "../scheduler/facade.js"');
-    expect(content).toContain('from "../facades/settings.js"');
-    expect(content).toContain('from "../composition/bind-composition.js"');
-    expect(content).toContain("bindComposition");
+    expect(content).toContain('from "../composition/app-graph.js"');
+    expect(content).toContain("createAppGraph");
     expect(content).toContain('from "../system/auto-launch.js"');
     expect(content).toContain('from "../system/notification.js"');
     expect(content).toContain('from "../system/shortcuts.js"');
-    // Calendar warmup goes through facades/calendar — never static swift imports
-    expect(content).toContain("warmupCalendarProvider");
+    // Calendar warmup via app graph — never static swift imports
+    expect(content).toContain("graph.calendar.warmup");
     expect(content).not.toContain('from "../swift/binary-manager.js"');
   });
 
-  it("ipc-handlers/settings.ts imports scheduler from facade.js", async () => {
+  it("ipc-handlers/settings.ts uses AppGraph (no direct scheduler/index import)", async () => {
     const content = await fs.readFile(
       path.join(root, "src/main/ipc-handlers/settings.ts"),
       "utf-8",
     );
 
-    // settings.ts must use scheduler/facade.js — not scheduler/index.js — to avoid circular dep
-    expect(content).toContain('from "../scheduler/facade.js"');
+    expect(content).toContain('from "../composition/app-graph.js"');
     expect(content).not.toContain('from "../scheduler/index.js"');
   });
 

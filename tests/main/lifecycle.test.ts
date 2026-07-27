@@ -33,7 +33,6 @@ const {
   mockStopCalendarWatcher,
   mockInitAutoUpdater,
   mockReviveCalendarWatcher,
-  mockBindComposition,
 } = vi.hoisted(() => ({
   mockRegisterIpcHandlers: vi.fn(),
   mockSetupTray: vi.fn(),
@@ -71,7 +70,6 @@ const {
   mockStopCalendarWatcher: vi.fn(),
   mockInitAutoUpdater: vi.fn(),
   mockReviveCalendarWatcher: vi.fn(),
-  mockBindComposition: vi.fn().mockReturnValue({ bound: true }),
 }));
 
 // Mock all subsystem modules that lifecycle.ts imports
@@ -129,9 +127,14 @@ vi.mock("../../src/main/system/auto-updater.js", () => ({
   initAutoUpdater: mockInitAutoUpdater,
 }));
 
-vi.mock("../../src/main/composition/bind-composition.js", () => ({
-  bindComposition: mockBindComposition,
-}));
+vi.mock("../../src/main/composition/app-graph.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../src/main/composition/app-graph.js")>();
+  return {
+    ...mod,
+    createAppGraph: (opts?: Parameters<typeof mod.createAppGraph>[0]) =>
+      mod.createAppGraph({ skipBind: true, ...opts }),
+  };
+});
 
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   initPowerCallbacks: mockInitPowerCallbacks,
@@ -156,7 +159,7 @@ describe("lifecycle", () => {
       await initializeApp(mockWindow);
 
       // IPC handlers registered with main window
-      expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow);
+      expect(mockRegisterIpcHandlers).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Tray set up with main window
       expect(mockSetupTray).toHaveBeenCalledWith(mockWindow);

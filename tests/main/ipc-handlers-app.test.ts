@@ -16,6 +16,7 @@ vi.mock("../../src/main/utils/join-meeting.js", () => ({
 import { registerAppHandlers } from "../../src/main/ipc-handlers/app.js";
 import { ipcMain, app } from "electron";
 import { authorizedInvokeEvent } from "../helpers/ipc-sender.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 const mockIpcMain = vi.mocked(ipcMain);
 const mockApp = vi.mocked(app);
@@ -31,6 +32,14 @@ const unauthorizedEvent = {
 
 const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
 
+
+function appGraphForTest() {
+  return testAppGraph({
+    opener: { open: mockOpenMeetingUrl },
+    join: { byId: mockJoinMeetingById },
+  });
+}
+
 describe("registerAppHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,13 +49,13 @@ describe("registerAppHandlers", () => {
   });
 
   it("registers 3 handlers", () => {
-    registerAppHandlers();
+    registerAppHandlers(appGraphForTest());
     expect(mockIpcMain.handle).toHaveBeenCalledTimes(3);
   });
 
   describe("app:open-external", () => {
     it("delegates allowed URL to openMeetingUrl for authorized sender", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:open-external");
 
       const result = await handler!(authorizedEvent, {
@@ -57,7 +66,7 @@ describe("registerAppHandlers", () => {
     });
 
     it("returns err for invalid URL shape", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:open-external");
 
       const result = await handler!(authorizedEvent, { url: "http://meet.google.com/abc" });
@@ -66,7 +75,7 @@ describe("registerAppHandlers", () => {
     });
 
     it("returns err for non-string URL", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:open-external");
 
       const result = await handler!(authorizedEvent, { url: 123 });
@@ -75,7 +84,7 @@ describe("registerAppHandlers", () => {
     });
 
     it("returns Unauthorized for unauthorized sender", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:open-external");
 
       const result = await handler!(unauthorizedEvent, {
@@ -88,7 +97,7 @@ describe("registerAppHandlers", () => {
 
   describe("app:join-meeting", () => {
     it("joins by event id for authorized sender", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:join-meeting");
 
       const result = await handler!(authorizedEvent, { id: "evt-1" });
@@ -97,7 +106,7 @@ describe("registerAppHandlers", () => {
     });
 
     it("returns Unauthorized for unauthorized sender", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:join-meeting");
 
       const result = await handler!(unauthorizedEvent, { id: "evt-1" });
@@ -106,7 +115,7 @@ describe("registerAppHandlers", () => {
     });
 
     it("returns err for empty id", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:join-meeting");
 
       const result = await handler!(authorizedEvent, { id: "  " });
@@ -118,13 +127,13 @@ describe("registerAppHandlers", () => {
   describe("app:get-version", () => {
     it("returns version for authorized sender", async () => {
       mockApp.getVersion.mockReturnValue("1.6.1");
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:get-version");
       expect(await handler!(authorizedEvent)).toBe("1.6.1");
     });
 
     it("returns empty string for unauthorized sender", async () => {
-      registerAppHandlers();
+      registerAppHandlers(appGraphForTest());
       const handler = getRegisteredHandler("app:get-version");
       expect(await handler!(unauthorizedEvent)).toBe("");
     });

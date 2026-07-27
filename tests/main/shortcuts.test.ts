@@ -49,8 +49,27 @@ vi.mock("../../src/main/utils/join-meeting.js", () => ({
   joinMeetingById: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
+import { testAppGraph } from "../helpers/app-graph.js";
+import { getCalendarEventsResult } from "../../src/main/facades/calendar.js";
+import { getLastKnownEvents } from "../../src/main/scheduler/facade.js";
+import { joinMeetingById } from "../../src/main/utils/join-meeting.js";
+
+function shortcutsGraph() {
+  return testAppGraph({
+    calendar: {
+      getEvents: () => getCalendarEventsResult(),
+    },
+    scheduler: {
+      getLastKnownEvents: () => getLastKnownEvents(),
+    },
+    join: {
+      byId: (id) => joinMeetingById(id),
+    },
+  });
+}
+
 describe("shortcuts", () => {
-  let registerShortcuts: () => void;
+  let registerShortcuts: (graph: ReturnType<typeof shortcutsGraph>) => void;
   let pickJoinTarget: typeof import("../../src/main/system/shortcuts.js").pickJoinTarget;
   let globalShortcut: {
     register: ReturnType<typeof vi.fn>;
@@ -71,7 +90,7 @@ describe("shortcuts", () => {
   });
 
   it("registers global shortcut on first call", () => {
-    registerShortcuts();
+    registerShortcuts(shortcutsGraph());
     expect(globalShortcut.register).toHaveBeenCalledWith(
       "CmdOrCtrl+Shift+M",
       expect.any(Function),
@@ -79,8 +98,8 @@ describe("shortcuts", () => {
   });
 
   it("does not register twice on subsequent calls", () => {
-    registerShortcuts();
-    registerShortcuts();
+    registerShortcuts(shortcutsGraph());
+    registerShortcuts(shortcutsGraph());
     expect(globalShortcut.register).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +131,7 @@ describe("shortcuts", () => {
   describe("shortcut handler", () => {
     it("joins the target meeting by id", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).toHaveBeenCalledWith("evt-1");
@@ -123,7 +142,7 @@ describe("shortcuts", () => {
       const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).not.toHaveBeenCalled();
@@ -138,7 +157,7 @@ describe("shortcuts", () => {
         code: "permission-denied",
       });
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).not.toHaveBeenCalled();
@@ -163,7 +182,7 @@ describe("shortcuts", () => {
         ],
       });
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).not.toHaveBeenCalled();
@@ -201,7 +220,7 @@ describe("shortcuts", () => {
         ],
       });
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).toHaveBeenCalledWith("evt-early");
@@ -237,7 +256,7 @@ describe("shortcuts", () => {
         ],
       });
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
       await handler();
       expect(joinMeetingById).toHaveBeenCalledWith("evt-now");
@@ -249,9 +268,9 @@ describe("shortcuts", () => {
       const electron = await import("electron");
       vi.mocked(electron.globalShortcut.register).mockReturnValue(false);
 
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       expect(electron.globalShortcut.register).toHaveBeenCalledTimes(1);
-      registerShortcuts();
+      registerShortcuts(shortcutsGraph());
       expect(electron.globalShortcut.register).toHaveBeenCalledTimes(2);
     });
   });
