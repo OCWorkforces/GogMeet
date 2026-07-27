@@ -7,7 +7,7 @@ export type CalendarUiPhase =
 
 /**
  * Snapshot for tray menu and Settings account section.
- * Produced by domain calendar; not an IPC brand boundary.
+ * Produced by calendar facade; not an IPC brand boundary.
  */
 export interface CalendarUiState {
   readonly permission: CalendarPermission;

@@ -1,4 +1,4 @@
-import type { MeetingEvent } from "../meeting-event.js";
+import type { MeetingEvent } from "../entities/meeting-event.js";
 
 /**
  * Prefer the joinable in-progress meeting; otherwise the next future meeting with a URL.

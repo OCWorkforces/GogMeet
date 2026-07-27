@@ -4,8 +4,8 @@ import {
   EVENT_SIGNATURE_FIELDS,
   eventListSignature,
   eventSignature,
-} from "../../src/shared/event-signature.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+} from "../../src/domain/services/event-signature.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { asTestEventId, asTestIsoUtc, asTestMeetUrl } from "../helpers/test-utils.js";
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {

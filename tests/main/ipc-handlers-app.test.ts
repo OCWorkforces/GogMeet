@@ -7,7 +7,6 @@ const { mockOpenMeetingUrl, mockJoinMeetingById } = vi.hoisted(() => ({
 
 vi.mock("../../src/main/utils/meet-url.js", () => ({
   openMeetingUrl: mockOpenMeetingUrl,
-  buildMeetUrl: vi.fn(),
 }));
 
 vi.mock("../../src/main/utils/join-meeting.js", () => ({

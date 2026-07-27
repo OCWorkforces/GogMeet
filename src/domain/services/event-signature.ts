@@ -11,7 +11,7 @@
  * and do not influence scheduling, the tray list shape, or alert payloads.
  */
 
-import type { MeetingEvent } from "./meeting-event.js";
+import type { MeetingEvent } from "../entities/meeting-event.js";
 
 /**
  * The subset of {@link MeetingEvent} fields that participate in the signature.

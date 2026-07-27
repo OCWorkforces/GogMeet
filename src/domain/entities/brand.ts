@@ -88,7 +88,7 @@ export function asEventId(raw: string): Result<EventId, string> {
  *
  * Enforces: parses as a URL, uses the `https:` scheme, no embedded credentials,
  * default port. Hostname allowlisting is performed by `isAllowedMeetUrl` in
- * `main/utils/url-validation.ts`; this validator is the structural gate.
+ * `domain/services/url-validation.ts`; this validator is the structural gate.
  */
 export function asMeetUrl(raw: string): Result<MeetUrl, string> {
   if (typeof raw !== "string" || raw.length === 0) {

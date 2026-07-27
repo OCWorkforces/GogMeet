@@ -1,6 +1,6 @@
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import type { AlertPayload } from "../../shared/alert.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { BrowserWindow } from "electron";
 import {
   SECURE_WEB_PREFERENCES,
@@ -11,7 +11,7 @@ import { applyAlertAlwaysOnTop, platformWindowChrome } from "../utils/window-chr
 
 import { typedSend } from "../ipc-handlers/shared.js";
 import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
-import type { EventId, IsoUtc } from "../../shared/brand.js";
+import type { EventId, IsoUtc } from "../../domain/entities/brand.js";
 
 function toAlertPayload(event: MeetingEvent, autoOpenAt?: IsoUtc): AlertPayload {
   const payload: AlertPayload = {

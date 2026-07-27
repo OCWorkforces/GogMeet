@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
-import { asEventId } from "../../shared/brand.js";
+import { asEventId } from "../../domain/entities/brand.js";
 import { cancelPendingBrowserOpen } from "../scheduler/facade.js";
 import { validateOnSender } from "./shared.js";
 

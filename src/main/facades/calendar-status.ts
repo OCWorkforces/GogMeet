@@ -1,6 +1,6 @@
-import type { CalendarErrorCode } from "../../shared/calendar-result.js";
-import type { CalendarResult } from "../../shared/calendar-result.js";
-import { isCalendarOk } from "../../shared/calendar-result.js";
+import type { CalendarErrorCode } from "../../domain/entities/calendar-result.js";
+import type { CalendarResult } from "../../domain/entities/calendar-result.js";
+import { isCalendarOk } from "../../domain/entities/calendar-result.js";
 
 export type CalendarStatus =
   | { kind: "ok"; updatedAt: number }

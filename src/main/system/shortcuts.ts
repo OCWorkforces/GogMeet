@@ -1,12 +1,12 @@
 import { globalShortcut, Notification } from "electron";
 import { getCalendarEventsResult } from "../facades/calendar.js";
-import { isCalendarOk } from "../../shared/calendar-result.js";
-import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
+import { isCalendarOk } from "../../domain/entities/calendar-result.js";
+import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
 import { getLastKnownEvents } from "../scheduler/facade.js";
 import { joinMeetingById } from "../utils/join-meeting.js";
 import log from "electron-log";
 
-export { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
+export { pickJoinTarget } from "../../domain/services/pick-join-target.js";
 
 let registered = false;
 

@@ -4,7 +4,7 @@ import {
   setActiveInMeetingEventId,
   markInMeetingDirty,
 } from "./state/index.js";
-import type { EventId } from "../../shared/brand.js";
+import type { EventId } from "../../domain/entities/brand.js";
 
 /**
  * Determine which event should own the tray title.

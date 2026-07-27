@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickJoinTarget } from "../../src/shared/utils/pick-join-target.js";
+import { pickJoinTarget } from "../../src/domain/services/pick-join-target.js";
 import { asTestEventId, asTestMeetUrl, createMockEvent } from "../helpers/test-utils.js";
 
 describe("pickJoinTarget", () => {

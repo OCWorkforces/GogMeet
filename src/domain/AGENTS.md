@@ -2,21 +2,32 @@
 
 ## OVERVIEW
 
-**Pure** domain layer (Clean Architecture). Zero Electron, `node:fs`, network, or Swift process dependencies.
+**Pure** domain layer (Clean Architecture Wave 1). Zero Electron, `node:fs`, network, or Swift process dependencies.
 
-Populated in **Wave 1** of `docs/clean-architecture-refactor-plan.md` (entities, allowlist, buildMeetUrl, join-target, quiet hours, settings parse, etc.).
-
-## STRUCTURE (target)
+## STRUCTURE
 
 ```text
 src/domain/
-├── entities/    # brands, MeetingEvent, CalendarResult, settings types…
-├── policies/    # allowlist, quiet-hours
-└── services/    # buildMeetUrl, pickJoinTarget, settings-parse, url-extract, cleanDescription
+├── entities/    # brands, MeetingEvent, CalendarResult, settings types, Result, errors…
+├── policies/    # meet URL allowlist
+└── services/    # buildMeetUrl, validateMeetUrl, url-extract, cleanDescription,
+                 # pickJoinTarget, event-signature, time, settings-parse, platform
 ```
 
 ## RULES
 
-- May import only other `src/domain/**` modules (and no process code).
-- Callers: `src/shared` (IPC maps import types), `src/main/application`, facades, infrastructure, preload/renderer.
-- **No** re-export barrels for “compat” after Wave 1 PR-1.4.
+- Import only other `src/domain/**` modules.
+- Callers: `src/shared` (IPC maps), main/preload/renderer, tests.
+- **No** re-export barrels from old `shared/*` or `main/utils` paths.
+- Opening meeting URLs (`shell.openExternal`) stays in `main/utils/meet-url.ts`.
+
+## WHERE TO LOOK
+
+| Concern | Path |
+| --- | --- |
+| Brands / validators | `entities/brand.ts` |
+| Settings schema + quiet hours | `entities/settings.ts` |
+| Settings parse/clamp | `services/settings-parse.ts` |
+| Allowlist + validateMeetUrl | `policies/meet-url-allowlist.ts`, `services/url-validation.ts` |
+| buildMeetUrl (pure) | `services/build-meet-url.ts` |
+| URL extract / clean notes | `services/url-extract.ts`, `services/clean-description.ts` |

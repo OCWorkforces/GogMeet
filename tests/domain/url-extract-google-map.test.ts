@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { extractMeetingUrl } from "../../src/main/calendar/url-extract.js";
-import { cleanDescription } from "../../src/main/calendar/clean-description.js";
+import { extractMeetingUrl } from "../../src/domain/services/url-extract.js";
+import { cleanDescription } from "../../src/domain/services/clean-description.js";
 
 /**
  * Smoke tests for the field order used by the Google Calendar provider:

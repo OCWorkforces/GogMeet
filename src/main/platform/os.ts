@@ -1,7 +1,7 @@
 /**
  * OS platform helpers for Electron main.
  *
- * Distinct from `utils/platform.ts`, which detects **meeting** hosts
+ * Distinct from `domain/services/platform.ts`, which detects **meeting** hosts
  * (Google Meet vs Zoom). This module is for `process.platform` only.
  */
 

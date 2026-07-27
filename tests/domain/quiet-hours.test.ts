@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isInQuietHours } from "../../src/shared/settings.js";
+import { isInQuietHours } from "../../src/domain/entities/settings.js";
 
 describe("isInQuietHours", () => {
   it("handles same-day window", () => {

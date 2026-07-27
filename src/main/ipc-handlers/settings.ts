@@ -3,7 +3,7 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ip
 import { getSettings, updateSettings } from "../facades/settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
-import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings.js";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../domain/entities/settings.js";
 import { forcePoll } from "../scheduler/facade.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 

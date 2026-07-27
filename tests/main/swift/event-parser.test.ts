@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseEvents } from "../../../src/main/swift/event-parser.js";
-import { cleanDescription } from "../../../src/main/calendar/clean-description.js";
+import { cleanDescription } from "../../../src/domain/services/clean-description.js";
 import {
   classifySwiftError,
   SwiftHelperError,

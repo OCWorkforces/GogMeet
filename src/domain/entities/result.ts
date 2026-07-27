@@ -7,7 +7,7 @@ import type { AppError } from "./errors.js";
  * (asEventId, asMeetUrl, asIsoUtc), and any new operation where failure is a
  * plain string or simple typed error.
  *
- * NOT to be confused with `CalendarResult` in models.ts. CalendarResult is a
+ * NOT to be confused with `CalendarResult` in calendar-result.ts. CalendarResult is a
  * separate, intentionally divergent shape (`kind: "ok"|"err"` plus an
  * `isCalendarOk()` guard) that carries Swift EventKit-specific semantics. It
  * exists because calendar fetches map to discrete exit codes (permission-denied,

@@ -10,6 +10,6 @@
     "moduleResolution": "nodenext",
     "module": "nodenext"
   },
-  "include": ["./**/*.ts", "../shared/**/*.ts"],
+  "include": ["./**/*.ts", "../shared/**/*.ts", "../domain/**/*.ts"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }

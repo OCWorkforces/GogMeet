@@ -1,15 +1,15 @@
-import type { MeetUrl } from "../../shared/brand.js";
-import { asMeetUrl } from "../../shared/brand.js";
+import type { MeetUrl } from "../entities/brand.js";
+import { asMeetUrl } from "../entities/brand.js";
 import {
   isAllowedMeetHostname,
   MEET_URL_ALLOWED_HOSTNAMES,
-} from "../../shared/meet-url-allowlist.js";
-import type { Result } from "../../shared/result.js";
-import { err, ok } from "../../shared/result.js";
+} from "../policies/meet-url-allowlist.js";
+import type { Result } from "../entities/result.js";
+import { err, ok } from "../entities/result.js";
 
 /**
  * Legacy prefix form for tests/docs. Hostnames are the source of truth in
- * `src/shared/meet-url-allowlist.ts`.
+ * `src/domain/policies/meet-url-allowlist.ts`.
  */
 export const MEETING_URL_ALLOWLIST: readonly string[] = MEET_URL_ALLOWED_HOSTNAMES.map(
   (host) => `https://${host}/`,

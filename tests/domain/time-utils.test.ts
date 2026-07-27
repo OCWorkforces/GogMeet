@@ -3,7 +3,7 @@ import {
   isTomorrow,
   formatMeetingTime,
   formatRemainingTime,
-} from "../../src/shared/utils/time.js";
+} from "../../src/domain/services/time.js";
 
 describe("isTomorrow", () => {
   beforeEach(() => {

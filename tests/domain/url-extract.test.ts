@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractMeetingUrl,
   extractMeetingUrlFromText,
-} from "../../src/main/calendar/url-extract.js";
+} from "../../src/domain/services/url-extract.js";
 
 describe("extractMeetingUrlFromText", () => {
   it("returns undefined for empty or missing text", () => {

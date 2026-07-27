@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ok, err, type AppResult } from "../../src/shared/result.js";
-import { parseJsonObject } from "../../src/shared/parse-json.js";
+import { ok, err, type AppResult } from "../../src/domain/entities/result.js";
+import { parseJsonObject } from "../../src/domain/entities/parse-json.js";
 
 const passthrough = (v: Record<string, unknown>): AppResult<Record<string, unknown>> => ok(v);
 

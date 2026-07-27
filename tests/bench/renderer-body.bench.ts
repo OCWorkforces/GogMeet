@@ -1,7 +1,7 @@
 import { bench, describe } from "vitest";
 import { renderBody } from "../../src/renderer/rendering/body.js";
 import type { AppState } from "../../src/shared/app-state.js";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 import {
   asTestEventId,
   asTestIsoUtc,

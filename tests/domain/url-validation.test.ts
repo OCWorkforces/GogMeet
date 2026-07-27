@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isAllowedMeetUrl,
   MEETING_URL_ALLOWLIST,
-} from "../../src/main/utils/url-validation.js";
+} from "../../src/domain/services/url-validation.js";
 
 describe("url-validation", () => {
   describe("MEETING_URL_ALLOWLIST", () => {

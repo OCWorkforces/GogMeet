@@ -1,4 +1,4 @@
-import type { CalendarPermission, CalendarResult } from "../../shared/calendar-result.js";
+import type { CalendarPermission, CalendarResult } from "../../domain/entities/calendar-result.js";
 
 /** Stable provider ids used by the factory and (later) settings. */
 export type CalendarProviderId =

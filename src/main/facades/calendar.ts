@@ -1,7 +1,7 @@
-import type { CalendarPermission, CalendarResult } from "../../shared/calendar-result.js";
-import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
-import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
+import type { CalendarPermission, CalendarResult } from "../../domain/entities/calendar-result.js";
+import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
+import { defaultCalendarUiState } from "../../domain/entities/calendar-ui-state.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { getActiveCalendarProvider, resetCalendarProvider } from "../calendar/factory.js";
 import { isGoogleOAuthConfigured } from "../calendar/auth/google-client-id.js";
 import { isGoogleOAuthInFlight } from "../calendar/auth/google-oauth.js";

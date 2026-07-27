@@ -4,7 +4,7 @@ import {
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
   SETTINGS_SCHEMA_VERSION,
-} from "../../src/shared/settings.js";
+} from "../../src/domain/entities/settings.js";
 
 describe("DEFAULT_SETTINGS", () => {
   it("has correct default values", () => {

@@ -1,5 +1,5 @@
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import { cleanDescription } from "../calendar/clean-description.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import { cleanDescription } from "../../domain/services/clean-description.js";
 import {
   brandTimestamps,
   parseEventIdField,

@@ -11,6 +11,6 @@
     "allowImportingTsExtensions": true,
     "emitDeclarationOnly": true
   },
-  "include": ["./**/*.ts", "./**/*.d.ts", "../shared/**/*.ts"],
+  "include": ["./**/*.ts", "./**/*.d.ts", "../shared/**/*.ts", "../domain/**/*.ts"],
   "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }

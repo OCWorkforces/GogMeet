@@ -1,12 +1,12 @@
 import "./styles.css";
-import type { AppSettings } from "../../shared/settings.js";
-import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
-import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
+import type { AppSettings } from "../../domain/entities/settings.js";
+import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
+import { defaultCalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
-} from "../../shared/settings.js";
+} from "../../domain/entities/settings.js";
 import { queryRequiredElement } from "../utils/dom.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
 

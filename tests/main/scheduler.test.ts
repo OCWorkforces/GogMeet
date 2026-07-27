@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { asTestEventId, asTestIsoUtc, createMockEvent } from "../helpers/test-utils.js";
 
 // Mock electron before importing scheduler

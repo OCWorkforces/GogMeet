@@ -49,6 +49,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | --- | --- | --- |
 | Runtime bootstrap | `src/main/index.ts`, `src/main/app/lifecycle.ts` | single-instance lock; settings before scheduler; `initAutoUpdater` last |
 | Add IPC | `src/shared/ipc-channels.ts` → `ipc-handlers/*` → preload → renderer/tests | invoke: `typedHandle`; fire-and-forget: sender validation |
+| Pure domain | `src/domain/` | entities, policies, pure services (no Electron) |
 | Calendar facade | `src/main/facades/calendar.ts` | only public calendar surface for scheduler/IPC/tray |
 | Calendar providers | `src/main/calendar/factory.ts`, `providers/*` | Darwin EventKit; Windows Google; fixture when unpackaged + env |
 | Google OAuth / tokens | `src/main/calendar/auth/*` | PKCE loopback; `google.enc`; `GOOGLE_OAUTH_CLIENT_ID` |

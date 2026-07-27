@@ -11,7 +11,7 @@ import {
   isUnknownError,
   isValidationError,
   type AppError,
-} from "../../src/shared/errors.js";
+} from "../../src/domain/entities/errors.js";
 import {
   SWIFT_EXIT_CODES,
   SwiftHelperError,

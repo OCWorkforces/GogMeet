@@ -1,7 +1,7 @@
 import { app, type IpcMainInvokeEvent } from "electron";
-import { asEventId, asMeetUrl } from "../../shared/brand.js";
+import { asEventId, asMeetUrl } from "../../domain/entities/brand.js";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
-import { err } from "../../shared/result.js";
+import { err } from "../../domain/entities/result.js";
 import { joinMeetingById } from "../utils/join-meeting.js";
 import { openMeetingUrl } from "../utils/meet-url.js";
 import { typedHandle, validateSender } from "./shared.js";

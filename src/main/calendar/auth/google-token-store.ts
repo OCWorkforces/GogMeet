@@ -7,7 +7,7 @@ import { app, safeStorage } from "electron";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
-import { isObjectRecord } from "../../../shared/type-guards.js";
+import { isObjectRecord } from "../../../domain/entities/type-guards.js";
 import { getGoogleOAuthClientId } from "./google-client-id.js";
 
 export const GOOGLE_AUTH_SCHEMA_VERSION = 1 as const;

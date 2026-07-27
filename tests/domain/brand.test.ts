@@ -7,7 +7,7 @@ import {
   type EventId,
   type IsoUtc,
   type MeetUrl,
-} from "../../src/shared/brand.js";
+} from "../../src/domain/entities/brand.js";
 
 describe("asEventId", () => {
   it("brands a non-empty trimmed string", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent as createSharedMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
 type MockTrayInstance = {
@@ -60,7 +60,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   forcePoll: vi.fn(),
 }));
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
+vi.mock("../../src/domain/services/build-meet-url.js", () => ({
   buildMeetUrl: vi.fn((event: MeetingEvent) => event.meetUrl || ""),
 }));
 
@@ -112,7 +112,7 @@ describe("formatRemainingTime", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const timeModule = await import("../../src/shared/utils/time.js");
+    const timeModule = await import("../../src/domain/services/time.js");
     formatRemainingTime = timeModule.formatRemainingTime;
   });
 

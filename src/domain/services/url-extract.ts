@@ -8,7 +8,7 @@
  * location before description), matching Swift's `url ?? location ?? notes`.
  */
 
-import { isAllowedMeetUrl } from "../utils/url-validation.js";
+import { isAllowedMeetUrl } from "./url-validation.js";
 
 /** Zoom (apex or subdomain). Mirrors Swift: `https://(?:[a-zA-Z0-9-]+\.)*zoom\.us/...` */
 const ZOOM_URL_RE = /https:\/\/(?:[a-zA-Z0-9-]+\.)*zoom\.us\/[^\s"'<>\\]+/i;

@@ -1,4 +1,4 @@
-import type { EventId } from "../../../shared/brand.js";
+import type { EventId } from "../../../domain/entities/brand.js";
 import {
   type ScheduledEventSnapshot,
   type TimersState,

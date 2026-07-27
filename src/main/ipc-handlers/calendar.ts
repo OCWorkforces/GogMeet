@@ -8,7 +8,7 @@ import {
   getCalendarUiState,
 } from "../facades/calendar.js";
 import { forcePoll } from "../scheduler/facade.js";
-import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
+import { defaultCalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import { validateSender, typedHandle } from "./shared.js";
 
 export function registerCalendarHandlers(): void {

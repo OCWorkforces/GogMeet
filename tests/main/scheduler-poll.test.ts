@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
-import type { CalendarResult } from "../../src/shared/calendar-result.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
 
 // Mock electron

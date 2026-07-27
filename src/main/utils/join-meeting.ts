@@ -1,12 +1,13 @@
-import type { EventId } from "../../shared/brand.js";
-import type { CalendarResult } from "../../shared/calendar-result.js";
-import { isCalendarOk } from "../../shared/calendar-result.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { Result } from "../../shared/result.js";
-import { err, ok } from "../../shared/result.js";
+import type { EventId } from "../../domain/entities/brand.js";
+import type { CalendarResult } from "../../domain/entities/calendar-result.js";
+import { isCalendarOk } from "../../domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { Result } from "../../domain/entities/result.js";
+import { err, ok } from "../../domain/entities/result.js";
 import { getCalendarEventsResult } from "../facades/calendar.js";
 import { cancelPendingBrowserOpen, getLastKnownEvents } from "../scheduler/facade.js";
-import { buildMeetUrl, openMeetingUrl } from "./meet-url.js";
+import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
+import { openMeetingUrl } from "./meet-url.js";
 
 function calendarErrMessage(c: CalendarResult | null): string {
   if (c === null) return "No calendar data available";

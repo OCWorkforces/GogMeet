@@ -10,12 +10,12 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { MeetingEvent } from "../shared/meeting-event.js";
-import type { CalendarUiState } from "../shared/calendar-ui-state.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
+import type { CalendarUiState } from "../domain/entities/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
 import { getSettings } from "./facades/settings.js";
 import { getLastCalendarStatus } from "./facades/calendar-status.js";
-import { formatRemainingTime } from "../shared/utils/time.js";
+import { formatRemainingTime } from "../domain/services/time.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
 import { mainBus } from "./events.js";

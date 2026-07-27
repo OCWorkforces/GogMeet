@@ -1,5 +1,5 @@
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { EventId } from "../../shared/brand.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { EventId } from "../../domain/entities/brand.js";
 
 /** Minimal state surface for late-join eligibility (avoids coupling to full SchedulerState). */
 export interface LateJoinStateView {

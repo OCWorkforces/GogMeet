@@ -1,18 +1,18 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-channels.js";
 import type { AlertPayload } from "../shared/alert.js";
-import type { AppSettings } from "../shared/settings.js";
-import type { MeetingEvent } from "../shared/meeting-event.js";
+import type { AppSettings } from "../domain/entities/settings.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
 import {
   asEventId,
   asMeetUrl,
   clampWindowHeight,
   type EventId,
   type MeetUrl,
-} from "../shared/brand.js";
-import type { Result } from "../shared/result.js";
-import { err } from "../shared/result.js";
-import { isAllowedMeetHostname } from "../shared/meet-url-allowlist.js";
+} from "../domain/entities/brand.js";
+import type { Result } from "../domain/entities/result.js";
+import { err } from "../domain/entities/result.js";
+import { isAllowedMeetHostname } from "../domain/policies/meet-url-allowlist.js";
 
 function brandMeetUrl(raw: string): MeetUrl | null {
   const branded = asMeetUrl(raw);

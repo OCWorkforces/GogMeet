@@ -7,9 +7,9 @@ import {
   pruneCancelledEvents,
 } from "./title-countdown.js";
 
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { EventId } from "../../shared/brand.js";
-import type { AppSettings } from "../../shared/settings.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { EventId } from "../../domain/entities/brand.js";
+import type { AppSettings } from "../../domain/entities/settings.js";
 
 import {
   state,
@@ -26,7 +26,7 @@ import {
   isLateJoinEligible,
   setLateJoinGraceFromSettings,
 } from "./late-join.js";
-import { isInQuietHours } from "../../shared/settings.js";
+import { isInQuietHours } from "../../domain/entities/settings.js";
 
 export { getLateJoinGraceMs, isLateJoinEligible, _setLateJoinGraceMsForTest } from "./late-join.js";
 

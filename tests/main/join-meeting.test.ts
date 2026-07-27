@@ -24,8 +24,11 @@ vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
 }));
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
+vi.mock("../../src/domain/services/build-meet-url.js", () => ({
   buildMeetUrl: mockBuildMeetUrl,
+}));
+
+vi.mock("../../src/main/utils/meet-url.js", () => ({
   openMeetingUrl: mockOpenMeetingUrl,
 }));
 

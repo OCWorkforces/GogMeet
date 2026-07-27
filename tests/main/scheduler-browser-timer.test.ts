@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { EventId } from "../../src/shared/brand.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { EventId } from "../../src/domain/entities/brand.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 import { asTestEventId, createMockEvent } from "../helpers/test-utils.js";
 
@@ -15,17 +15,21 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("../../src/main/utils/meet-url.js", () => ({
+vi.mock("../../src/domain/services/build-meet-url.js", () => ({
   buildMeetUrl: vi
     .fn()
     .mockReturnValue(
-      "https://meet.google.com/abc-def-ghi?authuser=user@test.com",
+      "https://meet.google.com/abc-def-ghi?authuser=user%40test.com",
     ),
+}));
+
+vi.mock("../../src/main/utils/meet-url.js", () => ({
   openMeetingUrl: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const { Notification, shell } = await import("electron");
-const { buildMeetUrl, openMeetingUrl } = await import("../../src/main/utils/meet-url.js");
+const { buildMeetUrl } = await import("../../src/domain/services/build-meet-url.js");
+const { openMeetingUrl } = await import("../../src/main/utils/meet-url.js");
 const { scheduleBrowserTimer, cancelBrowserTimer } =
   await import("../../src/main/scheduler/browser-timer.js");
 
@@ -124,7 +128,7 @@ describe("scheduleBrowserTimer", () => {
 
     vi.advanceTimersByTime(60_000);
     expect(openMeetingUrl).toHaveBeenCalledWith(
-      "https://meet.google.com/abc-def-ghi?authuser=user@test.com",
+      "https://meet.google.com/abc-def-ghi?authuser=user%40test.com",
     );
   });
 

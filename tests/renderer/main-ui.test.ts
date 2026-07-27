@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Api } from "../../src/preload/index.js";
-import type { CalendarPermission } from "../../src/shared/calendar-result.js";
-import type { CalendarResult } from "../../src/shared/calendar-result.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { CalendarPermission } from "../../src/domain/entities/calendar-result.js";
+import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, createMockSettings } from "../helpers/test-utils.js";
 
 /**

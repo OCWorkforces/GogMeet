@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
-import type { AppSettings } from "../../src/shared/settings.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import type { AppSettings } from "../../src/domain/entities/settings.js";
 
 /**
  * Tests for settings/index.ts
@@ -130,13 +130,13 @@ describe("settings/index.ts", () => {
 describe("settings constants", () => {
   it("OPEN_BEFORE_MINUTES_MIN is 0", async () => {
     expect(
-      (await import("../../src/shared/settings.js")).OPEN_BEFORE_MINUTES_MIN,
+      (await import("../../src/domain/entities/settings.js")).OPEN_BEFORE_MINUTES_MIN,
     ).toBe(0);
   });
 
   it("OPEN_BEFORE_MINUTES_MAX is 10", async () => {
     expect(
-      (await import("../../src/shared/settings.js")).OPEN_BEFORE_MINUTES_MAX,
+      (await import("../../src/domain/entities/settings.js")).OPEN_BEFORE_MINUTES_MAX,
     ).toBe(10);
   });
 

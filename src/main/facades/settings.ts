@@ -11,13 +11,14 @@ import {
   LATE_JOIN_GRACE_MINUTES_MAX,
   SETTINGS_SCHEMA_VERSION,
   isHHmm,
-} from "../../shared/settings.js";
-import type { AppSettings } from "../../shared/settings.js";
-import { ok, err } from "../../shared/result.js";
-import type { Result, AppResult } from "../../shared/result.js";
-import { parseJsonObject } from "../../shared/parse-json.js";
-import { isObjectRecord } from "../../shared/type-guards.js";
-import { formatAppError, isValidationError } from "../../shared/errors.js";
+} from "../../domain/entities/settings.js";
+import type { AppSettings } from "../../domain/entities/settings.js";
+import { ok, err } from "../../domain/entities/result.js";
+import type { Result, AppResult } from "../../domain/entities/result.js";
+import { parseJsonObject } from "../../domain/entities/parse-json.js";
+import { isObjectRecord } from "../../domain/entities/type-guards.js";
+import { formatAppError, isValidationError } from "../../domain/entities/errors.js";
+import { parseSettingsRecord } from "../../domain/services/settings-parse.js";
 
 let settingsCache: AppSettings = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;
@@ -33,73 +34,6 @@ function clamp(n: number, min: number, max: number): number {
 
 function isEnoent(e: unknown): e is { code: unknown } {
   return isObjectRecord(e) && e["code"] === "ENOENT";
-}
-
-function parseSettingsRecord(parsed: Record<string, unknown>): AppSettings {
-  // Migrate legacy fullScreenAlert → windowAlert
-  if (
-    typeof parsed["fullScreenAlert"] === "boolean" &&
-    typeof parsed["windowAlert"] !== "boolean"
-  ) {
-    parsed["windowAlert"] = parsed["fullScreenAlert"];
-  }
-
-  return {
-    schemaVersion: SETTINGS_SCHEMA_VERSION,
-    openBeforeMinutes: clamp(
-      typeof parsed["openBeforeMinutes"] === "number"
-        ? parsed["openBeforeMinutes"]
-        : DEFAULT_SETTINGS.openBeforeMinutes,
-      OPEN_BEFORE_MINUTES_MIN,
-      OPEN_BEFORE_MINUTES_MAX,
-    ),
-    launchAtLogin:
-      typeof parsed["launchAtLogin"] === "boolean"
-        ? parsed["launchAtLogin"]
-        : DEFAULT_SETTINGS.launchAtLogin,
-    showTomorrowMeetings:
-      typeof parsed["showTomorrowMeetings"] === "boolean"
-        ? parsed["showTomorrowMeetings"]
-        : DEFAULT_SETTINGS.showTomorrowMeetings,
-    windowAlert:
-      typeof parsed["windowAlert"] === "boolean"
-        ? parsed["windowAlert"]
-        : DEFAULT_SETTINGS.windowAlert,
-    autoOpenEnabled:
-      typeof parsed["autoOpenEnabled"] === "boolean"
-        ? parsed["autoOpenEnabled"]
-        : DEFAULT_SETTINGS.autoOpenEnabled,
-    alertLeadSeconds: clamp(
-      typeof parsed["alertLeadSeconds"] === "number"
-        ? parsed["alertLeadSeconds"]
-        : DEFAULT_SETTINGS.alertLeadSeconds,
-      ALERT_LEAD_SECONDS_MIN,
-      ALERT_LEAD_SECONDS_MAX,
-    ),
-    nativeNotifications:
-      typeof parsed["nativeNotifications"] === "boolean"
-        ? parsed["nativeNotifications"]
-        : DEFAULT_SETTINGS.nativeNotifications,
-    lateJoinGraceMinutes: clamp(
-      typeof parsed["lateJoinGraceMinutes"] === "number"
-        ? parsed["lateJoinGraceMinutes"]
-        : DEFAULT_SETTINGS.lateJoinGraceMinutes,
-      LATE_JOIN_GRACE_MINUTES_MIN,
-      LATE_JOIN_GRACE_MINUTES_MAX,
-    ),
-    quietHoursEnabled:
-      typeof parsed["quietHoursEnabled"] === "boolean"
-        ? parsed["quietHoursEnabled"]
-        : DEFAULT_SETTINGS.quietHoursEnabled,
-    quietHoursStart:
-      typeof parsed["quietHoursStart"] === "string" && isHHmm(parsed["quietHoursStart"])
-        ? parsed["quietHoursStart"]
-        : DEFAULT_SETTINGS.quietHoursStart,
-    quietHoursEnd:
-      typeof parsed["quietHoursEnd"] === "string" && isHHmm(parsed["quietHoursEnd"])
-        ? parsed["quietHoursEnd"]
-        : DEFAULT_SETTINGS.quietHoursEnd,
-  };
 }
 
 export async function loadSettings(): Promise<Result<AppSettings, string>> {

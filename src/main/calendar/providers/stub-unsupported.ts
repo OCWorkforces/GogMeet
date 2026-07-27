@@ -1,5 +1,8 @@
-import type { CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
-import { formatAppError } from "../../../shared/errors.js";
+import type {
+  CalendarPermission,
+  CalendarResult,
+} from "../../../domain/entities/calendar-result.js";
+import { formatAppError } from "../../../domain/entities/errors.js";
 import type { CalendarProvider } from "../provider.js";
 
 const UNSUPPORTED_MESSAGE =

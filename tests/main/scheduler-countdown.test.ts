@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 import { asTestEventId } from "../helpers/test-utils.js";
 

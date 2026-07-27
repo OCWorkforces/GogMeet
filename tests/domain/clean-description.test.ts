@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cleanDescription } from "../../src/main/calendar/clean-description.js";
+import { cleanDescription } from "../../src/domain/services/clean-description.js";
 
 describe("cleanDescription (calendar pure helper)", () => {
   it("strips HTML tags", () => {
