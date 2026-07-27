@@ -20,7 +20,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   cancelPendingBrowserOpen: mockCancelPendingBrowserOpen,
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
 }));
 

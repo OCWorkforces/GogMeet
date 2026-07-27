@@ -24,7 +24,7 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: getSettingsMock,
 }));
 

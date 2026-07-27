@@ -8,7 +8,10 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | --- | --- | --- |
 | Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | bootstrap (single-instance), tray, bus, Swift **source** (Darwin) |
 | `app/` | `lifecycle.ts`, `ipc.ts` | init order, shutdown, IPC registration |
-| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `settings.ts` | calendar facade + UI status, watcher, settings |
+| `facades/` | `calendar.ts`, `calendar-watcher.ts`, `calendar-status.ts`, `settings.ts` | calendar facade + UI status, watcher, last poll status, settings v2 |
+| `application/` | ports, use-cases | CA Wave 2+ (scaffold empty in Wave 0) |
+| `infrastructure/` | adapters | CA Wave 3+ (scaffold empty in Wave 0) |
+| `composition/` | bindPhaseA / AppGraph | CA Wave 2.5+ (scaffold empty in Wave 0) |
 | `calendar/` | factory, providers, auth, url-extract, offline-cache | CalendarProvider backends |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |
@@ -18,7 +21,6 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `ipc-handlers/` | per-domain handlers | typed IPC |
 | `menu/` | `meeting-menu.ts` | tray menu templates (meetings + Windows Connect CTAs) |
 | `utils/` | browser-window, window-chrome, meet-url, url-validation, platform (meeting host) | security + helpers |
-| `domain/` | `calendar.ts`, `calendar-watcher.ts`, `calendar-status.ts`, `settings.ts` | EventKit, watcher, last poll status, settings v2 JSON/migrations |
 
 ## Lifecycle order
 
@@ -41,7 +43,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 
 - `events.ts` decouples scheduler/power/calendar UI from tray (`meeting-list-updated`, `calendar-status-updated`, `power-state-changed`).
 - `scheduler/facade.ts` is the only scheduler import outside `scheduler/`.
-- `domain/calendar.ts` is the only calendar import for scheduler/IPC/tray (not factory/providers).
+- `facades/calendar.ts` is the only calendar import for scheduler/IPC/tray (not factory/providers).
 - `swift/` only from `calendar/providers/darwin-eventkit.ts` and internal `swift/**`.
 - `utils/platform.ts` = Meet/Zoom detection; `platform/os.ts` = OS.
 

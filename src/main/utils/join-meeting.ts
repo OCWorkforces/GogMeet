@@ -4,7 +4,7 @@ import { isCalendarOk } from "../../shared/calendar-result.js";
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { Result } from "../../shared/result.js";
 import { err, ok } from "../../shared/result.js";
-import { getCalendarEventsResult } from "../domain/calendar.js";
+import { getCalendarEventsResult } from "../facades/calendar.js";
 import { cancelPendingBrowserOpen, getLastKnownEvents } from "../scheduler/facade.js";
 import { buildMeetUrl, openMeetingUrl } from "./meet-url.js";
 

@@ -23,7 +23,7 @@ App-level orchestration: subsystem init/shutdown and IPC handler wiring. Importe
 
 ## NOTES
 
-- Imports: `domain/` (calendar, settings, watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, tray — **not** `swift/binary-manager` (warmup via `warmupCalendarProvider`).
+- Imports: `facades/` (calendar, settings, watcher), `system/` (power, auto-launch, notification, shortcuts, **auto-updater**), `scheduler/facade.js`, tray — **not** `swift/binary-manager` (warmup via `warmupCalendarProvider`).
 - Calendar permission: status always checked; `requestCalendarPermission` only when `shouldAutoRequestCalendarPermission()` (Darwin).
 - Power resume/unlock: `invalidateCalendarPermissionCache()` then `restartScheduler()`.
 - Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.

@@ -13,8 +13,8 @@ import { fileURLToPath } from "node:url";
 import type { MeetingEvent } from "../shared/meeting-event.js";
 import type { CalendarUiState } from "../shared/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
-import { getSettings } from "./domain/settings.js";
-import { getLastCalendarStatus } from "./domain/calendar-status.js";
+import { getSettings } from "./facades/settings.js";
+import { getLastCalendarStatus } from "./facades/calendar-status.js";
 import { formatRemainingTime } from "../shared/utils/time.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { forcePoll } from "./scheduler/facade.js";
@@ -25,7 +25,7 @@ import {
   disconnectCalendar,
   getCalendarUiState,
   requestCalendarPermission,
-} from "./domain/calendar.js";
+} from "./facades/calendar.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

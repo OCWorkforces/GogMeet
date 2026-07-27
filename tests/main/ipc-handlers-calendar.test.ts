@@ -25,7 +25,7 @@ const {
   mockForcePoll: vi.fn(),
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: mockGetCalendarEventsResult,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,

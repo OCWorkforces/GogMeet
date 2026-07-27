@@ -1,6 +1,6 @@
 # Swift Integration
 
-Runtime compilation and parsing layer for the **macOS EventKit** helper. Consumed only by `calendar/providers/darwin-eventkit.ts` (never by Windows Google path or `domain/calendar.ts`). Source: `src/main/googlemeet-events.swift`.
+Runtime compilation and parsing layer for the **macOS EventKit** helper. Consumed only by `calendar/providers/darwin-eventkit.ts` (never by Windows Google path or `facades/calendar.ts`). Source: `src/main/googlemeet-events.swift`.
 
 ## Files
 

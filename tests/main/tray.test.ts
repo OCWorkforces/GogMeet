@@ -41,7 +41,7 @@ vi.mock("electron", () => ({
   }),
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
   getCalendarUiState: vi.fn().mockReturnValue({
     permission: "not-determined",
@@ -68,7 +68,7 @@ vi.mock("../../src/main/windows/about-window.js", () => ({
   showAbout: vi.fn(),
 }));
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
 }));
 

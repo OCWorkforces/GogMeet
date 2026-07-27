@@ -1,5 +1,5 @@
 import { globalShortcut, Notification } from "electron";
-import { getCalendarEventsResult } from "../domain/calendar.js";
+import { getCalendarEventsResult } from "../facades/calendar.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";
 import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
 import { getLastKnownEvents } from "../scheduler/facade.js";

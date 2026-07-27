@@ -10,7 +10,7 @@ Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock
 tests/main/
 ├── scheduler*.test.ts       # scheduler state, timers, facade, poll races, auto-open deadlines
 ├── swift/                   # parser-focused Swift JSON Lines tests
-├── calendar*.test.ts        # domain facade, factory, fixture, token store
+├── calendar*.test.ts        # facades facade, factory, fixture, token store
 ├── url-extract*.test.ts     # shared Meet/Zoom/Calendly extraction
 ├── ipc*.test.ts             # channel constants, typed wrappers, handlers, registrar
 ├── platform-os / window-chrome / after-pack
@@ -32,7 +32,7 @@ Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` whe
 
 ## CALENDAR / PROVIDERS / SWIFT
 
-- `calendar.test.ts` — domain facade over Darwin provider mocks, JSON Lines parse diagnostics, permission cache.
+- `calendar.test.ts` — facades facade over Darwin provider mocks, JSON Lines parse diagnostics, permission cache.
 - `calendar-factory.test.ts` / `fixture-calendar.test.ts` / `google-token-store.test.ts` — factory selection, K23 fixture gate, token schema.
 - `url-extract.test.ts` — Zoom → Meet → Calendly priority + allowlist.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, `classifySwiftError` → `calendar-*` AppError.

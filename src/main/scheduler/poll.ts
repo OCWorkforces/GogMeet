@@ -1,5 +1,5 @@
-import { getCalendarEventsResult, reportCalendarPollError } from "../domain/calendar.js";
-import { recordCalendarResult } from "../domain/calendar-status.js";
+import { getCalendarEventsResult, reportCalendarPollError } from "../facades/calendar.js";
+import { recordCalendarResult } from "../facades/calendar-status.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { eventListSignature } from "../../shared/event-signature.js";
 import { isCalendarOk } from "../../shared/calendar-result.js";

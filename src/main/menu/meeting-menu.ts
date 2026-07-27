@@ -3,7 +3,7 @@ import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../shared/uti
 import type { MeetingEvent } from "../../shared/meeting-event.js";
 import type { CalendarUiState } from "../../shared/calendar-ui-state.js";
 import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
-import type { CalendarStatus } from "../domain/calendar-status.js";
+import type { CalendarStatus } from "../facades/calendar-status.js";
 import { forcePoll } from "../scheduler/facade.js";
 import { joinMeetingById } from "../utils/join-meeting.js";
 import { buildMeetUrl } from "../utils/meet-url.js";

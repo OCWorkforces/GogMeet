@@ -49,11 +49,11 @@ describe("main/index.ts", () => {
     expect(content).toContain('from "../tray.js"');
     expect(content).toContain('from "./ipc.js"');
     expect(content).toContain('from "../scheduler/facade.js"');
-    expect(content).toContain('from "../domain/settings.js"');
+    expect(content).toContain('from "../facades/settings.js"');
     expect(content).toContain('from "../system/auto-launch.js"');
     expect(content).toContain('from "../system/notification.js"');
     expect(content).toContain('from "../system/shortcuts.js"');
-    // Calendar warmup goes through domain facade — never static swift imports
+    // Calendar warmup goes through facades/calendar — never static swift imports
     expect(content).toContain("warmupCalendarProvider");
     expect(content).not.toContain('from "../swift/binary-manager.js"');
   });

@@ -14,9 +14,12 @@ Application source is split by Electron process. Keep process boundaries strict:
 ## Directory map
 
 - `main/` — lifecycle, tray, scheduler, windows, IPC, **calendar providers** (EventKit + Google). See `src/main/AGENTS.md`.
+- `main/facades/` — calendar facade, watcher, settings (main application surface; not pure domain).
+- `main/application/`, `main/infrastructure/`, `main/composition/` — CA layers (scaffold Wave 0; logic in later waves).
 - `main/calendar/` — `CalendarProvider` factory, Google OAuth/API, Darwin adapter, url-extract, offline cache.
 - `main/platform/` — OS predicates (`isDarwin` / `isWin32`); **not** meeting-host detection.
 - `main/swift/` — EventKit helper compile/run/JSON Lines parse (**Darwin provider leaf only**).
+- `domain/` — pure domain (CA Wave 1+). See `src/domain/AGENTS.md`.
 - `renderer/` — popover, settings (incl. Google account), alert. See `src/renderer/AGENTS.md`.
 - `preload/` — `window.api` bridge. See `src/preload/AGENTS.md`.
 - `shared/` — contracts, brands, errors, IPC maps, pure utilities. See `src/shared/AGENTS.md`.
@@ -27,12 +30,12 @@ Application source is split by Electron process. Keep process boundaries strict:
 | Task | Files |
 | --- | --- |
 | Add IPC channel | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer |
-| Calendar facade / UI status | `main/domain/calendar.ts`, `shared/calendar-ui-state.ts`, `main/events.ts` |
+| Calendar facade / UI status | `main/facades/calendar.ts`, `shared/calendar-ui-state.ts`, `main/events.ts` |
 | Calendar backend (mac/win) | `main/calendar/factory.ts`, `providers/*`, `auth/*` |
 | Shared meeting URL extract | `main/calendar/url-extract.ts` (+ Swift `findMeetUrl` for EventKit wire) |
 | Swift EventKit wire protocol | `main/swift/*`, `main/googlemeet-events.swift` |
 | Scheduler | `main/scheduler/facade.ts` only from outside scheduler |
-| Settings schema | `shared/settings.ts`, `main/domain/settings.ts`, settings renderer |
+| Settings schema | `shared/settings.ts`, `main/facades/settings.ts`, settings renderer |
 | URL allowlist | `main/utils/url-validation.ts` + preload mirror + tests |
 | Meeting host (Meet vs Zoom) | `main/utils/platform.ts` — **not** OS platform |
 | OS branching | `main/platform/os.ts` |

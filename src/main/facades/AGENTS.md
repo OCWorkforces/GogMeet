@@ -1,16 +1,19 @@
-# domain/
+# facades/
 
 ## OVERVIEW
 
-Core domain modules: calendar access facade (provider-backed), change watching, and persistent settings.
+Main-process **application surface** modules: calendar access facade (provider-backed), change watching, last-poll status for the tray menu, and persistent settings (schema v2).
+
+These are **not** pure domain (see `src/domain/` after CA Wave 1). They may use Electron/`node:fs`/providers today; Wave 2–3 will thin them into one-line use-case delegates + ports.
 
 ## FILES
 
 | File | Exports | Purpose |
 | --- | --- | --- |
 | `calendar.ts` | `getCalendarEventsResult`, `requestCalendarPermission`, `getCalendarPermissionStatus`, `invalidateCalendarPermissionCache`, `warmupCalendarProvider`, `shouldAutoRequestCalendarPermission`, `disconnectCalendar`, `getCalendarUiState`, `reportCalendarPollError` | Stable facade over `calendar/factory`; publishes `CalendarUiState` on the main bus |
-| `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher` | Provider `startWatch` / `stopWatch` → `forcePoll()` |
-| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings` | JSON settings in `userData/` |
+| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`, `reviveCalendarWatcher()` | Provider `startWatch` / `stopWatch` → `forcePoll()`; revive after give-up/resume |
+| `calendar-status.ts` | `recordCalendarResult()`, `getLastCalendarStatus()` | Last poll ok/err for tray menu error rows |
+| `settings.ts` | `loadSettings()`, `saveSettings()`, `getSettings()`, `updateSettings()` | JSON-persisted settings in `userData/`; schema v2 migrate/rewrite |
 
 ## WHERE TO LOOK
 
@@ -21,10 +24,11 @@ Core domain modules: calendar access facade (provider-backed), change watching, 
 | Platform backends | `../calendar/` (factory + providers) |
 | Swift internals | `../swift/AGENTS.md` (Darwin provider only) |
 | Tray empty/error states | `getCalendarUiState` / `calendar-status-updated` |
+| Menu status rows | `calendar-status.ts` + `menu/meeting-menu.ts` |
 
 ## NOTES
 
-- **Must not** import `swift/*`. Delegate to `calendar/factory.ts`.
+- **Must not** import `swift/*`. Delegate to `calendar/factory.ts` (watcher still needs purification in Wave 3).
 - Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
 - Windows: `calendar/providers/google-calendar.ts` (OAuth + API).
 - Watch is poll-only when provider omits `startWatch` (Google/fixture).
@@ -32,11 +36,11 @@ Core domain modules: calendar access facade (provider-backed), change watching, 
 - Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.
 - Lifecycle auto-request only when `shouldAutoRequestCalendarPermission()` (Darwin). Windows Connect is tray/Settings-only.
 - Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.
-Core domain modules: calendar access, change watching, last-poll status for the tray menu, and persistent settings (schema v2).
-| `calendar-watcher.ts` | `startCalendarWatcher()`, `stopCalendarWatcher()`, `reviveCalendarWatcher()` | Sidecar `swift --watch`; change → `forcePoll()`; revive after give-up/resume |
-| `calendar-status.ts`  | `recordCalendarResult()`, `getLastCalendarStatus()` | Last poll ok/err for tray menu error rows |
-| `settings.ts`         | `loadSettings()`, `saveSettings()`, `getSettings()`, `updateSettings()` | JSON-persisted settings in `userData/`; schema v2 migrate/rewrite |
-| Menu status rows           | `calendar-status.ts` + `menu/meeting-menu.ts` |
-- `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change. `reviveCalendarWatcher()` resets sidecar give-up state (used from lifecycle on resume).
+- `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change.
 - `poll.ts` must call `recordCalendarResult()` after every fetch so the tray menu can show permission/runtime rows.
-- Schema v2 fields: `autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours. `openBeforeMinutes` range is **0–10**. Load rewrites `settings.json` when migrating from v1.
+- Schema v2 fields: `autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours. `openBeforeMinutes` range is **0–10**.
+
+## CA MIGRATION
+
+- Renamed from `src/main/domain/` in Wave 0 (avoid collision with pure `src/domain/`).
+- Call sites: scheduler, IPC, tray, shortcuts, lifecycle, join-meeting — import `facades/*` only, not providers.

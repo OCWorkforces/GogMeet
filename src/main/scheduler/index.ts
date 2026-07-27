@@ -1,4 +1,4 @@
-import { getSettings } from "../domain/settings.js";
+import { getSettings } from "../facades/settings.js";
 import { scheduleAlertTimer, cancelAlertTimer } from "./alert-timer.js";
 import { scheduleBrowserTimer, cancelBrowserTimer } from "./browser-timer.js";
 import {

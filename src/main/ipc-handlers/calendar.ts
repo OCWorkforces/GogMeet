@@ -6,7 +6,7 @@ import {
   getCalendarPermissionStatus,
   disconnectCalendar,
   getCalendarUiState,
-} from "../domain/calendar.js";
+} from "../facades/calendar.js";
 import { forcePoll } from "../scheduler/facade.js";
 import { defaultCalendarUiState } from "../../shared/calendar-ui-state.js";
 import { validateSender, typedHandle } from "./shared.js";

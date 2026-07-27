@@ -2,7 +2,7 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-Platform calendar backends behind the stable domain facade (`domain/calendar.ts`).
+Platform calendar backends behind the stable calendar facade (`facades/calendar.ts`).
 
 ## FILES
 
@@ -33,7 +33,7 @@ Platform calendar backends behind the stable domain facade (`domain/calendar.ts`
 - Darwin provider is **dynamic-import**ed so win32 never loads Swift.
 - Cloud providers emit `MeetingEvent[]` directly (not JSON Lines).
 - Use `extractMeetingUrl` / `cleanDescription` for free-text fields; never reimplement host allowlists ad hoc.
-- Callers (scheduler, IPC, tray) use **`domain/calendar.ts` only**.
+- Callers (scheduler, IPC, tray) use **`facades/calendar.ts` only**.
 - `utils/platform.ts` = meeting host; `platform/os.ts` = OS.
 - Fixture never loads when `app.isPackaged`.
 - OAuth: loopback only; fail closed if `safeStorage` unavailable unless unpackaged `GOGMEET_ALLOW_PLAINTEXT_TOKENS=1`.

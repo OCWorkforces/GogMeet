@@ -82,7 +82,7 @@ vi.mock("../../src/main/tray.js", () => ({
   updateTrayTitle: mockUpdateTrayTitle,
 }));
 
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: mockGetSettings,
   loadSettings: mockLoadSettings,
 }));
@@ -108,7 +108,7 @@ vi.mock("../../src/main/system/power.js", () => ({
   allowSleep: mockAllowSleep,
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarEventsResult: mockGetCalendarEventsResult,
@@ -117,7 +117,7 @@ vi.mock("../../src/main/domain/calendar.js", () => ({
   shouldAutoRequestCalendarPermission: mockShouldAutoRequestCalendarPermission,
 }));
 
-vi.mock("../../src/main/domain/calendar-watcher.js", () => ({
+vi.mock("../../src/main/facades/calendar-watcher.js", () => ({
   startCalendarWatcher: mockStartCalendarWatcher,
   stopCalendarWatcher: mockStopCalendarWatcher,
   reviveCalendarWatcher: mockReviveCalendarWatcher,

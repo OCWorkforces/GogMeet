@@ -10,7 +10,7 @@ vi.mock("electron", () => ({
 }));
 
 // Mock calendar module — single source of truth for poll() side effect counting
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
@@ -23,7 +23,7 @@ vi.mock("../../src/main/system/power.js", () => ({
 }));
 
 // Mock settings
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({
@@ -42,7 +42,7 @@ vi.mock("../../src/main/domain/settings.js", () => ({
   }),
 }));
 
-const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
 const stateModule = await import("../../src/main/scheduler/state/index.js");
 const {
   initPowerCallbacks,

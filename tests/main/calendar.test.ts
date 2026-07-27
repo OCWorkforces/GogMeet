@@ -6,7 +6,7 @@ import {
   requestCalendarPermission,
   getCalendarPermissionStatus,
   invalidateCalendarPermissionCache,
-} from "../../src/main/domain/calendar.js";
+} from "../../src/main/facades/calendar.js";
 import { resetCalendarProvider } from "../../src/main/calendar/factory.js";
 import type { MeetingEvent } from "../../src/shared/meeting-event.js";
 

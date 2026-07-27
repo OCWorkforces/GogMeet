@@ -23,7 +23,7 @@ vi.mock("electron-log", () => ({
   },
 }));
 
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({
     kind: "ok",
     events: [
@@ -120,7 +120,7 @@ describe("shortcuts", () => {
 
     it("does nothing when no calendar events available", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+      const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
 
       registerShortcuts();
@@ -131,7 +131,7 @@ describe("shortcuts", () => {
 
     it("does nothing when calendar returns error", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+      const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "err",
         error: "no access",
@@ -146,7 +146,7 @@ describe("shortcuts", () => {
 
     it("filters out all-day events", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+      const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",
         events: [
@@ -171,7 +171,7 @@ describe("shortcuts", () => {
 
     it("picks the earliest upcoming meeting when multiple exist", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+      const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       const earlyStart = new Date(Date.now() + 1800000).toISOString();
       const lateStart = new Date(Date.now() + 7200000).toISOString();
 
@@ -209,7 +209,7 @@ describe("shortcuts", () => {
 
     it("joins in-progress meeting over future", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
-      const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+      const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       const now = Date.now();
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",

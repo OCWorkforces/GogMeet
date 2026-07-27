@@ -22,7 +22,7 @@ Leaf modules wrapping Electron/OS platform APIs. No business logic, no cross-sub
 ## ANTI-PATTERNS
 
 - Never import from `scheduler/index.js`, `scheduler/state.js`, or `scheduler/poll.js`. Facade only
-- Never import from `windows/` or `domain/`
+- Never import from `windows/` or `facades/`
 - Never call `allowSleep()` without a matching prior `preventSleep()`. Ref count must balance
 - Never request notification permission here. `notification.ts` is probe-only, prompt lives at call site
 - Never run auto-updater outside packaged **non-portable** builds (`app.isPackaged` and not `isPortableInstall()`)
@@ -31,5 +31,5 @@ Leaf modules wrapping Electron/OS platform APIs. No business logic, no cross-sub
 - Do not hard-code macOS-only settings URIs in `notification.ts`; use `getNotificationSettingsDeepLink()`.
 | `auto-updater.ts` | `initAutoUpdater()` — **called from lifecycle**; no-op when unpackaged; GitHub Releases feed |
 | `shortcuts.ts` | `Cmd+Shift+M` → `pickJoinTarget` + `joinMeetingById`; non-modal Notification feedback |
-- `shortcuts.ts` may use `scheduler/facade.js` (`getLastKnownEvents`) and `domain/calendar.js` for live fetch fallback — keep join via `joinMeetingById`.
+- `shortcuts.ts` may use `scheduler/facade.js` (`getLastKnownEvents`) and `facades/calendar.js` for live fetch fallback — keep join via `joinMeetingById`.
 - Never open meetings with raw `shell.openExternal` — use `joinMeetingById` / `openMeetingUrl`.

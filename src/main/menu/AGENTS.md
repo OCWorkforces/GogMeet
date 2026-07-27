@@ -14,7 +14,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 - Filters all-day / ended events; Today / Tomorrow groups; open via `buildMeetUrl` + `openMeetingUrl`.
 - Footer: Settings… / About / Quit (`CommandOrControl+Q`).
-- `status: CalendarStatus` — optional last poll status from `domain/calendar-status.ts`.
+- `status: CalendarStatus` — optional last poll status from `facades/calendar-status.ts`.
 
 ### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks)`
 

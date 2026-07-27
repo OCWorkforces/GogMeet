@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ipc-channels.js";
-import { getSettings, updateSettings } from "../domain/settings.js";
+import { getSettings, updateSettings } from "../facades/settings.js";
 import { restartScheduler } from "../scheduler/facade.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings.js";

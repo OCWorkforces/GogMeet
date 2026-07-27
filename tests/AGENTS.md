@@ -46,7 +46,7 @@ vi.mock("node:child_process", async () => {
 });
 ```
 
-Mock source modules with `.js` import paths and current directories, e.g. `../../src/main/domain/calendar.js` and `../../src/main/system/power.js`.
+Mock source modules with `.js` import paths and current directories, e.g. `../../src/main/facades/calendar.js` and `../../src/main/system/power.js`.
 
 ## Common patterns
 

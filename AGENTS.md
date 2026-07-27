@@ -1,8 +1,7 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-07-26
-**Commit:** 5c730cf
-**Branch:** feature/windows-platform-support
+**Updated:** 2026-07-27
+**Branch:** develop (CA Wave 0: main/domain → main/facades)
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -26,16 +25,17 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 GogMeet/
 ├── src/main/        # Electron main: lifecycle, tray, IPC, scheduler, windows, calendar providers
 │   ├── calendar/    # CalendarProvider factory, Google/Darwin/fixture, auth, url-extract
-│   ├── domain/      # calendar facade, watcher, settings
+│   ├── facades/     # calendar facade, watcher, settings (main-process application surface)
 │   ├── platform/    # OS helpers (isDarwin/isWin32) — not meeting-host detection
 │   └── swift/       # EventKit compile/run/JSON Lines (Darwin provider only)
+├── src/domain/      # pure domain (CA Wave 1+) — entities/policies; no Electron
 ├── src/preload/     # sandboxed context bridge exposing typed window.api
 ├── src/renderer/    # vanilla TS pages: popover, settings, alert
 ├── src/shared/      # contracts, brands, results, errors, IPC maps, pure utilities
 ├── tests/           # Vitest workspace; Electron mocks only in main project
 ├── scripts/         # dev orchestrator, icons (icns/ico), release verifiers, latest.yml merge
 ├── build/           # electron-builder hooks, entitlements, icon.icns / icon.ico
-├── docs/            # windows design + dogfood guides
+├── docs/            # design docs (CA plan, windows, enhancement)
 ├── assets/          # README screenshots
 ├── .github/         # PR/release workflows; see `.github/workflows/AGENTS.md`
 └── .sentrux/        # architecture constraints
@@ -49,12 +49,12 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | --- | --- | --- |
 | Runtime bootstrap | `src/main/index.ts`, `src/main/app/lifecycle.ts` | single-instance lock; settings before scheduler; `initAutoUpdater` last |
 | Add IPC | `src/shared/ipc-channels.ts` → `ipc-handlers/*` → preload → renderer/tests | invoke: `typedHandle`; fire-and-forget: sender validation |
-| Calendar facade | `src/main/domain/calendar.ts` | only public calendar surface for scheduler/IPC/tray |
+| Calendar facade | `src/main/facades/calendar.ts` | only public calendar surface for scheduler/IPC/tray |
 | Calendar providers | `src/main/calendar/factory.ts`, `providers/*` | Darwin EventKit; Windows Google; fixture when unpackaged + env |
 | Google OAuth / tokens | `src/main/calendar/auth/*` | PKCE loopback; `google.enc`; `GOOGLE_OAUTH_CLIENT_ID` |
 | URL extraction (shared) | `src/main/calendar/url-extract.ts` | Zoom → Meet → Calendly; allowlisted |
 | Swift EventKit wire | `src/main/swift/*`, `googlemeet-events.swift` | JSON Lines 9-string arrays; Darwin only |
-| Calendar change watch | `domain/calendar-watcher.ts` | provider `startWatch` (EventKit sidecar) or poll-only |
+| Calendar change watch | `facades/calendar-watcher.ts` | provider `startWatch` (EventKit sidecar) or poll-only |
 | Scheduler | `scheduler/facade.ts`, `scheduler/AGENTS.md` | only public scheduler entry |
 | Tray menu | `tray.ts`, `menu/meeting-menu.ts` | `setContextMenu` on setup; Windows left-click `popUpContextMenu` |
 | OS vs meeting platform | `platform/os.ts` vs `utils/platform.ts` | OS predicates vs Meet/Zoom host detection |
@@ -71,7 +71,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | `src/main/index.ts` | bootstrap, single-instance, popover chrome, lifecycle |
 | `initializeApp()` | warmup provider, IPC, settings, tray, scheduler, watcher, power, shortcuts, auto-updater |
 | `calendar/factory.ts` | fixture → Darwin EventKit → Google (non-Darwin) |
-| `domain/calendar.ts` | facade + `CalendarUiState` + `calendar-status-updated` bus |
+| `facades/calendar.ts` | facade + `CalendarUiState` + `calendar-status-updated` bus |
 | `scheduler/facade.ts` | only external scheduler import |
 | `scheduler/poll.ts` | poll; emits meetings + error status for tray |
 | `tray.ts` | Tray lifecycle, icons, tooltip, menu install + Windows left-click menu |
@@ -95,7 +95,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 
 - `as any`, `@ts-ignore`, empty catches, raw-string thrown errors.
 - Raw `ipcMain.handle` / `webContents.send` outside `typedHandle` / `typedSend`.
-- Importing `swift/*` from domain, lifecycle, Google provider, or settings.
+- Importing `swift/*` from facades, lifecycle, Google provider, or settings.
 - Auto-opening OAuth on Windows lifecycle (use tray/Settings Connect only).
 - Dual-arch single NSIS invocation for official Windows artifacts (build `--x64` and `--arm64` separately).
 - Overwriting `latest.yml` with sequential publish without `merge:windows-latest-yml`.
@@ -104,7 +104,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Join a meeting | `src/main/utils/join-meeting.ts`, `utils/meet-url.ts`, menu/shortcuts/IPC | all paths use `joinMeetingById` → `buildMeetUrl` + `openMeetingUrl` + `cancelPendingBrowserOpen` |
 | Settings/alert UI | `src/renderer/settings/index.ts`, `src/renderer/alert/index.ts` | settings schema v2; alert Join via EventId (no meetUrl in payload) |
 | `src/shared/ipc-channels.ts` | contract | high | channel names, request/response maps (includes `APP_JOIN_MEETING`), push maps |
-| `domain/calendar-status.ts` | cache | tray menu | last poll ok/err status for menu error rows |
+| `facades/calendar-status.ts` | cache | tray menu | last poll ok/err status for menu error rows |
 | `utils/join-meeting.ts` | join hub | menu/hotkey/IPC | `joinMeetingById` + mark opened |
 | `utils/log.ts` | logging | bootstrap | electron-log scopes for main diagnostics |
 | `renderer/settings/index.ts` | page entry | settings | schema v2 toggles, auto-save |

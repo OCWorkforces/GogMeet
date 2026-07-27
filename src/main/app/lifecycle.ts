@@ -15,7 +15,7 @@ import {
   invalidateCalendarPermissionCache,
   warmupCalendarProvider,
   shouldAutoRequestCalendarPermission,
-} from "../domain/calendar.js";
+} from "../facades/calendar.js";
 import {
   initPowerManagement,
   initPowerEvents,
@@ -25,7 +25,7 @@ import {
   allowSleep,
 } from "../system/power.js";
 import { updateTrayTitle } from "../tray.js";
-import { getSettings, loadSettings } from "../domain/settings.js";
+import { getSettings, loadSettings } from "../facades/settings.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
@@ -33,7 +33,7 @@ import {
   reviveCalendarWatcher,
   startCalendarWatcher,
   stopCalendarWatcher,
-} from "../domain/calendar-watcher.js";
+} from "../facades/calendar-watcher.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
 
 /**
