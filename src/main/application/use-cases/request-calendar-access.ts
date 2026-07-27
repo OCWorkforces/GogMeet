@@ -6,8 +6,6 @@ import type { EventPublisherPort } from "../ports/event-publisher-port.js";
 export interface RequestCalendarAccessDeps {
   calendar: CalendarPort;
   publisher: EventPublisherPort;
-  getAccountEmail: () => Promise<string | null>;
-  isOAuthConfigured: () => boolean;
   getUiState: () => CalendarUiState;
   setUiState: (partial: Partial<CalendarUiState>) => void;
   setCachedPermission: (status: CalendarPermission) => void;
@@ -25,7 +23,7 @@ export function createRequestCalendarAccess(
       const connecting: Partial<CalendarUiState> = {
         phase: "connecting",
         lastError: null,
-        oauthConfigured: deps.isOAuthConfigured(),
+        oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
       };
       deps.setUiState(connecting);
       deps.publisher.publishCalendarStatus(deps.getUiState());
@@ -34,13 +32,13 @@ export function createRequestCalendarAccess(
       deps.setCachedPermission(status);
 
       if (status === "granted") {
-        const email = await deps.getAccountEmail();
+        const email = (await deps.calendar.getAccountLabel?.()) ?? null;
         const next: Partial<CalendarUiState> = {
           permission: "granted",
           phase: "ready",
           lastError: null,
           accountEmail: email,
-          oauthConfigured: deps.isOAuthConfigured(),
+          oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         };
         deps.setUiState(next);
         deps.publisher.publishCalendarStatus(deps.getUiState());
@@ -49,7 +47,7 @@ export function createRequestCalendarAccess(
           permission: status,
           phase: status === "denied" ? "error" : "disconnected",
           lastError: status === "denied" ? "Google Calendar was not connected." : null,
-          oauthConfigured: deps.isOAuthConfigured(),
+          oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         };
         deps.setUiState(next);
         deps.publisher.publishCalendarStatus(deps.getUiState());

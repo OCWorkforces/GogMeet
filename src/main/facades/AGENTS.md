@@ -28,7 +28,7 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 
 ## NOTES
 
-- **Must not** import `swift/*`. Delegate to `calendar/factory.ts` (watcher must not import `swift/*` long-term).
+- **Must not** import `swift/*` or `calendar/auth/*`. Use CalendarPort methods (getAccountLabel, reviveWatch, …).
 - Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
 - Windows: `calendar/providers/google-calendar.ts` (OAuth + API).
 - Watch is poll-only when provider omits `startWatch` (Google/fixture).

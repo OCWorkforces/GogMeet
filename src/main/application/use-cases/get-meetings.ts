@@ -9,10 +9,6 @@ import type { EventPublisherPort } from "../ports/event-publisher-port.js";
 export interface GetMeetingsDeps {
   calendar: CalendarPort;
   publisher: EventPublisherPort;
-  /** Temporary account email peek (until CalendarPort exposes getAccountLabel). */
-  getAccountEmail: () => Promise<string | null>;
-  isOAuthConfigured: () => boolean;
-  /** Mutable UI state snapshot owned by facade/bind site */
   getUiState: () => CalendarUiState;
   setUiState: (partial: Partial<CalendarUiState>) => void;
   setCachedPermission: (status: CalendarPermission) => void;
@@ -28,7 +24,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
       const result = await deps.calendar.getEvents();
 
       if (result.kind === "ok") {
-        const email = (await deps.getAccountEmail()) ?? deps.getUiState().accountEmail;
+        const email = (await deps.calendar.getAccountLabel?.()) ?? deps.getUiState().accountEmail;
         const next: Partial<CalendarUiState> = {
           permission: "granted",
           phase: result.events.length === 0 ? "empty" : "ready",
@@ -36,7 +32,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
           events: result.events,
           offline: false,
           accountEmail: email,
-          oauthConfigured: deps.isOAuthConfigured(),
+          oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         };
         deps.setUiState(next);
         deps.setCachedPermission("granted");
@@ -48,7 +44,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
           permission,
           phase: "error",
           lastError: result.error,
-          oauthConfigured: deps.isOAuthConfigured(),
+          oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         };
         deps.setUiState(next);
         deps.publisher.publishCalendarStatus(deps.getUiState());

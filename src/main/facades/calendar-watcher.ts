@@ -1,17 +1,15 @@
 import { forcePoll } from "../scheduler/facade.js";
-import { getActiveCalendarProvider } from "../calendar/factory.js";
-import type { CalendarProvider } from "../calendar/provider.js";
-import { reviveWatchSidecar } from "../swift/calendar-watch-sidecar.js";
+import { getCalendarPort } from "./calendar.js";
+import type { CalendarPort } from "../application/ports/calendar-port.js";
 
 let started = false;
-let watchProvider: CalendarProvider | null = null;
+let watchPort: CalendarPort | null = null;
 
 /**
  * Start calendar change watching for the active provider.
  *
- * On Darwin this starts the Swift `--watch` sidecar (EventKit change
- * notifications → debounced `forcePoll()`). On Windows the stub/Google
- * providers omit `startWatch` (poll-only).
+ * On Darwin this starts the EventKit change watch (via provider). On Windows
+ * Google/fixture providers omit startWatch (poll-only).
  *
  * Non-critical — scheduler polling continues even if watch fails.
  * Idempotent: subsequent calls are no-ops until `stopCalendarWatcher()`.
@@ -19,17 +17,17 @@ let watchProvider: CalendarProvider | null = null;
 export function startCalendarWatcher(): void {
   if (started) return;
   started = true;
-  void getActiveCalendarProvider()
-    .then((provider) => {
+  void getCalendarPort()
+    .then((port) => {
       if (!started) return;
-      watchProvider = provider;
-      if (provider.startWatch) {
-        provider.startWatch(() => {
+      watchPort = port;
+      if (port.startWatch) {
+        port.startWatch(() => {
           void forcePoll();
         });
-        console.log(`[calendar-watcher] Watch started (provider=${provider.id})`);
+        console.log("[calendar-watcher] Watch started");
       } else {
-        console.log(`[calendar-watcher] No watch for provider=${provider.id} (poll-only)`);
+        console.log("[calendar-watcher] No watch (poll-only)");
       }
     })
     .catch((err: unknown) => {
@@ -41,25 +39,34 @@ export function startCalendarWatcher(): void {
  * Stop the active provider watch. Safe to call multiple times.
  */
 export function stopCalendarWatcher(): void {
-  if (!started && watchProvider === null) return;
+  if (!started && watchPort === null) return;
   started = false;
   try {
-    watchProvider?.stopWatch?.();
+    watchPort?.stopWatch?.();
   } catch (err) {
     console.warn("[calendar-watcher] stopWatch failed:", err);
   }
-  watchProvider = null;
+  watchPort = null;
   console.log("[calendar-watcher] Stopped");
 }
 
 /**
- * Attempt to recover a failed/given-up sidecar (resume/unlock). No-op if never
- * started or currently stopped intentionally. Only EventKit uses a reviveable sidecar.
+ * Attempt to recover a failed/given-up watch (resume/unlock). No-op if never
+ * started or currently stopped intentionally.
  */
 export function reviveCalendarWatcher(): void {
   if (!started) return;
-  if (watchProvider?.id === "darwin-eventkit" || watchProvider === null) {
-    // null: start still in-flight; safe to attempt sidecar revive on Darwin builds
-    reviveWatchSidecar();
+  if (watchPort?.reviveWatch) {
+    watchPort.reviveWatch();
+    return;
   }
+  // start still in-flight or provider not yet cached — resolve and revive
+  void getCalendarPort()
+    .then((port) => {
+      watchPort = port;
+      port.reviveWatch?.();
+    })
+    .catch((err: unknown) => {
+      console.warn("[calendar-watcher] revive failed:", err);
+    });
 }

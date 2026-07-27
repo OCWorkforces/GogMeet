@@ -3,9 +3,7 @@ import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js
 import { defaultCalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { getActiveCalendarProvider, resetCalendarProvider } from "../calendar/factory.js";
-import { isGoogleOAuthConfigured } from "../calendar/auth/google-client-id.js";
-import { isGoogleOAuthInFlight } from "../calendar/auth/google-oauth.js";
-import { loadGoogleTokens } from "../calendar/auth/google-token-store.js";
+import type { CalendarProvider } from "../calendar/provider.js";
 import { isDarwin } from "../platform/os.js";
 import { mainBus } from "../events.js";
 import type { CalendarPort } from "../application/ports/calendar-port.js";
@@ -26,6 +24,8 @@ import {
 
 let cachedPermissionStatus: CalendarPermission | null = null;
 let uiState: CalendarUiState = defaultCalendarUiState();
+/** Last resolved provider for sync isOAuthConfigured / reviveWatch. */
+let cachedProvider: CalendarProvider | null = null;
 
 function setUiState(partial: Partial<CalendarUiState>): void {
   uiState = { ...uiState, ...partial };
@@ -39,22 +39,58 @@ function setCachedPermission(status: CalendarPermission | null): void {
   cachedPermissionStatus = status;
 }
 
-/** CalendarPort adapter over the active factory provider. */
-async function getCalendarPort(): Promise<CalendarPort> {
-  return getActiveCalendarProvider();
+function asCalendarPort(provider: CalendarProvider): CalendarPort {
+  const port: CalendarPort = {
+    getEvents: () => provider.getEvents(),
+    getPermissionStatus: () => provider.getPermissionStatus(),
+    requestPermission: () => provider.requestPermission(),
+  };
+  if (provider.startWatch) port.startWatch = provider.startWatch.bind(provider);
+  if (provider.stopWatch) port.stopWatch = provider.stopWatch.bind(provider);
+  if (provider.disconnect) port.disconnect = provider.disconnect.bind(provider);
+  if (provider.warmup) port.warmup = provider.warmup.bind(provider);
+  if (provider.getAccountLabel) port.getAccountLabel = provider.getAccountLabel.bind(provider);
+  if (provider.isOAuthConfigured)
+    port.isOAuthConfigured = provider.isOAuthConfigured.bind(provider);
+  if (provider.isOAuthInFlight) port.isOAuthInFlight = provider.isOAuthInFlight.bind(provider);
+  if (provider.reviveWatch) port.reviveWatch = provider.reviveWatch.bind(provider);
+  return port;
 }
 
-/** Lazy CalendarPort so factory selection runs per call (fixture/warmup). */
+async function resolveProvider(): Promise<CalendarProvider> {
+  const provider = await getActiveCalendarProvider();
+  cachedProvider = provider;
+  return provider;
+}
+
+/** Lazy CalendarPort so factory selection runs per call. */
 function lazyCalendarPort(): CalendarPort {
   return {
-    getEvents: async () => (await getCalendarPort()).getEvents(),
-    getPermissionStatus: async () => (await getCalendarPort()).getPermissionStatus(),
-    requestPermission: async () => (await getCalendarPort()).requestPermission(),
+    getEvents: async () => asCalendarPort(await resolveProvider()).getEvents(),
+    getPermissionStatus: async () => asCalendarPort(await resolveProvider()).getPermissionStatus(),
+    requestPermission: async () => asCalendarPort(await resolveProvider()).requestPermission(),
+    startWatch: (onChange) => {
+      void resolveProvider().then((p) => p.startWatch?.(onChange));
+    },
+    stopWatch: () => {
+      cachedProvider?.stopWatch?.();
+    },
     disconnect: async () => {
-      await (await getCalendarPort()).disconnect?.();
+      await asCalendarPort(await resolveProvider()).disconnect?.();
     },
     warmup: async () => {
-      await (await getCalendarPort()).warmup?.();
+      await asCalendarPort(await resolveProvider()).warmup?.();
+    },
+    getAccountLabel: async () =>
+      (await asCalendarPort(await resolveProvider()).getAccountLabel?.()) ?? null,
+    isOAuthConfigured: () => cachedProvider?.isOAuthConfigured?.() ?? false,
+    isOAuthInFlight: () => cachedProvider?.isOAuthInFlight?.() ?? false,
+    reviveWatch: () => {
+      if (cachedProvider?.reviveWatch) {
+        cachedProvider.reviveWatch();
+        return;
+      }
+      void resolveProvider().then((p) => p.reviveWatch?.());
     },
   };
 }
@@ -65,21 +101,10 @@ const publisher: EventPublisherPort = {
   },
 };
 
-function oauthDeps() {
-  return {
-    getAccountEmail: async (): Promise<string | null> => (await loadGoogleTokens())?.email ?? null,
-    isOAuthConfigured: (): boolean => isGoogleOAuthConfigured(),
-    isOAuthInFlight: (): boolean => isGoogleOAuthInFlight(),
-  };
-}
-
 function createDefaultGetMeetings(): GetMeetings {
-  const oauth = oauthDeps();
   return createGetMeetings({
     calendar: lazyCalendarPort(),
     publisher,
-    getAccountEmail: oauth.getAccountEmail,
-    isOAuthConfigured: oauth.isOAuthConfigured,
     getUiState: () => uiState,
     setUiState,
     setCachedPermission: (s) => {
@@ -89,12 +114,9 @@ function createDefaultGetMeetings(): GetMeetings {
 }
 
 function createDefaultRequestAccess(): RequestCalendarAccess {
-  const oauth = oauthDeps();
   return createRequestCalendarAccess({
     calendar: lazyCalendarPort(),
     publisher,
-    getAccountEmail: oauth.getAccountEmail,
-    isOAuthConfigured: oauth.isOAuthConfigured,
     getUiState: () => uiState,
     setUiState,
     setCachedPermission: (s) => {
@@ -104,17 +126,13 @@ function createDefaultRequestAccess(): RequestCalendarAccess {
 }
 
 function createDefaultPermissionStatus(): GetCalendarPermissionStatus {
-  const oauth = oauthDeps();
   return createGetCalendarPermissionStatus({
     calendar: lazyCalendarPort(),
     publisher,
-    isOAuthInFlight: oauth.isOAuthInFlight,
     getCachedPermission: () => cachedPermissionStatus,
     setCachedPermission: (s) => {
       cachedPermissionStatus = s;
     },
-    getAccountEmail: oauth.getAccountEmail,
-    isOAuthConfigured: oauth.isOAuthConfigured,
     getUiState: () => uiState,
     setUiState,
   });
@@ -126,8 +144,8 @@ function createDefaultDisconnect(): DisconnectCalendar {
     publisher,
     resetProvider: () => {
       resetCalendarProvider();
+      cachedProvider = null;
     },
-    isOAuthConfigured: () => isGoogleOAuthConfigured(),
     setCachedPermission,
     setUiState: replaceUiState,
   });
@@ -190,7 +208,7 @@ export function invalidateCalendarPermissionCache(): void {
 
 /**
  * Whether lifecycle may auto-call `requestCalendarPermission` when status is
- * `not-determined`. Darwin only — Windows must not auto-open OAuth (K16).
+ * `not-determined`. Darwin only — Windows must not auto-open OAuth.
  */
 export function shouldAutoRequestCalendarPermission(): boolean {
   return isDarwin();
@@ -213,7 +231,15 @@ export function reportCalendarPollError(error: string, lastEvents: MeetingEvent[
     lastError: error,
     events: lastEvents,
     offline: !!(lastEvents && lastEvents.length > 0),
-    oauthConfigured: isGoogleOAuthConfigured(),
+    oauthConfigured: lazyCalendarPort().isOAuthConfigured?.() ?? false,
   });
   mainBus.emit("calendar-status-updated", uiState);
+}
+
+/**
+ * Active provider as CalendarPort for watcher/startWatch (async resolve).
+ * Prefer facades free functions for production call sites.
+ */
+export async function getCalendarPort(): Promise<CalendarPort> {
+  return asCalendarPort(await resolveProvider());
 }

@@ -6,11 +6,8 @@ import type { EventPublisherPort } from "../ports/event-publisher-port.js";
 export interface GetCalendarPermissionStatusDeps {
   calendar: CalendarPort;
   publisher: EventPublisherPort;
-  isOAuthInFlight: () => boolean;
   getCachedPermission: () => CalendarPermission | null;
   setCachedPermission: (status: CalendarPermission) => void;
-  getAccountEmail: () => Promise<string | null>;
-  isOAuthConfigured: () => boolean;
   getUiState: () => CalendarUiState;
   setUiState: (partial: Partial<CalendarUiState>) => void;
 }
@@ -24,7 +21,7 @@ export function createGetCalendarPermissionStatus(
 ): GetCalendarPermissionStatus {
   return {
     async execute(): Promise<CalendarPermission> {
-      if (deps.isOAuthInFlight()) return "not-determined";
+      if (deps.calendar.isOAuthInFlight?.()) return "not-determined";
       const cached = deps.getCachedPermission();
       if (cached !== null) return cached;
 
@@ -40,8 +37,8 @@ export function createGetCalendarPermissionStatus(
               ? "ready"
               : "empty"
             : "disconnected",
-        oauthConfigured: deps.isOAuthConfigured(),
-        accountEmail: (await deps.getAccountEmail()) ?? ui.accountEmail,
+        oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
+        accountEmail: (await deps.calendar.getAccountLabel?.()) ?? ui.accountEmail,
       };
       deps.setUiState(next);
       deps.publisher.publishCalendarStatus(deps.getUiState());

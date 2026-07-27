@@ -8,7 +8,6 @@ export interface DisconnectCalendarDeps {
   calendar: CalendarPort;
   publisher: EventPublisherPort;
   resetProvider: () => void;
-  isOAuthConfigured: () => boolean;
   setCachedPermission: (status: CalendarPermission | null) => void;
   setUiState: (state: CalendarUiState) => void;
 }
@@ -25,7 +24,7 @@ export function createDisconnectCalendar(deps: DisconnectCalendarDeps): Disconne
       deps.setCachedPermission(null);
       const next: CalendarUiState = {
         ...defaultCalendarUiState(),
-        oauthConfigured: deps.isOAuthConfigured(),
+        oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         phase: "disconnected",
         permission: "not-determined",
       };

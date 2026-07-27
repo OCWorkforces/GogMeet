@@ -19,6 +19,8 @@ describe("createGetMeetings", () => {
       getEvents: vi.fn(),
       getPermissionStatus: vi.fn(),
       requestPermission: vi.fn(),
+      getAccountLabel: vi.fn().mockResolvedValue("user@example.com"),
+      isOAuthConfigured: vi.fn().mockReturnValue(true),
     };
   });
 
@@ -30,8 +32,6 @@ describe("createGetMeetings", () => {
           published.push(s);
         },
       },
-      getAccountEmail: async () => "user@example.com",
-      isOAuthConfigured: () => true,
       getUiState: () => uiState,
       setUiState: (partial) => {
         uiState = { ...uiState, ...partial };

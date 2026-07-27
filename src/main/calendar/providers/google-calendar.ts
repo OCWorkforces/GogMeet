@@ -378,6 +378,18 @@ export function createGoogleCalendarProvider(): CalendarProvider {
       await clearOfflineCache();
     },
 
+    async getAccountLabel(): Promise<string | null> {
+      return (await loadGoogleTokens())?.email ?? null;
+    },
+
+    isOAuthConfigured(): boolean {
+      return isGoogleOAuthConfigured();
+    },
+
+    isOAuthInFlight(): boolean {
+      return isGoogleOAuthInFlight();
+    },
+
     async warmup(): Promise<void> {
       // Soft-refresh tokens if present; ignore failures
       await ensureFreshGoogleAccessToken().catch(() => null);
