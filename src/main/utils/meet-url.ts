@@ -1,7 +1,7 @@
-import { shell } from "electron";
 import type { Result } from "../../domain/entities/result.js";
-import { err, ok } from "../../domain/entities/result.js";
-import { isAllowedMeetUrl } from "../../domain/services/url-validation.js";
+import { createShellMeetingOpener } from "../infrastructure/electron/shell-meeting-opener.js";
+
+const defaultOpener = createShellMeetingOpener();
 
 /**
  * Validate and open a meeting URL in the default browser.
@@ -10,16 +10,7 @@ import { isAllowedMeetUrl } from "../../domain/services/url-validation.js";
  * Pure URL construction: {@link buildMeetUrl} in `domain/services/build-meet-url.ts`.
  */
 export async function openMeetingUrl(url: string): Promise<Result<void, string>> {
-  if (!isAllowedMeetUrl(url)) {
-    console.error("[meet-url] Blocked disallowed URL:", url);
-    return err("MeetUrl hostname is not in the allowlist");
-  }
-  try {
-    await shell.openExternal(url);
-    return ok(undefined);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("[meet-url] Failed to open URL:", url, e);
-    return err(message);
-  }
+  return defaultOpener.open(url);
 }
+
+export { createShellMeetingOpener };
