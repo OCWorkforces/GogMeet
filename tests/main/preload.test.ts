@@ -241,4 +241,100 @@ describe("preload/index.ts", () => {
       });
     }
   });
+
+  it("invokes calendar and settings IPC channels by name", async () => {
+    vi.resetModules();
+    mockContextBridge.exposeInMainWorld.mockClear();
+    mockIpcRenderer.invoke.mockClear();
+    await import("../../src/preload/index.js");
+    const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
+    const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+    await api.calendar.getEvents();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_GET_EVENTS);
+    await api.calendar.requestPermission();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION);
+    await api.calendar.getPermissionStatus();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_PERMISSION_STATUS);
+    await api.calendar.disconnect();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_DISCONNECT);
+    await api.calendar.getUiState();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_UI_STATE);
+    await api.settings.get();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.SETTINGS_GET);
+    await api.settings.set({ openBeforeMinutes: 2 });
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.SETTINGS_SET,
+      { openBeforeMinutes: 2 },
+    );
+    await api.app.getVersion();
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.APP_GET_VERSION);
+  });
+
+  it("joinMeeting rejects invalid id and invokes with branded id", async () => {
+    vi.resetModules();
+    mockContextBridge.exposeInMainWorld.mockClear();
+    mockIpcRenderer.invoke.mockClear();
+    await import("../../src/preload/index.js");
+    const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
+    const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+    const bad = await api.app.joinMeeting("");
+    expect(bad.ok).toBe(false);
+    expect(mockIpcRenderer.invoke).not.toHaveBeenCalled();
+    await api.app.joinMeeting("evt-1");
+    expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.APP_JOIN_MEETING, {
+      id: "evt-1",
+    });
+  });
+
+  it("setHeight clamps and sends WINDOW_SET_HEIGHT", async () => {
+    vi.resetModules();
+    mockContextBridge.exposeInMainWorld.mockClear();
+    mockIpcRenderer.send.mockClear();
+    await import("../../src/preload/index.js");
+    const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
+    const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+    api.window.setHeight(9999);
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.WINDOW_SET_HEIGHT,
+      expect.objectContaining({ height: expect.any(Number) }),
+    );
+    const payload = mockIpcRenderer.send.mock.calls[0]?.[1] as { height: number };
+    expect(payload.height).toBeLessThanOrEqual(9999);
+  });
+
+  it("push listeners register and unsubscribe", async () => {
+    vi.resetModules();
+    mockContextBridge.exposeInMainWorld.mockClear();
+    mockIpcRenderer.on.mockClear();
+    mockIpcRenderer.removeListener.mockClear();
+    mockIpcRenderer.send.mockClear();
+    await import("../../src/preload/index.js");
+    const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
+    const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
+    const unsub1 = api.calendar.onEventsUpdated(() => {});
+    const unsub2 = api.settings.onChanged(() => {});
+    const unsub3 = api.alert.onShowAlert(() => {});
+    expect(mockIpcRenderer.on).toHaveBeenCalledWith(
+      IPC_CHANNELS.CALENDAR_EVENTS_UPDATED,
+      expect.any(Function),
+    );
+    expect(mockIpcRenderer.on).toHaveBeenCalledWith(
+      IPC_CHANNELS.SETTINGS_CHANGED,
+      expect.any(Function),
+    );
+    expect(mockIpcRenderer.on).toHaveBeenCalledWith(
+      IPC_CHANNELS.ALERT_SHOW,
+      expect.any(Function),
+    );
+    unsub1();
+    unsub2();
+    unsub3();
+    expect(mockIpcRenderer.removeListener).toHaveBeenCalledTimes(3);
+    api.alert.notifyDismissed("evt-1");
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith(IPC_CHANNELS.ALERT_DISMISSED, {
+      id: "evt-1",
+    });
+    api.scheduler.forcePoll();
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith(IPC_CHANNELS.SCHEDULER_FORCE_POLL);
+  });
 });

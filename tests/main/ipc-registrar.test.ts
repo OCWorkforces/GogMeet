@@ -28,15 +28,16 @@ vi.mock("../../src/main/ipc-handlers/window.js", () => ({
 
 import { registerIpcHandlers } from "../../src/main/app/ipc.js";
 import { validateSender } from "../../src/main/ipc-handlers/shared.js";
+import { testAppGraph } from "../helpers/app-graph.js";
 
 describe("registerIpcHandlers", () => {
   it("calls all handler registration functions", () => {
     const mockWin = {} as unknown as import("electron").BrowserWindow;
-    registerIpcHandlers(mockWin);
+    registerIpcHandlers(mockWin, testAppGraph());
 
-    expect(mockRegisterCalendarHandlers).toHaveBeenCalledOnce();
-    expect(mockRegisterSettingsHandlers).toHaveBeenCalledWith(mockWin);
-    expect(mockRegisterAppHandlers).toHaveBeenCalledOnce();
+    expect(mockRegisterCalendarHandlers).toHaveBeenCalledWith(expect.any(Object));
+    expect(mockRegisterSettingsHandlers).toHaveBeenCalledWith(mockWin, expect.any(Object));
+    expect(mockRegisterAppHandlers).toHaveBeenCalledWith(expect.any(Object));
     expect(mockRegisterWindowHandlers).toHaveBeenCalledWith(mockWin);
   });
 });

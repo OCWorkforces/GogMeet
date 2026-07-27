@@ -1,4 +1,4 @@
-import type { CalendarResult } from "../../../shared/calendar-result.js";
+import type { CalendarResult } from "../../../domain/entities/calendar-result.js";
 
 /** Cap to prevent unbounded growth after error handler has already fired */
 export const MAX_CONSECUTIVE_ERRORS_CAP = 4;

@@ -2,16 +2,14 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-Platform calendar backends behind the stable domain facade (`domain/calendar.ts`).
+Platform calendar backends behind the stable calendar facade (`facades/calendar.ts`). Pure URL extract / description clean live in `src/domain/services/`.
 
 ## FILES
 
 | File | Role |
 | --- | --- |
-| `provider.ts` | `CalendarProvider` interface + id union |
+| `provider.ts` | `CalendarProvider` interface + id union (aligns with CalendarPort capabilities) |
 | `factory.ts` | `getActiveCalendarProvider()`, `resetCalendarProvider()` — selection order below |
-| `clean-description.ts` | Pure notes cleaner (EventKit parse + Google) |
-| `url-extract.ts` | Pure Meet/Zoom/Calendly extract (Zoom → Meet → Calendly) |
 | `offline-cache.ts` | Encrypted `userData/calendar-cache.enc` offline fallback |
 | `auth/google-client-id.ts` | `GOOGLE_OAUTH_CLIENT_ID` |
 | `auth/google-token-store.ts` | Encrypted `userData/calendar-auth/google.enc` (schema + clientId gates) |
@@ -27,13 +25,22 @@ Platform calendar backends behind the stable domain facade (`domain/calendar.ts`
 2. Darwin → EventKit (always; ignores cloud provider settings for MVP)  
 3. Else → Google Calendar  
 
+## DOMAIN HELPERS (not in this folder)
+
+| Concern | Path |
+| --- | --- |
+| Free-text URL extract | `domain/services/url-extract.ts` |
+| Notes cleaner | `domain/services/clean-description.ts` |
+| buildMeetUrl / host detect | `domain/services/build-meet-url.ts`, `platform.ts` |
+
 ## RULES
 
 - Production code outside `providers/darwin-eventkit.ts` and `src/main/swift/**` must not import `swift/*`.
 - Darwin provider is **dynamic-import**ed so win32 never loads Swift.
 - Cloud providers emit `MeetingEvent[]` directly (not JSON Lines).
-- Use `extractMeetingUrl` / `cleanDescription` for free-text fields; never reimplement host allowlists ad hoc.
-- Callers (scheduler, IPC, tray) use **`domain/calendar.ts` only**.
-- `utils/platform.ts` = meeting host; `platform/os.ts` = OS.
+- Use domain `extractMeetingUrl` / `cleanDescription` (`domain/services/*`) for free-text fields; never reimplement host allowlists ad hoc.
+- Callers (scheduler, IPC, tray) use **`facades/calendar.ts`** or **`graph.calendar`** only.
+- OS branching: `platform/os.ts`. Meeting host: `domain/services/platform.ts`.
 - Fixture never loads when `app.isPackaged`.
 - OAuth: loopback only; fail closed if `safeStorage` unavailable unless unpackaged `GOGMEET_ALLOW_PLAINTEXT_TOKENS=1`.
+- Auth modules are imported only from the Google provider (and tests) — never from facades.

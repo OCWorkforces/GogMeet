@@ -15,7 +15,7 @@
  * Keeping this payload minimal reduces the IPC surface area and prevents
  * the renderer from accidentally gaining the ability to open URLs.
  */
-import type { EventId, IsoUtc } from "./brand.js";
+import type { EventId, IsoUtc } from "../domain/entities/brand.js";
 
 export interface AlertPayload {
   /** Stable meeting id (matches MeetingEvent.id) — used for coalescing/diagnostics */

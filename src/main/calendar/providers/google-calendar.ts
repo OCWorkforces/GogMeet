@@ -3,13 +3,16 @@
  * Maps API responses directly to MeetingEvent[] — no JSON Lines.
  */
 
-import type { CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
-import type { MeetingEvent } from "../../../shared/meeting-event.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../../shared/brand.js";
-import { formatAppError } from "../../../shared/errors.js";
-import { isObjectRecord } from "../../../shared/type-guards.js";
-import { cleanDescription } from "../clean-description.js";
-import { extractMeetingUrl } from "../url-extract.js";
+import type {
+  CalendarPermission,
+  CalendarResult,
+} from "../../../domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../../domain/entities/meeting-event.js";
+import { asEventId, asIsoUtc, asMeetUrl } from "../../../domain/entities/brand.js";
+import { formatAppError } from "../../../domain/entities/errors.js";
+import { isObjectRecord } from "../../../domain/entities/type-guards.js";
+import { cleanDescription } from "../../../domain/services/clean-description.js";
+import { extractMeetingUrl } from "../../../domain/services/url-extract.js";
 import type { CalendarProvider } from "../provider.js";
 import { clearGoogleTokens, loadGoogleTokens } from "../auth/google-token-store.js";
 import {
@@ -373,6 +376,18 @@ export function createGoogleCalendarProvider(): CalendarProvider {
     async disconnect(): Promise<void> {
       await clearGoogleTokens();
       await clearOfflineCache();
+    },
+
+    async getAccountLabel(): Promise<string | null> {
+      return (await loadGoogleTokens())?.email ?? null;
+    },
+
+    isOAuthConfigured(): boolean {
+      return isGoogleOAuthConfigured();
+    },
+
+    isOAuthInFlight(): boolean {
+      return isGoogleOAuthInFlight();
     },
 
     async warmup(): Promise<void> {

@@ -58,7 +58,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 
 let showAlert: typeof import("../../src/main/windows/alert-window.js").showAlert;
 import { BrowserWindow, app } from "electron";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 function makeEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
-import type { CalendarResult } from "../../src/shared/calendar-result.js";
-import type { MeetingEvent } from "../../src/shared/meeting-event.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
 
 // Mock electron
@@ -13,7 +13,7 @@ vi.mock("electron", () => ({
 }));
 
 // Mock calendar module
-vi.mock("../../src/main/domain/calendar.js", () => ({
+vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
   getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
 }));
@@ -26,7 +26,7 @@ vi.mock("../../src/main/system/power.js", () => ({
 }));
 
 // Mock settings
-vi.mock("../../src/main/domain/settings.js", () => ({
+vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({
@@ -45,7 +45,7 @@ vi.mock("../../src/main/domain/settings.js", () => ({
   }),
 }));
 
-const { getCalendarEventsResult } = await import("../../src/main/domain/calendar.js");
+const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
 
 // Use stateModule.state to always get the current state reference after replaceState
 const stateModule = await import("../../src/main/scheduler/state/index.js");

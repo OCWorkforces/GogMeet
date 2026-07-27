@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest";
-import { eventListSignature } from "../../src/shared/event-signature.js";
+import { eventListSignature } from "../../src/domain/services/event-signature.js";
 import {
   asTestEventId,
   asTestIsoUtc,

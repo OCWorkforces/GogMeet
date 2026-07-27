@@ -1,10 +1,10 @@
-import type { MeetingEvent } from "./meeting-event.js";
-import type { CalendarResult, CalendarPermission } from "./calendar-result.js";
-import type { CalendarUiState } from "./calendar-ui-state.js";
-import type { EventId, MeetUrl, WindowHeight } from "./brand.js";
-import type { AppSettings } from "./settings.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
+import type { CalendarResult, CalendarPermission } from "../domain/entities/calendar-result.js";
+import type { CalendarUiState } from "../domain/entities/calendar-ui-state.js";
+import type { EventId, MeetUrl, WindowHeight } from "../domain/entities/brand.js";
+import type { AppSettings } from "../domain/entities/settings.js";
 import type { AlertPayload } from "./alert.js";
-import type { Result } from "./result.js";
+import type { Result } from "../domain/entities/result.js";
 
 /** IPC channel names — single source of truth */
 export const IPC_CHANNELS = {

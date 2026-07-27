@@ -13,10 +13,10 @@
  */
 
 import type { AppState } from "../../shared/app-state.js";
-import type { AppSettings } from "../../shared/settings.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import { eventListSignature } from "../../shared/event-signature.js";
-import { isTomorrow } from "../../shared/utils/time.js";
+import type { AppSettings } from "../../domain/entities/settings.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import { eventListSignature } from "../../domain/services/event-signature.js";
+import { isTomorrow } from "../../domain/services/time.js";
 
 export interface ApplyEventsPushInput {
   readonly events: readonly MeetingEvent[];

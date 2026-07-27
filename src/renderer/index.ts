@@ -1,9 +1,9 @@
 import "./styles/main.css";
-import type { MeetingEvent } from "../shared/meeting-event.js";
-import type { CalendarPermission } from "../shared/calendar-result.js";
-import { isCalendarOk } from "../shared/calendar-result.js";
-import type { AppSettings } from "../shared/settings.js";
-import { DEFAULT_SETTINGS } from "../shared/settings.js";
+import type { MeetingEvent } from "../domain/entities/meeting-event.js";
+import type { CalendarPermission } from "../domain/entities/calendar-result.js";
+import { isCalendarOk } from "../domain/entities/calendar-result.js";
+import type { AppSettings } from "../domain/entities/settings.js";
+import { DEFAULT_SETTINGS } from "../domain/entities/settings.js";
 import { renderBody } from "./rendering/body.js";
 import { setupDelegatedEvents } from "./events/delegation.js";
 import { applyEventsPush } from "./lib/apply-events-push.js";

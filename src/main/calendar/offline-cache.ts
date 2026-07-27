@@ -7,9 +7,9 @@ import { app, safeStorage } from "electron";
 import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import { isObjectRecord } from "../../shared/type-guards.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../shared/brand.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import { isObjectRecord } from "../../domain/entities/type-guards.js";
+import { asEventId, asIsoUtc, asMeetUrl } from "../../domain/entities/brand.js";
 
 export interface OfflineCachePayload {
   readonly savedAt: number;

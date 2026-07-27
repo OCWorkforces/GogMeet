@@ -4,10 +4,10 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 
 ## Files
 
-| File            | Role                                                                   |
-| --------------- | ---------------------------------------------------------------------- |
-| `index.ts`      | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type. |
-| `tsconfig.json` | Preload TypeScript project.                                            |
+| File | Role |
+| --- | --- |
+| `index.ts` | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type |
+| `tsconfig.json` | Preload TypeScript project |
 
 ## Exposed API
 
@@ -33,43 +33,44 @@ window.api = {
 
 ## Trust-boundary branding
 
-| Renderer input    | Validator                              | Main IPC payload                |
-| ----------------- | -------------------------------------- | ------------------------------- |
-| raw URL string    | `brandMeetUrl()` → `MeetUrl \| null`   | `APP_OPEN_EXTERNAL: { url }`    |
-| raw event id      | `asEventId()`                          | `APP_JOIN_MEETING: { id }`      |
+| Renderer input | Validator | Main IPC payload |
+| --- | --- | --- |
+| raw URL string | `brandMeetUrl()` → `MeetUrl \| null` | `APP_OPEN_EXTERNAL: { url }` |
+| raw event id | `asEventId()` | `APP_JOIN_MEETING: { id }` |
 | raw height number | `clampWindowHeight()` → `WindowHeight` | `WINDOW_SET_HEIGHT: { height }` |
-| alert `EventId`   | passthrough from main push             | `ALERT_DISMISSED: { id }`       |
+| alert `EventId` | passthrough from main push | `ALERT_DISMISSED: { id }` |
 
-`brandMeetUrl` uses `asMeetUrl` + shared `isAllowedMeetHostname` from `src/shared/meet-url-allowlist.ts`.
+`brandMeetUrl` uses `asMeetUrl` + `isAllowedMeetHostname` from `src/domain/policies/meet-url-allowlist.ts`.
 Invalid URL → `openExternal` resolves `err("Invalid or disallowed URL")` without IPC.
 Invalid id → `joinMeeting` resolves `err(...)` without IPC.
 
 ### Allowlist parity
 
-Hostnames/suffixes live in **`src/shared/meet-url-allowlist.ts`** (imported by preload and main). Main remains authoritative egress via `openMeetingUrl` / `validateMeetUrl`. When changing hosts, update shared + Swift extraction + tests together.
+Hostnames/suffixes live in **`src/domain/policies/meet-url-allowlist.ts`** (imported by preload and domain validation). Main remains authoritative egress via ShellMeetingOpener / `validateMeetUrl`. When changing hosts, update domain allowlist + Swift extraction + tests together.
 
 ## Push listener contract
 
 Subscriptions return `() => void`:
 
-| Channel                   | Method                     | Payload          |
-| ------------------------- | -------------------------- | ---------------- |
+| Channel | Method | Payload |
+| --- | --- | --- |
 | `CALENDAR_EVENTS_UPDATED` | `calendar.onEventsUpdated` | `MeetingEvent[]` |
-| `SETTINGS_CHANGED`        | `settings.onChanged`       | `AppSettings`    |
-| `ALERT_SHOW`              | `alert.onShowAlert`        | `AlertPayload`   |
+| `SETTINGS_CHANGED` | `settings.onChanged` | `AppSettings` |
+| `ALERT_SHOW` | `alert.onShowAlert` | `AlertPayload` |
 
 Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
 
-## Shared imports
+## Imports
 
-There is no `models.ts` barrel. Import concrete files:
+There is no models barrel. Import concrete files:
 
-- `../shared/ipc-channels.js` — channels and `IpcRequest` / `IpcResponse` types.
-- `../shared/meeting-event.js` — `MeetingEvent`.
-- `../shared/settings.js` — `AppSettings`.
-- `../shared/alert.js` — `AlertPayload`.
-- `../shared/brand.js` — `asMeetUrl`, `clampWindowHeight`, branded types.
-- `../shared/calendar-ui-state.js` — `CalendarUiState` (via IPC response typing).
+- `../shared/ipc-channels.js` — channels and `IpcRequest` / `IpcResponse` types
+- `../shared/alert.js` — `AlertPayload`
+- `../domain/entities/settings.js` — `AppSettings`
+- `../domain/entities/meeting-event.js` — `MeetingEvent`
+- `../domain/entities/brand.js` — `asMeetUrl`, `asEventId`, `clampWindowHeight`
+- `../domain/entities/result.js` — `Result`, `err`
+- `../domain/policies/meet-url-allowlist.js` — `isAllowedMeetHostname`
 
 ## Build constraints
 

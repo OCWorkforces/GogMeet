@@ -1,5 +1,5 @@
 import { bench, describe, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/shared/settings.js";
+import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 
 vi.mock("electron", () => ({
   ipcMain: {

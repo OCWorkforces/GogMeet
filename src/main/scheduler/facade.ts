@@ -4,11 +4,11 @@
 // module to avoid cycles — they cross-import each other directly instead.
 
 import type { BrowserWindow } from "electron";
-import type { CalendarResult } from "../../shared/calendar-result.js";
+import type { CalendarResult } from "../../domain/entities/calendar-result.js";
 import { state, resetState, type PowerCallbacks } from "./state/index.js";
 import { poll } from "./poll.js";
 import { cancelBrowserTimer } from "./browser-timer.js";
-import type { EventId } from "../../shared/brand.js";
+import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 
 /** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */

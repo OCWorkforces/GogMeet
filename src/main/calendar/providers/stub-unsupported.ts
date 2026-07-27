@@ -1,5 +1,8 @@
-import type { CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
-import { formatAppError } from "../../../shared/errors.js";
+import type {
+  CalendarPermission,
+  CalendarResult,
+} from "../../../domain/entities/calendar-result.js";
+import { formatAppError } from "../../../domain/entities/errors.js";
 import type { CalendarProvider } from "../provider.js";
 
 const UNSUPPORTED_MESSAGE =
@@ -7,7 +10,7 @@ const UNSUPPORTED_MESSAGE =
 
 /**
  * Placeholder provider for platforms without a wired calendar backend.
- * Wave 4 replaces this on Windows with the Google Calendar provider.
+ * Windows uses the Google Calendar provider in production; this stub is residual.
  */
 export function createStubUnsupportedProvider(): CalendarProvider {
   return {

@@ -1,6 +1,6 @@
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { EventId, IsoUtc } from "../../shared/brand.js";
-import { asIsoUtc } from "../../shared/brand.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { EventId, IsoUtc } from "../../domain/entities/brand.js";
+import { asIsoUtc } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import { showAlert } from "../windows/alert-window.js";
 

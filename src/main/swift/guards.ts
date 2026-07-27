@@ -3,7 +3,7 @@
  * These replace unchecked `as` type assertions with verifiable narrowing so the
  * type system reflects what the runtime can actually prove. */
 
-import { isObjectRecord } from "../../shared/type-guards.js";
+import { isObjectRecord } from "../../domain/entities/type-guards.js";
 
 /** Shape of an error from `child_process.execFile` or `runSwiftHelper`. All
  * fields are optional because Node assigns them dynamically on the Error. */

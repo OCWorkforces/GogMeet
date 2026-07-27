@@ -1,12 +1,8 @@
 import { globalShortcut, Notification } from "electron";
-import { getCalendarEventsResult } from "../domain/calendar.js";
-import { isCalendarOk } from "../../shared/calendar-result.js";
-import { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
-import { getLastKnownEvents } from "../scheduler/facade.js";
-import { joinMeetingById } from "../utils/join-meeting.js";
+import { isCalendarOk } from "../../domain/entities/calendar-result.js";
+import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
+import type { AppGraph } from "../composition/app-graph.js";
 import log from "electron-log";
-
-export { pickJoinTarget } from "../../shared/utils/pick-join-target.js";
 
 let registered = false;
 
@@ -22,13 +18,13 @@ function notifyUser(title: string, body: string): void {
   log.info(`[shortcuts] ${title}: ${body}`);
 }
 
-export function registerShortcuts(): void {
+export function registerShortcuts(graph: AppGraph): void {
   if (registered) return;
 
   const ret = globalShortcut.register("CmdOrCtrl+Shift+M", async () => {
     log.info("[shortcuts] Cmd+Shift+M pressed — joining next meeting");
     try {
-      const result = getLastKnownEvents() ?? (await getCalendarEventsResult());
+      const result = graph.scheduler.getLastKnownEvents() ?? (await graph.calendar.getEvents());
       if (!isCalendarOk(result)) {
         log.warn("[shortcuts] No calendar access");
         notifyUser("GogMeet", "Calendar access is required to join a meeting.");
@@ -41,7 +37,7 @@ export function registerShortcuts(): void {
         return;
       }
 
-      const joined = await joinMeetingById(target.id);
+      const joined = await graph.join.byId(target.id);
       if (!joined.ok) {
         log.warn("[shortcuts] Join failed:", joined.error);
         notifyUser("GogMeet", joined.error);

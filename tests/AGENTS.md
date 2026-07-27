@@ -1,31 +1,35 @@
 # GogMeet Tests — Knowledge Base
 
-Vitest workspace with four projects. `main` runs in Node with Electron mocks, `renderer` runs in jsdom, `shared` runs in plain Node, and `scripts` covers repository automation helpers.
+Vitest workspace (`vitest.workspace.ts`) with six projects. `main` runs in Node with Electron mocks; `renderer` in jsdom; `domain` / `application` / `shared` / `scripts` in plain Node.
 
 ## Projects
 
 | Project | Env | Setup | Scope |
 | --- | --- | --- | --- |
-| `main` | Node | `tests/setup.main.ts` | Electron main, scheduler, calendar providers, Swift, IPC, tray, utilities. |
-| `renderer` | jsdom | none | Browser-only UI rendering and interaction tests. |
-| `shared` | Node | none | Process-neutral shared contracts/utilities. |
-| `scripts` | Node | none | Repository automation scripts under `scripts/` (validate-node, release verifier, **next-beta-tag**); no Electron mocks. |
+| `domain` | Node | none | Pure `src/domain/**` (brands, policies, services). Coverage floors 80/80/70/80 |
+| `application` | Node | none | Ports/use-case unit tests without Electron |
+| `main` | Node | `tests/setup.main.ts` | Electron main, scheduler, providers, Swift, IPC, tray, composition |
+| `renderer` | jsdom | none | Browser-only UI |
+| `shared` | Node | none | Residual shared contract tests (folder may be sparse after domain extract) |
+| `scripts` | Node | none | Repository automation under `scripts/` |
 
-Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/scripts/` covers automation helpers; `tests/bench/` is benchmark-only and not part of the normal Vitest workspace.
+Per-directory docs: `tests/main/AGENTS.md`, `tests/renderer/AGENTS.md`, `tests/shared/AGENTS.md`, `tests/helpers/AGENTS.md`. `tests/bench/` is benchmark-only and not in the normal workspace.
 
-Main project coverage in `vitest.workspace.ts` includes **soft thresholds** (lines/statements 60, functions 55, branches 45) to catch large regressions.
+Main project coverage has soft thresholds (lines/statements 60, functions 55, branches 45).
 
 ## Structure
 
-```
+```text
 tests/
-├── setup.main.ts          # Electron mock, loaded only by main project
-├── helpers/test-utils.ts  # shared factories and brand wrappers
+├── setup.main.ts          # Electron mock (main project only)
+├── helpers/               # test-utils, ipc-sender, app-graph
+├── domain/                # pure domain suites
+├── application/           # use-case suites
 ├── main/                  # Node + Electron mock suites
-├── renderer/              # jsdom suites, no Electron mock
-├── shared/                # Node-only shared suites
-├── scripts/               # Node-only repository script suites
-└── bench/                 # benchmark suites, not included by vitest.workspace.ts
+├── renderer/              # jsdom suites
+├── shared/                # Node-only shared residual suites
+├── scripts/               # validate-node, release, next-beta-tag helpers
+└── bench/                 # not in vitest.workspace.ts
 ```
 
 Total test count changes often; run `bun run test` for authoritative numbers.
@@ -34,33 +38,23 @@ Total test count changes often; run `bun run test` for authoritative numbers.
 
 `setup.main.ts` mocks `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, and `nativeImage`.
 
-BrowserWindow constructors are `vi.fn()` objects with `BrowserWindow.getAllWindows`. Inspect options through `vi.mocked(BrowserWindow).mock.calls[0][0]`. Include `isDestroyed: vi.fn().mockReturnValue(false)` when testing `typedSend()` paths.
+Swift binary tests use `vi.hoisted()` plus `promisify.custom` on a mocked `execFile`.
 
-Swift binary tests use `vi.hoisted()` plus `promisify.custom` on a mocked `execFile`:
-
-```typescript
-const { execFileAsyncMock } = vi.hoisted(() => ({ execFileAsyncMock: vi.fn() }));
-vi.mock("node:child_process", async () => {
-  const { promisify } = await import("node:util");
-  return { execFile: Object.assign(vi.fn(), { [promisify.custom]: execFileAsyncMock }) };
-});
-```
-
-Mock source modules with `.js` import paths and current directories, e.g. `../../src/main/domain/calendar.js` and `../../src/main/system/power.js`.
+Mock source modules with `.js` import paths and current directories, e.g. `../../src/main/facades/calendar.js`, `../../src/main/composition/app-graph.js`.
 
 ## Common patterns
 
 - File names: `[module].test.ts`; do not introduce `*.spec.ts`.
-- Use `.js` extensions in imports/mocks, matching source conventions.
-- Use `vi.useFakeTimers()` / `vi.useRealTimers()` around timer suites; prefer `vi.advanceTimersByTimeAsync()` when promises may flush.
-- Reset stateful modules in `beforeEach`; scheduler suites use helpers such as `poll._resetForTest()` and `facade._resetForceTestState()`.
+- Use `.js` extensions in imports/mocks.
+- Use `vi.useFakeTimers()` / `vi.useRealTimers()` around timer suites; prefer `vi.advanceTimersByTimeAsync()`.
+- Reset stateful modules in `beforeEach`; scheduler suites use `poll._resetForTest()` and `facade._resetForceTestState()`.
 - Dynamic import tests use `vi.resetModules()` before `await import(...)`.
-- Test `validateSender()` with accepted `file://` senders and rejected remote origins.
-- For known-good branded fixtures, use `asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc`; for validator failures, call `asEventId` / `asMeetUrl` / `asIsoUtc` directly and inspect `Result`.
+- For known-good branded fixtures, use `asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc` from helpers; for validator failures, call domain validators and inspect `Result`.
+- Graph-backed handlers: `testAppGraph(overrides)` from `tests/helpers/app-graph.ts`.
 
 ## Helper policy
 
-Prefer `tests/helpers/test-utils.ts` for new fixtures: `createMockEvent`, `createMockSettings`, `createMockIpcEvent`, `isoFromNow`, and branded wrappers. Existing per-file factories may remain when they encode local suite behavior (`makeSwiftLine`, scheduler-specific `makeEvent`).
+Prefer `tests/helpers/test-utils.ts` for fixtures and `tests/helpers/app-graph.ts` for IPC/handler graphs. Existing per-file factories may remain when they encode local suite behavior (`makeSwiftLine`, scheduler-specific `makeEvent`).
 
 ## Commands
 
@@ -76,5 +70,4 @@ bun run test:coverage
 - No real EventKit/Swift/Google network execution in CI (mock fetch/exec).
 - No packaged Electron app smoke test.
 - Auto-updater download/install/relaunch lifecycle is mocked only.
-- Auto-updater download/install/relaunch lifecycle is mocked only; lifecycle asserts `initAutoUpdater` is called.
-- Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings; keep file-local notes intact.
+- Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings.

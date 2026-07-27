@@ -1,14 +1,18 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { formatAppError } from "../../../shared/errors.js";
+import { formatAppError } from "../../../domain/entities/errors.js";
 import type {
   CalendarErrorCode,
   CalendarPermission,
   CalendarResult,
-} from "../../../shared/calendar-result.js";
+} from "../../../domain/entities/calendar-result.js";
 import { ensureBinary, runSwiftHelper } from "../../swift/binary-manager.js";
-import { startWatchSidecar, stopWatchSidecar } from "../../swift/calendar-watch-sidecar.js";
+import {
+  reviveWatchSidecar,
+  startWatchSidecar,
+  stopWatchSidecar,
+} from "../../swift/calendar-watch-sidecar.js";
 import { parseEvents } from "../../swift/event-parser.js";
 import { SwiftHelperError } from "../../swift/event-validator.js";
 import { getErrorStderr } from "../../swift/guards.js";
@@ -107,6 +111,22 @@ export function createDarwinEventKitProvider(): CalendarProvider {
     stopWatch(): void {
       stopWatchSidecar();
       console.log("[calendar:darwin] Watch sidecar stopped");
+    },
+
+    reviveWatch(): void {
+      reviveWatchSidecar();
+    },
+
+    async getAccountLabel(): Promise<string | null> {
+      return null;
+    },
+
+    isOAuthConfigured(): boolean {
+      return false;
+    },
+
+    isOAuthInFlight(): boolean {
+      return false;
     },
 
     async warmup(): Promise<void> {

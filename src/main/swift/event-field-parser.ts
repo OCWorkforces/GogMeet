@@ -1,7 +1,7 @@
-import type { Result } from "../../shared/result.js";
-import type { EventId, IsoUtc, MeetUrl } from "../../shared/brand.js";
-import { asEventId, asIsoUtc } from "../../shared/brand.js";
-import { validateMeetUrl } from "../utils/url-validation.js";
+import type { Result } from "../../domain/entities/result.js";
+import type { EventId, IsoUtc, MeetUrl } from "../../domain/entities/brand.js";
+import { asEventId, asIsoUtc } from "../../domain/entities/brand.js";
+import { validateMeetUrl } from "../../domain/services/url-validation.js";
 import { parseIsoUtc } from "./event-validator.js";
 
 /** Parsed timestamp pair as native Date objects (pre-brand). */

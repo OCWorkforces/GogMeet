@@ -1,4 +1,4 @@
-import type { AppError } from "../../shared/errors.js";
+import type { AppError } from "../../domain/entities/errors.js";
 import { isExecErrorLike } from "./guards.js";
 
 const TZ_Z_SUFFIX = /Z$/i;

@@ -11,11 +11,14 @@
 
 import { readFile } from "node:fs/promises";
 
-import type { CalendarPermission, CalendarResult } from "../../../shared/calendar-result.js";
-import type { MeetingEvent } from "../../../shared/meeting-event.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../../shared/brand.js";
-import { isObjectRecord } from "../../../shared/type-guards.js";
-import { formatAppError } from "../../../shared/errors.js";
+import type {
+  CalendarPermission,
+  CalendarResult,
+} from "../../../domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../../domain/entities/meeting-event.js";
+import { asEventId, asIsoUtc, asMeetUrl } from "../../../domain/entities/brand.js";
+import { isObjectRecord } from "../../../domain/entities/type-guards.js";
+import { formatAppError } from "../../../domain/entities/errors.js";
 import type { CalendarProvider } from "../provider.js";
 
 function mapFixtureEvent(raw: unknown, index: number): MeetingEvent | null {

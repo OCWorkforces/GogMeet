@@ -7,9 +7,9 @@
 import { app } from "electron";
 import path from "path";
 import { readFileSync } from "fs";
-import { err, type AppResult } from "../../shared/result.js";
-import { formatAppError } from "../../shared/errors.js";
-import { parseJsonObject } from "../../shared/parse-json.js";
+import { err, type AppResult } from "../../domain/entities/result.js";
+import { formatAppError } from "../../domain/entities/errors.js";
+import { parseJsonObject } from "../../domain/entities/parse-json.js";
 
 /**
  * Package.json structure with commonly used fields

@@ -1,5 +1,5 @@
 /**
- * Google Desktop OAuth PKCE with loopback redirect (Wave 4a).
+ * Google Desktop OAuth PKCE with loopback redirect.
  * Bind 127.0.0.1 only; 5 minute timeout; single in-flight flow.
  */
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { BrowserWindow } from "electron";
-import type { CalendarResult } from "../../src/shared/calendar-result.js";
+import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
 import { asTestEventId } from "../helpers/test-utils.js";
 
 vi.mock("electron", () => ({

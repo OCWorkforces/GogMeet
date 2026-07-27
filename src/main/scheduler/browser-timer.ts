@@ -1,9 +1,10 @@
 import { Notification } from "electron";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
-import type { EventId } from "../../shared/brand.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import type { ScheduledEventSnapshot } from "./state/index.js";
-import { buildMeetUrl, openMeetingUrl } from "../utils/meet-url.js";
+import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
+import { openMeetingUrl } from "../utils/meet-url.js";
 import { getLateJoinGraceMs } from "./late-join.js";
 
 /** Human-readable notification body based on minutes until meeting start. */

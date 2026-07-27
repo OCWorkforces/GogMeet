@@ -1,7 +1,7 @@
-import type { AppSettings } from "../../shared/settings.js";
-import type { MeetingEvent } from "../../shared/meeting-event.js";
+import type { AppSettings } from "../../domain/entities/settings.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
-import { isTomorrow } from "../../shared/utils/time.js";
+import { isTomorrow } from "../../domain/services/time.js";
 
 import type { AppState } from "../../shared/app-state.js";
 

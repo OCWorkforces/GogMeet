@@ -2,42 +2,37 @@
 
 ## OVERVIEW
 
-Tests for `src/renderer/` under Vitest with `jsdom` environment. No Electron mocks loaded. DOM rendering exercised via `document.body.innerHTML`. Shared types imported from `src/shared/`.
+Tests for `src/renderer/` under Vitest with `jsdom` environment. No Electron mocks. DOM rendering via `document.body.innerHTML`. Types from `src/shared/` and `src/domain/`.
 
 ## FILES
 
-```
+```text
 tests/renderer/
-├── alert.test.ts                  # Alert overlay, formatTimeRange, AlertPayload push
-├── apply-events-push.test.ts      # Push event filtering/signature gating
-├── delegation.test.ts             # data-action event delegation (join uses data-event-id)
-├── escape-html.test.ts            # XSS protection (top-level)
-├── main-ui.test.ts                # List window state machine + meeting list render
-├── settings.test.ts               # Settings form auto-save; open-before 0–10; schema v2 defaults
-├── rendering/
-│   └── body.test.ts               # Meeting list HTML; Join buttons use data-event-id
+├── alert.test.ts / alert-join.test.ts   # Alert overlay + join-by-id
+├── apply-events-push.test.ts            # Push event filtering/signature gating
+├── delegation.test.ts                   # data-action (join uses data-event-id)
+├── escape-html.test.ts                  # XSS protection
+├── main-ui.test.ts                      # List window state machine + render
+├── settings.test.ts                     # Form auto-save; open-before 0–10; schema v2
+├── rendering/body.test.ts               # Meeting list HTML; Join uses data-event-id
 └── utils/
-    ├── dom.test.ts                # DOM helpers (queries, classlist, structure assertions)
-    ├── escape-html.test.ts        # escapeHtml unit test (lower-level)
-    ├── result.test.ts             # Result<T,E> unwrapping helpers
-    └── time.test.ts               # Time formatting utilities
+    ├── dom.test.ts
+    ├── escape-html.test.ts
+    ├── result.test.ts
+    └── time.test.ts
 ```
-
-There is no `rendering/dom.test.ts` and no `utils/errors.test.ts` — error message helpers live under `tests/shared/errors.test.ts`.
 
 ## CONVENTIONS
 
-- `jsdom` environment: render via `document.body.innerHTML = html`, assert on `document.body.textContent`
-- `escapeHtml()` tested for `&`, `<`, `>`, `"`, `'` escaping
-- State machine tests: assert `loading` → `no-permission` / `events` transitions
-- `window.api` stubbed via `Object.defineProperty(window, 'api', {...})` — match exact callback signatures from `src/preload/index.ts`
-- `onEventsUpdated` callback receives `MeetingEvent[]` directly (no extra round-trip)
-- Meeting list rendering: `parts.push()` + `.join('')` pattern, never `html += ...`
-- Branded fixtures (`EventId`, `MeetUrl`, `IsoUtc`) come from `tests/helpers/test-utils.ts` (`asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc`) — never assign raw strings
+- `jsdom`: render via `document.body.innerHTML`, assert on `textContent` / query selectors.
+- `window.api` stubbed via `Object.defineProperty(window, 'api', {...})` — match `src/preload/index.ts` signatures.
+- `onEventsUpdated` receives `MeetingEvent[]` directly.
+- Branded fixtures from `tests/helpers/test-utils.ts`.
+- Meeting list: `parts.push()` + `.join('')`, never `html += ...`.
 
 ## ANTI-PATTERNS
 
-- Never pass unescaped user content to `innerHTML`
-- Never use dot notation on index-signature types in tests
-- Never mock `window.api` with wrong callback signatures
-- Never import from `src/main/` — renderer tests must stay process-pure
+- Never pass unescaped user content to `innerHTML`.
+- Never use dot notation on index-signature types in tests.
+- Never mock `window.api` with wrong callback signatures.
+- Never import from `src/main/` — renderer tests stay process-pure.

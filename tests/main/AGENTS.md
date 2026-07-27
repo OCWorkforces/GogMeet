@@ -2,21 +2,23 @@
 
 ## OVERVIEW
 
-Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock. Covers Electron main, scheduler, calendar providers (factory/Google/fixture), Swift bridge, IPC, windows, tray/menu, system adapters, settings, preload.
+Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock. Covers Electron main, composition graph, scheduler, calendar providers, Swift bridge, IPC, windows, tray/menu, system adapters, settings, preload.
 
 ## STRUCTURE
 
-```
+```text
 tests/main/
-├── scheduler*.test.ts       # scheduler state, timers, facade, poll races, auto-open deadlines
-├── swift/                   # parser-focused Swift JSON Lines tests
-├── calendar*.test.ts        # domain facade, factory, fixture, token store
-├── url-extract*.test.ts     # shared Meet/Zoom/Calendly extraction
-├── ipc*.test.ts             # channel constants, typed wrappers, handlers, registrar
-├── platform-os / window-chrome / after-pack
-├── *-window.test.ts         # BrowserWindow factories
-└── system/util suites       # power, shortcuts, notification, auto-launch, updater, tray
+├── app-graph.test.ts / lifecycle.test.ts / app-bootstrap.test.ts
+├── scheduler*.test.ts / scheduler/     # facade, poll, timers, plan-schedule
+├── swift/ + swift-*.test.ts            # parser, binary-manager, guards, watch sidecar
+├── calendar*.test.ts / fixture / google-token-store
+├── ipc*.test.ts                        # channels, typed wrappers, handlers, registrar
+├── tray / meeting-menu / *-window / window-chrome
+├── system adapters                     # power, shortcuts, notification, auto-launch, updater
+└── utils                               # join-meeting, package-info, system-settings
 ```
+
+Domain-pure suites (brand, url-extract, meet-url build, pick-join-target, settings defaults, etc.) live under **`tests/domain/`**, not here.
 
 ## SCHEDULER SUITES
 
@@ -24,54 +26,47 @@ tests/main/
 | --- | --- |
 | State machine | `scheduler.test.ts`, `scheduler-state-replace.test.ts` |
 | Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts`, `scheduler-restart-preserves-suppression.test.ts` |
+| Pure plan | `scheduler-plan-schedule.test.ts` |
 | Browser/alert timers | `scheduler-browser-timer.test.ts`, `scheduler-alert-timer.test.ts`, `scheduler-auto-open-deadline.test.ts`, `scheduler-facade-cancel-browser-open.test.ts` |
-| Late-join | `late-join.test.ts` (eligibility + grace; `firedEvents` only) |
+| Late-join | `late-join.test.ts` (`firedEvents` only) |
 | Tray countdown | `scheduler-title-countdown.test.ts`, `scheduler-countdown.test.ts` |
 
-Scheduler tests use fake timers heavily. Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
+Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
 
 ## CALENDAR / PROVIDERS / SWIFT
 
-- `calendar.test.ts` — domain facade over Darwin provider mocks, JSON Lines parse diagnostics, permission cache.
-- `calendar-factory.test.ts` / `fixture-calendar.test.ts` / `google-token-store.test.ts` — factory selection, K23 fixture gate, token schema.
-- `url-extract.test.ts` — Zoom → Meet → Calendly priority + allowlist.
-- `swift/event-parser.test.ts` — field parsing, diagnostics, `classifySwiftError` → `calendar-*` AppError.
-- `swift-binary-manager.test.ts` / `calendar-watch-sidecar.test.ts` — compile/cache/watch (mocked exec; no real EventKit in CI).
+- `calendar.test.ts` — facade over provider mocks, permission cache.
+- `calendar-factory.test.ts` / `fixture-calendar.test.ts` / `google-token-store.test.ts` — factory selection, fixture gate, token schema.
+- `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
+- `swift-binary-manager.test.ts` / `calendar-watch-sidecar.test.ts` — compile/cache/watch (mocked exec).
 
-## IPC / PRELOAD
+## IPC / PRELOAD / GRAPH
 
 - Channel contracts: `ipc-channels.test.ts` (includes `APP_JOIN_MEETING`), `ipc-types.test.ts`.
-- Boundary helpers: `ipc-handlers-shared.test.ts` for `validateSender`, `validateOnSender`, `typedHandle`, `typedSend`.
-- Domain handlers: `ipc-handlers-calendar/settings/app/window/scheduler/alert.test.ts` — app handlers cover Result open + join-by-id; settings cover selective restart + `forcePoll` mock.
-- Registrar: `ipc-registrar.test.ts` must track every handler registered by `src/main/app/ipc.ts`.
-- Preload API: `preload.test.ts` covers `joinMeeting`, allowlist via shared module, invoke/send/listeners.
+- Boundary helpers: `ipc-handlers-shared.test.ts`.
+- Domain handlers: `ipc-handlers-*.test.ts` — pass `testAppGraph()`; cover Result open + join-by-id; settings selective restart.
+- Registrar: `ipc-registrar.test.ts` tracks every handler from `src/main/app/ipc.ts`.
+- Preload API: `preload.test.ts` — joinMeeting, domain allowlist, invoke/send/listeners.
+- Composition: `app-graph.test.ts`; lifecycle asserts graph-first init + `initAutoUpdater` + resume revive.
 
 ## WINDOWS / SYSTEM / UTILS
 
-- Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts`.
-- Tray/menu: `tray.test.ts` (setup, menus, Windows left-click popup, tooltips); `meeting-menu.test.ts`.
-- Windows: `alert-window`, `settings-window`, `browser-window`, `window-chrome`.
-- System: `power`, `shortcuts`, `notification` (platform deep-links), `auto-launch`, `auto-updater` (portable skip).
-- Domain/utils: `settings.test.ts`, `settings-defaults.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
-- Bootstrap/lifecycle: `app-bootstrap.test.ts`, `lifecycle.test.ts` (assert `initAutoUpdater`, resume → revive watcher).
-- Tray/menu/windows: `tray.test.ts`, `meeting-menu.test.ts` (Join/Copy submenu, Refresh, Join Next, status rows), `alert-window.test.ts`, `settings-window.test.ts`, `browser-window.test.ts`.
-- System adapters: `power.test.ts`, `shortcuts.test.ts` (in-progress pick + `joinMeetingById`), `notification.test.ts`, `auto-launch.test.ts`, `auto-updater.test.ts`.
-- Domain/utils: `settings.test.ts` / `settings-defaults.test.ts` (schema v2), `join-meeting.test.ts`, `system-settings.test.ts`, `url-validation.test.ts`, `meet-url.test.ts`, `package-info.test.ts`, `brand.test.ts`, `time-utils.test.ts`.
+- Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click), `meeting-menu.test.ts` (callbacks for join/poll).
+- Windows: `alert-window`, `settings-window`, `browser-window`, `window-chrome`, `about-window`.
+- System: `power`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
+- Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`.
 
 ## MOCKING RULES
 
-- `tests/setup.main.ts` is the default Electron mock: `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`.
-- Inline `vi.mock("electron", ...)` is allowed when a suite needs isolated import-time behavior or a narrower Electron surface.
-- Tray native-menu tests should expose `setContextMenu` on the `Tray` mock and assert first-click readiness by checking setup-time installation, not by relying on `popUpContextMenu()` inside a click handler.
-- Mock source modules with `.js` specifiers, matching production imports.
+- Default Electron mock in `tests/setup.main.ts`.
+- Inline `vi.mock("electron", ...)` when a suite needs isolated import-time behavior.
+- Mock source modules with `.js` specifiers.
 - Dynamic import tests use `vi.resetModules()` before `await import(...)`.
-
-## TEST UTILITIES
-
-Use `tests/helpers/test-utils.ts` for shared factories: `createMockEvent`, `createMockSettings`, `createMockIpcEvent`, `isoFromNow`, `asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc`. For validator failure paths, call production validators and inspect the returned `Result`.
+- Prefer `testAppGraph` over ad-hoc partial graph objects.
 
 ## ANTI-PATTERNS
 
 - Never skip sender validation coverage for IPC handlers.
 - Never assert raw `setTimeout` implementation details when observable state changes can be tested.
 - Never import renderer code into main tests; preload tests are the documented bridge exception.
+- Do not reintroduce domain-pure suites here — put them under `tests/domain/`.
