@@ -10,13 +10,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
 /** stdout allocation ceiling for one-shot EventKit dumps (not a performance optimum). */
-export const SWIFT_HELPER_STDOUT_LIMIT_BYTES = 8 * 1024 * 1024;
+export const SWIFT_HELPER_STDOUT_LIMIT_BYTES: number = 8 * 1024 * 1024;
 /** stderr diagnostic ceiling. */
-export const SWIFT_HELPER_STDERR_LIMIT_BYTES = 256 * 1024;
+export const SWIFT_HELPER_STDERR_LIMIT_BYTES: number = 256 * 1024;
 /** Wall-clock execution deadline for one-shot helper. */
-export const SWIFT_HELPER_TIMEOUT_MS = 15_000;
+export const SWIFT_HELPER_TIMEOUT_MS: number = 15_000;
 /** Grace period after SIGTERM before SIGKILL — matches calendar-watch-sidecar. */
-export const SWIFT_HELPER_KILL_GRACE_MS = 5_000;
+export const SWIFT_HELPER_KILL_GRACE_MS: number = 5_000;
 
 export type SwiftHelperProcessFailureKind =
   | "timeout"
@@ -39,11 +39,11 @@ export class SwiftHelperProcessError extends Error {
     failureKind: SwiftHelperProcessFailureKind,
     message: string,
     options: {
-      exitCode?: number;
-      signal?: NodeJS.Signals | null;
-      stdout?: string;
-      stderr?: string;
-      spawnCode?: string;
+      exitCode?: number | undefined;
+      signal?: NodeJS.Signals | null | undefined;
+      stdout?: string | undefined;
+      stderr?: string | undefined;
+      spawnCode?: string | undefined;
       cause?: unknown;
     } = {},
   ) {
@@ -231,7 +231,7 @@ export function runSwiftHelperProcess(
       child = spawn(options.binaryPath, [...args], {
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
-      }) as ChildProcessWithoutNullStreams;
+      }) as unknown as ChildProcessWithoutNullStreams;
     } catch (err) {
       const code =
         err !== null && typeof err === "object" && "code" in err && typeof err.code === "string"

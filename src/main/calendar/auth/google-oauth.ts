@@ -11,7 +11,6 @@ import { URL } from "node:url";
 import { getGoogleOAuthClientId, isGoogleOAuthConfigured } from "./google-client-id.js";
 import {
   clearGoogleTokens,
-  loadGoogleTokens,
   loadGoogleTokensResult,
   saveGoogleTokens,
   type GoogleTokenFileV1,
@@ -275,7 +274,7 @@ function startRefreshFlight(tokens: GoogleTokenFileV1): Promise<GoogleTokenRefre
 async function runForceFollowUp(): Promise<GoogleTokenRefreshResult> {
   if (forceFollowUp) return forceFollowUp;
 
-  forceFollowUp = (async () => {
+  const flight = (async (): Promise<GoogleTokenRefreshResult> => {
     // Wait for any active if-needed/network flight to finish first.
     if (refreshInFlight) {
       try {
@@ -294,8 +293,8 @@ async function runForceFollowUp(): Promise<GoogleTokenRefreshResult> {
   })().finally(() => {
     forceFollowUp = null;
   });
-
-  return forceFollowUp;
+  forceFollowUp = flight;
+  return flight;
 }
 
 /**

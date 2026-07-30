@@ -10,10 +10,10 @@
  * oauth/provider layers.
  */
 
-export const GOOGLE_HTTP_REQUEST_TIMEOUT_MS = 15_000;
-export const GOOGLE_HTTP_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+export const GOOGLE_HTTP_REQUEST_TIMEOUT_MS: number = 15_000;
+export const GOOGLE_HTTP_BODY_LIMIT_BYTES: number = 8 * 1024 * 1024;
 /** Overall poll budget for calendar list + event pages + refresh await. */
-export const GOOGLE_POLL_BUDGET_MS = 60_000;
+export const GOOGLE_POLL_BUDGET_MS: number = 60_000;
 
 export type GoogleHttpErrorClass =
   | "timeout"
@@ -35,7 +35,11 @@ export class GoogleHttpError extends Error {
   constructor(
     errorClass: GoogleHttpErrorClass,
     message: string,
-    options: { status?: number; apiErrorCode?: string; cause?: unknown } = {},
+    options: {
+      status?: number | undefined;
+      apiErrorCode?: string | undefined;
+      cause?: unknown;
+    } = {},
   ) {
     super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "GoogleHttpError";
@@ -235,12 +239,10 @@ export async function googleHttpRequest(req: GoogleHttpRequest): Promise<GoogleH
   try {
     let res: Response;
     try {
-      res = await fetch(req.url, {
-        method: req.method ?? "GET",
-        headers: req.headers,
-        body: req.body,
-        signal,
-      });
+      const init: RequestInit = { method: req.method ?? "GET", signal };
+      if (req.headers !== undefined) init.headers = req.headers;
+      if (req.body !== undefined) init.body = req.body;
+      res = await fetch(req.url, init);
     } catch (err) {
       if (err instanceof GoogleHttpError) throw err;
       if (signal.aborted) throw mapAbortReason(signal.reason ?? err);

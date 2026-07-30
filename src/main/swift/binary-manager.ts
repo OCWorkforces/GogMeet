@@ -218,7 +218,7 @@ async function executeHelper(signal?: AbortSignal): Promise<string> {
   const result = await runSwiftHelperProcess({
     binaryPath: BINARY_PATH,
     args: [],
-    signal,
+    ...(signal !== undefined ? { signal } : {}),
   });
   return result.stdout.trim();
 }
