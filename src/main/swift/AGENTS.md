@@ -22,7 +22,7 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 - Safety ceilings: stdout **8 MiB**, stderr **256 KiB**, timeout **15 s** (engineering bounds, not optima).
 - Settlement exactly once on child `close`.
 - Abort/timeout/overflow: remove listeners → SIGTERM → grace (`SWIFT_HELPER_KILL_GRACE_MS` = 5 s) → SIGKILL.
-- Prefer `.As<ChildProcessWithoutNullStreams>()` for stdio narrowing (`shared/utils/as.ts`).
+- Prefer free-function `As<ChildProcessWithoutNullStreams>(spawn(...))` for stdio narrowing (`shared/utils/as.ts`). Do **not** use method-form `.As()` here — production main bundles can tree-shake the prototype install.
 
 ## Binary cache + recompile taxonomy
 

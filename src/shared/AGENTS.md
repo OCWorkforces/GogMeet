@@ -14,8 +14,8 @@ IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Enti
 
 Cast helper notes:
 
-- Import once for side effects so `Object.prototype.As` is installed (`tests/setup.as.ts` does this for Vitest).
-- Free function `As(value)` is required for `null` / `undefined` receivers.
+- Free function `As(value)` is required for `null` / `undefined` and for **production main/preload** paths (named import survives Rslib tree-shaking).
+- Method form `value.As()` needs `Object.prototype.As` installed; Vitest does this via `tests/setup.as.ts`. Bare side-effect-only imports are not reliable under `sideEffects` bundling.
 - Not a trust boundary — prefer brands / type guards when validating untrusted data.
 
 ## Domain (not here)

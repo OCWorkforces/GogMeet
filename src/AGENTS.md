@@ -67,7 +67,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 - No static `swift/*` imports outside Darwin provider + `swift/**`.
 - Facades must not import `swift/*` or `calendar/auth/*`.
 - Branded values only at trust boundaries.
-- Prefer `.As<T>()` over `as unknown as T` (import `shared/utils/as.js` for the method).
+- Prefer free-function `As<T>(v)` in production main/preload; method `.As<T>()` is fine in tests after `setup.as.ts`.
 - Calendar: exhaustive provenance; `isCalendarOk` / `isCalendarAutomationEligible` (live complete).
 - `getEvents(signal: AbortSignal)` on ports/providers.
 - Renderer user HTML: `escapeHtml()`.

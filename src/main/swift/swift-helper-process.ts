@@ -9,7 +9,9 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
-import "../../shared/utils/as.js";
+// Named free-function import (not method .As): production Rslib bundles can
+// tree-shake bare side-effect installs of Object.prototype.As.
+import { As } from "../../shared/utils/as.js";
 
 /** stdout allocation ceiling for one-shot EventKit dumps (not a performance optimum). */
 export const SWIFT_HELPER_STDOUT_LIMIT_BYTES: number = 8 * 1024 * 1024;
@@ -224,10 +226,12 @@ export function runSwiftHelperProcess(
     }
 
     try {
-      child = spawn(options.binaryPath, [...args], {
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-      }).As<ChildProcessWithoutNullStreams>();
+      child = As<ChildProcessWithoutNullStreams>(
+        spawn(options.binaryPath, [...args], {
+          shell: false,
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      );
     } catch (err) {
       const code =
         err !== null && typeof err === "object" && "code" in err && typeof err.code === "string"

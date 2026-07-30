@@ -26,4 +26,21 @@ describe("As free function", () => {
     expect(As<string | null>(null)).toBeNull();
     expect(As<number | undefined>(undefined)).toBeUndefined();
   });
+
+  it("works without Object.prototype.As (production-bundle regression)", () => {
+    // Rslib can tree-shake bare side-effect installs of as.js when package
+    // sideEffects analysis marks modules pure — free-function As must not
+    // depend on the prototype method.
+    const desc = Object.getOwnPropertyDescriptor(Object.prototype, "As");
+    try {
+      Reflect.deleteProperty(Object.prototype, "As");
+      expect(Object.prototype.hasOwnProperty.call(Object.prototype, "As")).toBe(false);
+      const raw: unknown = { ok: true };
+      expect(As<{ ok: boolean }>(raw).ok).toBe(true);
+    } finally {
+      if (desc !== undefined) {
+        Object.defineProperty(Object.prototype, "As", desc);
+      }
+    }
+  });
 });
