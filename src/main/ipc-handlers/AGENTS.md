@@ -19,6 +19,8 @@ Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-fo
 
 Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` / `refreshCalendarPublication` (no separate force-poll IPC channel).
 
+**Never reintroduce** `SCHEDULER_FORCE_POLL` / `scheduler:force-poll` or events-only `CALENDAR_EVENTS_UPDATED` — permanent guardrail G6 (`docs/security/permanent-guardrails.md`, `bun run guardrails`).
+
 ## PATTERNS
 
 **Invoke handlers** — every invoke handler uses `validateSender()` and returns typed `IpcResponse`.

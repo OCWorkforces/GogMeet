@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.16.6",
+  "version": "1.17.0",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "authorEmail": "kennydizi@ocworkforces.com",
@@ -76,6 +76,9 @@
     "perf:startup": "node scripts/performance/measure-startup.mjs",
     "perf:alert": "node scripts/performance/measure-alert.mjs",
     "perf:build-package": "node scripts/performance/measure-build-package.mjs",
+    "guardrails": "node scripts/guardrails-scan.mjs",
+    "guardrails:self-test": "node scripts/guardrails-scan.mjs --self-test",
+    "guardrails:tests": "vitest run -c vitest.workspace.ts --project main tests/main/guardrails-security.test.ts tests/main/browser-window.test.ts tests/main/google-token-store.test.ts tests/main/offline-cache.test.ts tests/main/join-meeting.test.ts tests/main/calendar-refresh-coordinator.test.ts tests/main/scheduler-poll.test.ts tests/main/performance-trace.test.ts --project scripts tests/scripts/guardrails-scan.test.ts tests/scripts/performance-report.test.ts",
     "clean": "rimraf lib dist",
     "lint": "eslint src/ --cache",
     "format:check": "prettier --check \"src/**/*.{ts,css}\"",

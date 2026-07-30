@@ -1,8 +1,8 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-07-30  
-**App version:** 1.16.6  
-**Branch:** enhance-perfs-v2
+**App version:** 1.17.0  
+**Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -22,6 +22,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 | Updates/logging | `electron-updater` (packaged non-portable only), `electron-log` |
 | Lint edges | `eslint-plugin-boundaries` (`boundaries/dependencies: error`) |
 | Measurement | Opt-in `GOGMEET_PERF_TRACE=1`; `perf:*` / `bench:*` scripts (not CI gates) |
+| Guardrails | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` |
 
 ## STRUCTURE
 
@@ -147,6 +148,8 @@ bun run test:coverage
 bun run lint
 bun run format:check
 bun run validate:node
+bun run guardrails
+bun run guardrails:tests
 bun run bench:calendar-parser
 bun run perf:report -- --fixture synthetic
 bun run perf:workspace-fingerprint
@@ -158,6 +161,10 @@ bun run verify:macos-release
 bun run verify:windows-release
 bun run clean
 ```
+
+## SECURITY GUARDRAILS
+
+Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, unbounded buffers, secret traces) are registered in **`docs/security/permanent-guardrails.md`** and enforced by **`bun run guardrails`** (+ freeze tests) on every PR. Follow-on product tracks: `docs/plans/gogmeet-out-of-scope-follow-on.md`.
 
 ## NOTES
 
