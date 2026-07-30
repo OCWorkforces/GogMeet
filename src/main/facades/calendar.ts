@@ -41,7 +41,7 @@ function setCachedPermission(status: CalendarPermission | null): void {
 
 function asCalendarPort(provider: CalendarProvider): CalendarPort {
   const port: CalendarPort = {
-    getEvents: () => provider.getEvents(),
+    getEvents: (signal) => provider.getEvents(signal),
     getPermissionStatus: () => provider.getPermissionStatus(),
     requestPermission: () => provider.requestPermission(),
   };
@@ -66,7 +66,7 @@ async function resolveProvider(): Promise<CalendarProvider> {
 /** Lazy CalendarPort so factory selection runs per call. */
 function lazyCalendarPort(): CalendarPort {
   return {
-    getEvents: async () => asCalendarPort(await resolveProvider()).getEvents(),
+    getEvents: async (signal) => asCalendarPort(await resolveProvider()).getEvents(signal),
     getPermissionStatus: async () => asCalendarPort(await resolveProvider()).getPermissionStatus(),
     requestPermission: async () => asCalendarPort(await resolveProvider()).requestPermission(),
     startWatch: (onChange) => {
@@ -183,8 +183,10 @@ export function getCalendarUiState(): CalendarUiState {
 }
 
 /** Fetch calendar events — returns structured result with events or error. */
-export async function getCalendarEventsResult(): Promise<CalendarResult> {
-  return _getMeetings.execute();
+export async function getCalendarEventsResult(
+  signal: AbortSignal = new AbortController().signal,
+): Promise<CalendarResult> {
+  return _getMeetings.execute(signal);
 }
 
 /**

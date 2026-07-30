@@ -41,7 +41,7 @@ import { bindComposition } from "./bind-composition.js";
 
 /** Calendar surface exposed on the app graph. */
 export interface AppGraphCalendar {
-  getEvents(): Promise<CalendarResult>;
+  getEvents(signal?: AbortSignal): Promise<CalendarResult>;
   requestPermission(): Promise<CalendarPermission>;
   getPermissionStatus(): Promise<CalendarPermission>;
   disconnect(): Promise<void>;
@@ -115,7 +115,7 @@ export function createAppGraph(options: CreateAppGraphOptions = {}): AppGraph {
 
   return {
     calendar: {
-      getEvents: () => getCalendarEventsResult(),
+      getEvents: (signal) => getCalendarEventsResult(signal),
       requestPermission: () => requestCalendarPermission(),
       getPermissionStatus: () => getCalendarPermissionStatus(),
       disconnect: () => disconnectCalendar(),
