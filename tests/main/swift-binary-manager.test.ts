@@ -182,20 +182,21 @@ describe("resolveBundledHelperPath", () => {
 
   it("resolves arch-specific Resources path when packaged options are forced", async () => {
     const mod = await loadModule();
+    const resources = join("App", "Resources");
     expect(
       mod.resolveBundledHelperPath({
         packaged: true,
-        resourcesPath: "/App/Resources",
+        resourcesPath: resources,
         arch: "arm64",
       }),
-    ).toBe("/App/Resources/googlemeet-events-arm64");
+    ).toBe(join(resources, "googlemeet-events-arm64"));
     expect(
       mod.resolveBundledHelperPath({
         packaged: true,
-        resourcesPath: "/App/Resources",
+        resourcesPath: resources,
         arch: "x64",
       }),
-    ).toBe("/App/Resources/googlemeet-events-x64");
+    ).toBe(join(resources, "googlemeet-events-x64"));
     expect(mod.resolveBundledHelperPath({ packaged: true, resourcesPath: "" })).toBeNull();
   });
 
@@ -330,8 +331,9 @@ describe("tryInstallBundledHelper", () => {
 
   it("probes additional Resources layouts when resourcesPath is set", async () => {
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
-    const preferred = "/App/Resources/googlemeet-events-arm64";
-    const fallback = "/App/Resources/helpers/googlemeet-events";
+    const resources = join("App", "Resources");
+    const preferred = join(resources, "googlemeet-events-arm64");
+    const fallback = join(resources, "helpers", "googlemeet-events");
     accessMock.mockImplementation(async (path: string) => {
       if (path === preferred) throw new Error("ENOENT");
       if (path === fallback) return undefined;
@@ -340,7 +342,7 @@ describe("tryInstallBundledHelper", () => {
     });
     copyFileMock.mockResolvedValue(undefined);
     Object.defineProperty(process, "resourcesPath", {
-      value: "/App/Resources",
+      value: resources,
       configurable: true,
     });
     Object.defineProperty(process, "arch", {
