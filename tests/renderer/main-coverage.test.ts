@@ -6,7 +6,7 @@ import { createMockEvent, asTestMeetUrl } from "../helpers/test-utils.js";
  * Exercises additional renderer index paths for coverage.
  */
 describe("renderer index coverage paths", () => {
-  let onEventsUpdated: ((events: unknown[]) => void) | null = null;
+  let onResultUpdated: ((publication: unknown) => void) | null = null;
   let onSettingsChanged: ((s: unknown) => void) | null = null;
   /** Capture DOMContentLoaded handlers so afterEach can remove them. */
   let domReadyHandlers: EventListener[] = [];
@@ -14,7 +14,7 @@ describe("renderer index coverage paths", () => {
 
   beforeEach(() => {
     document.body.innerHTML = '<div id="app"></div>';
-    onEventsUpdated = null;
+    onResultUpdated = null;
     onSettingsChanged = null;
     domReadyHandlers = [];
     vi.useFakeTimers();
@@ -47,21 +47,24 @@ describe("renderer index coverage paths", () => {
   });
 
   async function boot(apiOverrides: Record<string, unknown> = {}) {
-    const forcePoll = vi.fn();
+    let gen = 1;
     const joinMeeting = vi.fn().mockResolvedValue({ ok: true, value: undefined });
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const getPermissionStatus = vi.fn().mockResolvedValue("granted");
-    const getEvents = vi.fn().mockResolvedValue({
-      kind: "ok",
-      source: "live",
-      completeness: "complete",
-      observedAt: Date.now(),
-      events: [
-        createMockEvent({
-          meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
-        }),
-      ],
-    });
+    const getEvents = vi.fn().mockImplementation(async () => ({
+      publicationGeneration: gen++,
+      result: {
+        kind: "ok" as const,
+        source: "live" as const,
+        completeness: "complete" as const,
+        observedAt: Date.now(),
+        events: [
+          createMockEvent({
+            meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
+          }),
+        ],
+      },
+    }));
     const setHeight = vi.fn();
     const getVersion = vi.fn().mockResolvedValue("9.9.9");
     const getSettings = vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS });
@@ -70,10 +73,20 @@ describe("renderer index coverage paths", () => {
       getEvents,
       getPermissionStatus,
       requestPermission,
-      onEventsUpdated: (cb: (events: unknown[]) => void) => {
-        onEventsUpdated = cb;
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      getUiState: vi.fn().mockResolvedValue({
+        permission: "granted",
+        phase: "ready",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: false,
+      }),
+      onResultUpdated: (cb: (publication: unknown) => void) => {
+        onResultUpdated = cb as typeof onResultUpdated;
         return () => {
-          onEventsUpdated = null;
+          onResultUpdated = null;
         };
       },
     };
@@ -89,10 +102,6 @@ describe("renderer index coverage paths", () => {
         ? (overrides["app"] as Record<string, unknown>)
         : {};
     delete overrides["app"];
-    const schedulerOverride =
-      overrides["scheduler"] && typeof overrides["scheduler"] === "object"
-        ? (overrides["scheduler"] as Record<string, unknown>)
-        : {};
     delete overrides["scheduler"];
 
     vi.stubGlobal("api", {
@@ -117,7 +126,6 @@ describe("renderer index coverage paths", () => {
           };
         },
       },
-      scheduler: { forcePoll, ...schedulerOverride },
       alert: { onShowAlert: vi.fn(), notifyDismissed: vi.fn() },
       ...overrides,
     });
@@ -134,7 +142,6 @@ describe("renderer index coverage paths", () => {
     await Promise.resolve();
 
     return {
-      forcePoll,
       joinMeeting,
       requestPermission,
       getEvents,
@@ -146,14 +153,17 @@ describe("renderer index coverage paths", () => {
   it("shows no-permission UI when calendar permission denied", async () => {
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const getPermissionStatus = vi.fn().mockResolvedValue("denied");
-    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const getEvents = vi.fn().mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+    });
     await boot({
       calendar: {
         getEvents,
         getPermissionStatus,
         requestPermission,
-        onEventsUpdated: (cb: (events: unknown[]) => void) => {
-          onEventsUpdated = cb;
+        onResultUpdated: (cb: (publication: unknown) => void) => {
+          onResultUpdated = cb as typeof onResultUpdated;
           return () => {};
         },
       },
@@ -168,14 +178,17 @@ describe("renderer index coverage paths", () => {
   it("grantAccess denied stays on no-permission", async () => {
     const requestPermission = vi.fn().mockResolvedValue("denied");
     const getPermissionStatus = vi.fn().mockResolvedValue("not-determined");
-    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const getEvents = vi.fn().mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+    });
     await boot({
       calendar: {
         getEvents,
         getPermissionStatus,
         requestPermission,
-        onEventsUpdated: (cb: (e: unknown[]) => void) => {
-          onEventsUpdated = cb;
+        onResultUpdated: (cb: (publication: unknown) => void) => {
+          onResultUpdated = cb as typeof onResultUpdated;
           return () => {};
         },
       },
@@ -204,14 +217,17 @@ describe("renderer index coverage paths", () => {
     await boot({
       calendar: {
         getEvents: vi.fn().mockResolvedValue({
-          kind: "err",
-          error: "boom",
-          code: "runtime",
+          publicationGeneration: 1,
+          result: {
+            kind: "err",
+            error: "boom",
+            code: "runtime",
+          },
         }),
         getPermissionStatus: vi.fn().mockResolvedValue("granted"),
         requestPermission: vi.fn(),
-        onEventsUpdated: (cb: (e: unknown[]) => void) => {
-          onEventsUpdated = cb;
+        onResultUpdated: (cb: (publication: unknown) => void) => {
+          onResultUpdated = cb as typeof onResultUpdated;
           return () => {};
         },
       },
@@ -224,14 +240,23 @@ describe("renderer index coverage paths", () => {
 
   it("applies push updates and settings changes", async () => {
     await boot();
-    await vi.waitFor(() => expect(onEventsUpdated).toBeTypeOf("function"));
-    onEventsUpdated?.([
-      createMockEvent({
-        id: "push-1" as never,
-        title: "Pushed Meet",
-        meetUrl: asTestMeetUrl("https://meet.google.com/xyz-abcd-efg"),
-      }),
-    ]);
+    await vi.waitFor(() => expect(onResultUpdated).toBeTypeOf("function"));
+    onResultUpdated?.({
+      publicationGeneration: 50,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events: [
+          createMockEvent({
+            id: "push-1" as never,
+            title: "Pushed Meet",
+            meetUrl: asTestMeetUrl("https://meet.google.com/xyz-abcd-efg"),
+          }),
+        ],
+      },
+    });
     await vi.runAllTimersAsync();
     await vi.waitFor(() => {
       expect(document.body.textContent).toContain("Pushed Meet");
@@ -241,17 +266,15 @@ describe("renderer index coverage paths", () => {
     expect(document.getElementById("app")?.innerHTML.length).toBeGreaterThan(0);
   });
 
-  it("force-poll on refresh and join failure logs", async () => {
+  it("refresh uses getEvents and join failure logs", async () => {
     const joinMeeting = vi.fn().mockResolvedValue({ ok: false, error: "nope" });
-    const forcePoll = vi.fn();
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    await boot({
+    const { getEvents } = await boot({
       app: {
         getVersion: vi.fn().mockResolvedValue("1"),
         joinMeeting,
         openExternal: vi.fn(),
       },
-      scheduler: { forcePoll },
     });
     await vi.waitFor(() => {
       expect(document.querySelector('[data-action="join-meeting"]')).toBeTruthy();
@@ -260,8 +283,9 @@ describe("renderer index coverage paths", () => {
     await Promise.resolve();
     expect(joinMeeting).toHaveBeenCalled();
     expect(err).toHaveBeenCalled();
+    const callsBefore = getEvents.mock.calls.length;
     document.querySelector<HTMLButtonElement>('[data-action="refresh"]')!.click();
-    expect(forcePoll).toHaveBeenCalled();
+    await vi.waitFor(() => expect(getEvents.mock.calls.length).toBeGreaterThan(callsBefore));
     err.mockRestore();
   });
 
@@ -283,22 +307,40 @@ describe("renderer index coverage paths", () => {
 
   it("formats footer updated times after push", async () => {
     await boot();
-    await vi.waitFor(() => expect(onEventsUpdated).toBeTypeOf("function"));
-    onEventsUpdated?.([
-      createMockEvent({
-        title: "Footer Meet",
-        meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbbb-ccc"),
-      }),
-    ]);
+    await vi.waitFor(() => expect(onResultUpdated).toBeTypeOf("function"));
+    onResultUpdated?.({
+      publicationGeneration: 10,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events: [
+          createMockEvent({
+            title: "Footer Meet",
+            meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbbb-ccc"),
+          }),
+        ],
+      },
+    });
     await vi.runAllTimersAsync();
     vi.setSystemTime(new Date("2026-07-27T12:05:00.000Z"));
-    onEventsUpdated?.([
-      createMockEvent({
-        id: "later" as never,
-        title: "Footer Meet",
-        meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbbb-ccc"),
-      }),
-    ]);
+    onResultUpdated?.({
+      publicationGeneration: 11,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events: [
+          createMockEvent({
+            id: "later" as never,
+            title: "Footer Meet",
+            meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbbb-ccc"),
+          }),
+        ],
+      },
+    });
     await vi.runAllTimersAsync();
     expect(document.body.textContent).toMatch(/Updated/i);
   });

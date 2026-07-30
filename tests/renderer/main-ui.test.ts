@@ -31,32 +31,49 @@ describe("renderer/index.ts", () => {
 const RENDERER_TEST_NOW = new Date(2026, 5, 15, 12, 0, 0).getTime();
 
 async function startRenderer(events: MeetingEvent[]) {
-  const getEvents = vi.fn<() => Promise<CalendarResult>>().mockResolvedValue({
-    kind: "ok",
-      source: "live",
-      completeness: "complete",
+  let nextGen = 1;
+  const getEvents = vi.fn().mockImplementation(async () => ({
+    publicationGeneration: nextGen++,
+    result: {
+      kind: "ok" as const,
+      source: "live" as const,
+      completeness: "complete" as const,
       observedAt: Date.now(),
-    events,
-  });
-  const forcePoll = vi.fn();
+      events,
+    },
+  }));
   const callbacks: {
-    eventsUpdated: ((updatedEvents: MeetingEvent[]) => void) | null;
+    resultUpdated: ((publication: {
+      publicationGeneration: number;
+      result: CalendarResult;
+    }) => void) | null;
     settingsChanged: ((settings: ReturnType<typeof createMockSettings>) => void) | null;
-  } = { eventsUpdated: null, settingsChanged: null };
+  } = { resultUpdated: null, settingsChanged: null };
 
   const api: Api = {
     calendar: {
       getEvents,
       requestPermission: vi.fn<() => Promise<CalendarPermission>>().mockResolvedValue("granted"),
       getPermissionStatus: vi.fn<() => Promise<CalendarPermission>>().mockResolvedValue("granted"),
-      onEventsUpdated: vi.fn((callback: (updatedEvents: MeetingEvent[]) => void) => {
-        callbacks.eventsUpdated = callback;
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      getUiState: vi.fn().mockResolvedValue({
+        permission: "granted",
+        phase: "ready",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: false,
+      }),
+      onResultUpdated: vi.fn((callback) => {
+        callbacks.resultUpdated = callback;
         return () => {};
       }),
     },
     window: { setHeight: vi.fn() },
     app: {
-      openExternal: vi.fn(() => Promise.resolve()),
+      openExternal: vi.fn(() => Promise.resolve({ ok: true as const, value: undefined })),
+      joinMeeting: vi.fn(() => Promise.resolve({ ok: true as const, value: undefined })),
       getVersion: vi.fn(() => Promise.resolve("1.0.0")),
     },
     settings: {
@@ -73,7 +90,6 @@ async function startRenderer(events: MeetingEvent[]) {
       onShowAlert: vi.fn(() => () => {}),
       notifyDismissed: vi.fn(),
     },
-    scheduler: { forcePoll },
   };
 
   Object.defineProperty(window, "api", { configurable: true, value: api });
@@ -91,13 +107,13 @@ async function startRenderer(events: MeetingEvent[]) {
   domContentLoadedListener(new Event("DOMContentLoaded"));
 
   await vi.waitFor(() => expect(getEvents).toHaveBeenCalledOnce());
-  if (callbacks.eventsUpdated === null || callbacks.settingsChanged === null) {
+  if (callbacks.resultUpdated === null || callbacks.settingsChanged === null) {
     throw new Error("Renderer entrypoint did not register update callbacks");
   }
 
-  const eventsUpdatedCallback = callbacks.eventsUpdated;
+  const resultUpdatedCallback = callbacks.resultUpdated;
   const settingsChangedCallback = callbacks.settingsChanged;
-  return { getEvents, forcePoll, eventsUpdatedCallback, settingsChangedCallback };
+  return { getEvents, resultUpdatedCallback, settingsChangedCallback };
 }
 
 describe("renderer unchanged calendar updates", () => {
@@ -138,15 +154,24 @@ describe("renderer unchanged calendar updates", () => {
     }
     footerLabel.textContent = "Updated 1 min ago";
 
-    // When: main pushes an identical event list.
-    renderer.eventsUpdatedCallback([...events]);
+    // When: main pushes an identical event list as a publication.
+    renderer.resultUpdatedCallback({
+      publicationGeneration: 99,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events: [...events],
+      },
+    });
 
     // Then: the visible meeting and the refreshed completion timestamp remain observable.
     expect(document.body.textContent).toContain("Unchanged pushed meeting");
     expect(document.body.textContent).toContain("Updated just now");
   });
 
-  it("force-polls and directly fetches when normal-state refresh returns unchanged events", async () => {
+  it("directly fetches via coordinated getEvents when refresh is clicked", async () => {
     // Given: the real entrypoint is in its normal has-events state.
     const events = [createMockEvent({ title: "Manual refresh meeting" })];
     const renderer = await startRenderer(events);
@@ -156,12 +181,11 @@ describe("renderer unchanged calendar updates", () => {
       throw new Error("Renderer did not render the refresh control");
     }
 
-    // When: the user clicks refresh and the direct fetch returns the same events.
+    // When: the user clicks refresh — single path is GET_EVENTS (no forcePoll IPC).
     refreshButton.click();
 
-    // Then: scheduler polling and observable direct completion both occur.
+    // Then: coordinated getEvents runs again and UI shows completion.
     await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
-    expect(renderer.forcePoll).toHaveBeenCalledOnce();
     expect(document.body.textContent).toContain("Manual refresh meeting");
     expect(document.body.textContent).toContain("Updated just now");
   });

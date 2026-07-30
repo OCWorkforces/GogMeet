@@ -17,14 +17,14 @@ describe("IPC_CHANNELS", () => {
     expect(IPC_CHANNELS.SETTINGS_GET).toBe("settings:get");
     expect(IPC_CHANNELS.SETTINGS_SET).toBe("settings:set");
     expect(IPC_CHANNELS.SETTINGS_CHANGED).toBe("settings:changed");
-    expect(IPC_CHANNELS.CALENDAR_EVENTS_UPDATED).toBe(
-      "calendar:events-updated",
+    expect(IPC_CHANNELS.CALENDAR_RESULT_UPDATED).toBe(
+      "calendar:result-updated",
     );
     expect(IPC_CHANNELS.ALERT_SHOW).toBe("alert:show");
   });
 
   it("has 16 channels total", () => {
-    expect(Object.keys(IPC_CHANNELS)).toHaveLength(16);
+    expect(Object.keys(IPC_CHANNELS)).toHaveLength(15);
   });
 
   it("uses colon-separated naming convention", () => {

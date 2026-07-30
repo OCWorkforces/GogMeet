@@ -15,7 +15,11 @@ vi.mock("electron", () => ({
 // Mock calendar module
 vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  refreshCalendarPublication: vi.fn().mockResolvedValue({
+    publicationGeneration: 1,
+    result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+  }),
+  getLastPublication: vi.fn().mockReturnValue(null),
 }));
 
 // Mock power module
@@ -45,7 +49,7 @@ vi.mock("../../src/main/facades/settings.js", () => ({
   }),
 }));
 
-const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
+const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
 
 // Use stateModule.state to always get the current state reference after replaceState
 const stateModule = await import("../../src/main/scheduler/state/index.js");
@@ -98,7 +102,7 @@ describe("poll()", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -114,7 +118,7 @@ describe("poll()", () => {
   it("resets consecutiveErrors to 0 on successful poll with events", async () => {
     stateModule.setConsecutiveErrors(2);
     const event = makeEvent();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] } });
 
     await poll();
 
@@ -123,7 +127,7 @@ describe("poll()", () => {
 
   it("resets consecutiveErrors to 0 on success with empty events", async () => {
     stateModule.setConsecutiveErrors(1);
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     await poll();
 
@@ -137,12 +141,15 @@ describe("poll()", () => {
       endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
       meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
     });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "ok",
-      source: "live",
-      completeness: "complete",
-      observedAt: Date.now(),
-      events: [event],
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events: [event],
+      },
     });
     await poll();
     expect(stateModule.getTimers().size).toBe(1);
@@ -168,12 +175,15 @@ describe("poll()", () => {
       endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
       meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
     });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "ok",
-      source: "live",
-      completeness: "partial",
-      observedAt: Date.now(),
-      events: [event],
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events: [event],
+      },
     });
     await poll();
     expect(stateModule.getTimers().size).toBe(0);
@@ -197,12 +207,15 @@ describe("poll()", () => {
       endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
       meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
     });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "ok",
-      source: "offline-cache",
-      observedAt: Date.now() - 60_000,
-      cachedAt: Date.now() - 30_000,
-      events: [event],
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: {
+        kind: "ok",
+        source: "offline-cache",
+        observedAt: Date.now() - 60_000,
+        cachedAt: Date.now() - 30_000,
+        events: [event],
+      },
     });
     await poll();
     expect(stateModule.getAlertTimers().size).toBe(0);
@@ -214,9 +227,10 @@ describe("poll()", () => {
   });
 
   it("increments consecutiveErrors on error result", async () => {
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "Calendar access denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "Calendar access denied", code: "unknown" },
+    });
 
     await poll();
     expect(stateModule.getConsecutiveErrors()).toBe(1);
@@ -226,7 +240,7 @@ describe("poll()", () => {
   });
 
   it("increments consecutiveErrors on thrown exception", async () => {
-    vi.mocked(getCalendarEventsResult).mockRejectedValue(
+    vi.mocked(refreshCalendarPublication).mockRejectedValue(
       new Error("Network failure"),
     );
 
@@ -241,9 +255,10 @@ describe("poll()", () => {
       setInterval(() => {}, 60_000),
     );
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "permission denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "permission denied", code: "unknown" },
+    });
 
     await poll();
     expect(stateModule.getConsecutiveErrors()).toBe(1);
@@ -276,9 +291,10 @@ describe("poll()", () => {
       setTimeout(() => {}, 60_000),
     );
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "permission denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "permission denied", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -308,9 +324,10 @@ describe("poll()", () => {
       setTimeout(() => {}, 60_000),
     );
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "permission denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "permission denied", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -323,9 +340,10 @@ describe("poll()", () => {
 
   it("fires threshold cleanup exactly once across consecutive errors past MAX (one-shot)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "permission denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "permission denied", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -342,9 +360,10 @@ describe("poll()", () => {
 
   it("resets activeInMeetingEventId after MAX_CONSECUTIVE_ERRORS", async () => {
     stateModule.setActiveInMeetingEventId(asTestEventId("im-1"));
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "error",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "error", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -354,9 +373,10 @@ describe("poll()", () => {
   });
 
   it("clears tray title (resolveActiveTitleEvent) after MAX_CONSECUTIVE_ERRORS", async () => {
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "error",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "error", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -372,7 +392,7 @@ describe("poll()", () => {
       setInterval(() => {}, 60_000),
     );
 
-    vi.mocked(getCalendarEventsResult).mockRejectedValue(new Error("crash"));
+    vi.mocked(refreshCalendarPublication).mockRejectedValue(new Error("crash"));
 
     await poll();
     await poll();
@@ -392,21 +412,21 @@ describe("poll()", () => {
       webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     await poll();
     // IPC now sends events array (empty in this case) instead of undefined
-    expect(mockSend).toHaveBeenCalledWith("calendar:events-updated", []);
+    expect(mockSend).toHaveBeenCalledWith("calendar:result-updated", expect.objectContaining({ publicationGeneration: expect.any(Number), result: expect.objectContaining({ kind: "ok" }) }));
 
     stateModule.state.win = null;
   });
 
   it("does NOT send IPC when window is null", async () => {
     stateModule.state.win = null;
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     // Should not throw
-    await expect(poll()).resolves.toBeUndefined();
+    await expect(poll()).resolves.toMatchObject({ publicationGeneration: expect.any(Number) });
   });
 
   it("does NOT send IPC when window is destroyed", async () => {
@@ -416,7 +436,7 @@ describe("poll()", () => {
       webContents: { send: mockSend },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     await poll();
 
@@ -425,28 +445,35 @@ describe("poll()", () => {
     stateModule.state.win = null;
   });
 
-  it("does NOT send IPC on error", async () => {
+  it("sends error publication on error so renderer can update without a second fetch", async () => {
     const mockSend = vi.fn();
     stateModule.state.win = {
       isDestroyed: vi.fn().mockReturnValue(false),
-      webContents: { send: mockSend },
+      webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "denied",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "denied", code: "unknown" },
+    });
 
     await poll();
 
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(
+      "calendar:result-updated",
+      expect.objectContaining({
+        result: expect.objectContaining({ kind: "err", error: "denied" }),
+      }),
+    );
 
     stateModule.state.win = null;
   });
 
   it("marks both dirty flags after MAX_CONSECUTIVE_ERRORS", async () => {
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      error: "error",
-    } as never);
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", error: "error", code: "unknown" },
+    });
 
     await poll();
     await poll();
@@ -480,7 +507,7 @@ describe("event list signature gating (renderer push)", () => {
       isDestroyed: vi.fn().mockReturnValue(false),
       webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events } });
     await poll();
     return mockSend.mock.calls.length;
   }
@@ -559,7 +586,7 @@ describe("startScheduler", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -592,12 +619,12 @@ describe("startScheduler", () => {
   });
 
   it("calls poll on startup", async () => {
-    vi.mocked(getCalendarEventsResult).mockClear();
+    vi.mocked(refreshCalendarPublication).mockClear();
 
     startScheduler();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -606,7 +633,7 @@ describe("stopScheduler", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -659,8 +686,8 @@ describe("restartScheduler", () => {
     _resetForTest();
     _resetForceTestState();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockClear();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockClear();
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -687,7 +714,7 @@ describe("restartScheduler", () => {
   });
 
   it("does not fire a stale poll from a prior epoch after restart", async () => {
-    const callMock = vi.mocked(getCalendarEventsResult);
+    const callMock = vi.mocked(refreshCalendarPublication);
     callMock.mockClear();
 
     startScheduler();
@@ -706,8 +733,8 @@ describe("restartScheduler", () => {
   });
 
   it("ignores a pre-restart successful poll and runs one current-generation follow-up", async () => {
-    const stalePoll = createDeferred<CalendarResult>();
-    const currentPoll = createDeferred<CalendarResult>();
+    const stalePoll = createDeferred<{ publicationGeneration: number; result: CalendarResult }>();
+    const currentPoll = createDeferred<{ publicationGeneration: number; result: CalendarResult }>();
     const staleEvent = makeEvent({ id: asTestEventId("stale-generation") });
     const currentEvent = makeEvent({ id: asTestEventId("current-generation") });
     const emittedEventIds: string[] = [];
@@ -720,14 +747,14 @@ describe("restartScheduler", () => {
       webContents: { send, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
     mainBus.on("meeting-list-updated", onMeetingListUpdated);
-    vi.mocked(getCalendarEventsResult)
+    vi.mocked(refreshCalendarPublication)
       .mockReturnValueOnce(stalePoll.promise)
       .mockReturnValueOnce(currentPoll.promise);
 
     startScheduler();
     await Promise.resolve();
     restartScheduler();
-    stalePoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [staleEvent] });
+    stalePoll.resolve({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [staleEvent] } });
     await Promise.resolve();
     await Promise.resolve();
 
@@ -735,7 +762,7 @@ describe("restartScheduler", () => {
     const emittedAfterStale = [...emittedEventIds];
     const sendsAfterStale = send.mock.calls.length;
 
-    currentPoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [currentEvent] });
+    currentPoll.resolve({ publicationGeneration: 2, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [currentEvent] } });
     await vi.advanceTimersByTimeAsync(0);
     mainBus.off("meeting-list-updated", onMeetingListUpdated);
     stopScheduler();
@@ -743,17 +770,22 @@ describe("restartScheduler", () => {
     expect(staleWasScheduled).toBe(false);
     expect(emittedAfterStale).toEqual([]);
     expect(sendsAfterStale).toBe(0);
-    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
     expect(emittedEventIds).toEqual([currentEvent.id]);
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith("calendar:events-updated", [currentEvent]);
+    expect(send).toHaveBeenCalledWith("calendar:result-updated", expect.objectContaining({
+      result: expect.objectContaining({
+        kind: "ok",
+        events: [currentEvent],
+      }),
+    }));
   });
 
   it("ignores a pre-restart rejected poll before current-generation error state", async () => {
-    const stalePoll = createDeferred<CalendarResult>();
-    const currentPoll = createDeferred<CalendarResult>();
+    const stalePoll = createDeferred<{ publicationGeneration: number; result: CalendarResult }>();
+    const currentPoll = createDeferred<{ publicationGeneration: number; result: CalendarResult }>();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getCalendarEventsResult)
+    vi.mocked(refreshCalendarPublication)
       .mockReturnValueOnce(stalePoll.promise)
       .mockReturnValueOnce(currentPoll.promise);
 
@@ -767,12 +799,12 @@ describe("restartScheduler", () => {
     const errorsAfterStale = stateModule.getConsecutiveErrors();
     const logsAfterStale = errorSpy.mock.calls.length;
 
-    currentPoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    currentPoll.resolve({ publicationGeneration: 2, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
     await vi.advanceTimersByTimeAsync(0);
     errorSpy.mockRestore();
     stopScheduler();
 
-    expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
     expect(errorsAfterStale).toBe(0);
     expect(logsAfterStale).toBe(0);
     expect(stateModule.getConsecutiveErrors()).toBe(0);

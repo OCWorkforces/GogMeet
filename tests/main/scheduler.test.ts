@@ -20,7 +20,11 @@ vi.mock("electron", () => {
 // Mock calendar module
 vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  refreshCalendarPublication: vi.fn().mockResolvedValue({
+    publicationGeneration: 1,
+    result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+  }),
+  getLastPublication: vi.fn().mockReturnValue(null),
 }));
 
 // Mock tray module so updateTrayTitle can be spied on
@@ -732,11 +736,10 @@ describe("scheduleEvents", () => {
     expect(countdownIntervals.size).toBe(1);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "err",
-      code: "unknown",
-      error: "permission denied",
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", code: "unknown", error: "permission denied" },
     });
 
     // 2 errors — tray must still be showing
@@ -753,7 +756,7 @@ describe("scheduleEvents", () => {
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
 
     // Reset mock
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
   });
 
   it("E16b: consecutiveErrors resets on success; 2 errors + success leaves tray intact", async () => {
@@ -762,11 +765,10 @@ describe("scheduleEvents", () => {
     scheduleEvents([event]);
     vi.mocked(mockUpdateTrayTitle).mockClear();
 
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "err",
-      code: "unknown",
-      error: "permission denied",
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "err", code: "unknown", error: "permission denied" },
     });
 
     await poll();
@@ -774,12 +776,12 @@ describe("scheduleEvents", () => {
     expect(stateModule.getConsecutiveErrors()).toBe(2);
 
     // Success — errors reset, tray preserved
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] } });
     await poll();
     expect(stateModule.getConsecutiveErrors()).toBe(0);
     expect(countdownIntervals.size).toBe(1);
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
   });
 
   it("E18: scheduleEvents([]) immediately clears tray", () => {
@@ -945,19 +947,19 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
 
     // IPC now sends events array (empty in this case) instead of undefined
-    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:events-updated", []);
+    expect(mockWebContentsSend).toHaveBeenCalledWith("calendar:result-updated", expect.objectContaining({ publicationGeneration: expect.any(Number), result: expect.objectContaining({ kind: "ok" }) }));
   });
 
   it("F2: poll does NOT send IPC if window is null", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     // Don't set window - it should remain null
     setSchedulerWindow(null as never);
@@ -967,8 +969,8 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   });
 
   it("F3: poll does NOT send IPC if window is destroyed", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] } });
 
     mockWindow.isDestroyed.mockReturnValue(true);
     setSchedulerWindow(mockWindow as never);
@@ -977,25 +979,33 @@ describe("setSchedulerWindow and poll IPC notification", () => {
     expect(mockWebContentsSend).not.toHaveBeenCalled();
   });
 
-  it("F4: poll does NOT send IPC on calendar fetch error", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({
-      kind: "err",
-      code: "unknown",
-      error: "Calendar access denied",
+  it("F4: poll sends error publication on calendar fetch error", async () => {
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({
+      publicationGeneration: 1,
+      result: {
+        kind: "err",
+        code: "unknown",
+        error: "Calendar access denied",
+      },
     });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
 
-    expect(mockWebContentsSend).not.toHaveBeenCalled();
+    expect(mockWebContentsSend).toHaveBeenCalledWith(
+      "calendar:result-updated",
+      expect.objectContaining({
+        result: expect.objectContaining({ kind: "err", error: "Calendar access denied" }),
+      }),
+    );
     expect(stateModule.getConsecutiveErrors()).toBe(1);
   });
 
   it("F5: poll sends IPC after successful fetch with events", async () => {
-    const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
+    const { refreshCalendarPublication } = await import("../../src/main/facades/calendar.js");
     const event = makeEvent({ id: "f5-event" });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
+    vi.mocked(refreshCalendarPublication).mockResolvedValue({ publicationGeneration: 1, result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] } });
 
     setSchedulerWindow(mockWindow as never);
     await poll();

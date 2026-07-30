@@ -3,11 +3,14 @@ import { createTestAppGraph } from "../../src/main/composition/create-test-app-g
 
 describe("createTestAppGraph", () => {
   it("applies nested overrides", async () => {
-    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    const getEvents = vi.fn().mockResolvedValue({
+      publicationGeneration: 1,
+      result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+    });
     const graph = createTestAppGraph({
       calendar: { getEvents },
     });
-    await graph.calendar.getEvents(new AbortController().signal);
+    await graph.calendar.getEvents();
     expect(getEvents).toHaveBeenCalledOnce();
   });
 
