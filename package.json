@@ -67,6 +67,7 @@
     "test": "vitest run -c vitest.workspace.ts",
     "test:watch": "vitest -c vitest.workspace.ts",
     "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
+    "bench:calendar-parser": "vitest bench -c vitest.bench.config.ts tests/bench/calendar-parser.bench.ts",
     "clean": "rimraf lib dist",
     "lint": "eslint src/ --cache",
     "format:check": "prettier --check \"src/**/*.{ts,css}\"",
