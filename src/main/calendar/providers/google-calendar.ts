@@ -21,6 +21,12 @@ import { extractMeetingUrl } from "../../../domain/services/url-extract.js";
 import type { CalendarProvider } from "../provider.js";
 import { clearGoogleTokens, loadGoogleTokens } from "../auth/google-token-store.js";
 import {
+  clearAllGoogleSyncTokens,
+  clearGoogleSyncToken,
+  loadGoogleSyncTokens,
+  saveGoogleSyncTokens,
+} from "../auth/google-sync-tokens.js";
+import {
   ensureFreshGoogleAccessToken,
   isGoogleOAuthInFlight,
   refreshGoogleAccessToken,
@@ -36,6 +42,9 @@ import {
 } from "../google-http.js";
 
 const MAX_PAGES = 50;
+
+/** Process-local event index for incremental merge (not a durable event DB). */
+const workingEventsByCalendar = new Map<string, Map<string, MeetingEvent>>();
 
 class AuthError extends Error {
   constructor(message: string) {
@@ -210,7 +219,14 @@ function mapGoogleEvent(
   };
 }
 
-async function fetchEventsForCalendar(
+class GoneError extends Error {
+  constructor() {
+    super("sync token expired");
+    this.name = "GoneError";
+  }
+}
+
+async function fetchEventsFullWindow(
   accessToken: string,
   calendarId: string,
   calendarName: string,
@@ -218,9 +234,10 @@ async function fetchEventsForCalendar(
   timeMin: string,
   timeMax: string,
   signal?: AbortSignal,
-): Promise<MeetingEvent[]> {
+): Promise<{ events: MeetingEvent[]; nextSyncToken: string | undefined }> {
   const events: MeetingEvent[] = [];
   let pageToken: string | undefined;
+  let nextSyncToken: string | undefined;
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL(
@@ -239,7 +256,7 @@ async function fetchEventsForCalendar(
       if (result.status === 401) throw new AuthError(result.body);
       if (result.status === 403 || result.status === 404) {
         console.warn(`[calendar:google] Skipping calendar ${calendarId}: HTTP ${result.status}`);
-        return events;
+        return { events, nextSyncToken: undefined };
       }
       throw new NetworkError(`events.list failed (${result.status})`);
     }
@@ -252,11 +269,157 @@ async function fetchEventsForCalendar(
     }
 
     const next = result.json["nextPageToken"];
-    if (typeof next !== "string" || next.length === 0) break;
-    pageToken = next;
+    if (typeof next === "string" && next.length > 0) {
+      pageToken = next;
+      continue;
+    }
+    const sync = result.json["nextSyncToken"];
+    if (typeof sync === "string" && sync.length > 0) nextSyncToken = sync;
+    break;
   }
 
-  return events;
+  return { events, nextSyncToken };
+}
+
+/**
+ * Incremental events.list using a stored nextSyncToken.
+ * Throws GoneError on HTTP 410 so callers wipe the token and full-sync.
+ */
+async function fetchEventsIncremental(
+  accessToken: string,
+  calendarId: string,
+  calendarName: string,
+  userEmail: string | undefined,
+  syncToken: string,
+  signal?: AbortSignal,
+): Promise<{ upserts: MeetingEvent[]; deletedIds: string[]; nextSyncToken: string | undefined }> {
+  const upserts: MeetingEvent[] = [];
+  const deletedIds: string[] = [];
+  let pageToken: string | undefined;
+  let nextSyncToken: string | undefined;
+  let tokenParam: string | undefined = syncToken;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const url = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+    );
+    url.searchParams.set("singleEvents", "true");
+    url.searchParams.set("conferenceDataVersion", "1");
+    url.searchParams.set("maxResults", "250");
+    if (tokenParam) url.searchParams.set("syncToken", tokenParam);
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const result = await googleFetch(url.toString(), accessToken, signal);
+    if (!result.ok) {
+      if (result.status === 410) throw new GoneError();
+      if (result.status === 401) throw new AuthError(result.body);
+      throw new NetworkError(`events.list incremental failed (${result.status})`);
+    }
+    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) break;
+
+    for (const item of result.json["items"]) {
+      if (!isObjectRecord(item)) continue;
+      const idRaw = item["id"];
+      if (typeof idRaw !== "string") continue;
+      const branded = asEventId(`${calendarId}:${idRaw}`);
+      if (!branded.ok) continue;
+      if (item["status"] === "cancelled") {
+        deletedIds.push(branded.value);
+        continue;
+      }
+      const mapped = mapGoogleEvent(item, calendarId, calendarName, userEmail);
+      if (mapped) upserts.push(mapped);
+    }
+
+    const next = result.json["nextPageToken"];
+    if (typeof next === "string" && next.length > 0) {
+      pageToken = next;
+      tokenParam = undefined;
+      continue;
+    }
+    const sync = result.json["nextSyncToken"];
+    if (typeof sync === "string" && sync.length > 0) nextSyncToken = sync;
+    break;
+  }
+
+  return { upserts, deletedIds, nextSyncToken };
+}
+
+function filterEventsInWindow(events: MeetingEvent[], timeMin: string, timeMax: string): MeetingEvent[] {
+  const minMs = new Date(timeMin).getTime();
+  const maxMs = new Date(timeMax).getTime();
+  return events.filter((e) => {
+    const start = new Date(e.startDate).getTime();
+    const end = new Date(e.endDate).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && end > minMs && start < maxMs;
+  });
+}
+
+async function fetchEventsForCalendar(
+  accessToken: string,
+  calendarId: string,
+  calendarName: string,
+  userEmail: string | undefined,
+  timeMin: string,
+  timeMax: string,
+  signal?: AbortSignal,
+): Promise<MeetingEvent[]> {
+  const stored = (await loadGoogleSyncTokens())[calendarId];
+  let index = workingEventsByCalendar.get(calendarId);
+  if (!index) {
+    index = new Map();
+    workingEventsByCalendar.set(calendarId, index);
+  }
+
+  if (stored && index.size > 0) {
+    try {
+      const inc = await fetchEventsIncremental(
+        accessToken,
+        calendarId,
+        calendarName,
+        userEmail,
+        stored,
+        signal,
+      );
+      for (const id of inc.deletedIds) index.delete(id);
+      for (const ev of inc.upserts) index.set(ev.id, ev);
+      if (inc.nextSyncToken) {
+        const all = await loadGoogleSyncTokens();
+        all[calendarId] = inc.nextSyncToken;
+        await saveGoogleSyncTokens(all);
+      }
+      return filterEventsInWindow([...index.values()], timeMin, timeMax);
+    } catch (err) {
+      if (err instanceof GoneError) {
+        await clearGoogleSyncToken(calendarId);
+        index.clear();
+        // fall through to full window
+      } else if (err instanceof AuthError) {
+        throw err;
+      } else {
+        // Incremental transport failure: fall back to full window for this poll.
+        console.warn("[calendar:google] Incremental sync failed — full window fetch");
+      }
+    }
+  }
+
+  const full = await fetchEventsFullWindow(
+    accessToken,
+    calendarId,
+    calendarName,
+    userEmail,
+    timeMin,
+    timeMax,
+    signal,
+  );
+  index.clear();
+  for (const ev of full.events) index.set(ev.id, ev);
+  if (full.nextSyncToken) {
+    const all = await loadGoogleSyncTokens();
+    all[calendarId] = full.nextSyncToken;
+    await saveGoogleSyncTokens(all);
+  }
+  return full.events;
 }
 
 async function fetchAllEvents(
@@ -429,6 +592,8 @@ export function createGoogleCalendarProvider(): CalendarProvider {
 
     async disconnect(): Promise<void> {
       await clearGoogleTokens();
+      await clearAllGoogleSyncTokens();
+      workingEventsByCalendar.clear();
       await clearOfflineCache();
     },
 

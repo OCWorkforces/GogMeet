@@ -71,18 +71,23 @@ function scanFile(filePath, patterns) {
 
 const rules = [
   {
-    id: "G1-syncToken",
-    pattern: /\bsyncToken\b/,
-    skipComments: true,
-    message: "Google syncToken is FUTURE track C1 only — not in product path yet",
-    fileFilter: (f) => f.startsWith("src/"),
-  },
-  {
+    // Push/watch channels remain forbidden; syncToken is allowed only in Google calendar sync modules.
     id: "G1-calendar-watch-api",
     pattern: /calendar\.events\.watch|googleapis\.com\/calendar\/v3\/.*\/watch/,
     skipComments: true,
-    message: "Google calendar push/watch is FUTURE — not implemented",
+    message: "Google calendar push/watch is not implemented — requires dedicated design",
     fileFilter: (f) => f.startsWith("src/"),
+  },
+  {
+    id: "G1-syncToken-scope",
+    pattern: /\bsyncToken\b|nextSyncToken\b/,
+    skipComments: true,
+    message: "syncToken persistence/use is limited to google calendar + google-sync-tokens modules",
+    fileFilter: (f) => f.startsWith("src/"),
+    allowLine: (_line, pathRel) =>
+      pathRel.includes("google-calendar.ts") ||
+      pathRel.includes("google-sync-tokens.ts") ||
+      pathRel.includes("google-shadow.mjs"),
   },
   {
     id: "G2-maxBuffer",
@@ -171,7 +176,7 @@ function printFindings(list) {
 function selfTest() {
   // Synthetic lines that should match patterns (unit-level)
   const samples = [
-    { id: "G1-syncToken", line: "const t = syncToken;" },
+    { id: "G1-syncToken-scope", line: "const t = syncToken;" },
     { id: "O3-nodeIntegration-true", line: "nodeIntegration: true," },
     { id: "G6-force-poll-channel", line: 'SCHEDULER_FORCE_POLL: "scheduler:force-poll"' },
   ];

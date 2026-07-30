@@ -22,9 +22,9 @@ These invariants were **out of scope** for the performance program as *permanent
 | G7 | Typed IPC + sender validation; no raw handle/send | `ipc-handlers/*` | scan + existing IPC tests | Main owner |
 | G8 | No secrets/user content in perf traces | `performance-trace.ts`, report scripts | `performance-trace` + `performance-report` tests | Privacy |
 | G9 | Trace opt-in only; bench outside default CI | `GOGMEET_PERF_TRACE`, `vitest.bench.config.ts` | scan + workspace config | Perf owner |
-| G1 | No `syncToken` / push / durable event DB **until** FUTURE track C1 | Google provider / auth | scan deny-list | Product + design ADR |
-| G10 / O4 | No prebuilt Swift helper **until** track C2 | `swift/*` packaging | scan for prebuilt helper claims / paths | Release owner |
-| O5 | No tray/alert/package “opts” without evidence | tray, alert-window, builder | process: REMEASURE receipts only | Perf owner |
+| G1 | No push/watch webhooks; syncToken only in google-calendar + google-sync-tokens (ADR 0002) | Google provider / auth | scan allowlist scope | Product + design ADR |
+| G10 / O4 | Prebuilt helper only via optional Resources path + integrity recompile fallback; no unsigned release claim | `swift/binary-manager`, `binary-cache` | unit tests + compile-on-device fallback | Release owner |
+| O5 | Tray coalesce + alert hide-reuse may ship; packaging/builder product changes still need B6/B3 receipts | tray, alert-window, builder | process + packaging-startup-notes | Perf owner |
 
 ## Class legend
 

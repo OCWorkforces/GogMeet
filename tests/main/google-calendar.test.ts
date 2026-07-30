@@ -12,6 +12,10 @@ const {
   loadOfflineCache,
   saveOfflineCache,
   clearOfflineCache,
+  loadGoogleSyncTokens,
+  saveGoogleSyncTokens,
+  clearGoogleSyncToken,
+  clearAllGoogleSyncTokens,
 } = vi.hoisted(() => ({
   ensureFreshGoogleAccessToken: vi.fn(),
   refreshGoogleAccessToken: vi.fn(),
@@ -23,6 +27,10 @@ const {
   loadOfflineCache: vi.fn(),
   saveOfflineCache: vi.fn(),
   clearOfflineCache: vi.fn(),
+  loadGoogleSyncTokens: vi.fn(),
+  saveGoogleSyncTokens: vi.fn(),
+  clearGoogleSyncToken: vi.fn(),
+  clearAllGoogleSyncTokens: vi.fn(),
 }));
 
 vi.mock("../../src/main/calendar/auth/google-oauth.js", () => ({
@@ -43,6 +51,12 @@ vi.mock("../../src/main/calendar/offline-cache.js", () => ({
   loadOfflineCache,
   saveOfflineCache,
   clearOfflineCache,
+}));
+vi.mock("../../src/main/calendar/auth/google-sync-tokens.js", () => ({
+  loadGoogleSyncTokens,
+  saveGoogleSyncTokens,
+  clearGoogleSyncToken,
+  clearAllGoogleSyncTokens,
 }));
 
 import { createGoogleCalendarProvider } from "../../src/main/calendar/providers/google-calendar.js";
@@ -79,6 +93,10 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockReset().mockResolvedValue(null);
     saveOfflineCache.mockReset().mockResolvedValue(undefined);
     clearOfflineCache.mockReset().mockResolvedValue(undefined);
+    loadGoogleSyncTokens.mockReset().mockResolvedValue({});
+    saveGoogleSyncTokens.mockReset().mockResolvedValue(undefined);
+    clearGoogleSyncToken.mockReset().mockResolvedValue(undefined);
+    clearAllGoogleSyncTokens.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -309,6 +327,7 @@ describe("createGoogleCalendarProvider", () => {
     await provider.disconnect?.();
     expect(clearGoogleTokens).toHaveBeenCalled();
     expect(clearOfflineCache).toHaveBeenCalled();
+    expect(clearAllGoogleSyncTokens).toHaveBeenCalled();
 
     ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
     await provider.warmup?.();
@@ -460,6 +479,144 @@ describe("createGoogleCalendarProvider", () => {
       expect(result.source).toBe("offline-cache");
     }
     expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("persists nextSyncToken after full window fetch", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(15, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Full",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "sync-token-1",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("ok");
+    expect(saveGoogleSyncTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ primary: "sync-token-1" }),
+    );
+  });
+
+  it("uses incremental syncToken on later poll and handles 410 full resync", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(14, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    const start2 = new Date(start.getTime() + 60 * 60_000);
+    const end2 = new Date(start2.getTime() + 30 * 60_000);
+
+    // In-memory token map for this provider instance sequence
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    clearGoogleSyncToken.mockImplementation(async (id: string) => {
+      const next = { ...stored };
+      delete next[id];
+      stored = next;
+    });
+
+    let phase: "full" | "inc" | "gone" | "full2" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc";
+          return jsonResponse({
+            items: [
+              {
+                id: "e1",
+                summary: "Original",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "tok-a",
+          });
+        }
+        if (phase === "inc") {
+          // Must request with syncToken
+          expect(url).toContain("syncToken=");
+          phase = "gone";
+          return jsonResponse({
+            items: [
+              {
+                id: "e2",
+                summary: "Added",
+                start: { dateTime: start2.toISOString() },
+                end: { dateTime: end2.toISOString() },
+              },
+            ],
+            nextSyncToken: "tok-b",
+          });
+        }
+        if (phase === "gone") {
+          expect(url).toContain("syncToken=");
+          phase = "full2";
+          return new Response("gone", { status: 410 });
+        }
+        // full resync after 410
+        expect(url).not.toContain("syncToken=");
+        return jsonResponse({
+          items: [
+            {
+              id: "e3",
+              summary: "AfterGone",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "tok-c",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const r1 = await provider.getEvents(new AbortController().signal);
+    expect(r1.kind).toBe("ok");
+    if (r1.kind === "ok") {
+      expect(r1.events.some((e) => e.title === "Original")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("tok-a");
+
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.some((e) => e.title === "Original")).toBe(true);
+      expect(r2.events.some((e) => e.title === "Added")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("tok-b");
+
+    const r3 = await provider.getEvents(new AbortController().signal);
+    expect(r3.kind).toBe("ok");
+    if (r3.kind === "ok") {
+      expect(r3.events.some((e) => e.title === "AfterGone")).toBe(true);
+      // index cleared on 410 — original/added not retained unless returned
+      expect(r3.events.some((e) => e.title === "Added")).toBe(false);
+    }
+    expect(clearGoogleSyncToken).toHaveBeenCalledWith("primary");
+    expect(stored["primary"]).toBe("tok-c");
   });
 });
 
