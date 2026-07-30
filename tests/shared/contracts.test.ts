@@ -13,7 +13,7 @@ describe("shared contracts", () => {
       CALENDAR_GET_EVENTS: "calendar:get-events",
       APP_JOIN_MEETING: "app:join-meeting",
       SETTINGS_GET: "settings:get",
-      SCHEDULER_FORCE_POLL: "scheduler:force-poll",
+      CALENDAR_RESULT_UPDATED: "calendar:result-updated",
       ALERT_DISMISSED: "alert:dismissed",
     });
   });

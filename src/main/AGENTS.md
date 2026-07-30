@@ -12,15 +12,15 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `application/` | `ports/`, `use-cases/` | ports + pure-ish use-case factories |
 | `infrastructure/` | `settings/`, `electron/` | JsonSettingsStore, ShellMeetingOpener |
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
-| `calendar/` | factory, providers, auth, offline-cache | CalendarProvider backends |
+| `calendar/` | factory, providers, **google-http**, auth, offline-cache | CalendarProvider backends |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |
 | `system/` | power, shortcuts, auto-launch, auto-updater, notification | OS integration |
-| `scheduler/` | facade + core + adapters + timers | poll, plan, auto-open, alerts |
-| `swift/` | binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
+| `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
+| `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
 | `ipc-handlers/` | per-domain handlers | typed IPC (receive `AppGraph`) |
-| `menu/` | `meeting-menu.ts` | tray menu templates via callbacks |
-| `utils/` | browser-window, window-chrome, meet-url, join-meeting, log, packageInfo, system-settings | security + join hub + helpers |
+| `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows) |
+| `utils/` | browser-window, window-chrome, meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
 
 ## Lifecycle order
 
@@ -47,6 +47,7 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - `scheduler/facade.ts` is the only scheduler import outside `scheduler/` (and graph wrappers).
 - Callers use `facades/calendar.ts` (not factory/providers) for calendar access.
 - `swift/` only from `calendar/providers/darwin-eventkit.ts` and internal `swift/**`.
+- Calendar results are exhaustive (live complete/partial / offline-cache); ports require `AbortSignal`.
 - Meeting host detection: `domain/services/platform.ts`. OS: `platform/os.ts`.
 
 ## IPC and security

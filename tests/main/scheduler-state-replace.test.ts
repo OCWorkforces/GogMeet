@@ -22,14 +22,14 @@ describe("replaceState() preservation", () => {
   });
 
   it("preserves win, onTrayTitleUpdate, powerCallbacks, and lastKnownEvents from old state", () => {
-    const fakeWin = { id: 42 } as unknown as BrowserWindow;
+    const fakeWin = { id: 42 }.As<BrowserWindow>();
     const fakeCallback = vi.fn();
     const fakePower = {
       getPollInterval: () => 60_000,
       preventSleep: vi.fn(),
       allowSleep: vi.fn(),
     };
-    const fakeEvents: CalendarResult = { kind: "ok", events: [] };
+    const fakeEvents: CalendarResult = { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] };
 
     stateModule.state.win = fakeWin;
     stateModule.state.onTrayTitleUpdate = fakeCallback;
@@ -61,13 +61,20 @@ describe("replaceState() preservation", () => {
 
     const handle = setTimeout(() => {}, 1_000_000);
     stateModule.state.pollTimeout = handle;
-    stateModule.state.lastKnownEvents = { kind: "ok", events: [] };
+    const lastKnown = {
+      kind: "ok" as const,
+      source: "live" as const,
+      completeness: "complete" as const,
+      observedAt: Date.now(),
+      events: [],
+    };
+    stateModule.state.lastKnownEvents = lastKnown;
 
     replaceState(createSchedulerState());
 
     expect(cleared).toContain(handle);
-    // Preserved across the swap
-    expect(stateModule.state.lastKnownEvents).toEqual({ kind: "ok", events: [] });
+    // Preserved across the swap (same reference / values; pin observedAt once)
+    expect(stateModule.state.lastKnownEvents).toEqual(lastKnown);
     // pollTimeout is reset on the new state
     expect(stateModule.state.pollTimeout).toBeNull();
 

@@ -1,6 +1,9 @@
 /**
- * Encrypted Google OAuth token persistence (K27, K29 patterns).
+ * Encrypted Google OAuth token persistence.
  * Path: {userData}/calendar-auth/google.enc
+ *
+ * Load failures that are not "file missing" preserve ciphertext on disk.
+ * Only explicit clearGoogleTokens() / successful overwrite removes credentials.
  */
 
 import { app, safeStorage } from "electron";
@@ -22,12 +25,30 @@ export interface GoogleTokenFileV1 {
   readonly scope?: string;
 }
 
+/** Why load failed without deleting the encrypted file (when one exists). */
+export type GoogleTokenLoadFailureReason =
+  | "missing"
+  | "secure-storage-unavailable"
+  | "decrypt"
+  | "malformed"
+  | "schema-mismatch"
+  | "client-mismatch";
+
+export type GoogleTokenLoadResult =
+  | { kind: "ok"; tokens: GoogleTokenFileV1 }
+  | { kind: "err"; reason: GoogleTokenLoadFailureReason; preservedCiphertext: boolean };
+
 function authDir(): string {
   return join(app.getPath("userData"), "calendar-auth");
 }
 
 function tokenPath(): string {
   return join(authDir(), "google.enc");
+}
+
+/** Absolute path to the encrypted token file (tests / diagnostics). */
+export function googleTokenFilePath(): string {
+  return tokenPath();
 }
 
 function allowPlaintextDev(): boolean {
@@ -62,17 +83,31 @@ function decodePayload(buf: Buffer): string {
   throw new Error("OS secure storage is unavailable; cannot read Google OAuth tokens");
 }
 
-function parseTokenFile(raw: unknown): GoogleTokenFileV1 | null {
-  if (!isObjectRecord(raw)) return null;
-  if (raw["authSchemaVersion"] !== GOOGLE_AUTH_SCHEMA_VERSION) return null;
-  if (typeof raw["clientId"] !== "string" || raw["clientId"].length === 0) return null;
-  if (typeof raw["accessToken"] !== "string" || raw["accessToken"].length === 0) return null;
-  if (typeof raw["refreshToken"] !== "string" || raw["refreshToken"].length === 0) return null;
-  if (typeof raw["expiryMs"] !== "number" || !Number.isFinite(raw["expiryMs"])) return null;
+function parseTokenFile(
+  raw: unknown,
+):
+  | { ok: true; tokens: GoogleTokenFileV1 }
+  | { ok: false; reason: "schema-mismatch" | "client-mismatch" } {
+  if (!isObjectRecord(raw)) return { ok: false, reason: "schema-mismatch" };
+  if (raw["authSchemaVersion"] !== GOOGLE_AUTH_SCHEMA_VERSION) {
+    return { ok: false, reason: "schema-mismatch" };
+  }
+  if (typeof raw["clientId"] !== "string" || raw["clientId"].length === 0) {
+    return { ok: false, reason: "schema-mismatch" };
+  }
+  if (typeof raw["accessToken"] !== "string" || raw["accessToken"].length === 0) {
+    return { ok: false, reason: "schema-mismatch" };
+  }
+  if (typeof raw["refreshToken"] !== "string" || raw["refreshToken"].length === 0) {
+    return { ok: false, reason: "schema-mismatch" };
+  }
+  if (typeof raw["expiryMs"] !== "number" || !Number.isFinite(raw["expiryMs"])) {
+    return { ok: false, reason: "schema-mismatch" };
+  }
 
   const expectedClientId = getGoogleOAuthClientId();
   if (expectedClientId.length > 0 && raw["clientId"] !== expectedClientId) {
-    return null;
+    return { ok: false, reason: "client-mismatch" };
   }
 
   const base: GoogleTokenFileV1 = {
@@ -86,35 +121,59 @@ function parseTokenFile(raw: unknown): GoogleTokenFileV1 | null {
   const email = raw["email"];
   const scope = raw["scope"];
   return {
-    ...base,
-    ...(typeof email === "string" && email.length > 0 ? { email } : {}),
-    ...(typeof scope === "string" && scope.length > 0 ? { scope } : {}),
+    ok: true,
+    tokens: {
+      ...base,
+      ...(typeof email === "string" && email.length > 0 ? { email } : {}),
+      ...(typeof scope === "string" && scope.length > 0 ? { scope } : {}),
+    },
   };
 }
 
-/** Load tokens or null if missing/invalid (invalid files are deleted). */
-export async function loadGoogleTokens(): Promise<GoogleTokenFileV1 | null> {
+/**
+ * Load tokens with typed failure. Never unlinks the ciphertext file on
+ * decrypt/malformed/schema/client/secure-storage failures.
+ */
+export async function loadGoogleTokensResult(): Promise<GoogleTokenLoadResult> {
   let buf: Buffer;
   try {
     buf = await readFile(tokenPath());
   } catch {
-    return null;
+    return { kind: "err", reason: "missing", preservedCiphertext: false };
   }
 
-  try {
-    const json = decodePayload(buf);
-    const parsed: unknown = JSON.parse(json);
-    const tokens = parseTokenFile(parsed);
-    if (tokens === null) {
-      await clearGoogleTokens();
-      return null;
-    }
-    return tokens;
-  } catch (err) {
-    console.warn("[calendar:auth] Failed to load tokens; clearing:", err);
-    await clearGoogleTokens();
-    return null;
+  if (!encryptionAvailable() && !allowPlaintextDev()) {
+    return { kind: "err", reason: "secure-storage-unavailable", preservedCiphertext: true };
   }
+
+  let json: string;
+  try {
+    json = decodePayload(buf);
+  } catch (err) {
+    console.warn("[calendar:auth] Failed to decrypt tokens (ciphertext preserved):", err);
+    return { kind: "err", reason: "decrypt", preservedCiphertext: true };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (err) {
+    console.warn("[calendar:auth] Token JSON malformed (ciphertext preserved):", err);
+    return { kind: "err", reason: "malformed", preservedCiphertext: true };
+  }
+
+  const tokens = parseTokenFile(parsed);
+  if (!tokens.ok) {
+    console.warn(`[calendar:auth] Token ${tokens.reason} (ciphertext preserved)`);
+    return { kind: "err", reason: tokens.reason, preservedCiphertext: true };
+  }
+  return { kind: "ok", tokens: tokens.tokens };
+}
+
+/** Load tokens or null. Invalid/unreadable files are preserved, not deleted. */
+export async function loadGoogleTokens(): Promise<GoogleTokenFileV1 | null> {
+  const result = await loadGoogleTokensResult();
+  return result.kind === "ok" ? result.tokens : null;
 }
 
 /** Persist tokens (encrypted when available). */

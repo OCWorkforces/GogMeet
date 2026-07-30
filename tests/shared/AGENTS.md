@@ -2,24 +2,29 @@
 
 ## OVERVIEW
 
-Vitest project `shared`: Node environment, **no Electron mocks**, no jsdom. Intended for residual `src/shared/**` contract tests.
+Vitest project `shared`: Node environment, **no Electron mocks**, no jsdom. Covers residual `src/shared/**` contracts and pure helpers that are not domain entities.
 
 Most pure logic that used to live under shared (brands, errors, pick-join-target, parse-json, event-signature, url validation) now lives in **`src/domain/`** with suites under **`tests/domain/`**.
 
-## CURRENT STATE
+## CURRENT SUITES
 
-`tests/shared/` may contain few or no `*.test.ts` files after the domain extract. The Vitest project remains registered with `passWithNoTests: true`.
+| Suite | Covers |
+| --- | --- |
+| `as.test.ts` | `Object.prototype.As` + free-function `As` cast helper |
+| `contracts.test.ts` | IPC channel / shared contract smoke |
+
+Setup: `tests/setup.as.ts` installs the cast extension for this project.
 
 When adding tests:
 
 | Concern | Prefer |
 | --- | --- |
-| Brands, Result, AppError, settings, MeetingEvent | `tests/domain/` |
+| Brands, Result, AppError, settings, MeetingEvent, CalendarResult | `tests/domain/` |
 | IPC channel constants / maps | often covered in `tests/main/ipc-channels.test.ts` |
-| Thin shared DTOs only | `tests/shared/` |
+| Thin shared DTOs / cast helper | `tests/shared/` |
 
 ## RULES
 
 - Do not import Electron or arbitrary main-process modules.
-- Do not load `tests/setup.main.ts`.
+- Do not load `tests/setup.main.ts` (Electron mock).
 - Keep tests deterministic.

@@ -238,6 +238,17 @@ function planFutureTimers(
     settings.quietHoursEnabled &&
     isInQuietHours(new Date(nowMs), settings.quietHoursStart, settings.quietHoursEnd);
 
+  // Snapshot is independent of browser open so title countdown, skip/idempotence,
+  // and alert paths work when autoOpenEnabled is false.
+  const eventSnapshot: ScheduledEventSnapshot = {
+    title: event.title,
+    meetUrl: event.meetUrl,
+    openAtMs,
+    startMs,
+    endMs,
+  };
+  actions.push({ type: "set-snapshot", eventId: event.id, snapshot: eventSnapshot });
+
   if (settings.windowAlert && !quiet && !snapshot.alertFiredEvents.has(event.id)) {
     actions.push({
       type: "arm-alert",

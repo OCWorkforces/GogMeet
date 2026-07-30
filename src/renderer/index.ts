@@ -1,7 +1,7 @@
 import "./styles/main.css";
-import type { MeetingEvent } from "../domain/entities/meeting-event.js";
 import type { CalendarPermission } from "../domain/entities/calendar-result.js";
 import { isCalendarOk } from "../domain/entities/calendar-result.js";
+import type { CalendarPublication } from "../domain/entities/calendar-publication.js";
 import type { AppSettings } from "../domain/entities/settings.js";
 import { DEFAULT_SETTINGS } from "../domain/entities/settings.js";
 import { renderBody } from "./rendering/body.js";
@@ -25,6 +25,8 @@ interface RendererState {
   lastHeight: number;
   lastEventsSignature: string;
   lastPollTime: number;
+  /** Defense-in-depth: ignore stale publications with older generations. */
+  loadGeneration: number;
 }
 
 const rs: RendererState = {
@@ -37,6 +39,7 @@ const rs: RendererState = {
   lastHeight: 0,
   lastEventsSignature: "",
   lastPollTime: Date.now(),
+  loadGeneration: 0,
 };
 
 function formatLastUpdated(ts: number): string {
@@ -99,6 +102,33 @@ async function grantAccess() {
   }
 }
 
+function applyPublication(publication: CalendarPublication, prevState: AppState): void {
+  if (publication.publicationGeneration < rs.loadGeneration) {
+    return;
+  }
+  rs.loadGeneration = publication.publicationGeneration;
+  const result = publication.result;
+  if (!isCalendarOk(result)) {
+    rs.state = { type: "error", message: result.error };
+    return;
+  }
+  const applied = applyEventsPush({
+    events: result.events,
+    settings: rs.settings,
+    prevState,
+    prevSignature: rs.lastEventsSignature,
+  });
+  if (!applied.didChange) {
+    rs.state = applied.state;
+    return;
+  }
+  rs.lastEventsSignature = applied.signature;
+  rs.state = applied.state;
+}
+
+/**
+ * Single refresh path: await coordinated publication from main (no separate forcePoll).
+ */
 async function loadEvents() {
   const prevState = rs.state;
   rs.state = { type: "loading" };
@@ -120,26 +150,8 @@ async function loadEvents() {
       return;
     }
 
-    const result = await window.api.calendar.getEvents();
-
-    if (!isCalendarOk(result)) {
-      rs.state = { type: "error", message: result.error };
-    } else {
-      const applied = applyEventsPush({
-        events: result.events,
-        settings: rs.settings,
-        prevState,
-        prevSignature: rs.lastEventsSignature,
-      });
-      if (!applied.didChange) {
-        rs.state = applied.state;
-        rs.lastUpdatedAt = Date.now();
-        render();
-        return;
-      }
-      rs.lastEventsSignature = applied.signature;
-      rs.state = applied.state;
-    }
+    const publication = await window.api.calendar.getEvents();
+    applyPublication(publication, prevState);
   } catch (err) {
     rs.state = {
       type: "error",
@@ -154,16 +166,8 @@ async function loadEvents() {
 async function init() {
   setupDelegatedEvents({
     onForcePoll: () => {
-      window.api.scheduler.forcePoll();
-      // loadEvents() will be triggered by CALENDAR_EVENTS_UPDATED push from main.
-      // For error/no-permission states (no push arrives), also reload directly.
-      if (
-        rs.state.type === "has-events" ||
-        rs.state.type === "error" ||
-        rs.state.type === "no-permission"
-      ) {
-        void loadEvents();
-      }
+      // Single path: coordinated GET_EVENTS (main schedules + returns publication).
+      void loadEvents();
     },
     onGrantAccess: () => void grantAccess(),
     onJoinMeeting: (eventId) => {
@@ -175,22 +179,9 @@ async function init() {
     },
   });
 
-  // Listen for calendar updates pushed from main process — events included in push payload
-  window.api.calendar.onEventsUpdated((events: MeetingEvent[]) => {
-    const applied = applyEventsPush({
-      events,
-      settings: rs.settings,
-      prevState: rs.state,
-      prevSignature: rs.lastEventsSignature,
-    });
-    if (!applied.didChange) {
-      rs.state = applied.state;
-      rs.lastUpdatedAt = Date.now();
-      render();
-      return;
-    }
-    rs.lastEventsSignature = applied.signature;
-    rs.state = applied.state;
+  // Main pushes full publications after polls / coordinated refreshes.
+  window.api.calendar.onResultUpdated((publication: CalendarPublication) => {
+    applyPublication(publication, rs.state);
     rs.lastUpdatedAt = Date.now();
     render();
   });
@@ -208,7 +199,7 @@ async function init() {
   await loadEvents();
 
   // Resume on show with debounce to avoid rapid show/hide cycles
-  // No 5-min polling interval — main pushes updates via CALENDAR_EVENTS_UPDATED
+  // No renderer interval — main pushes via CALENDAR_RESULT_UPDATED
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       const now = Date.now();

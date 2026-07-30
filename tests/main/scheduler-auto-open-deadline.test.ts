@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventId } from "../../src/domain/entities/brand.js";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
-import type { ScheduledEventSnapshot } from "../../src/main/scheduler/state/index.js";
 import {
   asTestEventId,
   asTestIsoUtc,
@@ -164,7 +163,6 @@ describe("scheduler browser auto-open deadline", () => {
     const openAtMs = startMs - 2 * MINUTE_MS;
     const timers = new Map<EventId, ReturnType<typeof setTimeout>>();
     const firedEvents = new Map<EventId, number>();
-    const scheduledEventData = new Map<EventId, ScheduledEventSnapshot>();
 
     scheduleBrowserTimer(
       event,
@@ -174,7 +172,6 @@ describe("scheduler browser auto-open deadline", () => {
       endMs,
       timers,
       firedEvents,
-      scheduledEventData,
     );
     vi.advanceTimersByTime(2 * MINUTE_MS);
 

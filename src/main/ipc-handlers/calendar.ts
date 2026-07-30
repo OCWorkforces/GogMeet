@@ -10,15 +10,24 @@ export function registerCalendarHandlers(graph: AppGraph): void {
     async (
       event: IpcMainInvokeEvent,
     ): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_GET_EVENTS>> => {
-      if (!validateSender(event)) return { kind: "err", error: "unauthorized", code: "unknown" };
+      if (!validateSender(event)) {
+        return {
+          publicationGeneration: 0,
+          result: { kind: "err", error: "unauthorized", code: "unknown" },
+        };
+      }
       try {
+        // Coordinated refresh: publication envelope for renderer generation tracking.
         return await graph.calendar.getEvents();
       } catch (err) {
         console.error("[ipc] CALENDAR_GET_EVENTS error:", err);
         return {
-          kind: "err",
-          error: err instanceof Error ? err.message : String(err),
-          code: "unknown",
+          publicationGeneration: 0,
+          result: {
+            kind: "err",
+            error: err instanceof Error ? err.message : String(err),
+            code: "unknown",
+          },
         };
       }
     },

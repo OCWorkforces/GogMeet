@@ -507,7 +507,10 @@ describe("getCalendarEventsResult diagnostics", () => {
 
     const result = await getCalendarEventsResult();
 
-    expect(result).toEqual({ kind: "ok", events: [] });
+    expect(result).toMatchObject({ kind: "ok", source: "live", completeness: "partial", events: [] });
+    if (result.kind === "ok" && result.source === "live") {
+      expect(result.observedAt).toBeTypeOf("number");
+    }
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
       "[calendar:darwin] Parse diagnostic: line 1: malformed_record",

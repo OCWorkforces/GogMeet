@@ -5,11 +5,13 @@
 
 import type { BrowserWindow } from "electron";
 import type { CalendarResult } from "../../domain/entities/calendar-result.js";
+import type { CalendarPublication } from "../../domain/entities/calendar-publication.js";
 import { state, resetState, type PowerCallbacks } from "./state/index.js";
 import { poll } from "./poll.js";
 import { cancelBrowserTimer } from "./browser-timer.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
+import { cancelCalendarRefresh } from "../calendar/refresh-coordinator.js";
 
 /** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */
 const FORCE_POLL_COALESCE_MS = 10_000;
@@ -21,7 +23,7 @@ let lastPollCompletedAt = 0;
 let pendingForcePollTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** In-flight poll guard — set while a guarded poll() is awaiting completion */
-let inFlightPoll: Promise<void> | null = null;
+let inFlightPoll: Promise<CalendarPublication | null> | null = null;
 
 /** Set when a guarded poll is requested while one is already in flight — bounded to one */
 let queuedPollRequested = false;
@@ -36,40 +38,41 @@ let lifecycleGeneration = 0;
  *   returns the in-flight promise so the caller awaits through the queued follow-up.
  * - The guard clears in finally so a thrown poll does not leave the scheduler stuck.
  */
-async function runGuardedPoll(): Promise<void> {
+async function runGuardedPoll(): Promise<CalendarPublication | null> {
   if (inFlightPoll !== null) {
     queuedPollRequested = true;
     return inFlightPoll;
   }
-  const run = (async (): Promise<void> => {
+  const run = (async (): Promise<CalendarPublication | null> => {
     while (true) {
       const generation = lifecycleGeneration;
       const isCurrentGeneration = (): boolean => lifecycleGeneration === generation;
+      let latest: CalendarPublication | null;
       try {
-        await poll(isCurrentGeneration);
+        latest = await poll(isCurrentGeneration);
       } finally {
         if (isCurrentGeneration()) {
           lastPollCompletedAt = Date.now();
         }
       }
-      if (!queuedPollRequested) return;
+      if (!queuedPollRequested) return latest;
       queuedPollRequested = false;
     }
   })();
   inFlightPoll = run;
   try {
-    await run;
+    return await run;
   } finally {
     inFlightPoll = null;
   }
 }
 
 /**
- * Force an immediate poll outside the normal schedule.
- * Cancels the pending setTimeout, runs poll() now, then re-arms the next tick.
- * Coalesces: no-ops if a poll completed within the last FORCE_POLL_COALESCE_MS.
+ * Force an immediate coordinated poll (fetch + schedule/suspend + push).
+ * Cancels the pending setTimeout, runs poll now, then re-arms the next tick.
+ * Coalesces within FORCE_POLL_COALESCE_MS after last completed poll.
  */
-export async function forcePoll(): Promise<void> {
+export async function forcePoll(): Promise<CalendarPublication | null> {
   const now = Date.now();
   if (now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
     // Defer one poll to fire at the end of the coalesce window instead of dropping it.
@@ -83,7 +86,9 @@ export async function forcePoll(): Promise<void> {
     } else {
       console.debug("[scheduler] forcePoll already deferred — skipping");
     }
-    return;
+    // Caller still awaits in-flight/latest via guarded poll join when possible.
+    if (inFlightPoll !== null) return inFlightPoll;
+    return null;
   }
 
   // Cancel the pending background setTimeout so we don't double-poll
@@ -96,7 +101,7 @@ export async function forcePoll(): Promise<void> {
   state.pollEpoch++;
   const epoch = state.pollEpoch;
 
-  await runGuardedPoll();
+  const publication = await runGuardedPoll();
 
   // Re-arm the next scheduled poll from "now" if the scheduler is still active
   if (state.pollEpoch === epoch) {
@@ -113,6 +118,7 @@ export async function forcePoll(): Promise<void> {
     }
     scheduleNextAfterForce();
   }
+  return publication;
 }
 
 /** Start the scheduler — call once from app.whenReady() */
@@ -145,6 +151,7 @@ export function startScheduler(): void {
 export function stopScheduler(options?: { preserveFiredState?: boolean }): void {
   lifecycleGeneration++;
   queuedPollRequested = false;
+  cancelCalendarRefresh();
   if (pendingForcePollTimer !== null) {
     clearTimeout(pendingForcePollTimer);
     pendingForcePollTimer = null;

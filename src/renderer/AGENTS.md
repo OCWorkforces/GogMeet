@@ -32,8 +32,8 @@ src/renderer/
 
 - `AppState` lives in `src/shared/app-state.ts` and is imported by `index.ts` and `rendering/body.ts`.
 - States: `loading` → `no-permission` → `no-events` → `has-events` → `error`.
-- `loadEvents()` uses `window.api.calendar.getEvents()`; pushes deliver `MeetingEvent[]` via `onEventsUpdated`.
-- Refresh/retry call `window.api.scheduler.forcePoll()` (fire-and-forget), not a second local fetch path only.
+- `loadEvents()` uses `window.api.calendar.getEvents()` → `CalendarPublication`; pushes deliver the same envelope via `onResultUpdated`.
+- Refresh/retry use the same `loadEvents()` path (no renderer force-poll IPC). `loadGeneration` ignores stale publications.
 - Visibility-aware refresh when stale; `lastPollTime` gates first-show fetch.
 
 ## EVENT HANDLING

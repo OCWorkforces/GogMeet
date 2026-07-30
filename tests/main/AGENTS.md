@@ -9,9 +9,10 @@ Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock
 ```text
 tests/main/
 ├── app-graph.test.ts / lifecycle.test.ts / app-bootstrap.test.ts
-├── scheduler*.test.ts / scheduler/     # facade, poll, timers, plan-schedule
-├── swift/ + swift-*.test.ts            # parser, binary-manager, guards, watch sidecar
-├── calendar*.test.ts / fixture / google-token-store
+├── scheduler*.test.ts / scheduler/     # facade, poll, timers, plan-schedule, auto-open off
+├── swift/ + swift-*.test.ts            # helper-process, parser, binary-manager, watch sidecar
+├── calendar*.test.ts / google-* / fixture / offline-cache
+├── google-http.test.ts / performance-trace.test.ts
 ├── ipc*.test.ts                        # channels, typed wrappers, handlers, registrar
 ├── tray / meeting-menu / *-window / window-chrome
 ├── system adapters                     # power, shortcuts, notification, auto-launch, updater
@@ -35,9 +36,18 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 
 ## CALENDAR / PROVIDERS / SWIFT
 
-- `calendar.test.ts` — facade over provider mocks, permission cache.
-- `calendar-factory.test.ts` / `fixture-calendar.test.ts` / `google-token-store.test.ts` — factory selection, fixture gate, token schema.
+- `calendar.test.ts` — facade over provider mocks, permission cache, provenance fixtures.
+- `calendar-factory.test.ts` / `fixture-calendar.test.ts` — factory selection, fixture gate.
+- `google-http.test.ts` — bounded transport (timeout, body limits, abort).
+- `google-oauth.test.ts` / `google-token-store.test.ts` — force/if-needed refresh, preserve ciphertext.
+- `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial.
+- `offline-cache.test.ts` — encrypt round-trip (simple schema).
+- `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
+- `swift-binary-manager.test.ts` — integrity-only recompile.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
+- `performance-trace.test.ts` — opt-in redacted trace primitive.
+
+Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<T>()` for Electron mock shapes.
 - `swift-binary-manager.test.ts` / `calendar-watch-sidecar.test.ts` — compile/cache/watch (mocked exec).
 
 ## IPC / PRELOAD / GRAPH

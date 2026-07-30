@@ -3,6 +3,7 @@ import { createMockEvent, asTestMeetUrl, asTestIsoUtc } from "../helpers/test-ut
 
 const {
   ensureFreshGoogleAccessToken,
+  refreshGoogleAccessToken,
   isGoogleOAuthInFlight,
   runGooglePkceLogin,
   loadGoogleTokens,
@@ -11,8 +12,13 @@ const {
   loadOfflineCache,
   saveOfflineCache,
   clearOfflineCache,
+  loadGoogleSyncTokens,
+  saveGoogleSyncTokens,
+  clearGoogleSyncToken,
+  clearAllGoogleSyncTokens,
 } = vi.hoisted(() => ({
   ensureFreshGoogleAccessToken: vi.fn(),
+  refreshGoogleAccessToken: vi.fn(),
   isGoogleOAuthInFlight: vi.fn(),
   runGooglePkceLogin: vi.fn(),
   loadGoogleTokens: vi.fn(),
@@ -21,10 +27,15 @@ const {
   loadOfflineCache: vi.fn(),
   saveOfflineCache: vi.fn(),
   clearOfflineCache: vi.fn(),
+  loadGoogleSyncTokens: vi.fn(),
+  saveGoogleSyncTokens: vi.fn(),
+  clearGoogleSyncToken: vi.fn(),
+  clearAllGoogleSyncTokens: vi.fn(),
 }));
 
 vi.mock("../../src/main/calendar/auth/google-oauth.js", () => ({
   ensureFreshGoogleAccessToken,
+  refreshGoogleAccessToken,
   isGoogleOAuthInFlight,
   runGooglePkceLogin,
 }));
@@ -40,6 +51,12 @@ vi.mock("../../src/main/calendar/offline-cache.js", () => ({
   loadOfflineCache,
   saveOfflineCache,
   clearOfflineCache,
+}));
+vi.mock("../../src/main/calendar/auth/google-sync-tokens.js", () => ({
+  loadGoogleSyncTokens,
+  saveGoogleSyncTokens,
+  clearGoogleSyncToken,
+  clearAllGoogleSyncTokens,
 }));
 
 import { createGoogleCalendarProvider } from "../../src/main/calendar/providers/google-calendar.js";
@@ -67,6 +84,7 @@ describe("createGoogleCalendarProvider", () => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     ensureFreshGoogleAccessToken.mockReset();
+    refreshGoogleAccessToken.mockReset();
     isGoogleOAuthInFlight.mockReset().mockReturnValue(false);
     runGooglePkceLogin.mockReset();
     loadGoogleTokens.mockReset();
@@ -75,6 +93,10 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockReset().mockResolvedValue(null);
     saveOfflineCache.mockReset().mockResolvedValue(undefined);
     clearOfflineCache.mockReset().mockResolvedValue(undefined);
+    loadGoogleSyncTokens.mockReset().mockResolvedValue({});
+    saveGoogleSyncTokens.mockReset().mockResolvedValue(undefined);
+    clearGoogleSyncToken.mockReset().mockResolvedValue(undefined);
+    clearAllGoogleSyncTokens.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -84,7 +106,7 @@ describe("createGoogleCalendarProvider", () => {
   it("returns permission-denied when no tokens", async () => {
     ensureFreshGoogleAccessToken.mockResolvedValue(null);
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") expect(result.code).toBe("permission-denied");
   });
@@ -146,7 +168,7 @@ describe("createGoogleCalendarProvider", () => {
     });
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
     // cancelled + declined filtered; all-day + meet + zoom kept
@@ -163,7 +185,9 @@ describe("createGoogleCalendarProvider", () => {
     // listSelected will fail via fetch throw → outer catch network
     // Actually fetch rejection isn't handled as NetworkError in googleFetch - it will throw
     const cached = {
-      savedAt: Date.now(),
+      version: 1 as const,
+      observedAt: Date.now() - 1_000,
+      cachedAt: Date.now(),
       events: [createMockEvent({ title: "Cached" })],
     };
     // First failure path: ensureFresh works, fetchAllEvents throws from fetch
@@ -173,7 +197,7 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockResolvedValue(cached);
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     // outer catch may return runtime or network via cache
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
@@ -189,17 +213,23 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockResolvedValue(null);
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
   });
 
-  it("retries once on AuthError then succeeds", async () => {
-    ensureFreshGoogleAccessToken
-      .mockResolvedValueOnce(tokens)
-      .mockResolvedValueOnce({ ...tokens, accessToken: "new-access" });
+  it("retries once on AuthError then succeeds with a different access token", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "ok",
+      tokens: { ...tokens, accessToken: "new-access" },
+      didRefresh: true,
+    });
 
     let call = 0;
-    fetchMock.mockImplementation(async (url: string) => {
+    const tokensSeen: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.["Authorization"];
+      if (typeof auth === "string") tokensSeen.push(auth);
       if (url.includes("calendarList")) {
         call++;
         if (call === 1) return new Response("unauthorized", { status: 401 });
@@ -218,25 +248,31 @@ describe("createGoogleCalendarProvider", () => {
     });
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.events[0]?.title).toBe("After retry");
     }
+    expect(refreshGoogleAccessToken).toHaveBeenCalledWith("force");
+    expect(tokensSeen.some((h) => h.includes("new-access"))).toBe(true);
   });
 
-  it("clears tokens when auth fails after retry", async () => {
+  it("clears tokens when auth fails after forced refresh retry", async () => {
     ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "ok",
+      tokens: { ...tokens, accessToken: "new-access" },
+      didRefresh: true,
+    });
     fetchMock.mockImplementation(async () => new Response("nope", { status: 401 }));
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") {
       expect(result.code).toBe("permission-denied");
     }
-    // First 401 → refresh path; second 401 with tokens → clear
-    expect(ensureFreshGoogleAccessToken.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(refreshGoogleAccessToken).toHaveBeenCalledWith("force");
     expect(clearGoogleTokens).toHaveBeenCalled();
   });
 
@@ -253,7 +289,7 @@ describe("createGoogleCalendarProvider", () => {
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") expect(result.events).toEqual([]);
     warn.mockRestore();
@@ -291,6 +327,7 @@ describe("createGoogleCalendarProvider", () => {
     await provider.disconnect?.();
     expect(clearGoogleTokens).toHaveBeenCalled();
     expect(clearOfflineCache).toHaveBeenCalled();
+    expect(clearAllGoogleSyncTokens).toHaveBeenCalled();
 
     ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
     await provider.warmup?.();
@@ -308,7 +345,7 @@ describe("createGoogleCalendarProvider", () => {
     });
     const provider = createGoogleCalendarProvider();
     loadOfflineCache.mockResolvedValue(null);
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") {
       expect(result.code).toBe("runtime");
@@ -350,7 +387,7 @@ describe("createGoogleCalendarProvider", () => {
       });
     });
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
   });
 
@@ -395,21 +432,469 @@ describe("createGoogleCalendarProvider", () => {
       });
     });
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.events.length).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it("auth retry fails when ensureFresh returns null", async () => {
-    ensureFreshGoogleAccessToken
-      .mockResolvedValueOnce(tokens)
-      .mockResolvedValueOnce(null);
+  it("auth retry fails when force refresh returns no-tokens without clearing again", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({ kind: "no-tokens" });
     fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
-    expect(clearGoogleTokens).toHaveBeenCalled();
+    if (result.kind === "err") expect(result.code).toBe("permission-denied");
+    // no-tokens path does not call clear again (nothing to clear / already gone)
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("transient force refresh preserves credentials and uses offline cache", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "transient",
+      reason: "timeout",
+    });
+    fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
+    loadOfflineCache.mockResolvedValue({
+      version: 1 as const,
+      observedAt: Date.now() - 1_000,
+      cachedAt: Date.now(),
+      events: [
+        createMockEvent({
+          id: "cached",
+          title: "Cached",
+          meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
+          startDate: asTestIsoUtc("2026-07-27T15:00:00.000Z"),
+          endDate: asTestIsoUtc("2026-07-27T16:00:00.000Z"),
+        }),
+      ],
+    });
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.source).toBe("offline-cache");
+    }
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("persists nextSyncToken after full window fetch", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(15, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Full",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "sync-token-1",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("ok");
+    expect(saveGoogleSyncTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ primary: "sync-token-1" }),
+    );
+  });
+
+  it("uses incremental syncToken on later poll and handles 410 full resync", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(14, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    const start2 = new Date(start.getTime() + 60 * 60_000);
+    const end2 = new Date(start2.getTime() + 30 * 60_000);
+
+    // In-memory token map for this provider instance sequence
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    clearGoogleSyncToken.mockImplementation(async (id: string) => {
+      const next = { ...stored };
+      delete next[id];
+      stored = next;
+    });
+
+    let phase: "full" | "inc" | "gone" | "full2" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc";
+          return jsonResponse({
+            items: [
+              {
+                id: "e1",
+                summary: "Original",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "tok-a",
+          });
+        }
+        if (phase === "inc") {
+          // Must request with syncToken
+          expect(url).toContain("syncToken=");
+          phase = "gone";
+          return jsonResponse({
+            items: [
+              {
+                id: "e2",
+                summary: "Added",
+                start: { dateTime: start2.toISOString() },
+                end: { dateTime: end2.toISOString() },
+              },
+            ],
+            nextSyncToken: "tok-b",
+          });
+        }
+        if (phase === "gone") {
+          expect(url).toContain("syncToken=");
+          phase = "full2";
+          return new Response("gone", { status: 410 });
+        }
+        // full resync after 410
+        expect(url).not.toContain("syncToken=");
+        return jsonResponse({
+          items: [
+            {
+              id: "e3",
+              summary: "AfterGone",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "tok-c",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const r1 = await provider.getEvents(new AbortController().signal);
+    expect(r1.kind).toBe("ok");
+    if (r1.kind === "ok") {
+      expect(r1.events.some((e) => e.title === "Original")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("tok-a");
+
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.some((e) => e.title === "Original")).toBe(true);
+      expect(r2.events.some((e) => e.title === "Added")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("tok-b");
+
+    const r3 = await provider.getEvents(new AbortController().signal);
+    expect(r3.kind).toBe("ok");
+    if (r3.kind === "ok") {
+      expect(r3.events.some((e) => e.title === "AfterGone")).toBe(true);
+      // index cleared on 410 — original/added not retained unless returned
+      expect(r3.events.some((e) => e.title === "Added")).toBe(false);
+    }
+    expect(clearGoogleSyncToken).toHaveBeenCalledWith("primary");
+    expect(stored["primary"]).toBe("tok-c");
+  });
+
+  it("incremental sync applies cancelled deletions and falls back on non-410 transport errors", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(11, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+
+    let phase: "full" | "inc-cancel" | "inc-fail" | "full-fallback" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc-cancel";
+          return jsonResponse({
+            items: [
+              {
+                id: "keep",
+                summary: "Keep",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+              {
+                id: "drop",
+                summary: "Drop",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "s1",
+          });
+        }
+        if (phase === "inc-cancel") {
+          phase = "inc-fail";
+          return jsonResponse({
+            items: [{ id: "drop", status: "cancelled" }],
+            nextSyncToken: "s2",
+          });
+        }
+        if (phase === "inc-fail") {
+          phase = "full-fallback";
+          return new Response("nope", { status: 500 });
+        }
+        // full window fallback after incremental transport failure
+        return jsonResponse({
+          items: [
+            {
+              id: "keep",
+              summary: "Keep",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "s3",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const r1 = await provider.getEvents(new AbortController().signal);
+    expect(r1.kind).toBe("ok");
+    if (r1.kind === "ok") {
+      expect(r1.events.map((e) => e.title).sort()).toEqual(["Drop", "Keep"]);
+    }
+
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.some((e) => e.title === "Drop")).toBe(false);
+      expect(r2.events.some((e) => e.title === "Keep")).toBe(true);
+    }
+
+    const r3 = await provider.getEvents(new AbortController().signal);
+    expect(r3.kind).toBe("ok");
+    if (r3.kind === "ok") {
+      expect(r3.events.some((e) => e.title === "Keep")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("s3");
+  });
+
+  it("calendarList non-auth failure surfaces as error when no offline cache", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return new Response("nope", { status: 503 });
+      }
+      return jsonResponse({}, 404);
+    });
+    loadOfflineCache.mockResolvedValue(null);
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("err");
+  });
+
+  it("skips unselected calendars and defaults to primary when none selected", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({
+          items: [
+            { id: "ignored", selected: false },
+            { id: "not-an-id" }, // missing id
+            "bad-item",
+          ],
+        });
+      }
+      if (url.includes("/calendars/primary/events") || url.includes("/calendars/primary%2F")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Primary only",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "p1",
+        });
+      }
+      // encodeURIComponent("primary") path
+      if (url.includes("/events")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Primary only",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "p1",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.events.some((e) => e.title === "Primary only")).toBe(true);
+    }
+  });
+
+  it("incremental pageToken continues without repeating syncToken param", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(13, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    clearAllGoogleSyncTokens.mockImplementation(async () => {
+      stored = {};
+    });
+
+    // Seed index via full then incremental with pagination
+    let phase: "full" | "inc1" | "inc2" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc1";
+          return jsonResponse({
+            items: [
+              {
+                id: "a",
+                summary: "A",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "sync-start",
+          });
+        }
+        if (phase === "inc1") {
+          phase = "inc2";
+          expect(url).toContain("syncToken=");
+          return jsonResponse({
+            items: [
+              {
+                id: "b",
+                summary: "B",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextPageToken: "page-2",
+          });
+        }
+        // second incremental page — should have pageToken, not syncToken
+        expect(url).toContain("pageToken=");
+        expect(url).not.toContain("syncToken=");
+        return jsonResponse({
+          items: [
+            {
+              id: "c",
+              summary: "C",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "sync-end",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    // Clear process-local index left by prior tests in this file
+    await provider.disconnect?.();
+    clearGoogleTokens.mockClear();
+    clearOfflineCache.mockClear();
+
+    await provider.getEvents(new AbortController().signal); // full seed
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.map((e) => e.title).sort()).toEqual(["A", "B", "C"]);
+    }
+    expect(stored["primary"]).toBe("sync-end");
+  });
+
+  it("incremental AuthError (401) propagates as permission-denied", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({ kind: "no-tokens" });
+    const start = new Date();
+    start.setHours(10, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    let phase: "full" | "inc" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc";
+          return jsonResponse({
+            items: [
+              {
+                id: "e1",
+                summary: "X",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "t1",
+          });
+        }
+        return new Response("auth", { status: 401 });
+      }
+      return jsonResponse({}, 404);
+    });
+    const provider = createGoogleCalendarProvider();
+    await provider.getEvents(new AbortController().signal);
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("err");
+    if (r2.kind === "err") expect(r2.code).toBe("permission-denied");
   });
 });
+

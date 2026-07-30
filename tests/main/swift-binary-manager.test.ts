@@ -2,15 +2,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const { execFileAsyncMock } = vi.hoisted(() => ({
+const { execFileAsyncMock, runSwiftHelperProcessMock } = vi.hoisted(() => ({
   execFileAsyncMock: vi.fn(),
+  runSwiftHelperProcessMock: vi.fn(),
 }));
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const fn = Object.assign(vi.fn(), {
     [promisify.custom]: execFileAsyncMock,
   });
-  return { execFile: fn };
+  return { execFile: fn, spawn: vi.fn() };
+});
+vi.mock("../../src/main/swift/swift-helper-process.js", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../src/main/swift/swift-helper-process.js")
+  >("../../src/main/swift/swift-helper-process.js");
+  return {
+    ...actual,
+    runSwiftHelperProcess: runSwiftHelperProcessMock,
+  };
 });
 
 const {
@@ -20,6 +30,7 @@ const {
   writeFileMock,
   unlinkMock,
   statMock,
+  copyFileMock,
 } = vi.hoisted(() => ({
   accessMock: vi.fn(),
   mkdirMock: vi.fn(),
@@ -27,6 +38,7 @@ const {
   writeFileMock: vi.fn(),
   unlinkMock: vi.fn(),
   statMock: vi.fn(),
+  copyFileMock: vi.fn(),
 }));
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
@@ -35,6 +47,7 @@ vi.mock("node:fs/promises", () => ({
   writeFile: writeFileMock,
   unlink: unlinkMock,
   stat: statMock,
+  copyFile: copyFileMock,
 }));
 
 async function loadModule() {
@@ -85,7 +98,7 @@ function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
     const handle = {
       unref: () => handle,
       ref: () => handle,
-    } as unknown as ReturnType<typeof setTimeout>;
+    }.As<ReturnType<typeof setTimeout>>();
     if (typeof handler === "function") {
       queueMicrotask(() => {
         (handler as (...a: unknown[]) => void)(...args);
@@ -97,12 +110,14 @@ function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
 
 beforeEach(() => {
   execFileAsyncMock.mockReset();
+  runSwiftHelperProcessMock.mockReset();
   accessMock.mockReset();
   mkdirMock.mockReset();
   readFileMock.mockReset();
   writeFileMock.mockReset();
   unlinkMock.mockReset();
   statMock.mockReset();
+  copyFileMock.mockReset();
 
   // Default stat: mtime stable across calls so memoization tests are deterministic.
   statMock.mockResolvedValue({ mtimeMs: 1_000 });
@@ -110,7 +125,13 @@ beforeEach(() => {
   mkdirMock.mockResolvedValue(undefined);
   writeFileMock.mockResolvedValue(undefined);
   unlinkMock.mockResolvedValue(undefined);
+  copyFileMock.mockResolvedValue(undefined);
   execFileAsyncMock.mockResolvedValue({ stdout: "", stderr: "" });
+  runSwiftHelperProcessMock.mockResolvedValue({
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+  });
 });
 
 afterEach(() => {
@@ -153,6 +174,189 @@ describe("computeSwiftSourceHash", () => {
   });
 });
 
+describe("resolveBundledHelperPath", () => {
+  it("returns null outside packaged (asar) builds", async () => {
+    const mod = await loadModule();
+    expect(mod.resolveBundledHelperPath()).toBeNull();
+  });
+
+  it("resolves arch-specific Resources path when packaged options are forced", async () => {
+    const mod = await loadModule();
+    const resources = join("App", "Resources");
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        resourcesPath: resources,
+        arch: "arm64",
+      }),
+    ).toBe(join(resources, "googlemeet-events-arm64"));
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        resourcesPath: resources,
+        arch: "x64",
+      }),
+    ).toBe(join(resources, "googlemeet-events-x64"));
+    expect(mod.resolveBundledHelperPath({ packaged: true, resourcesPath: "" })).toBeNull();
+  });
+
+  it("returns null when packaged resolution throws", async () => {
+    const mod = await loadModule();
+    const throwingPath = {
+      toString() {
+        throw new Error("bad resources");
+      },
+    };
+    // Force join() to throw by providing a non-string that passes the length check incorrectly —
+    // use a getter that throws when read after the type check via Object that fails at join.
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        // @ts-expect-error intentional invalid resourcesPath for catch-path coverage
+        resourcesPath: {
+          get length() {
+            return 1;
+          },
+          [Symbol.toPrimitive]() {
+            throw new Error("boom");
+          },
+        },
+      }),
+    ).toBeNull();
+    void throwingPath;
+  });
+});
+
+describe("installBundledHelperCandidates", () => {
+  it("copies the first executable candidate and writes the source hash", async () => {
+    accessMock.mockImplementation(async (path: string) => {
+      if (path === "/missing/helper") throw new Error("ENOENT");
+      if (path === "/Resources/googlemeet-events") return undefined;
+      throw new Error(`unexpected access: ${path}`);
+    });
+    copyFileMock.mockResolvedValue(undefined);
+    const hash = await sha256Hex(FAKE_SOURCE);
+
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(
+      ["/missing/helper", "/Resources/googlemeet-events"],
+      hash,
+    );
+
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(
+      "/Resources/googlemeet-events",
+      EXPECTED_BINARY_PATH,
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH, hash, "utf-8");
+  });
+
+  it("returns false when no candidate is executable", async () => {
+    accessMock.mockRejectedValue(new Error("ENOENT"));
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(["/nope"]);
+    expect(ok).toBe(false);
+    expect(copyFileMock).not.toHaveBeenCalled();
+  });
+
+  it("copies without writing hash when sourceHash is omitted", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    writeFileMock.mockClear();
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(["/Resources/googlemeet-events"]);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalled();
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+
+  it("skips hash write when sourceHash is empty string", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    writeFileMock.mockClear();
+    const mod = await loadModule();
+    expect(await mod.installBundledHelperCandidates(["/Resources/h"], "")).toBe(true);
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("tryInstallBundledHelper", () => {
+  it("returns false when resolvePath yields null", async () => {
+    const mod = await loadModule();
+    expect(await mod.tryInstallBundledHelper(() => null)).toBe(false);
+    expect(copyFileMock).not.toHaveBeenCalled();
+  });
+
+  it("installs preferred path and records source hash", async () => {
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    const preferred = "/App/Resources/googlemeet-events-arm64";
+    Object.defineProperty(process, "resourcesPath", {
+      value: "/App/Resources",
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => preferred);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(preferred, EXPECTED_BINARY_PATH);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      EXPECTED_HASH_PATH,
+      await sha256Hex(FAKE_SOURCE),
+      "utf-8",
+    );
+  });
+
+  it("still installs when source hash cannot be computed", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    readFileMock.mockRejectedValue(new Error("no source"));
+    Object.defineProperty(process, "resourcesPath", {
+      value: undefined,
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => "/only/preferred");
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith("/only/preferred", EXPECTED_BINARY_PATH);
+    // No hash write when source hash is unavailable
+    expect(writeFileMock).not.toHaveBeenCalledWith(
+      EXPECTED_HASH_PATH,
+      expect.anything(),
+      "utf-8",
+    );
+  });
+
+  it("probes additional Resources layouts when resourcesPath is set", async () => {
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    const resources = join("App", "Resources");
+    const preferred = join(resources, "googlemeet-events-arm64");
+    const fallback = join(resources, "helpers", "googlemeet-events");
+    accessMock.mockImplementation(async (path: string) => {
+      if (path === preferred) throw new Error("ENOENT");
+      if (path === fallback) return undefined;
+      if (String(path).includes("googlemeet-events")) throw new Error("ENOENT");
+      throw new Error(`unexpected ${path}`);
+    });
+    copyFileMock.mockResolvedValue(undefined);
+    Object.defineProperty(process, "resourcesPath", {
+      value: resources,
+      configurable: true,
+    });
+    Object.defineProperty(process, "arch", {
+      value: "arm64",
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => preferred);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(fallback, EXPECTED_BINARY_PATH);
+  });
+});
+
 describe("ensureBinary", () => {
   it("returns early (cache hit) when binary exists and stored hash matches", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
@@ -192,7 +396,8 @@ describe("ensureBinary", () => {
 
   it("compiles fresh when binary does not exist", async () => {
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    // ensureBinaryCycle probes executable twice (pre-bundled + post-hash); both must miss.
+    accessMock.mockRejectedValue(new Error("ENOENT"));
 
     const mod = await loadModule();
     await mod.ensureBinary();
@@ -479,35 +684,60 @@ describe("runSwiftHelper", () => {
   it("returns trimmed stdout from the binary on the happy path", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
+    accessMock.mockResolvedValue(undefined);
 
-    execFileAsyncMock.mockResolvedValueOnce({
+    runSwiftHelperProcessMock.mockResolvedValueOnce({
       stdout: "  line1\nline2  \n",
       stderr: "",
+      exitCode: 0,
     });
 
     const mod = await loadModule();
     const out = await mod.runSwiftHelper();
 
     expect(out).toBe("line1\nline2");
-    expect(execFileAsyncMock).toHaveBeenCalledWith(
-      EXPECTED_BINARY_PATH,
-      [],
-      expect.objectContaining({ timeout: 15_000 }),
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledWith(
+      expect.objectContaining({ binaryPath: EXPECTED_BINARY_PATH, args: [] }),
     );
+    expect(unlinkMock).not.toHaveBeenCalled();
   });
 
-  it("recompiles and retries once when the binary fails on first invocation", async () => {
+  it("recompiles once on integrity spawn ENOENT after revalidation", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    // ensureBinaryCycle probes executable twice on the cache-hit path; after spawn
+    // ENOENT, revalidate reports missing binary; recompile path also probes twice.
+    accessMock
+      .mockResolvedValueOnce(undefined) // ensureBinary pre-bundled check
+      .mockResolvedValueOnce(undefined) // ensureBinary hash-gate check
+      .mockRejectedValueOnce(new Error("ENOENT")) // revalidateIntegrityFailure
+      .mockRejectedValueOnce(new Error("ENOENT")) // recompile ensureBinary pre-bundled
+      .mockRejectedValueOnce(new Error("ENOENT")) // recompile ensureBinary hash-gate
+      .mockResolvedValue(undefined);
 
+    // Use duck-typed error so class identity survives vi.resetModules
+    const spawnEnoent = Object.assign(new Error("spawn ENOENT"), {
+      name: "SwiftHelperProcessError",
+      failureKind: "spawn",
+      spawnCode: "ENOENT",
+      exitCode: undefined,
+      signal: undefined,
+      stdout: "",
+      stderr: "",
+    });
+
+    runSwiftHelperProcessMock
+      .mockRejectedValueOnce(spawnEnoent)
+      .mockResolvedValueOnce({
+        stdout: "fresh-output\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+    // After invalidate, ensureBinary recompiles via execFile (swiftc + strip)
     execFileAsyncMock
-      .mockRejectedValueOnce(new Error("binary crashed"))
       .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "fresh-output\n", stderr: "" });
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
 
     const mod = await loadModule();
     const out = await mod.runSwiftHelper();
@@ -515,49 +745,96 @@ describe("runSwiftHelper", () => {
     expect(out).toBe("fresh-output");
     expect(unlinkMock).toHaveBeenCalledWith(EXPECTED_BINARY_PATH);
     expect(unlinkMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH);
-    expect(execFileAsyncMock).toHaveBeenCalledTimes(4);
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledTimes(2);
   });
 
-  it("throws when the retry also fails", async () => {
+  it("does not recompile on timeout", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    accessMock.mockResolvedValue(undefined);
 
-    execFileAsyncMock
-      .mockRejectedValueOnce(new Error("first binary failure"))
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockRejectedValueOnce(new Error("retry failure"));
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("timeout", "timed out"),
+    );
 
     const mod = await loadModule();
-    await expect(mod.runSwiftHelper()).rejects.toThrow("retry failure");
+    await expect(mod.runSwiftHelper()).rejects.toThrow(/timed out|Swift helper/);
+    expect(unlinkMock).not.toHaveBeenCalled();
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledTimes(1);
   });
 
-  it("throws when the recompile itself fails during retry", async () => {
+  it("does not recompile on stdout overflow", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("stdout-overflow", "overflow"),
+    );
+
+    const mod = await loadModule();
+    await expect(mod.runSwiftHelper()).rejects.toThrow(/overflow|Swift helper/);
+    expect(unlinkMock).not.toHaveBeenCalled();
+  });
+
+  it("does not recompile on semantic permission exit", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("exit", "permission", {
+        exitCode: 2,
+        stderr: "denied",
+      }),
+    );
+
+    const mod = await loadModule();
+    await expect(mod.runSwiftHelper()).rejects.toMatchObject({
+      name: "SwiftHelperError",
+      kind: "permission-denied",
+      exitCode: 2,
+    });
+    expect(unlinkMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when recompile after integrity spawn fails", async () => {
     const setTimeoutSpy = mockImmediateSetTimeout();
     try {
       const expectedHash = await sha256Hex(FAKE_SOURCE);
       setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-      accessMock.mockResolvedValueOnce(undefined);
-      accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+      accessMock
+        .mockResolvedValueOnce(undefined) // initial ensureBinary
+        .mockRejectedValueOnce(new Error("ENOENT")) // revalidateIntegrityFailure
+        .mockRejectedValueOnce(new Error("ENOENT")); // ensureBinary during recompile
 
-      // Binary run fails once, then 5 compile attempts × 2 swiftc calls all fail
-      execFileAsyncMock
-        .mockRejectedValueOnce(new Error("first binary failure"))
-        .mockRejectedValueOnce(new Error("swiftc fail 1a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 1b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 3a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 3b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 4a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 4b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 5a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2"));
+      runSwiftHelperProcessMock.mockRejectedValueOnce(
+        Object.assign(new Error("spawn ENOENT"), {
+          name: "SwiftHelperProcessError",
+          failureKind: "spawn",
+          spawnCode: "ENOENT",
+          exitCode: undefined,
+          signal: undefined,
+          stdout: "",
+          stderr: "",
+        }),
+      );
+
+      for (let i = 0; i < 10; i++) {
+        execFileAsyncMock.mockRejectedValueOnce(new Error(`swiftc fail ${i}`));
+      }
 
       const mod = await loadModule();
-      await expect(mod.runSwiftHelper()).rejects.toThrow(/swiftc fail 2/);
+      await expect(mod.runSwiftHelper()).rejects.toThrow(/swiftc fail/);
     } finally {
       setTimeoutSpy.mockRestore();
     }

@@ -8,8 +8,9 @@ Vitest project `application`: Node, no Electron mocks. Covers `src/main/applicat
 
 | Suite | Covers |
 | --- | --- |
-| `join-meeting.test.ts` | JoinMeeting use case (opener + scheduler ports) |
-| `get-meetings.test.ts` | GetMeetings use case (calendar port) |
+| `join-meeting.test.ts` | JoinMeeting use case (opener + scheduler ports; any ok provenance) |
+| `get-meetings.test.ts` | GetMeetings: ready / limited / offline-cached / error UI mapping |
+| `disconnect-calendar.test.ts` | Disconnect + cache clear hooks |
 
 ## RULES
 

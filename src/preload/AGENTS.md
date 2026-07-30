@@ -14,20 +14,21 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 ```typescript
 window.api = {
   calendar: {
-    getEvents,
+    getEvents, // returns CalendarPublication
     requestPermission,
     getPermissionStatus,
     disconnect,
     getUiState,
-    onEventsUpdated,
+    onResultUpdated, // CalendarPublication push
   },
   window: { setHeight },
   app: { openExternal, joinMeeting, getVersion },
   settings: { get, set, onChanged },
   alert: { onShowAlert, notifyDismissed },
-  scheduler: { forcePoll },
 };
 ```
+
+Refresh is coordinated in main: `calendar.getEvents()` is the sole renderer refresh path (no `scheduler.forcePoll` IPC).
 
 `export type Api = typeof api` is consumed by renderer ambient typings.
 
@@ -54,7 +55,7 @@ Subscriptions return `() => void`:
 
 | Channel | Method | Payload |
 | --- | --- | --- |
-| `CALENDAR_EVENTS_UPDATED` | `calendar.onEventsUpdated` | `MeetingEvent[]` |
+| `CALENDAR_RESULT_UPDATED` | `calendar.onResultUpdated` | `CalendarPublication` |
 | `SETTINGS_CHANGED` | `settings.onChanged` | `AppSettings` |
 | `ALERT_SHOW` | `alert.onShowAlert` | `AlertPayload` |
 

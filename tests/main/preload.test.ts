@@ -50,7 +50,7 @@ describe("preload/index.ts", () => {
     expect(typeof calendar.getEvents).toBe("function");
     expect(typeof calendar.requestPermission).toBe("function");
     expect(typeof calendar.getPermissionStatus).toBe("function");
-    expect(typeof calendar.onEventsUpdated).toBe("function");
+    expect(typeof calendar.onResultUpdated).toBe("function");
   });
 
   it("window namespace has setHeight method", async () => {
@@ -103,12 +103,12 @@ describe("preload/index.ts", () => {
     });
   });
 
-  it("calendar.onEventsUpdated returns unsubscribe function", async () => {
+  it("calendar.onResultUpdated returns unsubscribe function", async () => {
     await import("../../src/preload/index.js");
 
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
 
-    const unsubscribe = apiArg.calendar.onEventsUpdated(() => {});
+    const unsubscribe = apiArg.calendar.onResultUpdated(() => {});
     expect(typeof unsubscribe).toBe("function");
   });
 
@@ -126,7 +126,7 @@ describe("preload/index.ts", () => {
 
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
 
-    apiArg.calendar.getEvents();
+    apiArg.calendar.getEvents(new AbortController().signal);
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith("calendar:get-events");
   });
 
@@ -249,7 +249,7 @@ describe("preload/index.ts", () => {
     await import("../../src/preload/index.js");
     const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
     const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
-    await api.calendar.getEvents();
+    await api.calendar.getEvents(new AbortController().signal);
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_GET_EVENTS);
     await api.calendar.requestPermission();
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION);
@@ -311,11 +311,11 @@ describe("preload/index.ts", () => {
     await import("../../src/preload/index.js");
     const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
     const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
-    const unsub1 = api.calendar.onEventsUpdated(() => {});
+    const unsub1 = api.calendar.onResultUpdated(() => {});
     const unsub2 = api.settings.onChanged(() => {});
     const unsub3 = api.alert.onShowAlert(() => {});
     expect(mockIpcRenderer.on).toHaveBeenCalledWith(
-      IPC_CHANNELS.CALENDAR_EVENTS_UPDATED,
+      IPC_CHANNELS.CALENDAR_RESULT_UPDATED,
       expect.any(Function),
     );
     expect(mockIpcRenderer.on).toHaveBeenCalledWith(
@@ -334,7 +334,6 @@ describe("preload/index.ts", () => {
     expect(mockIpcRenderer.send).toHaveBeenCalledWith(IPC_CHANNELS.ALERT_DISMISSED, {
       id: "evt-1",
     });
-    api.scheduler.forcePoll();
-    expect(mockIpcRenderer.send).toHaveBeenCalledWith(IPC_CHANNELS.SCHEDULER_FORCE_POLL);
+    expect(api.scheduler).toBeUndefined();
   });
 });

@@ -1,3 +1,6 @@
+// Install .As<T>() cast extension for main-process tests.
+import "./setup.as.js";
+
 // Platform-absolute mock app root. Bare "/app" does not round-trip through
 // fileURLToPath on Windows (drive letter required). vi.hoisted so the value is
 // available inside the hoisted vi.mock factory.

@@ -296,6 +296,12 @@ export function buildCalendarTrayMenuTemplate(
     const dayRows = meetingDayRows(ui.events, showTomorrowMeetings, callbacks);
     // Avoid double "No upcoming meetings" when empty and status already empty-ish
     items.push(...dayRows);
+    if (ui.phase === "limited") {
+      items.push({
+        label: (ui.lastError ?? "Some calendars could not be refreshed").slice(0, 80),
+        enabled: false,
+      });
+    }
     if (ui.offline) {
       items.push({ label: "Offline — showing last synced meetings", enabled: false });
     }

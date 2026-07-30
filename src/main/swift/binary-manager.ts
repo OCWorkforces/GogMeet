@@ -1,22 +1,26 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { readFile, writeFile, unlink, stat } from "node:fs/promises";
+import { join } from "node:path";
 
 import {
   BINARY_PATH,
   HASH_PATH,
   ensureSecureCacheDir,
+  installBundledHelperCandidates,
   isBinaryExecutable,
   lockdownBinary,
   readSwiftSource,
+  resolveBundledHelperPath,
   resolveSwiftSourcePath,
   verifyBinaryHash,
 } from "./binary-cache.js";
 import { compileWithRetries, stripBinary } from "./binary-compiler.js";
-import { classifySwiftError, SWIFT_EXIT_CODES } from "./event-validator.js";
-
-const execFileAsync = promisify(execFile);
+import { classifySwiftError, SWIFT_EXIT_CODES, SwiftHelperError } from "./event-validator.js";
+import {
+  isIntegritySpawnFailure,
+  runSwiftHelperProcess,
+  SwiftHelperProcessError,
+} from "./swift-helper-process.js";
 
 /** Exit codes that are semantic helper outcomes — do not recompile on these. */
 function isSemanticSwiftExit(exitCode: number | undefined): boolean {
@@ -85,6 +89,42 @@ function logDebug(error: unknown): void {
   console.debug("[binary-manager]", error);
 }
 
+/**
+ * Prefer a prebuilt helper when packaging provides one.
+ * `resolvePath` is injectable for unit tests (host is never asar-packaged).
+ */
+export async function tryInstallBundledHelper(
+  resolvePath: () => string | null = () => resolveBundledHelperPath(),
+): Promise<boolean> {
+  // Only packaged Electron builds may ship an optional helper under Resources/.
+  // resolveBundledHelperPath() is null outside asar packaging (dev / unit tests).
+  const preferred = resolvePath();
+  if (preferred === null) return false;
+
+  // Prefer the resolved path, then probe common Resources layouts as fallbacks.
+  const resources = process.resourcesPath;
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const paths: string[] = [preferred];
+  if (typeof resources === "string" && resources.length > 0) {
+    for (const p of [
+      join(resources, `googlemeet-events-${arch}`),
+      join(resources, "googlemeet-events"),
+      join(resources, "helpers", `googlemeet-events-${arch}`),
+      join(resources, "helpers", "googlemeet-events"),
+    ]) {
+      if (!paths.includes(p)) paths.push(p);
+    }
+  }
+
+  let sourceHash: string | undefined;
+  try {
+    sourceHash = await getSourceHash(resolveSwiftSourcePath());
+  } catch {
+    // Source missing in some fixtures — still install the bundled binary.
+  }
+  return installBundledHelperCandidates(paths, sourceHash);
+}
+
 async function ensureBinaryCycle(): Promise<void> {
   // Locate Swift source
   // IMPORTANT: swiftc cannot read files from inside ASAR archives.
@@ -93,6 +133,14 @@ async function ensureBinaryCycle(): Promise<void> {
   const swiftSrc = resolveSwiftSourcePath();
 
   await ensureSecureCacheDir();
+
+  // Prefer a prebuilt helper shipped in Resources/ when present (optional).
+  if (!(await isBinaryExecutable())) {
+    const installed = await tryInstallBundledHelper();
+    if (installed && (await isBinaryExecutable())) {
+      return;
+    }
+  }
 
   // Compute hash of current Swift source (memoized by mtime). Throws clear
   // error if source missing via readSwiftSource on cache miss.
@@ -146,72 +194,146 @@ export function ensureBinary(): Promise<void> {
   return ensureBinaryInFlight;
 }
 
-/** Run the compiled Swift EventKit helper and return raw output */
-export async function runSwiftHelper(): Promise<string> {
+/** Duck-type process errors so tests with resetModules still classify correctly. */
+function asProcessError(err: unknown): SwiftHelperProcessError | null {
+  if (err instanceof SwiftHelperProcessError) return err;
+  if (
+    err instanceof Error &&
+    err.name === "SwiftHelperProcessError" &&
+    "failureKind" in err &&
+    typeof (err as { failureKind: unknown }).failureKind === "string"
+  ) {
+    return err as SwiftHelperProcessError;
+  }
+  return null;
+}
+
+function toSwiftHelperError(err: unknown): SwiftHelperError {
+  if (err instanceof SwiftHelperError) return err;
+  const processErr = asProcessError(err);
+  if (processErr) {
+    if (processErr.failureKind === "exit" && isSemanticSwiftExit(processErr.exitCode)) {
+      return classifySwiftError({
+        code: processErr.exitCode,
+        message: processErr.message,
+        stderr: processErr.stderr,
+      });
+    }
+    // Map process failures into classifySwiftError-compatible shape without
+    // logging raw calendar payloads (stdout is retained only on the error object
+    // for local debugging by callers that already expect helper output).
+    return classifySwiftError({
+      code: processErr.spawnCode ?? processErr.exitCode,
+      message: processErr.message,
+      stderr: processErr.stderr,
+    });
+  }
+  return classifySwiftError(err);
+}
+
+/**
+ * Independently re-read executable + hash integrity before the sole permitted
+ * recompile path. Returns true only when the on-disk binary is missing, not
+ * executable, or its hash no longer matches the source hash sidecar.
+ */
+async function revalidateIntegrityFailure(): Promise<boolean> {
+  hashVerified = false;
+  const executable = await isBinaryExecutable();
+  if (!executable) return true;
+  const matches = await verifyBinaryHash();
+  return !matches;
+}
+
+async function invalidateAndRecompileOnce(): Promise<void> {
+  console.warn("[binary-manager] Swift binary integrity failure — recompiling once");
+  try {
+    await unlink(BINARY_PATH);
+  } catch (cleanupErr) {
+    logDebug(cleanupErr);
+  }
+  try {
+    await unlink(HASH_PATH);
+  } catch (cleanupErr) {
+    logDebug(cleanupErr);
+  }
+  invalidateSourceHashCache();
+  hashVerified = false;
   await ensureBinary();
-  // Verify hash once per process lifetime — binary is cached, re-verifying
-  // every poll is redundant steady-state I/O. On mismatch we fall through
-  // to the recompile-and-retry path.
+}
+
+async function executeHelper(signal?: AbortSignal): Promise<string> {
+  const result = await runSwiftHelperProcess({
+    binaryPath: BINARY_PATH,
+    args: [],
+    ...(signal !== undefined ? { signal } : {}),
+  });
+  return result.stdout.trim();
+}
+
+/**
+ * Run the compiled Swift EventKit helper and return raw stdout.
+ * Optional AbortSignal cancels the child (SIGTERM → grace → SIGKILL).
+ *
+ * Recompiles at most once, and only after verified integrity failure
+ * (hash mismatch / missing-or-non-executable binary / spawn ENOENT|ENOEXEC).
+ * Timeout, output overflow, semantic EventKit exits, and other process
+ * failures never unlink or recompile the binary.
+ */
+export async function runSwiftHelper(signal?: AbortSignal): Promise<string> {
+  await ensureBinary();
+
   let matches = true;
   if (!hashVerified) {
     matches = await verifyBinaryHash();
     hashVerified = matches;
   }
+
   if (!matches) {
     logError(new Error(`Swift binary hash mismatch at ${BINARY_PATH}; will recompile`));
-  }
-  try {
-    if (!matches) {
-      throw new Error("Swift binary hash mismatch — refusing to execute");
+    const stillBroken = await revalidateIntegrityFailure();
+    if (stillBroken) {
+      await invalidateAndRecompileOnce();
     }
-    const { stdout } = await execFileAsync(BINARY_PATH, [], {
-      timeout: 15_000,
-    });
-    return stdout.trim();
+  }
+
+  try {
+    return await executeHelper(signal);
   } catch (err) {
-    // Structured EventKit outcomes (permission / no calendars / helper error)
-    // must surface as SwiftHelperError — never force a recompile.
-    const classified = classifySwiftError(err);
+    const processErr = asProcessError(err);
+    const classified = toSwiftHelperError(err);
+
+    // Structured EventKit outcomes never recompile.
     if (isSemanticSwiftExit(classified.exitCode)) {
       throw classified;
     }
 
-    // Binary may be corrupted, incompatible, or its hash drifted — force
-    // recompile and retry once.
-    console.warn("[binary-manager] Swift binary failed, recompiling...");
+    // Only integrity-class spawn failures may recompile — and only after
+    // independent revalidation of executable/hash state.
+    const integritySpawn = processErr !== null && isIntegritySpawnFailure(processErr);
+    if (!integritySpawn) {
+      throw classified;
+    }
+
+    const stillBroken = await revalidateIntegrityFailure();
+    if (!stillBroken) {
+      // Transient spawn failure without confirmed integrity break — do not thrash.
+      throw classified;
+    }
+
     logError(err);
     try {
-      try {
-        await unlink(BINARY_PATH);
-      } catch (cleanupErr) {
-        logDebug(cleanupErr);
-      }
-      try {
-        await unlink(HASH_PATH);
-      } catch (cleanupErr) {
-        logDebug(cleanupErr);
-      }
-      // Forget cached source hash so the retry recompile re-reads the source.
-      invalidateSourceHashCache();
-      await ensureBinary();
-      const { stdout } = await execFileAsync(BINARY_PATH, [], {
-        timeout: 15_000,
-      });
-      return stdout.trim();
+      await invalidateAndRecompileOnce();
+      return await executeHelper(signal);
     } catch (retryErr) {
-      console.error("[binary-manager] Swift binary recompile failed:", retryErr);
-      // Classify structured exits on the retry path too.
-      const retryClassified = classifySwiftError(retryErr);
+      console.error("[binary-manager] Swift binary recompile/retry failed:", retryErr);
+      const retryClassified = toSwiftHelperError(retryErr);
       if (isSemanticSwiftExit(retryClassified.exitCode)) {
         throw retryClassified;
       }
-      // Preserve SwiftHelperError if already classified as unknown with a message
-      if (retryErr instanceof Error && retryErr.name === "SwiftHelperError") {
+      if (retryErr instanceof SwiftHelperError) {
         throw retryErr;
       }
-      throw retryClassified.exitCode !== undefined || retryClassified.kind !== "unknown"
-        ? retryClassified
-        : retryErr;
+      throw retryClassified;
     }
   }
 }

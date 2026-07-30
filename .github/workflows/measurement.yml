@@ -1,0 +1,77 @@
+name: Measurement lab
+
+# Unblocks evidence collection for deferred optimization tracks.
+# Does not ship product changes. Failures of optional native probes stay non-fatal.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly Monday 06:00 UTC
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: measurement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Synthetic harnesses (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Prefer LF on Windows
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests for measurement scripts
+        run: |
+          bunx vitest run -c vitest.workspace.ts --project scripts \
+            tests/scripts/performance-google-calendar.test.ts \
+            tests/scripts/performance-tray.test.ts \
+            tests/scripts/performance-safe-storage.test.ts \
+            tests/scripts/performance-startup.test.ts \
+            tests/scripts/performance-alert.test.ts \
+            tests/scripts/performance-build-package.test.ts
+
+      - name: Run synthetic measurement scripts
+        env:
+          # No live Google token in default matrix (blocked is conforming).
+          GOGMEET_GOOGLE_BENCH_TOKEN: ${{ secrets.GOGMEET_GOOGLE_BENCH_TOKEN }}
+        run: |
+          mkdir -p .omo/evidence/measurement-ci
+          bun run perf:google | tee .omo/evidence/measurement-ci/google.json
+          bun run perf:tray | tee .omo/evidence/measurement-ci/tray.json
+          bun run perf:safe-storage | tee .omo/evidence/measurement-ci/safe-storage.json
+          bun run perf:startup | tee .omo/evidence/measurement-ci/startup.json
+          bun run perf:alert | tee .omo/evidence/measurement-ci/alert.json
+          bun run perf:build-package | tee .omo/evidence/measurement-ci/build-package.json
+
+      - name: Upload receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: measurement-receipts-${{ matrix.os }}
+          path: |
+            .omo/evidence/gogmeet-performance/**/receipt.json
+            .omo/evidence/measurement-ci/**
+          if-no-files-found: warn
