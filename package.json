@@ -68,6 +68,8 @@
     "test:watch": "vitest -c vitest.workspace.ts",
     "test:coverage": "vitest run -c vitest.workspace.ts --coverage",
     "bench:calendar-parser": "vitest bench -c vitest.bench.config.ts tests/bench/calendar-parser.bench.ts",
+    "perf:report": "node scripts/performance/report.mjs",
+    "perf:workspace-fingerprint": "node scripts/performance/workspace-fingerprint.mjs",
     "clean": "rimraf lib dist",
     "lint": "eslint src/ --cache",
     "format:check": "prettier --check \"src/**/*.{ts,css}\"",
