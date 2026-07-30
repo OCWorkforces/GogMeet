@@ -5,15 +5,11 @@ import { isTomorrow } from "../../domain/services/time.js";
 import {
   filterCompletedTodayMeetings,
   filterUpcomingMeetings,
-  isCompletedTodayMeeting,
   isMeetingInProgress,
   isMeetingNotEnded,
 } from "../../domain/services/meeting-time.js";
 
 import type { AppState } from "../../shared/app-state.js";
-
-// Re-export domain helpers so existing renderer test imports keep working.
-export { filterCompletedTodayMeetings, isCompletedTodayMeeting };
 
 function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string; cls: string } {
   const start = new Date(event.startDate).getTime();
