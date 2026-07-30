@@ -11,7 +11,7 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 | `provider.ts` | `CalendarProvider` + id union; **`getEvents(signal: AbortSignal)`** |
 | `factory.ts` | `getActiveCalendarProvider()`, `resetCalendarProvider()` — selection order below |
 | `google-http.ts` | Bounded Google transport: 15s deadline, 8 MiB body, poll budget 60s, typed redacted errors |
-| `offline-cache.ts` | Encrypted `userData/calendar-cache.enc` — **current** schema `{savedAt, events}` (unversioned) |
+| `offline-cache.ts` | Encrypted `userData/calendar-cache.enc` — schema v1 `{version,observedAt,cachedAt,events}`; rejects legacy/unversioned; filters ended events |
 | `auth/google-client-id.ts` | `GOOGLE_OAUTH_CLIENT_ID` |
 | `auth/google-token-store.ts` | Encrypted `userData/calendar-auth/google.enc`; **preserve ciphertext** on load failures |
 | `auth/google-oauth.ts` | PKCE loopback; `refreshGoogleAccessToken("if-needed"\|"force")`; clear only on definitive invalidation |
@@ -43,13 +43,15 @@ Use domain helpers: `calendarLiveOk`, `calendarOfflineOk`, `calendarErr`.
 - Transient failures (timeout, network, 429, 5xx, storage, config) **preserve** encrypted credentials.
 - Token load never unlinks ciphertext for decrypt/malformed/schema/client/secure-storage failures.
 
-## Offline cache (current vs planned)
+## Offline cache
 
-| Current | Planned (perf plan) |
+| Rule | Detail |
 | --- | --- |
-| `{ savedAt, events }` | versioned v1 + `observedAt` / `cachedAt` |
-| Google writes only when live **complete** | same; reject corrupt/future metadata |
-| Offline success is display/join data | + scheduler must not automate partial/offline |
+| Schema | v1 only: `{ version:1, observedAt, cachedAt, events }` |
+| Write | Callers write **live complete** snapshots only (`saveOfflineCache(events, observedAt)`) |
+| Load | Reject unversioned/legacy/unknown version / non-finite / >5 min future timestamps |
+| Filter | Drop `endDate <= now` on load; empty list remains valid offline hit |
+| Use | Display + explicit join; never drives automation |
 
 ## DOMAIN HELPERS (not in this folder)
 

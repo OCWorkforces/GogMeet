@@ -113,7 +113,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Branded values created only at trust boundaries.
 - Prefer `.As<T>()` / free `As<T>(v)` over `as unknown as T` (import `shared/utils/as.js` once for the method).
 - **CalendarResult** success is exhaustive: live `complete`\|`partial` or `offline-cache` with timestamps. Narrow with `isCalendarOk` / `isCalendarLiveOk` / `isCalendarOfflineOk`.
-- **Intended automation rule:** only live complete (`isCalendarAutomationEligible`). **Current poll still schedules any `isCalendarOk` result** until automation-suspension work lands.
+- **Automation rule:** only live complete (`isCalendarAutomationEligible`) arms timers; partial/offline call `suspendAutomation` while keeping display/join data.
 - `CalendarPort.getEvents(signal: AbortSignal)` — providers must honor cancel.
 - Meeting URL allowlisting at egress only (`openMeetingUrl` / ShellMeetingOpener / `joinMeetingById`).
 - All user join paths call `joinMeetingById` / `graph.join.byId`.
@@ -164,10 +164,10 @@ bun run clean
 - macOS: EventKit permission / AppleScript probes; lifecycle may auto-request when not-determined. Windows: never auto-OAuth.
 - Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`. One-shot: spawn stream 8 MiB/256 KiB/15 s; recompile only after integrity failure.
 - Google: bounded HTTP (15 s request, 8 MiB body, 60 s poll budget); 401 → force refresh once; credentials preserved on transient failures.
-- Windows offline: encrypted event cache with simple `{savedAt,events}` schema; Google writes cache only for **live complete** snapshots. Network failure may serve last sync as offline-cache ok.
+- Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
-- Performance plan (in progress): `docs/plans/gogmeet-performance-enhancement.md` — remaining: cache v1 + automation suspend, refresh coordinator, measurement experiments.
+- Performance plan (in progress): `docs/plans/gogmeet-performance-enhancement.md` — remaining: refresh coordinator, measurement experiments.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

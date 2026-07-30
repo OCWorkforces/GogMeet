@@ -11,7 +11,8 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers) |
 | `core/schedule-types.ts` | `SchedulePlan` ADT / action types (includes **`set-snapshot`**) |
 | `adapters/interpret-schedule.ts` | Applies plan actions; **sole schedule-path snapshot writer** via `set-snapshot` |
-| `poll.ts` | Fetches calendar, `recordCalendarResult`, hash-gates push, emits `meeting-list-updated`, schedules on ok |
+| `poll.ts` | Fetches calendar, publishes UI for any ok, schedules only live complete, else `suspendAutomation` |
+| `suspend-automation.ts` | Cancels browser/alert/title/countdown/in-meeting timers; keeps lastKnownEvents |
 | `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden |
 | `browser-timer.ts` | Browser-open timer + optional Notification; **does not write** `scheduledEventData` |
 | `alert-timer.ts` | Full-screen alert timer: `alertLeadSeconds` before browser open |
@@ -56,12 +57,13 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 - Force-poll coalesce: 10 seconds after last completed poll.
 - Consecutive errors threshold 3; counter caps at 4.
 
-## Automation eligibility (current vs intended)
+## Automation eligibility
 
-| Intended | Current (`poll.ts`) |
+| Result | Poll behavior |
 | --- | --- |
-| Arm timers only for **live complete** (`isCalendarAutomationEligible`) | Still schedules on **any** `isCalendarOk` (includes partial/offline) |
-| Partial/offline cancel pending auto work | Not yet — follow perf plan Task 6 |
+| Live **complete** | `scheduleEvents` (browser/alert/title as settings allow) |
+| Live **partial** / offline-cache | `suspendAutomation` — cancel auto work; keep `lastKnownEvents` for display/join |
+| Error | error counter / tray clear path |
 
 Degraded results remain **explicitly joinable** via tray/popover/shortcut + `graph.join.byId`.
 
