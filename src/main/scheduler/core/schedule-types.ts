@@ -48,6 +48,8 @@ export type ScheduleAction =
   | { type: "clear-alert-fired"; eventId: EventId }
   | { type: "clear-in-meeting"; eventId: EventId }
   | { type: "delete-snapshot"; eventId: EventId }
+  /** First-write / upsert of schedule snapshot — independent of browser timers. */
+  | { type: "set-snapshot"; eventId: EventId; snapshot: ScheduledEventSnapshot }
   | { type: "update-snapshot"; eventId: EventId; snapshot: ScheduledEventSnapshot }
   | { type: "update-title-only"; eventId: EventId; title: string; startMs: number }
   | { type: "mark-title-dirty" }

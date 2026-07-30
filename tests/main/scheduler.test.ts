@@ -795,6 +795,109 @@ describe("scheduleEvents", () => {
     const nullCalls = vi.mocked(mockUpdateTrayTitle).mock.calls.filter((c) => c[0] === null);
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("autoOpenEnabled=false: stores snapshot, arms title, never opens browser", () => {
+    const preventSleep = vi.fn();
+    const allowSleep = vi.fn();
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep,
+      allowSleep,
+    });
+    vi.mocked(mockGetSettings).mockReturnValue({
+      ...DEFAULT_SETTINGS,
+      openBeforeMinutes: 3,
+      windowAlert: true,
+      autoOpenEnabled: false,
+      alertLeadSeconds: 60,
+      nativeNotifications: true,
+      lateJoinGraceMinutes: 0,
+      quietHoursEnabled: false,
+    });
+
+    try {
+      const startMs = Date.now() + 10 * 60 * 1000;
+      const event = makeEvent({
+        id: asTestEventId("no-auto"),
+        title: "No Auto Open",
+        startDate: asTestIsoUtc(new Date(startMs).toISOString()),
+        endDate: asTestIsoUtc(new Date(startMs + 30 * 60 * 1000).toISOString()),
+      });
+
+      scheduleEvents([event]);
+
+      expect(scheduledEventData.has(event.id)).toBe(true);
+      expect(timers.size).toBe(0);
+      expect(alertTimers.size).toBe(1);
+      expect(titleTimers.size + countdownIntervals.size).toBeGreaterThan(0);
+
+      // Identical re-schedule is idempotent: no browser timer, stable snapshot.
+      scheduleEvents([event]);
+      expect(timers.size).toBe(0);
+      expect(scheduledEventData.size).toBe(1);
+
+      // Advance past open time — still no browser open when auto-open is off.
+      vi.advanceTimersByTime(8 * 60 * 1000);
+      expect(timers.size).toBe(0);
+    } finally {
+      vi.mocked(mockGetSettings).mockReturnValue({
+        ...DEFAULT_SETTINGS,
+        openBeforeMinutes: 3,
+        windowAlert: true,
+        autoOpenEnabled: true,
+        alertLeadSeconds: 60,
+        nativeNotifications: true,
+        lateJoinGraceMinutes: 0,
+        quietHoursEnabled: false,
+      });
+    }
+  });
+
+  it("autoOpenEnabled=false: stop balances sleep blockers after countdown", () => {
+    const preventSleep = vi.fn();
+    const allowSleep = vi.fn();
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep,
+      allowSleep,
+    });
+    vi.mocked(mockGetSettings).mockReturnValue({
+      ...DEFAULT_SETTINGS,
+      openBeforeMinutes: 3,
+      windowAlert: true,
+      autoOpenEnabled: false,
+      alertLeadSeconds: 60,
+      nativeNotifications: true,
+      lateJoinGraceMinutes: 0,
+      quietHoursEnabled: false,
+    });
+
+    try {
+      const startMs = Date.now() + 5 * 60 * 1000;
+      const event = makeEvent({
+        id: asTestEventId("sleep-balance"),
+        title: "Sleep Balance",
+        startDate: asTestIsoUtc(new Date(startMs).toISOString()),
+      });
+      scheduleEvents([event]);
+      expect(preventSleep.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+      const { stopScheduler } = facadeModule;
+      stopScheduler();
+      expect(allowSleep.mock.calls.length).toBe(preventSleep.mock.calls.length);
+    } finally {
+      vi.mocked(mockGetSettings).mockReturnValue({
+        ...DEFAULT_SETTINGS,
+        openBeforeMinutes: 3,
+        windowAlert: true,
+        autoOpenEnabled: true,
+        alertLeadSeconds: 60,
+        nativeNotifications: true,
+        lateJoinGraceMinutes: 0,
+        quietHoursEnabled: false,
+      });
+    }
+  });
 });
 
 describe("setSchedulerWindow and poll IPC notification", () => {
