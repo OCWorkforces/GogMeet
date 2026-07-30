@@ -181,10 +181,7 @@ export function trayMenuSignature(
   ].join("|");
 }
 
-function refreshContextMenu(
-  mainWindow: BrowserWindow,
-  options?: { force?: boolean },
-): void {
+function refreshContextMenu(mainWindow: BrowserWindow, options?: { force?: boolean }): void {
   const graph = trayGraph;
   const ui: CalendarUiState =
     cachedUi ??
@@ -205,11 +202,7 @@ function refreshContextMenu(
   const statusKind = status.kind;
   const statusCode = status.kind === "err" ? status.code : null;
   const signature = trayMenuSignature(ui, events, showTomorrow, statusKind, statusCode);
-  if (
-    options?.force !== true &&
-    signature === lastMenuSignature &&
-    lastContextMenu !== null
-  ) {
+  if (options?.force !== true && signature === lastMenuSignature && lastContextMenu !== null) {
     return;
   }
   lastMenuSignature = signature;
