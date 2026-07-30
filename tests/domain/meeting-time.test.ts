@@ -3,6 +3,8 @@ import {
   isMeetingInProgress,
   isMeetingNotEnded,
   filterUpcomingMeetings,
+  filterCompletedTodayMeetings,
+  isCompletedTodayMeeting,
   nextDisplayHorizonMs,
 } from "../../src/domain/services/meeting-time.js";
 import { asTestEventId, createMockEvent } from "../helpers/test-utils.js";
@@ -68,6 +70,65 @@ describe("isMeetingNotEnded", () => {
   it("is false at exact end", () => {
     const e = eventAt(-60 * 60_000, 0);
     expect(isMeetingNotEnded(e, NOON)).toBe(false);
+  });
+});
+
+describe("isCompletedTodayMeeting / filterCompletedTodayMeetings", () => {
+  // Local calendar day around afternoon so prior/next day boundaries are clear.
+  const localNow = new Date(2026, 6, 30, 15, 0, 0).getTime();
+
+  it("includes same-local-day ended events", () => {
+    const e = createMockEvent({
+      id: asTestEventId("done"),
+      startDate: new Date(2026, 6, 30, 10, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 11, 0, 0).toISOString(),
+    });
+    expect(isCompletedTodayMeeting(e, localNow)).toBe(true);
+  });
+
+  it("excludes in-progress and future events", () => {
+    const live = createMockEvent({
+      id: asTestEventId("live"),
+      startDate: new Date(2026, 6, 30, 14, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 16, 0, 0).toISOString(),
+    });
+    const future = createMockEvent({
+      id: asTestEventId("fut"),
+      startDate: new Date(2026, 6, 30, 17, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 18, 0, 0).toISOString(),
+    });
+    expect(isCompletedTodayMeeting(live, localNow)).toBe(false);
+    expect(isCompletedTodayMeeting(future, localNow)).toBe(false);
+  });
+
+  it("excludes overnight spanning and prior-day events", () => {
+    const overnight = createMockEvent({
+      id: asTestEventId("over"),
+      startDate: new Date(2026, 6, 29, 22, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 1, 0, 0).toISOString(),
+    });
+    const prior = createMockEvent({
+      id: asTestEventId("prior"),
+      startDate: new Date(2026, 6, 29, 10, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 29, 11, 0, 0).toISOString(),
+    });
+    expect(isCompletedTodayMeeting(overnight, localNow)).toBe(false);
+    expect(isCompletedTodayMeeting(prior, localNow)).toBe(false);
+  });
+
+  it("sorts newest-ended first", () => {
+    const early = createMockEvent({
+      id: asTestEventId("early"),
+      startDate: new Date(2026, 6, 30, 9, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 10, 0, 0).toISOString(),
+    });
+    const late = createMockEvent({
+      id: asTestEventId("late"),
+      startDate: new Date(2026, 6, 30, 12, 0, 0).toISOString(),
+      endDate: new Date(2026, 6, 30, 13, 0, 0).toISOString(),
+    });
+    const result = filterCompletedTodayMeetings([early, late], localNow);
+    expect(result.map((e) => e.id)).toEqual(["late", "early"]);
   });
 });
 

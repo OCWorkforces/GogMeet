@@ -19,9 +19,7 @@ vi.mock("electron", () => ({
     this.setTitle = vi.fn();
     this.setImage = vi.fn();
     this.on = vi.fn();
-    this.getBounds = vi
-      .fn()
-      .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
+    this.getBounds = vi.fn().mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
     this.popUpContextMenu = vi.fn();
     this.setContextMenu = vi.fn();
     this.destroy = vi.fn();
@@ -32,19 +30,30 @@ vi.mock("electron", () => ({
   nativeImage: {
     createFromPath: vi
       .fn()
-      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)), isEmpty: vi.fn().mockReturnValue(false) }),
-    createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
+      .mockReturnValue({
+        toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)),
+        isEmpty: vi.fn().mockReturnValue(false),
+      }),
+    createEmpty: vi
+      .fn()
+      .mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
   },
   nativeTheme: { shouldUseDarkColors: false, on: vi.fn(), removeListener: vi.fn() },
-  BrowserWindow: vi.fn().mockImplementation(function (this: {
-    on: ReturnType<typeof vi.fn>;
-  }) {
+  BrowserWindow: vi.fn().mockImplementation(function (this: { on: ReturnType<typeof vi.fn> }) {
     this.on = vi.fn();
   }),
 }));
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  getCalendarEventsResult: vi
+    .fn()
+    .mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
+      events: [],
+    }),
   getCalendarUiState: vi.fn().mockReturnValue({
     permission: "not-determined",
     phase: "disconnected",
@@ -71,7 +80,10 @@ vi.mock("../../src/main/windows/about-window.js", () => ({
 }));
 
 vi.mock("../../src/main/facades/settings.js", () => ({
-  getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
+  getSettings: vi.fn().mockReturnValue({
+    showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
+  }),
 }));
 
 const platformState = vi.hoisted(() => ({ darwin: true }));
@@ -82,9 +94,7 @@ vi.mock("../../src/main/platform/os.js", () => ({
 }));
 
 // Helper to create mock event
-function createMockEvent(
-  overrides: Partial<MeetingEvent> = {},
-): MeetingEvent {
+function createMockEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   const now = new Date();
   const in1Hour = new Date(now.getTime() + 60 * 60 * 1000);
   return createSharedMockEvent({
@@ -177,13 +187,10 @@ describe("tray module exports", () => {
   });
 
   it("buildWindowsTrayTooltip formats idle, offline, and countdown", async () => {
-    const { buildWindowsTrayTooltip, TRAY_TOOLTIP_MAX_CHARS } = await import(
-      "../../src/main/tray.js"
-    );
+    const { buildWindowsTrayTooltip, TRAY_TOOLTIP_MAX_CHARS } =
+      await import("../../src/main/tray.js");
     expect(buildWindowsTrayTooltip(null)).toBe("GogMeet");
-    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toBe(
-      "GogMeet — Offline",
-    );
+    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toBe("GogMeet — Offline");
     expect(buildWindowsTrayTooltip("Standup", 15)).toBe("GogMeet — Standup in 15 mins");
     const long = buildWindowsTrayTooltip("A".repeat(80), 5);
     expect(long.length).toBeLessThanOrEqual(TRAY_TOOLTIP_MAX_CHARS);
@@ -217,10 +224,7 @@ describe("tray module exports", () => {
     const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow, testAppGraph());
 
-    expect(nativeTheme.on).toHaveBeenCalledWith(
-      "updated",
-      expect.any(Function),
-    );
+    expect(nativeTheme.on).toHaveBeenCalledWith("updated", expect.any(Function));
   });
 
   it("registers before-quit handler only once even when setupTray is called multiple times", async () => {
@@ -231,12 +235,12 @@ describe("tray module exports", () => {
     vi.mocked(app.once).mockClear();
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow, testAppGraph());           // First call: registers before-quit
-    setupTray(mockWindow, testAppGraph());           // Second call: should skip
+    setupTray(mockWindow, testAppGraph()); // First call: registers before-quit
+    setupTray(mockWindow, testAppGraph()); // Second call: should skip
 
-    const beforeQuitCalls = vi.mocked(app.once).mock.calls.filter(
-      (c: unknown[]) => c[0] === "before-quit",
-    );
+    const beforeQuitCalls = vi
+      .mocked(app.once)
+      .mock.calls.filter((c: unknown[]) => c[0] === "before-quit");
     expect(beforeQuitCalls).toHaveLength(1);
   });
 
@@ -293,9 +297,9 @@ describe("tray module exports", () => {
     await flushTrayRebuild();
     const trayInstance = getLatestTrayInstance(Tray);
 
-    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
-      | (() => void)
-      | undefined;
+    const clickHandler = vi
+      .mocked(trayInstance.on)
+      .mock.calls.find((c) => c[0] === "click")?.[1] as (() => void) | undefined;
     expect(clickHandler).toBeTypeOf("function");
     vi.mocked(Menu.buildFromTemplate).mockClear();
     clickHandler?.();
@@ -318,9 +322,9 @@ describe("tray module exports", () => {
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.popUpContextMenu).mockClear();
 
-    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
-      | (() => void)
-      | undefined;
+    const clickHandler = vi
+      .mocked(trayInstance.on)
+      .mock.calls.find((c) => c[0] === "click")?.[1] as (() => void) | undefined;
     clickHandler?.();
 
     expect(forcePoll).toHaveBeenCalled();

@@ -3,7 +3,6 @@ import type { MenuItemConstructorOptions } from "electron";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
-
 vi.mock("../../src/main/utils/system-settings.js", () => ({
   openSystemSettings: vi.fn(),
 }));
@@ -53,11 +52,8 @@ function findItemContaining(
   items: MenuItemConstructorOptions[],
   substring: string,
 ): MenuItemConstructorOptions | undefined {
-  return items.find(
-    (i) => typeof i.label === "string" && i.label.includes(substring),
-  );
+  return items.find((i) => typeof i.label === "string" && i.label.includes(substring));
 }
-
 
 const onJoinMeeting = vi.fn();
 const onForcePoll = vi.fn();
@@ -102,7 +98,11 @@ describe("buildMeetingMenuTemplate", () => {
   // ─── No upcoming meetings ────────────────────────────────────
   describe("no upcoming meetings", () => {
     it("shows disabled 'No upcoming meetings' label when events array is empty", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(items[0]).toEqual({
         label: "No upcoming meetings",
@@ -111,7 +111,11 @@ describe("buildMeetingMenuTemplate", () => {
     });
 
     it("includes Refresh, Join Next, Settings, About, Quit after no-meetings label", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
       expect(findItem(items, "Join Next Meeting")).toBeDefined();
@@ -123,7 +127,11 @@ describe("buildMeetingMenuTemplate", () => {
 
     it("shows no-meetings when all events are all-day", () => {
       const allDay = makeEvent({ isAllDay: true });
-      const items = buildMeetingMenuTemplate([allDay], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([allDay], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
     });
@@ -133,7 +141,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(10, 0).toISOString(),
         endDate: todayAt(11, 0).toISOString(), // ended 3h ago
       });
-      const items = buildMeetingMenuTemplate([past], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([past], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
     });
@@ -147,7 +159,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 30).toISOString(),
         endDate: todayAt(16, 30).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Team Sync");
       expect(meetingItem).toBeDefined();
@@ -159,16 +175,16 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Standup");
       const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
       const join = submenu?.find((i) => i.label === "Join");
-      join?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      join?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
 
       expect(onJoinMeeting).toHaveBeenCalledWith(event.id);
     });
@@ -182,7 +198,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Standup");
       expect(meetingItem).toBeDefined();
@@ -200,7 +220,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Zoom Sync");
       expect(meetingItem).toBeDefined();
@@ -213,16 +237,16 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Standup");
       const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
       const join = submenu?.find((i) => i.label === "Join");
-      join?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      join?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
 
       expect(onJoinMeeting).toHaveBeenCalledWith(event.id);
     });
@@ -245,7 +269,11 @@ describe("buildMeetingMenuTemplate", () => {
           endDate: todayAt(18, 0).toISOString(),
         }),
       ];
-      const items = buildMeetingMenuTemplate(events, true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate(events, true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(items[0]).toEqual({ label: "Today", enabled: false });
       expect(findItemContaining(items, "Meeting A")).toBeDefined();
@@ -260,7 +288,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(findItem(items, "Tomorrow")).toBeDefined();
       expect(findItem(items, "Tomorrow")?.enabled).toBe(false);
@@ -279,11 +311,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate(
-        [todayEvent, tomorrowEvent],
-        true,
-        { ...baseCallbacks, onAbout, onOpenSettings },
-      );
+      const items = buildMeetingMenuTemplate([todayEvent, tomorrowEvent], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       // Find the index of "Tomorrow" header
       const tomorrowIdx = items.findIndex((i) => i.label === "Tomorrow");
@@ -298,7 +330,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], false, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], false, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       // Tomorrow event passes upcoming filter but is hidden → footer only
       expect(findItem(items, "Tomorrow")).toBeUndefined();
@@ -321,11 +357,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: tomorrowAt(9, 0).toISOString(),
         endDate: tomorrowAt(10, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate(
-        [todayEvent, tomorrowEvent],
-        false,
-        { ...baseCallbacks, onAbout, onOpenSettings },
-      );
+      const items = buildMeetingMenuTemplate([todayEvent, tomorrowEvent], false, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(findItemContaining(items, "Today One")).toBeDefined();
       expect(findItem(items, "Tomorrow")).toBeUndefined();
@@ -341,7 +377,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(13, 0).toISOString(), // started 1h ago
         endDate: todayAt(15, 0).toISOString(), // ends in 1h
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Running Meeting");
       expect(meetingItem).toBeDefined();
@@ -374,7 +414,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(16, 0).toISOString(), // 2h from now
         endDate: todayAt(17, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const meetingItem = findItemContaining(items, "Future Meeting");
       expect(meetingItem).toBeDefined();
@@ -428,49 +472,97 @@ describe("buildMeetingMenuTemplate", () => {
       expect(findItemContaining(items, "Past Event")).toBeUndefined();
       expect(findItemContaining(items, "Future Event")).toBeDefined();
     });
+
+    it("shows completed-today history when opt-in is enabled", () => {
+      const past = makeEvent({
+        title: "Past Event",
+        startDate: todayAt(10, 0).toISOString(),
+        endDate: todayAt(11, 0).toISOString(),
+      });
+      const future = makeEvent({
+        id: "2",
+        title: "Future Event",
+        startDate: todayAt(15, 0).toISOString(),
+        endDate: todayAt(16, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate(
+        [past, future],
+        true,
+        { ...baseCallbacks, onAbout, onOpenSettings },
+        { kind: "unknown" },
+        true,
+      );
+
+      expect(findItemContaining(items, "Future Event")).toBeDefined();
+      expect(findItem(items, "Completed today")).toBeDefined();
+      const history = findItemContaining(items, "Past Event");
+      expect(history).toBeDefined();
+      expect(history?.label).toContain("Ended");
+      expect(history?.enabled).toBe(false);
+      expect(history?.submenu).toBeUndefined();
+    });
+
+    it("shows only completed history when all meetings have ended and opt-in is on", () => {
+      const past = makeEvent({
+        title: "Done Meeting",
+        startDate: todayAt(10, 0).toISOString(),
+        endDate: todayAt(11, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate(
+        [past],
+        true,
+        { ...baseCallbacks, onAbout, onOpenSettings },
+        { kind: "unknown" },
+        true,
+      );
+
+      expect(findItem(items, "No upcoming meetings")).toBeUndefined();
+      expect(findItem(items, "Completed today")).toBeDefined();
+      expect(findItemContaining(items, "Done Meeting")?.enabled).toBe(false);
+    });
   });
 
   // ─── Footer actions (Settings, About, Quit) ──────────────────
   describe("footer actions", () => {
     it("Settings click calls onOpenSettings callback", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const settingsItem = findItem(items, "Settings...");
       expect(settingsItem).toBeDefined();
-      settingsItem?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      settingsItem?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
 
       expect(onOpenSettings).toHaveBeenCalled();
     });
 
     it("About click calls callbacks.onAbout()", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const aboutItem = findItem(items, "About GogMeet");
       expect(aboutItem).toBeDefined();
-      aboutItem?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      aboutItem?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
 
       expect(onAbout).toHaveBeenCalled();
     });
 
     it("Quit click calls app.quit()", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const quitItem = findItem(items, "Quit");
       expect(quitItem).toBeDefined();
       expect(quitItem?.accelerator).toBe("CommandOrControl+Q");
-      quitItem?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      quitItem?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
 
       expect(app.quit).toHaveBeenCalled();
     });
@@ -480,7 +572,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       const settingsIdx = items.findIndex((i) => i.label === "Settings...");
       expect(settingsIdx).toBeGreaterThan(0);
@@ -495,7 +591,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
 
       expect(findItem(items, "Join Next Meeting")).toBeDefined();
       expect(findItem(items, "Join Next Meeting")?.enabled).toBe(true);
@@ -518,13 +618,13 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([later, sooner], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([later, sooner], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
       const joinNext = findItem(items, "Join Next Meeting");
-      joinNext?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      joinNext?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
       expect(onJoinMeeting).toHaveBeenCalledWith("sooner");
     });
 
@@ -534,7 +634,11 @@ describe("buildMeetingMenuTemplate", () => {
         startDate: todayAt(15, 0).toISOString(),
         endDate: todayAt(16, 0).toISOString(),
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
       expect(findItem(items, "Join Next Meeting")?.enabled).toBe(false);
     });
 
@@ -548,37 +652,42 @@ describe("buildMeetingMenuTemplate", () => {
         endDate: todayAt(16, 0).toISOString(),
         meetUrl: "https://meet.google.com/abc-def-ghi",
       });
-      const items = buildMeetingMenuTemplate([event], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
       const meetingItem = findItemContaining(items, "Standup");
       const submenu = meetingItem?.submenu as MenuItemConstructorOptions[] | undefined;
       const copy = submenu?.find((i) => i.label === "Copy Link");
-      copy?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      copy?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
       expect(writeText).toHaveBeenCalled();
       expect(String(writeText.mock.calls[0]?.[0])).toContain("meet.google.com");
     });
 
     it("Refresh calls onForcePoll", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings });
+      const items = buildMeetingMenuTemplate([], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
       const refresh = findItem(items, "Refresh");
-      refresh?.click?.(
-        {} as Electron.MenuItem,
-        undefined,
-        {} as Electron.KeyboardEvent,
-      );
+      refresh?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
       expect(onForcePoll).toHaveBeenCalled();
     });
 
     it("shows permission-denied status row", () => {
-      const items = buildMeetingMenuTemplate([], true, { ...baseCallbacks, onAbout, onOpenSettings }, {
-        kind: "err",
-        error: "denied",
-        code: "permission-denied",
-        updatedAt: Date.now(),
-      });
+      const items = buildMeetingMenuTemplate(
+        [],
+        true,
+        { ...baseCallbacks, onAbout, onOpenSettings },
+        {
+          kind: "err",
+          error: "denied",
+          code: "permission-denied",
+          updatedAt: Date.now(),
+        },
+      );
       expect(findItem(items, "Calendar access denied")).toBeDefined();
       expect(findItem(items, "Open Calendar Privacy Settings…")).toBeDefined();
     });

@@ -7,12 +7,14 @@ const {
   mockRestartScheduler,
   mockForcePoll,
   mockSyncAutoLaunch,
+  mockForceTrayMenuRefresh,
 } = vi.hoisted(() => ({
   mockGetSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockRestartScheduler: vi.fn(),
   mockForcePoll: vi.fn(),
   mockSyncAutoLaunch: vi.fn(),
+  mockForceTrayMenuRefresh: vi.fn(),
 }));
 
 vi.mock("../../src/main/facades/settings.js", () => ({
@@ -25,6 +27,9 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 }));
 vi.mock("../../src/main/system/auto-launch.js", () => ({
   syncAutoLaunch: mockSyncAutoLaunch,
+}));
+vi.mock("../../src/main/tray.js", () => ({
+  forceTrayMenuRefresh: mockForceTrayMenuRefresh,
 }));
 
 import { registerSettingsHandlers } from "../../src/main/ipc-handlers/settings.js";
@@ -60,10 +65,7 @@ describe("registerSettingsHandlers", () => {
 
   describe("settings:get", () => {
     it("returns current settings for authorized sender", async () => {
-      registerSettingsHandlers(
-        {}.As<import("electron").BrowserWindow>(),
-        testAppGraph(),
-      );
+      registerSettingsHandlers({}.As<import("electron").BrowserWindow>(), testAppGraph());
       const handler = getRegisteredHandler("settings:get");
 
       const result = await handler!(authorizedEvent);
@@ -71,15 +73,14 @@ describe("registerSettingsHandlers", () => {
     });
 
     it("returns fresh DEFAULT_SETTINGS without calling getSettings for unauthorized sender", async () => {
-      registerSettingsHandlers(
-        {}.As<import("electron").BrowserWindow>(),
-        testAppGraph(),
-      );
+      registerSettingsHandlers({}.As<import("electron").BrowserWindow>(), testAppGraph());
       const handler = getRegisteredHandler("settings:get");
 
-      const result = await handler!({
-        senderFrame: { url: "https://evil.com/" },
-      }.As<import("electron").IpcMainInvokeEvent>());
+      const result = await handler!(
+        {
+          senderFrame: { url: "https://evil.com/" },
+        }.As<import("electron").IpcMainInvokeEvent>(),
+      );
       expect(mockGetSettings).not.toHaveBeenCalled();
       expect(result).toEqual(DEFAULT_SETTINGS);
       expect(result).not.toBe(DEFAULT_SETTINGS);
@@ -139,10 +140,7 @@ describe("registerSettingsHandlers", () => {
       const handler = getRegisteredHandler("settings:set");
 
       await handler!(authorizedEvent, { showTomorrowMeetings: false });
-      expect(mockWin.webContents.send).toHaveBeenCalledWith(
-        "settings:changed",
-        updated,
-      );
+      expect(mockWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
     });
 
     it("returns fresh DEFAULT_SETTINGS and performs no side effects for unauthorized sender", async () => {
@@ -216,6 +214,8 @@ describe("registerSettingsHandlers", () => {
       expect(mockRestartScheduler).not.toHaveBeenCalled();
       expect(mockForcePoll).not.toHaveBeenCalled();
       expect(mockSyncAutoLaunch).not.toHaveBeenCalled();
+      // Tray is the primary meeting list UI — rebuild immediately so history appears.
+      expect(mockForceTrayMenuRefresh).toHaveBeenCalledOnce();
     });
 
     it("restarts scheduler for quiet hours and auto-open timing keys", async () => {
