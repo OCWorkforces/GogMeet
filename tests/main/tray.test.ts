@@ -19,9 +19,7 @@ vi.mock("electron", () => ({
     this.setTitle = vi.fn();
     this.setImage = vi.fn();
     this.on = vi.fn();
-    this.getBounds = vi
-      .fn()
-      .mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
+    this.getBounds = vi.fn().mockReturnValue({ x: 100, y: 0, width: 22, height: 22 });
     this.popUpContextMenu = vi.fn();
     this.setContextMenu = vi.fn();
     this.destroy = vi.fn();
@@ -30,21 +28,28 @@ vi.mock("electron", () => ({
   shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
   app: { quit: vi.fn(), showAboutPanel: vi.fn(), once: vi.fn() },
   nativeImage: {
-    createFromPath: vi
+    createFromPath: vi.fn().mockReturnValue({
+      toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)),
+      isEmpty: vi.fn().mockReturnValue(false),
+    }),
+    createEmpty: vi
       .fn()
-      .mockReturnValue({ toPNG: vi.fn().mockReturnValue(Buffer.alloc(0)), isEmpty: vi.fn().mockReturnValue(false) }),
-    createEmpty: vi.fn().mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
+      .mockReturnValue({ addRepresentation: vi.fn(), isEmpty: vi.fn().mockReturnValue(true) }),
   },
   nativeTheme: { shouldUseDarkColors: false, on: vi.fn(), removeListener: vi.fn() },
-  BrowserWindow: vi.fn().mockImplementation(function (this: {
-    on: ReturnType<typeof vi.fn>;
-  }) {
+  BrowserWindow: vi.fn().mockImplementation(function (this: { on: ReturnType<typeof vi.fn> }) {
     this.on = vi.fn();
   }),
 }));
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({
+    kind: "ok",
+    source: "live",
+    completeness: "complete",
+    observedAt: Date.now(),
+    events: [],
+  }),
   getCalendarUiState: vi.fn().mockReturnValue({
     permission: "not-determined",
     phase: "disconnected",
@@ -71,7 +76,10 @@ vi.mock("../../src/main/windows/about-window.js", () => ({
 }));
 
 vi.mock("../../src/main/facades/settings.js", () => ({
-  getSettings: vi.fn().mockReturnValue({ showTomorrowMeetings: true }),
+  getSettings: vi.fn().mockReturnValue({
+    showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
+  }),
 }));
 
 const platformState = vi.hoisted(() => ({ darwin: true }));
@@ -82,9 +90,7 @@ vi.mock("../../src/main/platform/os.js", () => ({
 }));
 
 // Helper to create mock event
-function createMockEvent(
-  overrides: Partial<MeetingEvent> = {},
-): MeetingEvent {
+function createMockEvent(overrides: Partial<MeetingEvent> = {}): MeetingEvent {
   const now = new Date();
   const in1Hour = new Date(now.getTime() + 60 * 60 * 1000);
   return createSharedMockEvent({
@@ -176,15 +182,23 @@ describe("tray module exports", () => {
     expect(truncateTrayTooltip("a".repeat(70), 10)).toBe("aaaaaaaaa\u2026");
   });
 
+  it("formatTrayCountdownLabel covers 1-min, plural, and in-meeting remaining", async () => {
+    const { formatTrayCountdownLabel } = await import("../../src/main/tray.js");
+    expect(formatTrayCountdownLabel("Standup", 1)).toBe("Standup in 1 min");
+    expect(formatTrayCountdownLabel("Standup", 3)).toBe("Standup in 3 mins");
+    expect(formatTrayCountdownLabel("Standup", 5, true)).toMatch(/Standup/);
+    expect(formatTrayCountdownLabel("Standup", 5, true)).not.toContain("in 5 min");
+    const longTitle = "A".repeat(20);
+    expect(formatTrayCountdownLabel(longTitle, 2).startsWith("A".repeat(12) + "\u2026")).toBe(true);
+  });
+
   it("buildWindowsTrayTooltip formats idle, offline, and countdown", async () => {
-    const { buildWindowsTrayTooltip, TRAY_TOOLTIP_MAX_CHARS } = await import(
-      "../../src/main/tray.js"
-    );
+    const { buildWindowsTrayTooltip, TRAY_TOOLTIP_MAX_CHARS } =
+      await import("../../src/main/tray.js");
     expect(buildWindowsTrayTooltip(null)).toBe("GogMeet");
-    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toBe(
-      "GogMeet — Offline",
-    );
+    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toBe("GogMeet — Offline");
     expect(buildWindowsTrayTooltip("Standup", 15)).toBe("GogMeet — Standup in 15 mins");
+    expect(buildWindowsTrayTooltip("Standup", 5, true)).toMatch(/GogMeet — Standup/);
     const long = buildWindowsTrayTooltip("A".repeat(80), 5);
     expect(long.length).toBeLessThanOrEqual(TRAY_TOOLTIP_MAX_CHARS);
   });
@@ -217,10 +231,7 @@ describe("tray module exports", () => {
     const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow, testAppGraph());
 
-    expect(nativeTheme.on).toHaveBeenCalledWith(
-      "updated",
-      expect.any(Function),
-    );
+    expect(nativeTheme.on).toHaveBeenCalledWith("updated", expect.any(Function));
   });
 
   it("registers before-quit handler only once even when setupTray is called multiple times", async () => {
@@ -231,12 +242,12 @@ describe("tray module exports", () => {
     vi.mocked(app.once).mockClear();
 
     const mockWindow = {} as Parameters<typeof setupTray>[0];
-    setupTray(mockWindow, testAppGraph());           // First call: registers before-quit
-    setupTray(mockWindow, testAppGraph());           // Second call: should skip
+    setupTray(mockWindow, testAppGraph()); // First call: registers before-quit
+    setupTray(mockWindow, testAppGraph()); // Second call: should skip
 
-    const beforeQuitCalls = vi.mocked(app.once).mock.calls.filter(
-      (c: unknown[]) => c[0] === "before-quit",
-    );
+    const beforeQuitCalls = vi
+      .mocked(app.once)
+      .mock.calls.filter((c: unknown[]) => c[0] === "before-quit");
     expect(beforeQuitCalls).toHaveLength(1);
   });
 
@@ -293,9 +304,9 @@ describe("tray module exports", () => {
     await flushTrayRebuild();
     const trayInstance = getLatestTrayInstance(Tray);
 
-    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
-      | (() => void)
-      | undefined;
+    const clickHandler = vi
+      .mocked(trayInstance.on)
+      .mock.calls.find((c) => c[0] === "click")?.[1] as (() => void) | undefined;
     expect(clickHandler).toBeTypeOf("function");
     vi.mocked(Menu.buildFromTemplate).mockClear();
     clickHandler?.();
@@ -318,9 +329,9 @@ describe("tray module exports", () => {
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.popUpContextMenu).mockClear();
 
-    const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
-      | (() => void)
-      | undefined;
+    const clickHandler = vi
+      .mocked(trayInstance.on)
+      .mock.calls.find((c) => c[0] === "click")?.[1] as (() => void) | undefined;
     clickHandler?.();
 
     expect(forcePoll).toHaveBeenCalled();
@@ -431,8 +442,19 @@ describe("tray module exports", () => {
     const forcePoll = vi.fn().mockResolvedValue(undefined);
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const disconnect = vi.fn().mockResolvedValue(undefined);
+    const event = createMockEvent();
     const graph = testAppGraph({
       join: { byId: join },
+      settings: {
+        get: () =>
+          ({
+            showTomorrowMeetings: true,
+            showCompletedTodayMeetings: false,
+          }) as never,
+        load: vi.fn(),
+        update: vi.fn(),
+        save: vi.fn(),
+      },
       scheduler: {
         forcePoll,
         getLastKnownEvents: () => null,
@@ -444,6 +466,69 @@ describe("tray module exports", () => {
         setTrayTitleCallback: vi.fn(),
         initPowerCallbacks: vi.fn(),
       },
+      calendar: {
+        getEvents: vi.fn(),
+        requestPermission,
+        getPermissionStatus: vi.fn(),
+        disconnect,
+        getUiState: () => ({
+          permission: "granted",
+          phase: "ready",
+          lastError: null,
+          accountEmail: "u@example.com",
+          events: [event],
+          offline: false,
+          oauthConfigured: true,
+        }),
+        warmup: vi.fn(),
+        invalidatePermissionCache: vi.fn(),
+        shouldAutoRequestPermission: () => false,
+        reportPollError: vi.fn(),
+      },
+    });
+    platformState.darwin = false;
+    const { setupTray, destroyTray } = await import("../../src/main/tray.js");
+    const { Menu, app } = await import("electron");
+    setupTray({} as never, graph);
+    await flushTrayRebuild();
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      label?: string;
+      click?: () => void;
+      submenu?: Array<{ label?: string; click?: () => void }>;
+    }>;
+
+    // Connect surface (when not granted) is separate; with granted UI exercise footer + join.
+    const joinNext = template?.find((i) => i.label === "Join Next Meeting");
+    joinNext?.click?.();
+    expect(join).toHaveBeenCalled();
+
+    const refresh = template?.find((i) => i.label === "Refresh");
+    refresh?.click?.();
+    expect(forcePoll).toHaveBeenCalled();
+
+    // Join submenu on a meeting row
+    const meeting = template?.find((i) => i.label?.includes(event.title));
+    const joinSub = meeting?.submenu?.find((s) => s.label === "Join");
+    joinSub?.click?.();
+    expect(join).toHaveBeenCalledTimes(2);
+
+    const quit = template?.find((i) => i.label === "Quit");
+    quit?.click?.();
+    expect(app.quit).toHaveBeenCalled();
+
+    // Disconnect path
+    const disconnectItem = template?.find((i) => i.label === "Disconnect Google Calendar");
+    disconnectItem?.click?.();
+    await Promise.resolve();
+    expect(disconnect).toHaveBeenCalled();
+
+    // Reconnect CTA path when disconnected
+    destroyTray();
+    vi.resetModules();
+    platformState.darwin = false;
+    const trayMod = await import("../../src/main/tray.js");
+    const electron2 = await import("electron");
+    const graph2 = testAppGraph({
       calendar: {
         getEvents: vi.fn(),
         requestPermission,
@@ -463,20 +548,76 @@ describe("tray module exports", () => {
         shouldAutoRequestPermission: () => false,
         reportPollError: vi.fn(),
       },
+      scheduler: {
+        forcePoll,
+        getLastKnownEvents: () => null,
+        cancelPendingBrowserOpen: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        restart: vi.fn(),
+        setWindow: vi.fn(),
+        setTrayTitleCallback: vi.fn(),
+        initPowerCallbacks: vi.fn(),
+      },
     });
-    platformState.darwin = false;
-    const { setupTray } = await import("../../src/main/tray.js");
-    const { Menu } = await import("electron");
-    setupTray({} as never, graph);
+    trayMod.setupTray({} as never, graph2);
     await flushTrayRebuild();
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+    const template2 = vi.mocked(electron2.Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
       label?: string;
       click?: () => void;
-      submenu?: Array<{ label?: string; click?: () => void }>;
     }>;
-    const connect = template?.find((i) => i.label?.includes("Connect"));
+    const connect = template2?.find((i) => i.label?.includes("Connect"));
     connect?.click?.();
     await Promise.resolve();
     expect(requestPermission).toHaveBeenCalled();
+
+    // Retry CTA when phase=error
+    trayMod.destroyTray();
+    vi.resetModules();
+    platformState.darwin = true;
+    const trayMod3 = await import("../../src/main/tray.js");
+    const electron3 = await import("electron");
+    const graph3 = testAppGraph({
+      calendar: {
+        getEvents: vi.fn(),
+        requestPermission,
+        getPermissionStatus: vi.fn(),
+        disconnect,
+        getUiState: () => ({
+          permission: "granted",
+          phase: "error",
+          lastError: "boom",
+          accountEmail: null,
+          events: null,
+          offline: false,
+          oauthConfigured: true,
+        }),
+        warmup: vi.fn(),
+        invalidatePermissionCache: vi.fn(),
+        shouldAutoRequestPermission: () => false,
+        reportPollError: vi.fn(),
+      },
+      scheduler: {
+        forcePoll,
+        getLastKnownEvents: () => null,
+        cancelPendingBrowserOpen: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        restart: vi.fn(),
+        setWindow: vi.fn(),
+        setTrayTitleCallback: vi.fn(),
+        initPowerCallbacks: vi.fn(),
+      },
+    });
+    forcePoll.mockClear();
+    trayMod3.setupTray({} as never, graph3);
+    await flushTrayRebuild();
+    const template3 = vi.mocked(electron3.Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      label?: string;
+      click?: () => void;
+    }>;
+    const retry = template3?.find((i) => i.label === "Retry");
+    retry?.click?.();
+    expect(forcePoll).toHaveBeenCalled();
   });
 });

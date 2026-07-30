@@ -59,18 +59,22 @@ describe("trayMenuSignature", () => {
   it("changes when account, permission, phase, or showTomorrow change", () => {
     const events = [createMockEvent()];
     const base = trayMenuSignature(baseUi, events, true, "ok", null);
-    expect(trayMenuSignature({ ...baseUi, accountEmail: "x@y.z" }, events, true, "ok", null)).not.toBe(
+    expect(
+      trayMenuSignature({ ...baseUi, accountEmail: "x@y.z" }, events, true, "ok", null),
+    ).not.toBe(base);
+    expect(
+      trayMenuSignature({ ...baseUi, permission: "denied" }, events, true, "ok", null),
+    ).not.toBe(base);
+    expect(trayMenuSignature({ ...baseUi, phase: "error" }, events, true, "ok", null)).not.toBe(
       base,
     );
-    expect(trayMenuSignature({ ...baseUi, permission: "denied" }, events, true, "ok", null)).not.toBe(
-      base,
-    );
-    expect(trayMenuSignature({ ...baseUi, phase: "error" }, events, true, "ok", null)).not.toBe(base);
     expect(trayMenuSignature(baseUi, events, false, "ok", null)).not.toBe(base);
-    expect(trayMenuSignature({ ...baseUi, oauthConfigured: false }, events, true, "ok", null)).not.toBe(
+    expect(
+      trayMenuSignature({ ...baseUi, oauthConfigured: false }, events, true, "ok", null),
+    ).not.toBe(base);
+    expect(trayMenuSignature({ ...baseUi, lastError: "x" }, events, true, "ok", null)).not.toBe(
       base,
     );
-    expect(trayMenuSignature({ ...baseUi, lastError: "x" }, events, true, "ok", null)).not.toBe(base);
   });
 
   it("changes when wall clock passes meeting end (content unchanged)", () => {
@@ -83,6 +87,13 @@ describe("trayMenuSignature", () => {
     const during = trayMenuSignature(baseUi, [event], true, "ok", null, now + 30 * 60_000);
     const after = trayMenuSignature(baseUi, [event], true, "ok", null, end + 1000);
     expect(after).not.toBe(during);
+  });
+
+  it("changes when showCompletedToday flag flips", () => {
+    const events = [createMockEvent()];
+    const off = trayMenuSignature(baseUi, events, true, "ok", null, Date.now(), false);
+    const on = trayMenuSignature(baseUi, events, true, "ok", null, Date.now(), true);
+    expect(on).not.toBe(off);
   });
 });
 
