@@ -130,6 +130,25 @@ describe("isCompletedTodayMeeting / filterCompletedTodayMeetings", () => {
     const result = filterCompletedTodayMeetings([early, late], localNow);
     expect(result.map((e) => e.id)).toEqual(["late", "early"]);
   });
+
+  it("returns false for invalid event dates", () => {
+    const bad = {
+      ...createMockEvent({ id: asTestEventId("bad") }),
+      startDate: "not-a-date",
+      endDate: "also-bad",
+    } as ReturnType<typeof createMockEvent>;
+    expect(isCompletedTodayMeeting(bad, localNow)).toBe(false);
+  });
+
+  it("includes event that ended exactly at now", () => {
+    const end = new Date(2026, 6, 30, 15, 0, 0);
+    const e = createMockEvent({
+      id: asTestEventId("exact"),
+      startDate: new Date(2026, 6, 30, 14, 0, 0).toISOString(),
+      endDate: end.toISOString(),
+    });
+    expect(isCompletedTodayMeeting(e, end.getTime())).toBe(true);
+  });
 });
 
 describe("filterUpcomingMeetings", () => {

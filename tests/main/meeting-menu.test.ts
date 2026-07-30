@@ -520,6 +520,67 @@ describe("buildMeetingMenuTemplate", () => {
       expect(findItem(items, "Completed today")).toBeDefined();
       expect(findItemContaining(items, "Done Meeting")?.enabled).toBe(false);
     });
+
+    it("excludes all-day completed meetings from history", () => {
+      const allDayPast = makeEvent({
+        title: "All Day Done",
+        startDate: todayAt(0, 0).toISOString(),
+        endDate: todayAt(23, 59).toISOString(),
+        isAllDay: true,
+      });
+      // Force ended: use morning window already past relative to noon fixed tests
+      const timedPast = makeEvent({
+        id: "2",
+        title: "Timed Done",
+        startDate: todayAt(9, 0).toISOString(),
+        endDate: todayAt(10, 0).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate(
+        [allDayPast, timedPast],
+        true,
+        { ...baseCallbacks, onAbout, onOpenSettings },
+        { kind: "unknown" },
+        true,
+      );
+      expect(findItemContaining(items, "Timed Done")).toBeDefined();
+      expect(findItemContaining(items, "All Day Done")).toBeUndefined();
+    });
+  });
+
+  describe("buildCalendarTrayMenuTemplate completed history", () => {
+    it("includes completed-today rows when opt-in is enabled", async () => {
+      const mod = await import("../../src/main/menu/meeting-menu.js");
+      const past = makeEvent({
+        title: "Morning Sync",
+        startDate: todayAt(9, 0).toISOString(),
+        endDate: todayAt(10, 0).toISOString(),
+      });
+      const future = makeEvent({
+        id: "2",
+        title: "Afternoon Sync",
+        startDate: todayAt(16, 0).toISOString(),
+        endDate: todayAt(17, 0).toISOString(),
+      });
+      const items = mod.buildCalendarTrayMenuTemplate(
+        {
+          permission: "granted",
+          phase: "ready",
+          lastError: null,
+          accountEmail: null,
+          events: [past, future],
+          offline: false,
+          oauthConfigured: true,
+          cacheAgeMs: null,
+        },
+        true,
+        { ...baseCallbacks, onAbout, onOpenSettings },
+        { kind: "unknown" },
+        true,
+      );
+      expect(findItemContaining(items, "Afternoon Sync")).toBeDefined();
+      expect(findItem(items, "Completed today")).toBeDefined();
+      expect(findItemContaining(items, "Morning Sync")?.label).toContain("Ended");
+    });
   });
 
   // ─── Footer actions (Settings, About, Quit) ──────────────────

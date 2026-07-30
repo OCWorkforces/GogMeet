@@ -218,6 +218,22 @@ describe("registerSettingsHandlers", () => {
       expect(mockForceTrayMenuRefresh).toHaveBeenCalledOnce();
     });
 
+    it("returns current settings when update throws", async () => {
+      mockUpdateSettings.mockRejectedValue(new Error("disk full"));
+      mockGetSettings.mockReturnValue(DEFAULT_SETTINGS);
+      const mockWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      }.As<import("electron").BrowserWindow>();
+
+      registerSettingsHandlers(mockWin, testAppGraph());
+      const handler = getRegisteredHandler("settings:set");
+
+      const result = await handler!(authorizedEvent, { showCompletedTodayMeetings: true });
+      expect(result).toEqual(DEFAULT_SETTINGS);
+      expect(mockWin.webContents.send).not.toHaveBeenCalled();
+      expect(mockForceTrayMenuRefresh).not.toHaveBeenCalled();
+    });
+
     it("restarts scheduler for quiet hours and auto-open timing keys", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
