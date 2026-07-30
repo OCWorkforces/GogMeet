@@ -345,7 +345,11 @@ async function fetchEventsIncremental(
   return { upserts, deletedIds, nextSyncToken };
 }
 
-function filterEventsInWindow(events: MeetingEvent[], timeMin: string, timeMax: string): MeetingEvent[] {
+function filterEventsInWindow(
+  events: MeetingEvent[],
+  timeMin: string,
+  timeMax: string,
+): MeetingEvent[] {
   const minMs = new Date(timeMin).getTime();
   const maxMs = new Date(timeMax).getTime();
   return events.filter((e) => {
