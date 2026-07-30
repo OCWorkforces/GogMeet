@@ -26,6 +26,9 @@ vi.mock("electron-log", () => ({
 vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult: vi.fn().mockResolvedValue({
     kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
     events: [
       {
         id: "evt-1",
@@ -140,7 +143,7 @@ describe("shortcuts", () => {
     it("does nothing when no calendar events available", async () => {
       const { joinMeetingById } = await import("../../src/main/utils/join-meeting.js");
       const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-      vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", events: [] });
+      vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
       registerShortcuts(shortcutsGraph());
       const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
@@ -168,6 +171,9 @@ describe("shortcuts", () => {
       const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
         events: [
           {
             id: "evt-allday",
@@ -196,6 +202,9 @@ describe("shortcuts", () => {
 
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
         events: [
           {
             id: "evt-late",
@@ -232,6 +241,9 @@ describe("shortcuts", () => {
       const now = Date.now();
       vi.mocked(getCalendarEventsResult).mockResolvedValueOnce({
         kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
         events: [
           {
             id: "evt-future",

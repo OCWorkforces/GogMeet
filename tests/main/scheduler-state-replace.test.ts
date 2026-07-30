@@ -29,7 +29,7 @@ describe("replaceState() preservation", () => {
       preventSleep: vi.fn(),
       allowSleep: vi.fn(),
     };
-    const fakeEvents: CalendarResult = { kind: "ok", events: [] };
+    const fakeEvents: CalendarResult = { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] };
 
     stateModule.state.win = fakeWin;
     stateModule.state.onTrayTitleUpdate = fakeCallback;
@@ -61,13 +61,13 @@ describe("replaceState() preservation", () => {
 
     const handle = setTimeout(() => {}, 1_000_000);
     stateModule.state.pollTimeout = handle;
-    stateModule.state.lastKnownEvents = { kind: "ok", events: [] };
+    stateModule.state.lastKnownEvents = { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] };
 
     replaceState(createSchedulerState());
 
     expect(cleared).toContain(handle);
     // Preserved across the swap
-    expect(stateModule.state.lastKnownEvents).toEqual({ kind: "ok", events: [] });
+    expect(stateModule.state.lastKnownEvents).toEqual({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     // pollTimeout is reset on the new state
     expect(stateModule.state.pollTimeout).toBeNull();
 

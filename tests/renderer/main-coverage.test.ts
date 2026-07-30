@@ -53,6 +53,9 @@ describe("renderer index coverage paths", () => {
     const getPermissionStatus = vi.fn().mockResolvedValue("granted");
     const getEvents = vi.fn().mockResolvedValue({
       kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
       events: [
         createMockEvent({
           meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
@@ -143,7 +146,7 @@ describe("renderer index coverage paths", () => {
   it("shows no-permission UI when calendar permission denied", async () => {
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const getPermissionStatus = vi.fn().mockResolvedValue("denied");
-    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", events: [] });
+    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await boot({
       calendar: {
         getEvents,
@@ -165,7 +168,7 @@ describe("renderer index coverage paths", () => {
   it("grantAccess denied stays on no-permission", async () => {
     const requestPermission = vi.fn().mockResolvedValue("denied");
     const getPermissionStatus = vi.fn().mockResolvedValue("not-determined");
-    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", events: [] });
+    const getEvents = vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await boot({
       calendar: {
         getEvents,

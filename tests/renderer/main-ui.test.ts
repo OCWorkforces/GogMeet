@@ -33,6 +33,9 @@ const RENDERER_TEST_NOW = new Date(2026, 5, 15, 12, 0, 0).getTime();
 async function startRenderer(events: MeetingEvent[]) {
   const getEvents = vi.fn<() => Promise<CalendarResult>>().mockResolvedValue({
     kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
     events,
   });
   const forcePoll = vi.fn();

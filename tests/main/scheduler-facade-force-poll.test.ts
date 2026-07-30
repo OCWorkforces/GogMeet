@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
 // Mock calendar module — single source of truth for poll() side effect counting
 vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
 }));
 
 // Mock power module
@@ -61,7 +61,7 @@ describe("forcePoll() deferred coalesce", () => {
     _resetForTest();
     _resetForceTestState();
     vi.mocked(getCalendarEventsResult).mockClear();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     initPowerCallbacks({
       getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
       preventSleep: vi.fn(),
@@ -137,8 +137,8 @@ describe("forcePoll() deferred coalesce", () => {
     }
 
     // Poll #2 (deferred): make it slow so we can race a request during its run
-    let resolveSecond: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const secondPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveSecond: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const secondPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveSecond = r;
     });
     vi.mocked(getCalendarEventsResult).mockReturnValueOnce(secondPromise);
@@ -162,7 +162,7 @@ describe("forcePoll() deferred coalesce", () => {
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
 
     // Resolve poll #2 — exactly one follow-up poll #3 fires for all racers
-    resolveSecond({ kind: "ok", events: [] });
+    resolveSecond({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await Promise.all([racer1, racer2, racer3]);
     await vi.advanceTimersByTimeAsync(0);
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(3);
@@ -180,7 +180,7 @@ describe("facade in-flight poll guard", () => {
     _resetForTest();
     _resetForceTestState();
     vi.mocked(getCalendarEventsResult).mockClear();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     initPowerCallbacks({
       getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
       preventSleep: vi.fn(),
@@ -197,8 +197,8 @@ describe("facade in-flight poll guard", () => {
 
   it("does not start a second concurrent poll() while one is in flight", async () => {
     // Make poll() slow: returns a manually-resolvable promise
-    let resolveFirst: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const firstPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveFirst: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const firstPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveFirst = r;
     });
     vi.mocked(getCalendarEventsResult).mockReturnValueOnce(firstPromise);
@@ -218,7 +218,7 @@ describe("facade in-flight poll guard", () => {
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
 
     // Resolve the first poll. Queued follow-up must run exactly once.
-    resolveFirst({ kind: "ok", events: [] });
+    resolveFirst({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await p1;
     await p2;
     // Drain any queued follow-up microtasks
@@ -235,8 +235,8 @@ describe("facade in-flight poll guard", () => {
   });
 
   it("coalesces multiple overlapping requests into exactly one follow-up", async () => {
-    let resolveFirst: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const firstPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveFirst: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const firstPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveFirst = r;
     });
     vi.mocked(getCalendarEventsResult).mockReturnValueOnce(firstPromise);
@@ -254,7 +254,7 @@ describe("facade in-flight poll guard", () => {
     await Promise.resolve();
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
 
-    resolveFirst({ kind: "ok", events: [] });
+    resolveFirst({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await Promise.all([p1, p2, p3, p4, p5]);
     await vi.advanceTimersByTimeAsync(0);
 
@@ -292,8 +292,8 @@ describe("facade in-flight poll guard", () => {
 
   it("prevents recursive scheduler timer poll from overlapping an in-flight forcePoll", async () => {
     // Start the scheduler — fires an initial guarded poll immediately
-    let resolveFirst: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const firstPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveFirst: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const firstPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveFirst = r;
     });
     vi.mocked(getCalendarEventsResult).mockReturnValueOnce(firstPromise);
@@ -312,7 +312,7 @@ describe("facade in-flight poll guard", () => {
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
 
     // Resolve the in-flight poll — queued follow-up runs exactly once
-    resolveFirst({ kind: "ok", events: [] });
+    resolveFirst({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await fp;
     await vi.advanceTimersByTimeAsync(0);
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
@@ -322,13 +322,13 @@ describe("facade in-flight poll guard", () => {
 
   it("queues a new request that arrives while the follow-up poll itself is running", async () => {
     // First poll: slow
-    let resolveFirst: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const firstPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveFirst: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const firstPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveFirst = r;
     });
     // Second poll (the queued follow-up): also slow so we can race a request during it
-    let resolveSecond: (v: { kind: "ok"; events: never[] }) => void = () => {};
-    const secondPromise = new Promise<{ kind: "ok"; events: never[] }>((r) => {
+    let resolveSecond: (v: { kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }) => void = () => {};
+    const secondPromise = new Promise<{ kind: "ok"; source: "live"; completeness: "complete"; observedAt: number; events: never[] }>((r) => {
       resolveSecond = r;
     });
     vi.mocked(getCalendarEventsResult)
@@ -347,7 +347,7 @@ describe("facade in-flight poll guard", () => {
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(1);
 
     // Resolve first poll — the queued follow-up (poll #2) now starts and is in-flight
-    resolveFirst({ kind: "ok", events: [] });
+    resolveFirst({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await Promise.resolve();
     await Promise.resolve();
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
@@ -362,7 +362,7 @@ describe("facade in-flight poll guard", () => {
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(2);
 
     // Resolve follow-up #2 — a third poll must run for request 3
-    resolveSecond({ kind: "ok", events: [] });
+    resolveSecond({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await Promise.all([p1, p2, p3]);
     await vi.advanceTimersByTimeAsync(0);
     expect(getCalendarEventsResult).toHaveBeenCalledTimes(3);

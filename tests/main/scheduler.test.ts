@@ -20,7 +20,7 @@ vi.mock("electron", () => {
 // Mock calendar module
 vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
 }));
 
 // Mock tray module so updateTrayTitle can be spied on
@@ -753,7 +753,7 @@ describe("scheduleEvents", () => {
     expect(nullCalls.length).toBeGreaterThanOrEqual(1);
 
     // Reset mock
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
   });
 
   it("E16b: consecutiveErrors resets on success; 2 errors + success leaves tray intact", async () => {
@@ -774,12 +774,12 @@ describe("scheduleEvents", () => {
     expect(stateModule.getConsecutiveErrors()).toBe(2);
 
     // Success — errors reset, tray preserved
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
     await poll();
     expect(stateModule.getConsecutiveErrors()).toBe(0);
     expect(countdownIntervals.size).toBe(1);
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
   });
 
   it("E18: scheduleEvents([]) immediately clears tray", () => {
@@ -946,7 +946,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F1: setSchedulerWindow stores window reference for poll to use", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     setSchedulerWindow(mockWindow as never);
     await poll();
@@ -957,7 +957,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F2: poll does NOT send IPC if window is null", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     // Don't set window - it should remain null
     setSchedulerWindow(null as never);
@@ -968,7 +968,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
 
   it("F3: poll does NOT send IPC if window is destroyed", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     mockWindow.isDestroyed.mockReturnValue(true);
     setSchedulerWindow(mockWindow as never);
@@ -995,7 +995,7 @@ describe("setSchedulerWindow and poll IPC notification", () => {
   it("F5: poll sends IPC after successful fetch with events", async () => {
     const { getCalendarEventsResult } = await import("../../src/main/facades/calendar.js");
     const event = makeEvent({ id: "f5-event" });
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
 
     setSchedulerWindow(mockWindow as never);
     await poll();

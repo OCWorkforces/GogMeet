@@ -49,7 +49,7 @@ describe("joinMeetingById", () => {
   });
 
   it("opens from cache and marks opened", async () => {
-    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", events: [event] });
+    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
 
     const result = await joinMeetingById(event.id);
 
@@ -60,8 +60,8 @@ describe("joinMeetingById", () => {
   });
 
   it("fallback-fetches when id missing from ok cache", async () => {
-    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", events: [] });
-    mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", events: [event] });
+    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
 
     const result = await joinMeetingById(event.id);
 
@@ -71,7 +71,7 @@ describe("joinMeetingById", () => {
   });
 
   it("returns err and does not mark opened when open fails", async () => {
-    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", events: [event] });
+    mockGetLastKnownEvents.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
     mockOpenMeetingUrl.mockResolvedValue({ ok: false, error: "blocked" });
 
     const result = await joinMeetingById(event.id);

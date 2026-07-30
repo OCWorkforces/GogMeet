@@ -126,7 +126,7 @@ describe("preload/index.ts", () => {
 
     const apiArg = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
 
-    apiArg.calendar.getEvents();
+    apiArg.calendar.getEvents(new AbortController().signal);
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith("calendar:get-events");
   });
 
@@ -249,7 +249,7 @@ describe("preload/index.ts", () => {
     await import("../../src/preload/index.js");
     const { IPC_CHANNELS } = await import("../../src/shared/ipc-channels.js");
     const api = mockContextBridge.exposeInMainWorld.mock.calls[0]?.[1];
-    await api.calendar.getEvents();
+    await api.calendar.getEvents(new AbortController().signal);
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_GET_EVENTS);
     await api.calendar.requestPermission();
     expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION);

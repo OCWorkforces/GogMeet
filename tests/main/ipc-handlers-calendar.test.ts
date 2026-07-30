@@ -78,14 +78,14 @@ describe("registerCalendarHandlers", () => {
           isAllDay: false,
         },
       ];
-      mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", events });
+      mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events });
 
       registerCalendarHandlers(testAppGraph());
       const handler = getRegisteredHandler("calendar:get-events");
       expect(handler).toBeDefined();
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ kind: "ok", events });
+      expect(result).toMatchObject({ kind: "ok", source: "live", completeness: "complete", events });
     });
 
     it("returns unauthorized for blocked sender", async () => {

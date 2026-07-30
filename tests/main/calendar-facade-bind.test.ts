@@ -22,7 +22,7 @@ describe("calendar facade binds and disconnect", () => {
   it("disconnect publishes disconnected UI and rebind works", async () => {
     const provider = {
       id: "google-calendar",
-      getEvents: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+      getEvents: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
       getPermissionStatus: vi.fn().mockResolvedValue("granted"),
       requestPermission: vi.fn().mockResolvedValue("granted"),
       disconnect: vi.fn().mockResolvedValue(undefined),
@@ -66,7 +66,7 @@ describe("calendar facade binds and disconnect", () => {
     const warmup = vi.fn().mockResolvedValue(undefined);
     getActiveCalendarProvider.mockResolvedValue({
       id: "google-calendar",
-      getEvents: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+      getEvents: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
       getPermissionStatus: vi.fn().mockResolvedValue("not-determined"),
       requestPermission: vi.fn(),
       warmup,

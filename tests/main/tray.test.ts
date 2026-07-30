@@ -44,7 +44,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
   getCalendarUiState: vi.fn().mockReturnValue({
     permission: "not-determined",
     phase: "disconnected",

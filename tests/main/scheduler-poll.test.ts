@@ -15,7 +15,7 @@ vi.mock("electron", () => ({
 // Mock calendar module
 vi.mock("../../src/main/facades/calendar.js", () => ({
   reportCalendarPollError: vi.fn(),
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
 }));
 
 // Mock power module
@@ -98,7 +98,7 @@ describe("poll()", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -114,7 +114,7 @@ describe("poll()", () => {
   it("resets consecutiveErrors to 0 on successful poll with events", async () => {
     stateModule.setConsecutiveErrors(2);
     const event = makeEvent();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [event] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] });
 
     await poll();
 
@@ -123,7 +123,7 @@ describe("poll()", () => {
 
   it("resets consecutiveErrors to 0 on success with empty events", async () => {
     stateModule.setConsecutiveErrors(1);
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     await poll();
 
@@ -309,7 +309,7 @@ describe("poll()", () => {
       webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     await poll();
     // IPC now sends events array (empty in this case) instead of undefined
@@ -320,7 +320,7 @@ describe("poll()", () => {
 
   it("does NOT send IPC when window is null", async () => {
     stateModule.state.win = null;
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     // Should not throw
     await expect(poll()).resolves.toBeUndefined();
@@ -333,7 +333,7 @@ describe("poll()", () => {
       webContents: { send: mockSend },
     } as never;
 
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
 
     await poll();
 
@@ -397,7 +397,7 @@ describe("event list signature gating (renderer push)", () => {
       isDestroyed: vi.fn().mockReturnValue(false),
       webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
     } as never;
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events });
     await poll();
     return mockSend.mock.calls.length;
   }
@@ -476,7 +476,7 @@ describe("startScheduler", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -523,7 +523,7 @@ describe("stopScheduler", () => {
     vi.useFakeTimers();
     _resetForTest();
     refreshStateRefs();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -577,7 +577,7 @@ describe("restartScheduler", () => {
     _resetForceTestState();
     refreshStateRefs();
     vi.mocked(getCalendarEventsResult).mockClear();
-    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", events: [] });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     stateModule.state.onTrayTitleUpdate = mockTrayCallback;
     mockTrayCallback.mockClear();
     initPowerCallbacks({ getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000), preventSleep: vi.fn(), allowSleep: vi.fn() });
@@ -644,7 +644,7 @@ describe("restartScheduler", () => {
     startScheduler();
     await Promise.resolve();
     restartScheduler();
-    stalePoll.resolve({ kind: "ok", events: [staleEvent] });
+    stalePoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [staleEvent] });
     await Promise.resolve();
     await Promise.resolve();
 
@@ -652,7 +652,7 @@ describe("restartScheduler", () => {
     const emittedAfterStale = [...emittedEventIds];
     const sendsAfterStale = send.mock.calls.length;
 
-    currentPoll.resolve({ kind: "ok", events: [currentEvent] });
+    currentPoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [currentEvent] });
     await vi.advanceTimersByTimeAsync(0);
     mainBus.off("meeting-list-updated", onMeetingListUpdated);
     stopScheduler();
@@ -684,7 +684,7 @@ describe("restartScheduler", () => {
     const errorsAfterStale = stateModule.getConsecutiveErrors();
     const logsAfterStale = errorSpy.mock.calls.length;
 
-    currentPoll.resolve({ kind: "ok", events: [] });
+    currentPoll.resolve({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     await vi.advanceTimersByTimeAsync(0);
     errorSpy.mockRestore();
     stopScheduler();

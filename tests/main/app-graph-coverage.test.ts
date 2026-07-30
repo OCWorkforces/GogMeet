@@ -32,7 +32,7 @@ const {
   initPowerCallbacks,
   openMock,
 } = vi.hoisted(() => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
   requestCalendarPermission: vi.fn().mockResolvedValue("granted"),
   getCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   disconnectCalendar: vi.fn().mockResolvedValue(undefined),
@@ -130,7 +130,7 @@ describe("createAppGraph surface coverage", () => {
 
   it("exposes and invokes all graph surfaces with real return values", async () => {
     const graph = createAppGraph({ skipBind: true });
-    expect(await graph.calendar.getEvents()).toEqual({ kind: "ok", events: [] });
+    expect(await graph.calendar.getEvents(new AbortController().signal)).toEqual({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     expect(await graph.calendar.requestPermission()).toBe("granted");
     expect(await graph.calendar.getPermissionStatus()).toBe("granted");
     await graph.calendar.disconnect();
