@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile, unlink, stat } from "node:fs/promises";
+import { readFile, writeFile, unlink, stat, access, copyFile, constants as fsConstants } from "node:fs/promises";
+import { join } from "node:path";
 
 import {
   BINARY_PATH,
@@ -8,6 +9,7 @@ import {
   isBinaryExecutable,
   lockdownBinary,
   readSwiftSource,
+  resolveBundledHelperPath,
   resolveSwiftSourcePath,
   verifyBinaryHash,
 } from "./binary-cache.js";
@@ -86,6 +88,44 @@ function logDebug(error: unknown): void {
   console.debug("[binary-manager]", error);
 }
 
+async function tryInstallBundledHelper(): Promise<boolean> {
+  // Only packaged Electron builds may ship an optional helper under Resources/.
+  // resolveBundledHelperPath() is null outside asar packaging (dev / unit tests).
+  if (resolveBundledHelperPath() === null) return false;
+
+  // Probe arch-specific then generic paths under process.resourcesPath.
+  const resources = process.resourcesPath;
+  if (typeof resources !== "string" || resources.length === 0) return false;
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const paths = [
+    join(resources, `googlemeet-events-${arch}`),
+    join(resources, "googlemeet-events"),
+    join(resources, "helpers", `googlemeet-events-${arch}`),
+    join(resources, "helpers", "googlemeet-events"),
+  ];
+  for (const p of paths) {
+    try {
+      await access(p, fsConstants.X_OK);
+      await ensureSecureCacheDir();
+      await copyFile(p, BINARY_PATH);
+      await lockdownBinary(BINARY_PATH);
+      // Mark hash as matching current source so we do not immediately recompile.
+      try {
+        const swiftSrc = resolveSwiftSourcePath();
+        const currentHash = await getSourceHash(swiftSrc);
+        await writeFile(HASH_PATH, currentHash, "utf-8");
+      } catch {
+        // Source missing in some test fixtures — still use bundled binary.
+      }
+      console.log("[binary-manager] Using bundled Swift helper");
+      return true;
+    } catch {
+      // try next
+    }
+  }
+  return false;
+}
+
 async function ensureBinaryCycle(): Promise<void> {
   // Locate Swift source
   // IMPORTANT: swiftc cannot read files from inside ASAR archives.
@@ -94,6 +134,14 @@ async function ensureBinaryCycle(): Promise<void> {
   const swiftSrc = resolveSwiftSourcePath();
 
   await ensureSecureCacheDir();
+
+  // Prefer a prebuilt helper shipped in Resources/ when present (optional).
+  if (!(await isBinaryExecutable())) {
+    const installed = await tryInstallBundledHelper();
+    if (installed && (await isBinaryExecutable())) {
+      return;
+    }
+  }
 
   // Compute hash of current Swift source (memoized by mtime). Throws clear
   // error if source missing via readSwiftSource on cache miss.

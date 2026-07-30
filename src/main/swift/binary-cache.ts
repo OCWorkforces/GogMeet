@@ -25,6 +25,28 @@ const isPackaged = __dirname.includes(".asar");
 export const BINARY_DIR: string = join(tmpdir(), "googlemeet");
 export const BINARY_PATH: string = join(BINARY_DIR, "googlemeet-events");
 
+/**
+ * Optional prebuilt helper shipped in the app bundle (Resources/).
+ * Prefer this when present and executable; fall back to compile-on-device.
+ */
+export function resolveBundledHelperPath(): string | null {
+  if (!isPackaged) return null;
+  try {
+    const resources = process.resourcesPath;
+    // Prefer arch-specific name, then generic.
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const candidates = [
+      join(resources, `googlemeet-events-${arch}`),
+      join(resources, "googlemeet-events"),
+      join(resources, "helpers", `googlemeet-events-${arch}`),
+      join(resources, "helpers", "googlemeet-events"),
+    ];
+    return candidates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Sidecar file storing the SHA-256 hash of the Swift source used for the current binary */
 export const HASH_PATH: string = join(BINARY_DIR, "source.hash");
 

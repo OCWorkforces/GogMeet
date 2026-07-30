@@ -169,6 +169,14 @@ describe("computeSwiftSourceHash", () => {
   });
 });
 
+describe("resolveBundledHelperPath", () => {
+  it("returns null outside packaged (asar) builds", async () => {
+    const mod = await loadModule();
+    // Unit host loads from src/ — not inside app.asar
+    expect(mod.resolveBundledHelperPath()).toBeNull();
+  });
+});
+
 describe("ensureBinary", () => {
   it("returns early (cache hit) when binary exists and stored hash matches", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
@@ -208,7 +216,8 @@ describe("ensureBinary", () => {
 
   it("compiles fresh when binary does not exist", async () => {
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    // ensureBinaryCycle probes executable twice (pre-bundled + post-hash); both must miss.
+    accessMock.mockRejectedValue(new Error("ENOENT"));
 
     const mod = await loadModule();
     await mod.ensureBinary();
@@ -516,10 +525,14 @@ describe("runSwiftHelper", () => {
   it("recompiles once on integrity spawn ENOENT after revalidation", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    // ensureBinary cache hit; revalidate after spawn fail reports missing binary
+    // ensureBinaryCycle probes executable twice on the cache-hit path; after spawn
+    // ENOENT, revalidate reports missing binary; recompile path also probes twice.
     accessMock
-      .mockResolvedValueOnce(undefined) // ensureBinary isBinaryExecutable
+      .mockResolvedValueOnce(undefined) // ensureBinary pre-bundled check
+      .mockResolvedValueOnce(undefined) // ensureBinary hash-gate check
       .mockRejectedValueOnce(new Error("ENOENT")) // revalidateIntegrityFailure
+      .mockRejectedValueOnce(new Error("ENOENT")) // recompile ensureBinary pre-bundled
+      .mockRejectedValueOnce(new Error("ENOENT")) // recompile ensureBinary hash-gate
       .mockResolvedValue(undefined);
 
     // Use duck-typed error so class identity survives vi.resetModules
