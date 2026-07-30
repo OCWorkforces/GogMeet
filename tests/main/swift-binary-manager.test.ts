@@ -30,6 +30,7 @@ const {
   writeFileMock,
   unlinkMock,
   statMock,
+  copyFileMock,
 } = vi.hoisted(() => ({
   accessMock: vi.fn(),
   mkdirMock: vi.fn(),
@@ -37,6 +38,7 @@ const {
   writeFileMock: vi.fn(),
   unlinkMock: vi.fn(),
   statMock: vi.fn(),
+  copyFileMock: vi.fn(),
 }));
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
@@ -45,6 +47,7 @@ vi.mock("node:fs/promises", () => ({
   writeFile: writeFileMock,
   unlink: unlinkMock,
   stat: statMock,
+  copyFile: copyFileMock,
 }));
 
 async function loadModule() {
@@ -114,6 +117,7 @@ beforeEach(() => {
   writeFileMock.mockReset();
   unlinkMock.mockReset();
   statMock.mockReset();
+  copyFileMock.mockReset();
 
   // Default stat: mtime stable across calls so memoization tests are deterministic.
   statMock.mockResolvedValue({ mtimeMs: 1_000 });
@@ -121,6 +125,7 @@ beforeEach(() => {
   mkdirMock.mockResolvedValue(undefined);
   writeFileMock.mockResolvedValue(undefined);
   unlinkMock.mockResolvedValue(undefined);
+  copyFileMock.mockResolvedValue(undefined);
   execFileAsyncMock.mockResolvedValue({ stdout: "", stderr: "" });
   runSwiftHelperProcessMock.mockResolvedValue({
     stdout: "",
@@ -172,8 +177,155 @@ describe("computeSwiftSourceHash", () => {
 describe("resolveBundledHelperPath", () => {
   it("returns null outside packaged (asar) builds", async () => {
     const mod = await loadModule();
-    // Unit host loads from src/ — not inside app.asar
     expect(mod.resolveBundledHelperPath()).toBeNull();
+  });
+
+  it("resolves arch-specific Resources path when packaged options are forced", async () => {
+    const mod = await loadModule();
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        resourcesPath: "/App/Resources",
+        arch: "arm64",
+      }),
+    ).toBe("/App/Resources/googlemeet-events-arm64");
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        resourcesPath: "/App/Resources",
+        arch: "x64",
+      }),
+    ).toBe("/App/Resources/googlemeet-events-x64");
+    expect(mod.resolveBundledHelperPath({ packaged: true, resourcesPath: "" })).toBeNull();
+  });
+
+  it("returns null when packaged resolution throws", async () => {
+    const mod = await loadModule();
+    const throwingPath = {
+      toString() {
+        throw new Error("bad resources");
+      },
+    };
+    // Force join() to throw by providing a non-string that passes the length check incorrectly —
+    // use a getter that throws when read after the type check via Object that fails at join.
+    expect(
+      mod.resolveBundledHelperPath({
+        packaged: true,
+        // @ts-expect-error intentional invalid resourcesPath for catch-path coverage
+        resourcesPath: {
+          get length() {
+            return 1;
+          },
+          [Symbol.toPrimitive]() {
+            throw new Error("boom");
+          },
+        },
+      }),
+    ).toBeNull();
+    void throwingPath;
+  });
+});
+
+describe("installBundledHelperCandidates", () => {
+  it("copies the first executable candidate and writes the source hash", async () => {
+    accessMock.mockImplementation(async (path: string) => {
+      if (path === "/missing/helper") throw new Error("ENOENT");
+      if (path === "/Resources/googlemeet-events") return undefined;
+      throw new Error(`unexpected access: ${path}`);
+    });
+    copyFileMock.mockResolvedValue(undefined);
+    const hash = await sha256Hex(FAKE_SOURCE);
+
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(
+      ["/missing/helper", "/Resources/googlemeet-events"],
+      hash,
+    );
+
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(
+      "/Resources/googlemeet-events",
+      EXPECTED_BINARY_PATH,
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH, hash, "utf-8");
+  });
+
+  it("returns false when no candidate is executable", async () => {
+    accessMock.mockRejectedValue(new Error("ENOENT"));
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(["/nope"]);
+    expect(ok).toBe(false);
+    expect(copyFileMock).not.toHaveBeenCalled();
+  });
+
+  it("copies without writing hash when sourceHash is omitted", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    writeFileMock.mockClear();
+    const mod = await loadModule();
+    const ok = await mod.installBundledHelperCandidates(["/Resources/googlemeet-events"]);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalled();
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+
+  it("skips hash write when sourceHash is empty string", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    writeFileMock.mockClear();
+    const mod = await loadModule();
+    expect(await mod.installBundledHelperCandidates(["/Resources/h"], "")).toBe(true);
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("tryInstallBundledHelper", () => {
+  it("returns false when resolvePath yields null", async () => {
+    const mod = await loadModule();
+    expect(await mod.tryInstallBundledHelper(() => null)).toBe(false);
+    expect(copyFileMock).not.toHaveBeenCalled();
+  });
+
+  it("installs preferred path and records source hash", async () => {
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    const preferred = "/App/Resources/googlemeet-events-arm64";
+    Object.defineProperty(process, "resourcesPath", {
+      value: "/App/Resources",
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => preferred);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(preferred, EXPECTED_BINARY_PATH);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      EXPECTED_HASH_PATH,
+      await sha256Hex(FAKE_SOURCE),
+      "utf-8",
+    );
+  });
+
+  it("still installs when source hash cannot be computed", async () => {
+    accessMock.mockResolvedValue(undefined);
+    copyFileMock.mockResolvedValue(undefined);
+    readFileMock.mockRejectedValue(new Error("no source"));
+    Object.defineProperty(process, "resourcesPath", {
+      value: undefined,
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => "/only/preferred");
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith("/only/preferred", EXPECTED_BINARY_PATH);
+    // No hash write when source hash is unavailable
+    expect(writeFileMock).not.toHaveBeenCalledWith(
+      EXPECTED_HASH_PATH,
+      expect.anything(),
+      "utf-8",
+    );
   });
 });
 

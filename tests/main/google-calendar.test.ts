@@ -618,5 +618,92 @@ describe("createGoogleCalendarProvider", () => {
     expect(clearGoogleSyncToken).toHaveBeenCalledWith("primary");
     expect(stored["primary"]).toBe("tok-c");
   });
+
+  it("incremental sync applies cancelled deletions and falls back on non-410 transport errors", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(11, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+
+    let phase: "full" | "inc-cancel" | "inc-fail" | "full-fallback" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc-cancel";
+          return jsonResponse({
+            items: [
+              {
+                id: "keep",
+                summary: "Keep",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+              {
+                id: "drop",
+                summary: "Drop",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "s1",
+          });
+        }
+        if (phase === "inc-cancel") {
+          phase = "inc-fail";
+          return jsonResponse({
+            items: [{ id: "drop", status: "cancelled" }],
+            nextSyncToken: "s2",
+          });
+        }
+        if (phase === "inc-fail") {
+          phase = "full-fallback";
+          return new Response("nope", { status: 500 });
+        }
+        // full window fallback after incremental transport failure
+        return jsonResponse({
+          items: [
+            {
+              id: "keep",
+              summary: "Keep",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "s3",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    const r1 = await provider.getEvents(new AbortController().signal);
+    expect(r1.kind).toBe("ok");
+    if (r1.kind === "ok") {
+      expect(r1.events.map((e) => e.title).sort()).toEqual(["Drop", "Keep"]);
+    }
+
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.some((e) => e.title === "Drop")).toBe(false);
+      expect(r2.events.some((e) => e.title === "Keep")).toBe(true);
+    }
+
+    const r3 = await provider.getEvents(new AbortController().signal);
+    expect(r3.kind).toBe("ok");
+    if (r3.kind === "ok") {
+      expect(r3.events.some((e) => e.title === "Keep")).toBe(true);
+    }
+    expect(stored["primary"]).toBe("s3");
+  });
 });
 

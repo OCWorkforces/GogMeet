@@ -1,19 +1,12 @@
 import { createHash } from "node:crypto";
-import {
-  readFile,
-  writeFile,
-  unlink,
-  stat,
-  access,
-  copyFile,
-  constants as fsConstants,
-} from "node:fs/promises";
+import { readFile, writeFile, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
   BINARY_PATH,
   HASH_PATH,
   ensureSecureCacheDir,
+  installBundledHelperCandidates,
   isBinaryExecutable,
   lockdownBinary,
   readSwiftSource,
@@ -96,42 +89,40 @@ function logDebug(error: unknown): void {
   console.debug("[binary-manager]", error);
 }
 
-async function tryInstallBundledHelper(): Promise<boolean> {
+/**
+ * Prefer a prebuilt helper when packaging provides one.
+ * `resolvePath` is injectable for unit tests (host is never asar-packaged).
+ */
+export async function tryInstallBundledHelper(
+  resolvePath: () => string | null = () => resolveBundledHelperPath(),
+): Promise<boolean> {
   // Only packaged Electron builds may ship an optional helper under Resources/.
   // resolveBundledHelperPath() is null outside asar packaging (dev / unit tests).
-  if (resolveBundledHelperPath() === null) return false;
+  const preferred = resolvePath();
+  if (preferred === null) return false;
 
-  // Probe arch-specific then generic paths under process.resourcesPath.
+  // Prefer the resolved path, then probe common Resources layouts as fallbacks.
   const resources = process.resourcesPath;
-  if (typeof resources !== "string" || resources.length === 0) return false;
   const arch = process.arch === "arm64" ? "arm64" : "x64";
-  const paths = [
-    join(resources, `googlemeet-events-${arch}`),
-    join(resources, "googlemeet-events"),
-    join(resources, "helpers", `googlemeet-events-${arch}`),
-    join(resources, "helpers", "googlemeet-events"),
-  ];
-  for (const p of paths) {
-    try {
-      await access(p, fsConstants.X_OK);
-      await ensureSecureCacheDir();
-      await copyFile(p, BINARY_PATH);
-      await lockdownBinary(BINARY_PATH);
-      // Mark hash as matching current source so we do not immediately recompile.
-      try {
-        const swiftSrc = resolveSwiftSourcePath();
-        const currentHash = await getSourceHash(swiftSrc);
-        await writeFile(HASH_PATH, currentHash, "utf-8");
-      } catch {
-        // Source missing in some test fixtures — still use bundled binary.
-      }
-      console.log("[binary-manager] Using bundled Swift helper");
-      return true;
-    } catch {
-      // try next
+  const paths: string[] = [preferred];
+  if (typeof resources === "string" && resources.length > 0) {
+    for (const p of [
+      join(resources, `googlemeet-events-${arch}`),
+      join(resources, "googlemeet-events"),
+      join(resources, "helpers", `googlemeet-events-${arch}`),
+      join(resources, "helpers", "googlemeet-events"),
+    ]) {
+      if (!paths.includes(p)) paths.push(p);
     }
   }
-  return false;
+
+  let sourceHash: string | undefined;
+  try {
+    sourceHash = await getSourceHash(resolveSwiftSourcePath());
+  } catch {
+    // Source missing in some fixtures — still install the bundled binary.
+  }
+  return installBundledHelperCandidates(paths, sourceHash);
 }
 
 async function ensureBinaryCycle(): Promise<void> {

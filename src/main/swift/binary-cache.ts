@@ -1,4 +1,4 @@
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, copyFile, writeFile } from "node:fs/promises";
 import { chmod as chmodCb } from "node:fs";
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
@@ -28,13 +28,22 @@ export const BINARY_PATH: string = join(BINARY_DIR, "googlemeet-events");
 /**
  * Optional prebuilt helper shipped in the app bundle (Resources/).
  * Prefer this when present and executable; fall back to compile-on-device.
+ *
+ * `options` is for tests / rare callers that need to force packaged resolution
+ * without living under an asar path.
  */
-export function resolveBundledHelperPath(): string | null {
-  if (!isPackaged) return null;
+export function resolveBundledHelperPath(options?: {
+  packaged?: boolean;
+  resourcesPath?: string;
+  arch?: string;
+}): string | null {
+  const packaged = options?.packaged ?? isPackaged;
+  if (!packaged) return null;
   try {
-    const resources = process.resourcesPath;
+    const resources = options?.resourcesPath ?? process.resourcesPath;
+    if (typeof resources !== "string" || resources.length === 0) return null;
     // Prefer arch-specific name, then generic.
-    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const arch = (options?.arch ?? process.arch) === "arm64" ? "arm64" : "x64";
     const candidates = [
       join(resources, `googlemeet-events-${arch}`),
       join(resources, "googlemeet-events"),
@@ -130,6 +139,32 @@ export async function isBinaryExecutable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Copy the first executable bundled-helper candidate into the secure cache.
+ * Records `sourceHash` when provided so ensureBinary does not immediately recompile.
+ */
+export async function installBundledHelperCandidates(
+  paths: readonly string[],
+  sourceHash?: string,
+): Promise<boolean> {
+  for (const p of paths) {
+    try {
+      await access(p, constants.X_OK);
+      await ensureSecureCacheDir();
+      await copyFile(p, BINARY_PATH);
+      await lockdownBinary(BINARY_PATH);
+      if (sourceHash !== undefined && sourceHash.length > 0) {
+        await writeFile(HASH_PATH, sourceHash, "utf-8");
+      }
+      console.log("[binary-manager] Using bundled Swift helper");
+      return true;
+    } catch {
+      // try next
+    }
+  }
+  return false;
 }
 
 /**

@@ -122,6 +122,16 @@ describe("alert-window", () => {
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
     });
 
+    it("force-destroys the window via destroyAlertWindow", () => {
+      showAlert(makeEvent({ id: "force-destroy" }));
+      const win = getWindow(1);
+      destroyAlertWindow();
+      expect(win.__forceDestroy).toBe(true);
+      expect(win.destroy).toHaveBeenCalled();
+      // Safe to call again when nothing is showing
+      expect(() => destroyAlertWindow()).not.toThrow();
+    });
+
     it("passes correct BrowserWindow options", () => {
       showAlert(makeEvent());
 
