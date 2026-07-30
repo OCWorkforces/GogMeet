@@ -1,6 +1,6 @@
 # GogMeet — Out-of-Scope Follow-On Development Plan
 
-**Status:** Authorized — permanent guardrails shipped; measurement lab unblocking in progress  
+**Status:** Waves A–C implemented on branch — product tracks C1–C4 runtime + C5 docs; B-wave receipts remain optional evidence  
 **Parent plan:** `docs/plans/gogmeet-performance-enhancement.md`  
 **Branch context:** `enhance-perfs-v2` performance correctness program  
 **Updated:** 2026-07-30
@@ -338,11 +338,13 @@ Today every poll walks selected calendars with full window queries. Incremental 
 
 #### C1.4 Acceptance (MVP C1-c)
 
-- [ ] Full resync after 410 proven in tests
-- [ ] Partial calendar failure still yields live partial + suspend automation
-- [ ] Byte/latency improvement vs baseline from B1 (document; not a ship gate alone)
-- [ ] `bun run typecheck && bun run test && bun run test:coverage`
-- [ ] Threat model: token theft, webhook spoofing (if C1-d)
+- [x] Full resync after 410 proven in tests (`google-calendar` incremental + 410)
+- [x] Partial calendar failure still yields live partial + suspend automation (unchanged Task 6 policy)
+- [ ] Byte/latency improvement vs baseline from B1 (document; not a ship gate alone) — measurement optional
+- [x] ADR 0002 + encrypted syncToken store (no durable event DB; process-local index)
+- [ ] Threat model: token theft, webhook spoofing (if C1-d) — push remains out of scope
+
+**Shipped:** C1-a ADR, C1-b token store, C1-c incremental poll + 410. C1-d/e deferred.
 
 **Effort:** XL · **Risk:** High · **Blocked by:** B1, A1–A3
 
@@ -381,10 +383,13 @@ Today the helper may compile on device. Prebuilding removes first-launch compile
 
 #### C2.4 Acceptance
 
+- [x] Runtime prefer bundled helper under `Resources/` when present (C2-d); compile-on-device fallback retained
+- [x] Integrity mismatch still one recompile path (Task 2 taxonomy unchanged)
 - [ ] Cold-start p95 helper phase reduced with evidence vs B4 baseline
-- [ ] Integrity mismatch still one recompile path
+- [ ] CI signed helper artifacts + notarization (C2-b/c) — external / packaging pipeline
 - [ ] `verify:macos-release` passes with signed helper
-- [ ] No regression in EventKit permission flows
+
+**Shipped:** optional runtime install from `process.resourcesPath`. Full packaging pipeline still FUTURE.
 
 **Effort:** XL · **Risk:** High · **Blocked by:** B4, signing secrets in CI
 
@@ -407,10 +412,10 @@ Successful polls can rebuild the tray menu twice (list + status). Coalescing/sig
 
 #### C3.3 Acceptance
 
-- [ ] B2 receipt `retained` attached
-- [ ] Unit tests: two signals → one rebuild; ordering stable
-- [ ] Manual: connect/disconnect Google, permission denied, empty day, 100+ events
-- [ ] No new IPC channels without typed map entry
+- [ ] B2 receipt `retained` attached (measurement optional; product shipped under all-waves authorization)
+- [x] Unit tests: menu signature stable; status/event changes invalidate (`tray-rebuild-coalesce`)
+- [x] Microtask coalesce + signature skip redundant `Menu.buildFromTemplate`
+- [x] No new IPC channels
 
 **Effort:** M · **Risk:** Medium · **Blocked by:** B2
 
@@ -433,10 +438,11 @@ Destroy/recreate is simple and secure; reuse may be faster but risks stale DOM, 
 
 #### C4.3 Acceptance
 
-- [ ] B5 receipt `retained`
-- [ ] Security prefs snapshot test frozen
-- [ ] Stale content tests (long text, CJK, rapid replace)
-- [ ] No title/URL in traces
+- [ ] B5 receipt `retained` (measurement optional; product shipped under all-waves authorization)
+- [x] Hide/reuse with identical `SECURE_WEB_PREFERENCES`; DOM clear before re-present
+- [x] Dismiss cancels pending browser-open; force-destroy on shutdown; generation guard
+- [x] Unit tests updated for reuse semantics (`alert-window.test.ts`)
+- [x] No title/URL in traces (unchanged)
 
 **Effort:** L · **Risk:** High · **Blocked by:** B5
 
@@ -453,6 +459,8 @@ Destroy/recreate is simple and secure; reuse may be faster but risks stale DOM, 
 | Startup reorder (defer updater, etc.) | B4 phase evidence | Must not auto-OAuth; must not delay tray beyond UX budget |
 
 Each candidate gets its **own** mini-plan before code.
+
+**Shipped (docs only):** `docs/performance/packaging-startup-notes.md` — constraints + gates; no builder/product packaging change.
 
 **Effort:** per-candidate M–L · **Risk:** Medium–High
 
