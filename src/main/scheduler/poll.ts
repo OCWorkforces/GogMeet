@@ -2,7 +2,11 @@ import { getCalendarEventsResult, reportCalendarPollError } from "../facades/cal
 import { recordCalendarResult } from "../facades/calendar-status.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { eventListSignature } from "../../domain/services/event-signature.js";
-import { isCalendarOk } from "../../domain/entities/calendar-result.js";
+import {
+  isCalendarAutomationEligible,
+  isCalendarOk,
+} from "../../domain/entities/calendar-result.js";
+import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { typedSend } from "../ipc-handlers/shared.js";
 import { mainBus } from "../events.js";
 
@@ -17,6 +21,7 @@ import {
 } from "./state/index.js";
 
 import { resolveActiveTitleEvent, clearAllDisplayTimers } from "./countdown.js";
+import { suspendAutomation } from "./suspend-automation.js";
 
 import { scheduleEvents } from "./index.js";
 
@@ -45,6 +50,18 @@ function handlePollFailure(): void {
   }
 }
 
+function publishEventsToUi(events: readonly MeetingEvent[]): void {
+  const list = [...events];
+  mainBus.emit("meeting-list-updated", list);
+  if (state.win && !state.win.isDestroyed()) {
+    const signature = eventListSignature(list);
+    if (signature !== lastSentEventsSignature) {
+      lastSentEventsSignature = signature;
+      typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, list);
+    }
+  }
+}
+
 /** Poll calendar and refresh timers */
 export async function poll(isCurrentGeneration: () => boolean = () => true): Promise<void> {
   try {
@@ -53,17 +70,16 @@ export async function poll(isCurrentGeneration: () => boolean = () => true): Pro
     recordCalendarResult(result);
     if (isCalendarOk(result)) {
       setConsecutiveErrors(0);
-      scheduleEvents(result.events);
+      // Always keep display/join snapshot for any successful result.
       state.lastKnownEvents = result;
-      // Notify subscribers (e.g. tray) of the freshly fetched meeting list
-      mainBus.emit("meeting-list-updated", result.events);
-      // Notify renderer of updated events — only if content actually changed
-      if (state.win && !state.win.isDestroyed()) {
-        const signature = eventListSignature(result.events);
-        if (signature !== lastSentEventsSignature) {
-          lastSentEventsSignature = signature;
-          typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, result.events);
-        }
+      publishEventsToUi(result.events);
+
+      if (isCalendarAutomationEligible(result)) {
+        scheduleEvents(result.events);
+      } else {
+        // Partial / offline: cancel automatic browser/alert/title/countdown work;
+        // tray/popover/shortcut still use lastKnownEvents + join hub.
+        suspendAutomation();
       }
     } else {
       console.error("[scheduler] Calendar error:", result.error);

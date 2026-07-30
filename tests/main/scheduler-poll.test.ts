@@ -130,6 +130,89 @@ describe("poll()", () => {
     expect(stateModule.getConsecutiveErrors()).toBe(0);
   });
 
+  it("live complete schedules timers for future meetings", async () => {
+    const event = makeEvent({
+      id: asTestEventId("auto-ok"),
+      startDate: asTestIsoUtc(new Date(Date.now() + 10 * 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
+      meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
+    });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
+      events: [event],
+    });
+    await poll();
+    expect(stateModule.getTimers().size).toBe(1);
+    expect(stateModule.state.lastKnownEvents?.kind).toBe("ok");
+  });
+
+  it("live partial suspends automation but keeps lastKnownEvents for join", async () => {
+    const allowSleep = vi.fn();
+    initPowerCallbacks({
+      getPollInterval: vi.fn().mockReturnValue(2 * 60 * 1000),
+      preventSleep: vi.fn(),
+      allowSleep,
+    });
+    // Seed a browser timer + countdown as if a prior complete poll armed them.
+    stateModule.state.timers.set(asTestEventId("stale"), setTimeout(() => {}, 60_000));
+    stateModule.state.countdownIntervals.set(
+      asTestEventId("stale"),
+      setInterval(() => {}, 60_000),
+    );
+    const event = makeEvent({
+      id: asTestEventId("partial-1"),
+      startDate: asTestIsoUtc(new Date(Date.now() + 10 * 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
+      meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
+    });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "partial",
+      observedAt: Date.now(),
+      events: [event],
+    });
+    await poll();
+    expect(stateModule.getTimers().size).toBe(0);
+    expect(stateModule.getCountdownIntervals().size).toBe(0);
+    expect(allowSleep).toHaveBeenCalled();
+    expect(stateModule.state.lastKnownEvents).toMatchObject({
+      kind: "ok",
+      source: "live",
+      completeness: "partial",
+    });
+    expect(stateModule.state.lastKnownEvents && stateModule.state.lastKnownEvents.kind === "ok"
+      ? stateModule.state.lastKnownEvents.events
+      : []).toHaveLength(1);
+  });
+
+  it("offline-cache suspends automation and preserves joinable events", async () => {
+    stateModule.state.alertTimers.set(asTestEventId("a"), setTimeout(() => {}, 60_000));
+    const event = makeEvent({
+      id: asTestEventId("offline-1"),
+      startDate: asTestIsoUtc(new Date(Date.now() + 10 * 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 40 * 60_000).toISOString()),
+      meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
+    });
+    vi.mocked(getCalendarEventsResult).mockResolvedValue({
+      kind: "ok",
+      source: "offline-cache",
+      observedAt: Date.now() - 60_000,
+      cachedAt: Date.now() - 30_000,
+      events: [event],
+    });
+    await poll();
+    expect(stateModule.getAlertTimers().size).toBe(0);
+    expect(stateModule.getTimers().size).toBe(0);
+    expect(stateModule.state.lastKnownEvents).toMatchObject({
+      kind: "ok",
+      source: "offline-cache",
+    });
+  });
+
   it("increments consecutiveErrors on error result", async () => {
     vi.mocked(getCalendarEventsResult).mockResolvedValue({
       error: "Calendar access denied",
