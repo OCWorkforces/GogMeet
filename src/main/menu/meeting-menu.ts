@@ -3,7 +3,11 @@ import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../domain/ser
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
-import { filterUpcomingMeetings, isMeetingInProgress } from "../../domain/services/meeting-time.js";
+import {
+  filterCompletedTodayMeetings,
+  filterUpcomingMeetings,
+  isMeetingInProgress,
+} from "../../domain/services/meeting-time.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import type { CalendarStatus } from "../facades/calendar-status.js";
 import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
@@ -89,20 +93,44 @@ function meetingItem(
   };
 }
 
+function completedHistoryRows(
+  events: MeetingEvent[],
+  showCompletedTodayMeetings: boolean,
+  nowMs: number,
+): MenuItemConstructorOptions[] {
+  if (!showCompletedTodayMeetings) return [];
+  // Match tray upcoming policy: hide all-day from timed history clutter.
+  const completed = filterCompletedTodayMeetings(events, nowMs).filter((e) => !e.isAllDay);
+  if (completed.length === 0) return [];
+
+  const items: MenuItemConstructorOptions[] = [{ label: "Completed today", enabled: false }];
+  for (const event of completed) {
+    // Non-interactive history only — no Join/Copy submenu.
+    items.push({
+      label: `${event.title}  –  Ended`,
+      enabled: false,
+    });
+  }
+  return items;
+}
+
 function meetingDayRows(
   events: MeetingEvent[],
   showTomorrowMeetings: boolean,
   callbacks: MenuCallbacks,
+  showCompletedTodayMeetings = false,
 ): MenuItemConstructorOptions[] {
   const now = new Date();
+  const nowMs = now.getTime();
   const todayStart = startOfDay(now);
   const tomorrowStart = startOfTomorrow();
   const dayAfterStart = new Date(tomorrowStart);
   dayAfterStart.setDate(dayAfterStart.getDate() + 1);
 
-  const upcoming = filterUpcomingMeetings(events, now.getTime(), { excludeAllDay: true });
+  const upcoming = filterUpcomingMeetings(events, nowMs, { excludeAllDay: true });
+  const history = completedHistoryRows(events, showCompletedTodayMeetings, nowMs);
 
-  if (upcoming.length === 0) {
+  if (upcoming.length === 0 && history.length === 0) {
     return [{ label: "No upcoming meetings", enabled: false }];
   }
 
@@ -130,6 +158,11 @@ function meetingDayRows(
     for (const event of tomorrowEvents) {
       items.push(meetingItem(event, now, callbacks));
     }
+  }
+
+  if (history.length > 0) {
+    if (items.length > 0) items.push({ type: "separator" });
+    items.push(...history);
   }
 
   return items;
@@ -178,8 +211,10 @@ export function buildMeetingMenuTemplate(
   showTomorrowMeetings: boolean,
   callbacks: MenuCallbacks,
   status: CalendarStatus = { kind: "unknown" },
+  showCompletedTodayMeetings = false,
 ): MenuItemConstructorOptions[] {
   const now = new Date();
+  const nowMs = now.getTime();
   const todayStart = startOfDay(now);
   const tomorrowStart = startOfTomorrow();
   const dayAfterStart = new Date(tomorrowStart);
@@ -187,11 +222,12 @@ export function buildMeetingMenuTemplate(
 
   const items: MenuItemConstructorOptions[] = [...statusRows(status)];
 
-  const upcoming = filterUpcomingMeetings(events, now.getTime(), { excludeAllDay: true });
+  const upcoming = filterUpcomingMeetings(events, nowMs, { excludeAllDay: true });
+  const history = completedHistoryRows(events, showCompletedTodayMeetings, nowMs);
 
-  if (upcoming.length === 0 && status.kind !== "err") {
+  if (upcoming.length === 0 && history.length === 0 && status.kind !== "err") {
     items.push({ label: "No upcoming meetings", enabled: false });
-  } else if (upcoming.length > 0) {
+  } else if (upcoming.length > 0 || history.length > 0) {
     const todayEvents = upcoming.filter((e) => {
       const d = new Date(e.startDate);
       return d >= todayStart && d < tomorrowStart;
@@ -215,6 +251,13 @@ export function buildMeetingMenuTemplate(
         items.push(meetingItem(event, now, callbacks));
       }
     }
+
+    if (history.length > 0) {
+      if (todayEvents.length > 0 || (showTomorrowMeetings && tomorrowEvents.length > 0)) {
+        items.push({ type: "separator" });
+      }
+      items.push(...history);
+    }
   }
 
   items.push(...footerItems(events, callbacks));
@@ -230,6 +273,7 @@ export function buildCalendarTrayMenuTemplate(
   showTomorrowMeetings: boolean,
   callbacks: MenuCallbacks,
   status: CalendarStatus = { kind: "unknown" },
+  showCompletedTodayMeetings = false,
 ): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = [];
   const events = ui.events ?? [];
@@ -288,7 +332,12 @@ export function buildCalendarTrayMenuTemplate(
   }
 
   if (ui.events !== null) {
-    const dayRows = meetingDayRows(ui.events, showTomorrowMeetings, callbacks);
+    const dayRows = meetingDayRows(
+      ui.events,
+      showTomorrowMeetings,
+      callbacks,
+      showCompletedTodayMeetings,
+    );
     // Avoid double "No upcoming meetings" when empty and status already empty-ish
     items.push(...dayRows);
     if (ui.phase === "limited") {

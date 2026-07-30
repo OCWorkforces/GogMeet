@@ -105,6 +105,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
   };
   const status = getLastCalendarStatus();
 
+  const settings = graph.settings.get();
   if (cachedMeetings && snapshot.permission === "not-determined" && isDarwin()) {
     return buildCalendarTrayMenuTemplate(
       {
@@ -113,9 +114,10 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
         phase: cachedMeetings.length === 0 ? "empty" : "ready",
         events: cachedMeetings,
       },
-      graph.settings.get().showTomorrowMeetings,
+      settings.showTomorrowMeetings,
       menuCallbacks(mainWindow, graph),
       status,
+      settings.showCompletedTodayMeetings,
     );
   }
 
@@ -125,9 +127,10 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
     snapshot.events !== undefined && snapshot.events !== null
       ? snapshot
       : { ...snapshot, events: events.length > 0 ? events : [] },
-    graph.settings.get().showTomorrowMeetings,
+    settings.showTomorrowMeetings,
     menuCallbacks(mainWindow, graph),
     status,
+    settings.showCompletedTodayMeetings,
   );
 }
 
@@ -158,6 +161,7 @@ export function trayMenuSignature(
   statusKind: string,
   statusCode: string | null,
   nowMs: number = Date.now(),
+  showCompletedToday: boolean = false,
 ): string {
   const list = events ?? [];
   const eventSig = eventListSignature(list);
@@ -174,6 +178,7 @@ export function trayMenuSignature(
     ui.accountEmail ?? "",
     ui.lastError ?? "",
     showTomorrow ? "1" : "0",
+    showCompletedToday ? "1" : "0",
     statusKind,
     statusCode ?? "",
     eventSig,
@@ -198,10 +203,19 @@ function refreshContextMenu(mainWindow: BrowserWindow, options?: { force?: boole
     } satisfies CalendarUiState);
   const events = cachedMeetings ?? ui.events ?? [];
   const showTomorrow = graph?.settings.get().showTomorrowMeetings ?? true;
+  const showCompletedToday = graph?.settings.get().showCompletedTodayMeetings ?? false;
   const status = getLastCalendarStatus();
   const statusKind = status.kind;
   const statusCode = status.kind === "err" ? status.code : null;
-  const signature = trayMenuSignature(ui, events, showTomorrow, statusKind, statusCode);
+  const signature = trayMenuSignature(
+    ui,
+    events,
+    showTomorrow,
+    statusKind,
+    statusCode,
+    Date.now(),
+    showCompletedToday,
+  );
   if (options?.force !== true && signature === lastMenuSignature && lastContextMenu !== null) {
     return;
   }

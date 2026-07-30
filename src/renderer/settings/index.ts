@@ -135,7 +135,7 @@ function render(errorMessage?: string): void {
           <label class="setting-label" for="show-completed-meetings-toggle">
             ✅ Show completed meetings
           </label>
-          <span class="setting-description">Show today's finished meetings as muted history in the popover</span>
+          <span class="setting-description">Show today's finished meetings as muted history in the tray menu</span>
         </div>
         <div class="setting-control">
           <span class="save-indicator" id="completed-save-indicator" aria-live="polite"></span>

@@ -10,6 +10,7 @@
  */
 
 import type { MeetingEvent } from "../entities/meeting-event.js";
+import { startOfDay } from "./time.js";
 
 export interface FilterUpcomingOptions {
   /** When true, drop all-day events (tray menu / scheduler join surfaces). */
@@ -54,6 +55,39 @@ export function filterUpcomingMeetings(
     result.push(event);
   }
   return result;
+}
+
+/**
+ * True when both local start and end fall on the local calendar day of `nowMs`
+ * and the meeting has already ended (`endMs <= nowMs`).
+ * Excludes overnight, prior-day, and multi-day spanning events.
+ */
+export function isCompletedTodayMeeting(event: MeetingEvent, nowMs: number): boolean {
+  const bounds = eventBoundsMs(event);
+  if (!bounds) return false;
+  if (bounds.endMs > nowMs) return false;
+
+  const dayStart = startOfDay(new Date(nowMs));
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayEnd.getTime();
+  return (
+    bounds.startMs >= dayStartMs &&
+    bounds.startMs < dayEndMs &&
+    bounds.endMs >= dayStartMs &&
+    bounds.endMs < dayEndMs
+  );
+}
+
+/** Completed-today events, newest-ended first. */
+export function filterCompletedTodayMeetings(
+  events: readonly MeetingEvent[],
+  nowMs: number,
+): MeetingEvent[] {
+  return events
+    .filter((e) => isCompletedTodayMeeting(e, nowMs))
+    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
 }
 
 /**

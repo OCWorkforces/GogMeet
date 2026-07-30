@@ -1,8 +1,9 @@
 import type { AppSettings } from "../../domain/entities/settings.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
-import { isTomorrow, startOfDay } from "../../domain/services/time.js";
+import { isTomorrow } from "../../domain/services/time.js";
 import {
+  filterCompletedTodayMeetings,
   filterUpcomingMeetings,
   isMeetingInProgress,
   isMeetingNotEnded,
@@ -35,35 +36,6 @@ function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string
   const hours = startTime.getHours().toString().padStart(2, "0");
   const minutes = startTime.getMinutes().toString().padStart(2, "0");
   return { label: `${hours}:${minutes}`, cls: "" };
-}
-
-/**
- * True when both local start and end fall on the local calendar day of `nowMs`
- * and the meeting has already ended (`endMs <= nowMs`).
- * Excludes overnight, prior-day, and multi-day spanning events.
- */
-export function isCompletedTodayMeeting(event: MeetingEvent, nowMs: number): boolean {
-  const startMs = new Date(event.startDate).getTime();
-  const endMs = new Date(event.endDate).getTime();
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
-  if (endMs > nowMs) return false;
-
-  const dayStart = startOfDay(new Date(nowMs));
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-  const dayStartMs = dayStart.getTime();
-  const dayEndMs = dayEnd.getTime();
-  return startMs >= dayStartMs && startMs < dayEndMs && endMs >= dayStartMs && endMs < dayEndMs;
-}
-
-/** Completed-today events, newest-ended first. */
-export function filterCompletedTodayMeetings(
-  events: readonly MeetingEvent[],
-  nowMs: number,
-): MeetingEvent[] {
-  return events
-    .filter((e) => isCompletedTodayMeeting(e, nowMs))
-    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
 }
 
 function renderCompletedHistoryRow(event: MeetingEvent): string {

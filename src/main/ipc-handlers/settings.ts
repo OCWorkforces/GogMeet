@@ -3,6 +3,7 @@ import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../../shared/ip
 import type { AppGraph } from "../composition/app-graph.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../domain/entities/settings.js";
+import { forceTrayMenuRefresh } from "../tray.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 /** Keys that require restartScheduler() to reschedule timers / re-evaluate gates */
@@ -45,6 +46,9 @@ export function registerSettingsHandlers(win: BrowserWindow, graph: AppGraph): v
           graph.scheduler.restart();
         } else if (typeof partial.showTomorrowMeetings === "boolean") {
           void graph.scheduler.forcePoll();
+        } else if (typeof partial.showCompletedTodayMeetings === "boolean") {
+          // Display-only: rebuild tray immediately so completed history appears without a poll.
+          forceTrayMenuRefresh();
         }
 
         if (typeof partial.launchAtLogin === "boolean") {
