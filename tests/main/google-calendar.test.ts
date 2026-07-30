@@ -3,6 +3,7 @@ import { createMockEvent, asTestMeetUrl, asTestIsoUtc } from "../helpers/test-ut
 
 const {
   ensureFreshGoogleAccessToken,
+  refreshGoogleAccessToken,
   isGoogleOAuthInFlight,
   runGooglePkceLogin,
   loadGoogleTokens,
@@ -13,6 +14,7 @@ const {
   clearOfflineCache,
 } = vi.hoisted(() => ({
   ensureFreshGoogleAccessToken: vi.fn(),
+  refreshGoogleAccessToken: vi.fn(),
   isGoogleOAuthInFlight: vi.fn(),
   runGooglePkceLogin: vi.fn(),
   loadGoogleTokens: vi.fn(),
@@ -25,6 +27,7 @@ const {
 
 vi.mock("../../src/main/calendar/auth/google-oauth.js", () => ({
   ensureFreshGoogleAccessToken,
+  refreshGoogleAccessToken,
   isGoogleOAuthInFlight,
   runGooglePkceLogin,
 }));
@@ -67,6 +70,7 @@ describe("createGoogleCalendarProvider", () => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     ensureFreshGoogleAccessToken.mockReset();
+    refreshGoogleAccessToken.mockReset();
     isGoogleOAuthInFlight.mockReset().mockReturnValue(false);
     runGooglePkceLogin.mockReset();
     loadGoogleTokens.mockReset();
@@ -193,13 +197,19 @@ describe("createGoogleCalendarProvider", () => {
     expect(result.kind).toBe("err");
   });
 
-  it("retries once on AuthError then succeeds", async () => {
-    ensureFreshGoogleAccessToken
-      .mockResolvedValueOnce(tokens)
-      .mockResolvedValueOnce({ ...tokens, accessToken: "new-access" });
+  it("retries once on AuthError then succeeds with a different access token", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "ok",
+      tokens: { ...tokens, accessToken: "new-access" },
+      didRefresh: true,
+    });
 
     let call = 0;
-    fetchMock.mockImplementation(async (url: string) => {
+    const tokensSeen: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.["Authorization"];
+      if (typeof auth === "string") tokensSeen.push(auth);
       if (url.includes("calendarList")) {
         call++;
         if (call === 1) return new Response("unauthorized", { status: 401 });
@@ -223,10 +233,17 @@ describe("createGoogleCalendarProvider", () => {
     if (result.kind === "ok") {
       expect(result.events[0]?.title).toBe("After retry");
     }
+    expect(refreshGoogleAccessToken).toHaveBeenCalledWith("force");
+    expect(tokensSeen.some((h) => h.includes("new-access"))).toBe(true);
   });
 
-  it("clears tokens when auth fails after retry", async () => {
+  it("clears tokens when auth fails after forced refresh retry", async () => {
     ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "ok",
+      tokens: { ...tokens, accessToken: "new-access" },
+      didRefresh: true,
+    });
     fetchMock.mockImplementation(async () => new Response("nope", { status: 401 }));
 
     const provider = createGoogleCalendarProvider();
@@ -235,8 +252,7 @@ describe("createGoogleCalendarProvider", () => {
     if (result.kind === "err") {
       expect(result.code).toBe("permission-denied");
     }
-    // First 401 → refresh path; second 401 with tokens → clear
-    expect(ensureFreshGoogleAccessToken.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(refreshGoogleAccessToken).toHaveBeenCalledWith("force");
     expect(clearGoogleTokens).toHaveBeenCalled();
   });
 
@@ -402,14 +418,40 @@ describe("createGoogleCalendarProvider", () => {
     }
   });
 
-  it("auth retry fails when ensureFresh returns null", async () => {
-    ensureFreshGoogleAccessToken
-      .mockResolvedValueOnce(tokens)
-      .mockResolvedValueOnce(null);
+  it("auth retry fails when force refresh returns no-tokens without clearing again", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({ kind: "no-tokens" });
     fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
     const provider = createGoogleCalendarProvider();
     const result = await provider.getEvents();
     expect(result.kind).toBe("err");
-    expect(clearGoogleTokens).toHaveBeenCalled();
+    if (result.kind === "err") expect(result.code).toBe("permission-denied");
+    // no-tokens path does not call clear again (nothing to clear / already gone)
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("transient force refresh preserves credentials and uses offline cache", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({
+      kind: "transient",
+      reason: "timeout",
+    });
+    fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
+    loadOfflineCache.mockResolvedValue({
+      savedAt: Date.now(),
+      events: [
+        createMockEvent({
+          id: "cached",
+          title: "Cached",
+          meetUrl: asTestMeetUrl("https://meet.google.com/aaa-bbb-ccc"),
+          startDate: asTestIsoUtc("2026-07-27T15:00:00.000Z"),
+          endDate: asTestIsoUtc("2026-07-27T16:00:00.000Z"),
+        }),
+      ],
+    });
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents();
+    expect(result.kind).toBe("ok");
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const {
   loadGoogleTokens,
+  loadGoogleTokensResult,
   saveGoogleTokens,
   clearGoogleTokens,
   getGoogleOAuthClientId,
@@ -9,6 +10,7 @@ const {
   openExternal,
 } = vi.hoisted(() => ({
   loadGoogleTokens: vi.fn(),
+  loadGoogleTokensResult: vi.fn(),
   saveGoogleTokens: vi.fn(),
   clearGoogleTokens: vi.fn(),
   getGoogleOAuthClientId: vi.fn(),
@@ -18,6 +20,7 @@ const {
 
 vi.mock("../../src/main/calendar/auth/google-token-store.js", () => ({
   loadGoogleTokens,
+  loadGoogleTokensResult,
   saveGoogleTokens,
   clearGoogleTokens,
 }));
@@ -46,6 +49,13 @@ describe("google-oauth", () => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     loadGoogleTokens.mockReset();
+    loadGoogleTokensResult.mockReset();
+    loadGoogleTokensResult.mockImplementation(async () => {
+      const t = await loadGoogleTokens();
+      return t === null
+        ? { kind: "err", reason: "missing", preservedCiphertext: false }
+        : { kind: "ok", tokens: t };
+    });
     saveGoogleTokens.mockReset().mockResolvedValue(undefined);
     clearGoogleTokens.mockReset().mockResolvedValue(undefined);
     getGoogleOAuthClientId.mockReset().mockReturnValue("client.apps.googleusercontent.com");
@@ -91,18 +101,69 @@ describe("google-oauth", () => {
     expect(saveGoogleTokens).toHaveBeenCalled();
   });
 
-  it("clears tokens on refresh failure", async () => {
+  it("clears tokens only on definitive invalid_grant", async () => {
     loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error_description: "invalid_grant" }), { status: 400 }),
+      new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }),
     );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { ensureFreshGoogleAccessToken } = await import(
+    const { ensureFreshGoogleAccessToken, refreshGoogleAccessToken } = await import(
       "../../src/main/calendar/auth/google-oauth.js"
     );
+    // loadGoogleTokensResult is used now — mock loadGoogleTokens still used via loadGoogleTokensResult
+    // which calls real store... we mock the store module. Need loadGoogleTokensResult mock.
     expect(await ensureFreshGoogleAccessToken()).toBeNull();
+    const typed = await refreshGoogleAccessToken("if-needed");
+    // After clear, subsequent may be no-tokens; first call should have cleared
     expect(clearGoogleTokens).toHaveBeenCalled();
+    void typed;
     warn.mockRestore();
+  });
+
+  it("preserves tokens on transient refresh failure (timeout/network)", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          setTimeout(() => reject(Object.assign(new Error("timeout"), { name: "AbortError" })), 0);
+        }),
+    );
+    // Force transport timeout via hang + abort from google-http deadline is heavy;
+    // simulate network failure from fetch reject.
+    fetchMock.mockRejectedValueOnce(new Error("ECONNRESET"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result.kind).toBe("transient");
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("force refresh performs network call even when access token is unexpired", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 120_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ access_token: "forced-access", expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const { refreshGoogleAccessToken, ensureFreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    // if-needed must NOT refresh
+    const cached = await ensureFreshGoogleAccessToken("if-needed");
+    expect(cached?.accessToken).toBe("old-access");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const forced = await refreshGoogleAccessToken("force");
+    expect(forced.kind).toBe("ok");
+    if (forced.kind === "ok") {
+      expect(forced.didRefresh).toBe(true);
+      expect(forced.tokens.accessToken).toBe("forced-access");
+    }
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("isGoogleOAuthInFlight is false initially", async () => {
@@ -223,16 +284,57 @@ describe("google-oauth", () => {
     expect(t?.refreshToken).toBe("refresh");
   });
 
-  it("refresh fails when client id empty", async () => {
+  it("refresh fails closed on empty client id without clearing tokens", async () => {
     getGoogleOAuthClientId.mockReturnValue("");
     loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { ensureFreshGoogleAccessToken } = await import(
+    const { refreshGoogleAccessToken } = await import(
       "../../src/main/calendar/auth/google-oauth.js"
     );
-    expect(await ensureFreshGoogleAccessToken()).toBeNull();
-    expect(clearGoogleTokens).toHaveBeenCalled();
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result).toEqual({ kind: "transient", reason: "configuration" });
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("refresh success with save failure returns storage transient and does not expose token", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ access_token: "new-access", expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    saveGoogleTokens.mockRejectedValueOnce(new Error("disk full"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result).toEqual({ kind: "transient", reason: "storage" });
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("force during if-needed cache-hit enqueues a real forced refresh", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 120_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ access_token: "after-force", expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const ifNeeded = await refreshGoogleAccessToken("if-needed");
+    expect(ifNeeded.kind).toBe("ok");
+    if (ifNeeded.kind === "ok") expect(ifNeeded.didRefresh).toBe(false);
+
+    const forced = await refreshGoogleAccessToken("force");
+    expect(forced.kind).toBe("ok");
+    if (forced.kind === "ok") {
+      expect(forced.didRefresh).toBe(true);
+      expect(forced.tokens.accessToken).toBe("after-force");
+    }
   });
 
   it("token exchange failure path returns denied", { timeout: 10_000 }, async () => {

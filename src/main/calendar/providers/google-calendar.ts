@@ -18,10 +18,16 @@ import { clearGoogleTokens, loadGoogleTokens } from "../auth/google-token-store.
 import {
   ensureFreshGoogleAccessToken,
   isGoogleOAuthInFlight,
+  refreshGoogleAccessToken,
   runGooglePkceLogin,
 } from "../auth/google-oauth.js";
 import { isGoogleOAuthConfigured } from "../auth/google-client-id.js";
 import { clearOfflineCache, loadOfflineCache, saveOfflineCache } from "../offline-cache.js";
+import {
+  createPollBudgetSignal,
+  GoogleHttpError,
+  googleHttpRequest,
+} from "../google-http.js";
 
 const MAX_PAGES = 50;
 
@@ -50,22 +56,38 @@ function dayBoundsLocal(): { timeMin: string; timeMax: string } {
 async function googleFetch(
   url: string,
   accessToken: string,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; json: unknown } | { ok: false; status: number; body: string }> {
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const body = await res.text();
-  if (!res.ok) {
-    return { ok: false, status: res.status, body };
-  }
   try {
-    return { ok: true, json: JSON.parse(body) as unknown };
-  } catch {
-    return { ok: false, status: res.status, body: "invalid JSON" };
+    const res = await googleHttpRequest({
+      url,
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal,
+    });
+    if (!res.ok) {
+      // Do not propagate raw bodies upward for logging — keep a short redacted stub.
+      return { ok: false, status: res.status, body: `http ${res.status}` };
+    }
+    try {
+      return { ok: true, json: JSON.parse(res.bodyText) as unknown };
+    } catch {
+      return { ok: false, status: res.status, body: "invalid JSON" };
+    }
+  } catch (err) {
+    if (err instanceof GoogleHttpError) {
+      if (err.errorClass === "auth") {
+        throw new AuthError(err.message);
+      }
+      throw new NetworkError(err.message);
+    }
+    throw err;
   }
 }
 
-async function listSelectedCalendarIds(accessToken: string): Promise<string[]> {
+async function listSelectedCalendarIds(
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
   const ids: string[] = [];
   let pageToken: string | undefined;
 
@@ -74,7 +96,7 @@ async function listSelectedCalendarIds(accessToken: string): Promise<string[]> {
     url.searchParams.set("maxResults", "250");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-    const result = await googleFetch(url.toString(), accessToken);
+    const result = await googleFetch(url.toString(), accessToken, signal);
     if (!result.ok) {
       if (result.status === 401) throw new AuthError(result.body);
       throw new NetworkError(`calendarList failed (${result.status})`);
@@ -189,6 +211,7 @@ async function fetchEventsForCalendar(
   userEmail: string | undefined,
   timeMin: string,
   timeMax: string,
+  signal?: AbortSignal,
 ): Promise<MeetingEvent[]> {
   const events: MeetingEvent[] = [];
   let pageToken: string | undefined;
@@ -205,7 +228,7 @@ async function fetchEventsForCalendar(
     url.searchParams.set("maxResults", "250");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-    const result = await googleFetch(url.toString(), accessToken);
+    const result = await googleFetch(url.toString(), accessToken, signal);
     if (!result.ok) {
       if (result.status === 401) throw new AuthError(result.body);
       if (result.status === 403 || result.status === 404) {
@@ -233,9 +256,10 @@ async function fetchEventsForCalendar(
 async function fetchAllEvents(
   accessToken: string,
   userEmail: string | undefined,
+  signal?: AbortSignal,
 ): Promise<MeetingEvent[]> {
   const { timeMin, timeMax } = dayBoundsLocal();
-  const calendarIds = await listSelectedCalendarIds(accessToken);
+  const calendarIds = await listSelectedCalendarIds(accessToken, signal);
   const merged: MeetingEvent[] = [];
   let successCount = 0;
   let lastError: Error | null = null;
@@ -249,6 +273,7 @@ async function fetchAllEvents(
         userEmail,
         timeMin,
         timeMax,
+        signal,
       );
       merged.push(...batch);
       successCount++;
@@ -275,8 +300,11 @@ export function createGoogleCalendarProvider(): CalendarProvider {
     id: "google-calendar",
 
     async getEvents(): Promise<CalendarResult> {
+      // 60 s overall poll budget for list + pages + await of refresh/retry.
+      // Does not cancel shared OAuth transport; only stops this poll.
+      const budget = createPollBudgetSignal();
       try {
-        let tokens = await ensureFreshGoogleAccessToken();
+        let tokens = await ensureFreshGoogleAccessToken("if-needed");
         if (tokens === null) {
           return {
             kind: "err",
@@ -289,31 +317,18 @@ export function createGoogleCalendarProvider(): CalendarProvider {
         }
 
         try {
-          const events = await fetchAllEvents(tokens.accessToken, tokens.email);
+          const events = await fetchAllEvents(tokens.accessToken, tokens.email, budget.signal);
           await saveOfflineCache(events);
           return { kind: "ok", events };
         } catch (err) {
           if (err instanceof AuthError) {
-            // One refresh+retry
-            tokens = await ensureFreshGoogleAccessToken();
-            if (tokens === null) {
-              await clearGoogleTokens();
-              return {
-                kind: "err",
-                error: formatAppError({
-                  kind: "calendar-auth",
-                  message: "Google session expired. Please reconnect.",
-                }),
-                code: "permission-denied",
-              };
-            }
-            try {
-              const events = await fetchAllEvents(tokens.accessToken, tokens.email);
-              await saveOfflineCache(events);
-              return { kind: "ok", events };
-            } catch (retryErr) {
-              if (retryErr instanceof AuthError) {
-                await clearGoogleTokens();
+            // API 401: force one real refresh (not a no-op on unexpired token), then one retry.
+            // Poll abort stops only this waiter; shared OAuth uses its own deadline.
+            const forced = await refreshGoogleAccessToken("force");
+            if (forced.kind !== "ok") {
+              // invalidation already cleared credentials when definitive;
+              // transient failures preserve ciphertext and fall through to offline.
+              if (forced.kind === "invalidated" || forced.kind === "no-tokens") {
                 return {
                   kind: "err",
                   error: formatAppError({
@@ -323,11 +338,36 @@ export function createGoogleCalendarProvider(): CalendarProvider {
                   code: "permission-denied",
                 };
               }
-              throw retryErr;
+              // transient refresh failure — try offline, do not clear
+            } else {
+              tokens = forced.tokens;
+              try {
+                const events = await fetchAllEvents(
+                  tokens.accessToken,
+                  tokens.email,
+                  budget.signal,
+                );
+                await saveOfflineCache(events);
+                return { kind: "ok", events };
+              } catch (retryErr) {
+                if (retryErr instanceof AuthError) {
+                  // Second API 401 after a real force refresh — definitive session loss.
+                  await clearGoogleTokens();
+                  return {
+                    kind: "err",
+                    error: formatAppError({
+                      kind: "calendar-auth",
+                      message: "Google session expired. Please reconnect.",
+                    }),
+                    code: "permission-denied",
+                  };
+                }
+                throw retryErr;
+              }
             }
           }
 
-          // Network / other: try offline cache
+          // Network / other / transient force-refresh: try offline cache
           const cache = await loadOfflineCache();
           if (cache && cache.events.length > 0) {
             console.warn("[calendar:google] Network failure; using offline cache");
@@ -352,6 +392,8 @@ export function createGoogleCalendarProvider(): CalendarProvider {
           error: formatAppError({ kind: "calendar-runtime", message }),
           code: "runtime",
         };
+      } finally {
+        budget.cleanup();
       }
     },
 

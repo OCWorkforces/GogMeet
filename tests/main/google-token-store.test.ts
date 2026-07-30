@@ -77,7 +77,8 @@ describe("google-token-store", () => {
     expect(loaded?.scope).toBe("openid");
   });
 
-  it("wipes tokens when clientId mismatches", async () => {
+  it("preserves ciphertext when clientId mismatches", async () => {
+    const { readFile } = await import("node:fs/promises");
     const store = await import("../../src/main/calendar/auth/google-token-store.js");
     await store.saveGoogleTokens({
       accessToken: "access",
@@ -85,12 +86,19 @@ describe("google-token-store", () => {
       expiryMs: Date.now() + 3600_000,
       clientId: "test-client-id.apps.googleusercontent.com",
     });
+    const before = await readFile(store.googleTokenFilePath());
     process.env["GOOGLE_OAUTH_CLIENT_ID"] = "other-client.apps.googleusercontent.com";
     vi.resetModules();
-    const { loadGoogleTokens } = await import(
-      "../../src/main/calendar/auth/google-token-store.js"
-    );
-    expect(await loadGoogleTokens()).toBeNull();
+    const reloaded = await import("../../src/main/calendar/auth/google-token-store.js");
+    expect(await reloaded.loadGoogleTokens()).toBeNull();
+    const after = await readFile(reloaded.googleTokenFilePath());
+    expect(Buffer.compare(before, after)).toBe(0);
+    const typed = await reloaded.loadGoogleTokensResult();
+    expect(typed).toMatchObject({
+      kind: "err",
+      reason: "client-mismatch",
+      preservedCiphertext: true,
+    });
   });
 
   it("clearGoogleTokens removes file", async () => {
@@ -105,15 +113,65 @@ describe("google-token-store", () => {
     await store.clearGoogleTokens(); // missing file ok
   });
 
-  it("load returns null for corrupt JSON", async () => {
+  it("load returns null for corrupt JSON but preserves ciphertext", async () => {
+    const { readFile } = await import("node:fs/promises");
     const store = await import("../../src/main/calendar/auth/google-token-store.js");
     await store.saveGoogleTokens({
       accessToken: "a",
       refreshToken: "r",
       expiryMs: Date.now() + 99999,
     });
+    const before = await readFile(store.googleTokenFilePath());
     decryptMock.mockReturnValueOnce("not-json");
     expect(await store.loadGoogleTokens()).toBeNull();
+    const after = await readFile(store.googleTokenFilePath());
+    expect(Buffer.compare(before, after)).toBe(0);
+    decryptMock.mockReturnValueOnce("not-json");
+    const typed = await store.loadGoogleTokensResult();
+    expect(typed).toMatchObject({
+      kind: "err",
+      reason: "malformed",
+      preservedCiphertext: true,
+    });
+  });
+
+  it("preserves ciphertext when decrypt throws", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const store = await import("../../src/main/calendar/auth/google-token-store.js");
+    await store.saveGoogleTokens({
+      accessToken: "a",
+      refreshToken: "r",
+      expiryMs: Date.now() + 99999,
+    });
+    const before = await readFile(store.googleTokenFilePath());
+    decryptMock.mockImplementationOnce(() => {
+      throw new Error("decrypt failed");
+    });
+    expect(await store.loadGoogleTokens()).toBeNull();
+    const after = await readFile(store.googleTokenFilePath());
+    expect(Buffer.compare(before, after)).toBe(0);
+  });
+
+  it("preserves ciphertext when secure storage is temporarily unavailable", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const store = await import("../../src/main/calendar/auth/google-token-store.js");
+    await store.saveGoogleTokens({
+      accessToken: "a",
+      refreshToken: "r",
+      expiryMs: Date.now() + 99999,
+    });
+    const before = await readFile(store.googleTokenFilePath());
+    encryptionOn.value = false;
+    delete process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"];
+    appState.isPackaged = true;
+    const typed = await store.loadGoogleTokensResult();
+    expect(typed).toMatchObject({
+      kind: "err",
+      reason: "secure-storage-unavailable",
+      preservedCiphertext: true,
+    });
+    const after = await readFile(store.googleTokenFilePath());
+    expect(Buffer.compare(before, after)).toBe(0);
   });
 
   it("save throws when client id missing", async () => {

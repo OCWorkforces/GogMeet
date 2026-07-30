@@ -12,17 +12,54 @@ import { getGoogleOAuthClientId, isGoogleOAuthConfigured } from "./google-client
 import {
   clearGoogleTokens,
   loadGoogleTokens,
+  loadGoogleTokensResult,
   saveGoogleTokens,
   type GoogleTokenFileV1,
 } from "./google-token-store.js";
+import {
+  GoogleHttpError,
+  googleHttpJson,
+  googleHttpRequest,
+  parseGoogleApiErrorCode,
+} from "../google-http.js";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly", "openid", "email"] as const;
 
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 const PROACTIVE_REFRESH_MS = 60_000;
 
-let refreshInFlight: Promise<GoogleTokenFileV1 | null> | null = null;
+export type GoogleRefreshMode = "if-needed" | "force";
+
+export type GoogleTokenRefreshResult =
+  | { kind: "ok"; tokens: GoogleTokenFileV1; didRefresh: boolean }
+  | { kind: "no-tokens" }
+  | { kind: "invalidated" }
+  | {
+      kind: "transient";
+      reason:
+        | "network"
+        | "timeout"
+        | "abort"
+        | "rate-limit"
+        | "server"
+        | "protocol"
+        | "storage"
+        | "configuration";
+    };
+
+/** In-flight actual network refresh (never a pure cache hit). */
+let refreshInFlight: Promise<GoogleTokenRefreshResult> | null = null;
+/** Single forced follow-up when force joined an if-needed that did not refresh. */
+let forceFollowUp: Promise<GoogleTokenRefreshResult> | null = null;
+/** Lifecycle-level abort for shared OAuth transport (shutdown). */
+let lifecycleAbort: AbortController = new AbortController();
 let oauthInFlight: Promise<"granted" | "denied" | "not-determined"> | null = null;
+
+/** Abort any in-flight shared token refresh (app shutdown). New calls get a fresh controller. */
+export function abortGoogleTokenRefreshLifecycle(): void {
+  lifecycleAbort.abort();
+  lifecycleAbort = new AbortController();
+}
 
 function base64Url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
@@ -61,18 +98,23 @@ async function exchangeCode(params: {
     code_verifier: params.codeVerifier,
   });
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    throw new Error(
-      typeof json["error_description"] === "string"
-        ? json["error_description"]
-        : `Token exchange failed (${res.status})`,
-    );
+  let json: Record<string, unknown>;
+  try {
+    json = (await googleHttpJson({
+      url: "https://oauth2.googleapis.com/token",
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    })) as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof GoogleHttpError) {
+      throw new Error(
+        err.apiErrorCode
+          ? `Token exchange failed (${err.apiErrorCode})`
+          : `Token exchange failed (${err.errorClass})`,
+      );
+    }
+    throw err;
   }
 
   const accessToken = json["access_token"];
@@ -85,12 +127,15 @@ async function exchangeCode(params: {
 
   let email: string | undefined;
   try {
-    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    const userRes = await googleHttpRequest({
+      url: "https://www.googleapis.com/oauth2/v2/userinfo",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (userRes.ok) {
-      const user = (await userRes.json()) as Record<string, unknown>;
+      const user = JSON.parse(userRes.bodyText) as Record<string, unknown>;
       if (typeof user["email"] === "string") email = user["email"];
+    } else {
+      void parseGoogleApiErrorCode(userRes.bodyText);
     }
   } catch {
     // email is optional
@@ -108,10 +153,43 @@ async function exchangeCode(params: {
   };
 }
 
-async function refreshWithToken(tokens: GoogleTokenFileV1): Promise<GoogleTokenFileV1> {
+function isDefinitiveAuthInvalidation(apiErrorCode: string | undefined): boolean {
+  return apiErrorCode === "invalid_grant" || apiErrorCode === "invalid_token";
+}
+
+function mapHttpErrorToRefreshResult(err: GoogleHttpError): GoogleTokenRefreshResult {
+  // OAuth token endpoint often returns 400 + invalid_grant — treat by code, not only 401/403.
+  if (isDefinitiveAuthInvalidation(err.apiErrorCode)) {
+    return { kind: "invalidated" };
+  }
+  switch (err.errorClass) {
+    case "timeout":
+      return { kind: "transient", reason: "timeout" };
+    case "abort":
+      return { kind: "transient", reason: "abort" };
+    case "rate-limit":
+      return { kind: "transient", reason: "rate-limit" };
+    case "server":
+      return { kind: "transient", reason: "server" };
+    case "auth":
+      // Non-definitive auth (e.g. 403) — treat as transient protocol/auth noise
+      return { kind: "transient", reason: "protocol" };
+    case "protocol":
+    case "payload-too-large":
+      return { kind: "transient", reason: "protocol" };
+    case "network":
+    default:
+      return { kind: "transient", reason: "network" };
+  }
+}
+
+async function performNetworkRefresh(
+  tokens: GoogleTokenFileV1,
+  signal?: AbortSignal,
+): Promise<GoogleTokenRefreshResult> {
   const clientId = getGoogleOAuthClientId();
   if (clientId.length === 0) {
-    throw new Error("GOOGLE_OAUTH_CLIENT_ID is not configured");
+    return { kind: "transient", reason: "configuration" };
   }
 
   const body = new URLSearchParams({
@@ -120,24 +198,41 @@ async function refreshWithToken(tokens: GoogleTokenFileV1): Promise<GoogleTokenF
     refresh_token: tokens.refreshToken,
   });
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    throw new Error(
-      typeof json["error_description"] === "string"
-        ? json["error_description"]
-        : `Token refresh failed (${res.status})`,
-    );
+  // Shared refresh is bounded by its own 15s transport deadline + lifecycle abort.
+  // Caller/poll abort must not cancel the shared flight (only the waiter).
+  const composed =
+    signal !== undefined
+      ? AbortSignal.any([lifecycleAbort.signal, signal])
+      : lifecycleAbort.signal;
+
+  let json: Record<string, unknown>;
+  try {
+    json = (await googleHttpJson({
+      url: "https://oauth2.googleapis.com/token",
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      signal: composed,
+    })) as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof GoogleHttpError) {
+      const mapped = mapHttpErrorToRefreshResult(err);
+      if (mapped.kind === "invalidated") {
+        console.warn("[calendar:auth] Refresh invalidated grant; clearing tokens");
+        await clearGoogleTokens();
+      } else {
+        console.warn("[calendar:auth] Refresh failed (credentials preserved):", err.errorClass);
+      }
+      return mapped;
+    }
+    console.warn("[calendar:auth] Refresh failed (credentials preserved):", err);
+    return { kind: "transient", reason: "network" };
   }
 
   const accessToken = json["access_token"];
   const expiresIn = json["expires_in"];
   if (typeof accessToken !== "string") {
-    throw new Error("Refresh response missing access_token");
+    return { kind: "transient", reason: "protocol" };
   }
 
   const next: GoogleTokenFileV1 = {
@@ -149,34 +244,159 @@ async function refreshWithToken(tokens: GoogleTokenFileV1): Promise<GoogleTokenF
     refreshToken:
       typeof json["refresh_token"] === "string" ? json["refresh_token"] : tokens.refreshToken,
   };
-  await saveGoogleTokens(next);
-  return next;
+
+  try {
+    await saveGoogleTokens(next);
+  } catch (err) {
+    console.warn(
+      "[calendar:auth] Refresh succeeded but persistence failed; discarding unpersisted token:",
+      err,
+    );
+    // Prior ciphertext left untouched by failed write.
+    return { kind: "transient", reason: "storage" };
+  }
+
+  return { kind: "ok", tokens: next, didRefresh: true };
 }
 
-/** Single-flight token refresh; clears tokens permanently on hard failure. */
-export async function ensureFreshGoogleAccessToken(): Promise<GoogleTokenFileV1 | null> {
+/**
+ * Start or join a network refresh flight. Always performs a real token refresh
+ * when tokens are present (caller decides if-needed vs force before calling).
+ */
+function startRefreshFlight(tokens: GoogleTokenFileV1): Promise<GoogleTokenRefreshResult> {
   if (refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = (async () => {
-    const tokens = await loadGoogleTokens();
-    if (tokens === null) return null;
-
-    if (tokens.expiryMs - Date.now() > PROACTIVE_REFRESH_MS) {
-      return tokens;
-    }
-
-    try {
-      return await refreshWithToken(tokens);
-    } catch (err) {
-      console.warn("[calendar:auth] Refresh failed; clearing tokens:", err);
-      await clearGoogleTokens();
-      return null;
-    }
-  })().finally(() => {
+  refreshInFlight = performNetworkRefresh(tokens, lifecycleAbort.signal).finally(() => {
     refreshInFlight = null;
   });
-
   return refreshInFlight;
+}
+
+async function runForceFollowUp(): Promise<GoogleTokenRefreshResult> {
+  if (forceFollowUp) return forceFollowUp;
+
+  forceFollowUp = (async () => {
+    // Wait for any active if-needed/network flight to finish first.
+    if (refreshInFlight) {
+      try {
+        await refreshInFlight;
+      } catch {
+        // ignore
+      }
+    }
+    const loaded = await loadGoogleTokensResult();
+    if (loaded.kind !== "ok") {
+      return loaded.reason === "missing"
+        ? { kind: "no-tokens" }
+        : { kind: "transient", reason: "storage" };
+    }
+    return startRefreshFlight(loaded.tokens);
+  })().finally(() => {
+    forceFollowUp = null;
+  });
+
+  return forceFollowUp;
+}
+
+/**
+ * Race a shared result against a caller AbortSignal without cancelling the shared work.
+ */
+async function awaitSharedWithCallerAbort(
+  shared: Promise<GoogleTokenRefreshResult>,
+  callerSignal?: AbortSignal,
+): Promise<GoogleTokenRefreshResult> {
+  if (!callerSignal) return shared;
+  if (callerSignal.aborted) {
+    return { kind: "transient", reason: "abort" };
+  }
+  return await new Promise<GoogleTokenRefreshResult>((resolve) => {
+    const onAbort = (): void => {
+      cleanup();
+      resolve({ kind: "transient", reason: "abort" });
+    };
+    const cleanup = (): void => {
+      callerSignal.removeEventListener("abort", onAbort);
+    };
+    callerSignal.addEventListener("abort", onAbort, { once: true });
+    void shared.then(
+      (result) => {
+        cleanup();
+        resolve(result);
+      },
+      () => {
+        cleanup();
+        resolve({ kind: "transient", reason: "network" });
+      },
+    );
+  });
+}
+
+/**
+ * Typed token refresh with if-needed | force modes.
+ * - if-needed: returns cached tokens when still fresh; otherwise single-flight refresh
+ * - force: always performs a real refresh; joins an in-flight network refresh; if the
+ *   concurrent if-needed path only returned a cache hit, enqueues one forced follow-up
+ * Clears credentials only on definitive invalid_grant / invalid_token.
+ */
+export async function refreshGoogleAccessToken(
+  mode: GoogleRefreshMode = "if-needed",
+  callerSignal?: AbortSignal,
+): Promise<GoogleTokenRefreshResult> {
+  if (mode === "force") {
+    if (refreshInFlight) {
+      const joined = await awaitSharedWithCallerAbort(refreshInFlight, callerSignal);
+      if (joined.kind === "ok" && joined.didRefresh) {
+        return joined;
+      }
+      if (joined.kind === "transient" && joined.reason === "abort" && callerSignal?.aborted) {
+        return joined;
+      }
+      // In-flight was not a successful refresh for this force caller — one follow-up.
+      return awaitSharedWithCallerAbort(runForceFollowUp(), callerSignal);
+    }
+
+    if (forceFollowUp) {
+      return awaitSharedWithCallerAbort(forceFollowUp, callerSignal);
+    }
+
+    const loaded = await loadGoogleTokensResult();
+    if (loaded.kind !== "ok") {
+      if (loaded.reason === "missing") return { kind: "no-tokens" };
+      return { kind: "transient", reason: "storage" };
+    }
+    return awaitSharedWithCallerAbort(startRefreshFlight(loaded.tokens), callerSignal);
+  }
+
+  // if-needed
+  const loaded = await loadGoogleTokensResult();
+  if (loaded.kind !== "ok") {
+    if (loaded.reason === "missing") return { kind: "no-tokens" };
+    return { kind: "transient", reason: "storage" };
+  }
+
+  if (loaded.tokens.expiryMs - Date.now() > PROACTIVE_REFRESH_MS) {
+    // Cache hit — no network. Concurrent force callers must not treat this as a refresh.
+    return { kind: "ok", tokens: loaded.tokens, didRefresh: false };
+  }
+
+  if (refreshInFlight) {
+    return awaitSharedWithCallerAbort(refreshInFlight, callerSignal);
+  }
+
+  return awaitSharedWithCallerAbort(startRefreshFlight(loaded.tokens), callerSignal);
+}
+
+/**
+ * Convenience wrapper: returns usable tokens or null.
+ * Does not clear credentials on transient failures.
+ * @param mode if-needed (default) or force
+ */
+export async function ensureFreshGoogleAccessToken(
+  mode: GoogleRefreshMode = "if-needed",
+  callerSignal?: AbortSignal,
+): Promise<GoogleTokenFileV1 | null> {
+  const result = await refreshGoogleAccessToken(mode, callerSignal);
+  return result.kind === "ok" ? result.tokens : null;
 }
 
 /**
