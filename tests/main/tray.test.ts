@@ -148,6 +148,11 @@ describe("formatRemainingTime", () => {
   });
 });
 
+/** Flush the microtask-coalesced tray rebuild scheduled by requestTrayRebuild. */
+async function flushTrayRebuild(): Promise<void> {
+  await Promise.resolve();
+}
+
 // Tray module exports
 describe("tray module exports", () => {
   beforeEach(() => {
@@ -244,6 +249,7 @@ describe("tray module exports", () => {
 
     // When: setup registers the tray item.
     setupTray(mockWindow, testAppGraph());
+    await flushTrayRebuild();
 
     // Then: the native tray menu is already installed for the first status-item activation.
     const trayInstance = getLatestTrayInstance(Tray);
@@ -264,11 +270,13 @@ describe("tray module exports", () => {
     // Given: a tray exists with its initial loading menu installed.
     const mockWindow = new BrowserWindow();
     setupTray(mockWindow, testAppGraph());
+    await flushTrayRebuild();
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.setContextMenu).mockClear();
 
     // When: the scheduler publishes fresh cached meetings.
     mainBus.emit("meeting-list-updated", [createMockEvent()]);
+    await flushTrayRebuild();
 
     // Then: the already-installed native menu is rebuilt for the next click.
     expect(trayInstance.setContextMenu).toHaveBeenCalledWith({});
@@ -282,6 +290,7 @@ describe("tray module exports", () => {
 
     const mockWindow = new BrowserWindow();
     setupTray(mockWindow, testAppGraph());
+    await flushTrayRebuild();
     const trayInstance = getLatestTrayInstance(Tray);
 
     const clickHandler = vi.mocked(trayInstance.on).mock.calls.find((c) => c[0] === "click")?.[1] as
@@ -363,6 +372,7 @@ describe("tray module exports", () => {
     const { mainBus } = await import("../../src/main/events.js");
     const { Tray } = await import("electron");
     setupTray({} as never, testAppGraph());
+    await flushTrayRebuild();
     const trayInstance = getLatestTrayInstance(Tray);
     vi.mocked(trayInstance.setContextMenu).mockClear();
     mainBus.emit("calendar-status-updated", {
@@ -373,7 +383,9 @@ describe("tray module exports", () => {
       events: [createMockEvent()],
       offline: true,
       oauthConfigured: true,
+      cacheAgeMs: null,
     });
+    await flushTrayRebuild();
     expect(trayInstance.setContextMenu).toHaveBeenCalled();
   });
 
@@ -434,6 +446,7 @@ describe("tray module exports", () => {
     const { setupTray } = await import("../../src/main/tray.js");
     const { Menu } = await import("electron");
     setupTray({} as never, graph);
+    await flushTrayRebuild();
     const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
       label?: string;
       click?: () => void;
