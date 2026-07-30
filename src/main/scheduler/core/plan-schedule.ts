@@ -154,6 +154,36 @@ function planInProgressEvent(
       startMs,
       endMs,
     });
+  } else {
+    // Already in-meeting: resync if calendar end (or identity fields) changed.
+    const prev = snapshot.scheduledEventData.get(event.id);
+    if (prev && prev.endMs !== endMs) {
+      actions.push({ type: "clear-in-meeting", eventId: event.id });
+      actions.push({
+        type: "start-in-meeting",
+        eventId: event.id,
+        title: event.title,
+        meetUrl: event.meetUrl,
+        openAtMs: startMs,
+        startMs,
+        endMs,
+      });
+    } else if (
+      prev &&
+      (prev.title !== event.title || prev.meetUrl !== event.meetUrl || prev.startMs !== startMs)
+    ) {
+      actions.push({
+        type: "update-snapshot",
+        eventId: event.id,
+        snapshot: {
+          title: event.title,
+          meetUrl: event.meetUrl,
+          openAtMs: startMs,
+          startMs,
+          endMs,
+        },
+      });
+    }
   }
 
   return true;

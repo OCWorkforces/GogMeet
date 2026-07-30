@@ -7,7 +7,7 @@ import type { BrowserWindow } from "electron";
 import type { CalendarResult } from "../../domain/entities/calendar-result.js";
 import type { CalendarPublication } from "../../domain/entities/calendar-publication.js";
 import { state, resetState, type PowerCallbacks } from "./state/index.js";
-import { poll } from "./poll.js";
+import { poll, republishUiForDisplayTick as republishUiForDisplayTickImpl } from "./poll.js";
 import { cancelBrowserTimer } from "./browser-timer.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
@@ -201,6 +201,14 @@ export function initPowerCallbacks(callbacks: PowerCallbacks): void {
 /** Last successful calendar fetch — used by global shortcut to join next meeting without polling */
 export function getLastKnownEvents(): CalendarResult | null {
   return state.lastKnownEvents;
+}
+
+/**
+ * Force UI re-publish of the last calendar snapshot so tray/popover re-filter
+ * with wall clock (display-horizon tick). Does not fetch the calendar again.
+ */
+export function republishUiForDisplayTick(): void {
+  republishUiForDisplayTickImpl();
 }
 
 /**

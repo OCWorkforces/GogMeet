@@ -83,6 +83,37 @@ export function resolveActiveInMeetingEvent(): void {
   }
 }
 
+/**
+ * Tear down in-meeting countdown for an event at (or after) end.
+ * Captured endMs guards against a stale end timer wiping a rescheduled occurrence.
+ */
+function finishInMeetingCountdown(eventId: EventId, capturedEndMs: number, title: string): void {
+  const currentData = state.scheduledEventData.get(eventId);
+  // Guard: if the snapshot has been replaced with a newer occurrence (different endMs),
+  // this timer is stale — do not touch in-meeting state or the snapshot.
+  if (currentData && currentData.endMs !== capturedEndMs) {
+    state.inMeetingEndTimers.delete(eventId);
+    return;
+  }
+  const interval = state.inMeetingIntervals.get(eventId);
+  if (interval) {
+    clearInterval(interval);
+  }
+  state.inMeetingIntervals.delete(eventId);
+  const endTimer = state.inMeetingEndTimers.get(eventId);
+  if (endTimer) {
+    clearTimeout(endTimer);
+  }
+  state.inMeetingEndTimers.delete(eventId);
+  state.scheduledEventData.delete(eventId);
+  if (state.activeInMeetingEventId === eventId) {
+    setActiveInMeetingEventId(null);
+  }
+  markInMeetingDirty();
+  resolveActiveInMeetingEvent();
+  console.log(`[scheduler] Meeting ended: "${title}"`);
+}
+
 /** Start per-minute countdown showing remaining time until meeting ends */
 export function startInMeetingCountdown(
   eventId: EventId,
@@ -91,6 +122,8 @@ export function startInMeetingCountdown(
   const now = Date.now();
   if (data.endMs <= now) return; // already ended
 
+  const capturedEndMs = data.endMs;
+
   function tickInMeeting(): void {
     if (eventId !== state.activeInMeetingEventId) return;
     const currentData = state.scheduledEventData.get(eventId);
@@ -98,7 +131,10 @@ export function startInMeetingCountdown(
     const remaining = Math.ceil((currentData.endMs - Date.now()) / 60_000);
     if (remaining > 0) {
       state.onTrayTitleUpdate?.(currentData.title, remaining, true);
+      return;
     }
+    // remaining <= 0: end timeout may have been delayed (sleep); clean up now.
+    finishInMeetingCountdown(eventId, capturedEndMs, currentData.title);
   }
 
   // Immediate tick + per-minute interval
@@ -113,28 +149,8 @@ export function startInMeetingCountdown(
 
   // Set timer to clear at meeting end. Capture endMs so a stale end timer
   // (from a previous occurrence of this id) cannot delete a newer snapshot.
-  const capturedEndMs = data.endMs;
   const endHandle = setTimeout(() => {
-    const currentData = state.scheduledEventData.get(eventId);
-    // Guard: if the snapshot has been replaced with a newer occurrence (different endMs),
-    // this timer is stale — do not touch in-meeting state or the snapshot.
-    if (currentData && currentData.endMs !== capturedEndMs) {
-      state.inMeetingEndTimers.delete(eventId);
-      return;
-    }
-    const interval = state.inMeetingIntervals.get(eventId);
-    if (interval) {
-      clearInterval(interval);
-    }
-    state.inMeetingIntervals.delete(eventId);
-    state.inMeetingEndTimers.delete(eventId);
-    state.scheduledEventData.delete(eventId);
-    if (state.activeInMeetingEventId === eventId) {
-      setActiveInMeetingEventId(null);
-    }
-    markInMeetingDirty();
-    resolveActiveInMeetingEvent();
-    console.log(`[scheduler] Meeting ended: "${data.title}"`);
+    finishInMeetingCountdown(eventId, capturedEndMs, data.title);
   }, data.endMs - now);
 
   state.inMeetingEndTimers.set(eventId, endHandle);

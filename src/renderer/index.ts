@@ -198,10 +198,13 @@ async function init() {
   // Initial load
   await loadEvents();
 
-  // Resume on show with debounce to avoid rapid show/hide cycles
-  // No renderer interval — main pushes via CALENDAR_RESULT_UPDATED
+  // On show: always re-render from cached state so ended meetings drop immediately.
+  // Soft "In N min" / end membership while open is driven by main display-horizon
+  // pushes (CALENDAR_RESULT_UPDATED). Network refresh remains debounced.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
+      // Local re-filter with Date.now() — no loading flash, no network required.
+      render();
       const now = Date.now();
       if (now - rs.lastPollTime >= 5000) {
         rs.lastPollTime = now;

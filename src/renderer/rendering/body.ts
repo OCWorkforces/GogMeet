@@ -2,23 +2,25 @@ import type { AppSettings } from "../../domain/entities/settings.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
 import { isTomorrow } from "../../domain/services/time.js";
+import {
+  filterUpcomingMeetings,
+  isMeetingInProgress,
+  isMeetingNotEnded,
+} from "../../domain/services/meeting-time.js";
 
 import type { AppState } from "../../shared/app-state.js";
 
-function formatRelativeTime(startDate: string, endDate: string): { label: string; cls: string } {
-  const now = Date.now();
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  const diffMs = start - now;
+function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string; cls: string } {
+  const start = new Date(event.startDate).getTime();
+  const end = new Date(event.endDate).getTime();
+  const diffMs = start - nowMs;
   const diffMin = Math.round(diffMs / 60000);
 
-  // Meeting is in progress (started but not ended)
-  if (start <= now && now < end) {
+  if (isMeetingInProgress(event, nowMs)) {
     return { label: "In progress", cls: "now" };
   }
 
-  // Meeting has ended
-  if (now >= end) {
+  if (!isMeetingNotEnded(event, nowMs) || nowMs >= end) {
     return { label: "Ended", cls: "" };
   }
 
@@ -29,7 +31,7 @@ function formatRelativeTime(startDate: string, endDate: string): { label: string
     return { label: `In ${diffMin} min`, cls: "soon" };
   }
 
-  const startTime = new Date(startDate);
+  const startTime = new Date(event.startDate);
   const hours = startTime.getHours().toString().padStart(2, "0");
   const minutes = startTime.getMinutes().toString().padStart(2, "0");
   return { label: `${hours}:${minutes}`, cls: "" };
@@ -78,15 +80,8 @@ export function renderBody(s: AppState, settings: AppSettings): string {
 
     case "has-events": {
       const now = Date.now();
-      const upcoming: MeetingEvent[] = [];
-      let hasPastEvents = false;
-      for (const event of s.events) {
-        if (new Date(event.endDate).getTime() > now) {
-          upcoming.push(event);
-        } else {
-          hasPastEvents = true;
-        }
-      }
+      const upcoming = filterUpcomingMeetings(s.events, now);
+      const hasPastEvents = s.events.some((e) => !isMeetingNotEnded(e, now));
 
       // Check if any upcoming event is tomorrow
       const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
@@ -96,7 +91,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
       if (upcoming.length > 0) {
         parts.push(`<p class="section-header">${sectionHeader}</p>`);
         upcoming.forEach((event, i) => {
-          const rel = formatRelativeTime(event.startDate, event.endDate);
+          const rel = formatRelativeTime(event, now);
           const autoJoin = !event.isAllDay && !!event.meetUrl;
           parts.push(`
             <div class="meeting-item">

@@ -174,6 +174,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
+- Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
 - Performance plan (in progress): `docs/plans/gogmeet-performance-enhancement.md` — remaining: refresh coordinator, measurement experiments.

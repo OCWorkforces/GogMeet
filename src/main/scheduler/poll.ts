@@ -6,6 +6,7 @@ import {
 import { recordCalendarResult } from "../facades/calendar-status.js";
 import { IPC_CHANNELS } from "../../shared/ipc-channels.js";
 import { eventListSignature } from "../../domain/services/event-signature.js";
+import { filterUpcomingMeetings } from "../../domain/services/meeting-time.js";
 import {
   isCalendarAutomationEligible,
   isCalendarOk,
@@ -15,6 +16,7 @@ import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { typedSend } from "../ipc-handlers/shared.js";
 import { mainBus } from "../events.js";
 import { CalendarRefreshCancelledError } from "../calendar/refresh-coordinator.js";
+import { setDisplayHorizonEvents, clearDisplayHorizon } from "../system/display-horizon.js";
 
 import {
   state,
@@ -34,8 +36,25 @@ import { scheduleEvents } from "./index.js";
 /** Number of consecutive poll errors before force-clearing the tray title (~6 min) */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
-/** Last sent events signature — null sentinel ensures first poll always sends */
+/** Last sent content signature — null sentinel ensures first poll always sends */
 let lastSentEventsSignature: string | null = null;
+
+/**
+ * Last sent *display* signature (upcoming-only at publish time).
+ * Changes when wall clock crosses an endDate even if content is identical.
+ */
+let lastSentDisplaySignature: string | null = null;
+
+/**
+ * Signature of events that are still upcoming for timed tray/popover lists.
+ * Uses excludeAllDay to match tray menu membership.
+ */
+export function displayEventsSignature(
+  events: readonly MeetingEvent[],
+  nowMs: number = Date.now(),
+): string {
+  return eventListSignature(filterUpcomingMeetings(events, nowMs, { excludeAllDay: true }));
+}
 
 /** Clear tray state after too many consecutive poll failures */
 function handleMaxConsecutiveErrors(): void {
@@ -56,21 +75,53 @@ function handlePollFailure(): void {
   }
 }
 
-function publishPublicationToUi(publication: CalendarPublication): void {
+function publishPublicationToUi(
+  publication: CalendarPublication,
+  options?: { force?: boolean },
+): void {
+  const force = options?.force === true;
+  const nowMs = Date.now();
   const events: MeetingEvent[] = isCalendarOk(publication.result)
     ? [...publication.result.events]
     : [];
   if (isCalendarOk(publication.result)) {
     mainBus.emit("meeting-list-updated", events);
+    setDisplayHorizonEvents(events, nowMs);
+  } else {
+    clearDisplayHorizon();
   }
   if (state.win && !state.win.isDestroyed()) {
-    const signature = isCalendarOk(publication.result)
+    const contentSignature = isCalendarOk(publication.result)
       ? eventListSignature(events)
       : `err:${publication.publicationGeneration}`;
-    if (signature !== lastSentEventsSignature) {
-      lastSentEventsSignature = signature;
+    const displaySignature = isCalendarOk(publication.result)
+      ? displayEventsSignature(events, nowMs)
+      : contentSignature;
+    const contentChanged = contentSignature !== lastSentEventsSignature;
+    const displayChanged = displaySignature !== lastSentDisplaySignature;
+    if (force || contentChanged || displayChanged) {
+      lastSentEventsSignature = contentSignature;
+      lastSentDisplaySignature = displaySignature;
       typedSend(state.win.webContents, IPC_CHANNELS.CALENDAR_RESULT_UPDATED, publication);
     }
+  }
+}
+
+/**
+ * Re-push the last calendar publication so renderers re-filter with Date.now().
+ * Used by the display-horizon timer when only wall clock advanced.
+ */
+export function republishUiForDisplayTick(): void {
+  const publication = getLastPublication();
+  if (publication) {
+    publishPublicationToUi(publication, { force: true });
+    return;
+  }
+  // Fall back to lastKnownEvents if coordinator has no publication yet.
+  if (state.lastKnownEvents && isCalendarOk(state.lastKnownEvents)) {
+    const events = [...state.lastKnownEvents.events];
+    mainBus.emit("meeting-list-updated", events);
+    setDisplayHorizonEvents(events);
   }
 }
 
@@ -130,4 +181,6 @@ export async function poll(
 export function _resetForTest(): void {
   resetState();
   lastSentEventsSignature = null;
+  lastSentDisplaySignature = null;
+  clearDisplayHorizon();
 }

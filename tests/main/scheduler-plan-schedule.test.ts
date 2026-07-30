@@ -208,6 +208,41 @@ describe("planSchedule", () => {
     expect(plan.actions.some((a) => a.type === "arm-browser")).toBe(false);
   });
 
+  it("resyncs in-meeting countdown when endMs changes while already in progress", () => {
+    const start = now - 10 * 60_000;
+    const oldEnd = now + 20 * 60_000;
+    const newEnd = now + 5 * 60_000;
+    const event = createMockEvent({
+      id: asTestEventId("e1"),
+      startDate: new Date(start).toISOString(),
+      endDate: new Date(newEnd).toISOString(),
+      meetUrl: asTestMeetUrl("https://meet.google.com/abc-def-ghi"),
+    });
+    const snapshot = emptySnapshot({
+      inMeetingIds: new Set<EventId>([event.id]),
+      scheduledEventData: new Map([
+        [
+          event.id,
+          {
+            title: event.title,
+            meetUrl: event.meetUrl,
+            openAtMs: start - 60_000,
+            startMs: start,
+            endMs: oldEnd,
+          },
+        ],
+      ]),
+      previousActiveIds: new Set<EventId>([event.id]),
+    });
+
+    const plan = planSchedule([event], settings, now, snapshot, { lateJoinGraceMs: 0 });
+    const types = plan.actions.map((a) => a.type);
+    expect(types).toContain("clear-in-meeting");
+    expect(types).toContain("start-in-meeting");
+    const startAction = plan.actions.find((a) => a.type === "start-in-meeting");
+    expect(startAction).toMatchObject({ type: "start-in-meeting", endMs: newEnd });
+  });
+
   it("suppresses alert under quiet hours but still arms browser", () => {
     const start = now + 10 * 60_000;
     const event = createMockEvent({

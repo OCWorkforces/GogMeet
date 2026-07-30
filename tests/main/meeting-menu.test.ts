@@ -347,6 +347,23 @@ describe("buildMeetingMenuTemplate", () => {
       expect(meetingItem).toBeDefined();
       expect(meetingItem?.label).toContain("In progress");
     });
+
+    it("does NOT show ended meetings as In progress (2PM–3:30 still gone at 4:20)", () => {
+      // Meeting 14:00–15:30; "now" is driven by todayAt helpers relative to system clock.
+      // Use end in the past relative to fixed now via past end times already in suite style.
+      const event = makeEvent({
+        title: "Afternoon Sync",
+        startDate: todayAt(10, 0).toISOString(),
+        endDate: todayAt(11, 0).toISOString(), // ended earlier today
+      });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
+      expect(findItemContaining(items, "Afternoon Sync")).toBeUndefined();
+      expect(findItemContaining(items, "In progress")).toBeUndefined();
+    });
   });
 
   // ─── Future meeting (not in progress) ────────────────────────

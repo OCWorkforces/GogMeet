@@ -579,6 +579,24 @@ describe("event list signature gating (renderer push)", () => {
     count = await pushAndCount([evtB, evtA]);
     expect(count).toBe(0);
   });
+
+  it("re-pushes when display membership changes after meeting end (content unchanged)", async () => {
+    const start = Date.now() - 60 * 60_000;
+    const end = Date.now() + 5 * 60_000;
+    const fields = {
+      ...baseFields,
+      startDate: asTestIsoUtc(new Date(start).toISOString()),
+      endDate: asTestIsoUtc(new Date(end).toISOString()),
+    };
+    const evt = createMockEvent(fields);
+    let count = await pushAndCount([evt]);
+    expect(count).toBe(1);
+
+    // Advance past end without changing event fields — display signature must change.
+    vi.setSystemTime(end + 1000);
+    count = await pushAndCount([createMockEvent(fields)]);
+    expect(count).toBe(1);
+  });
 });
 
 describe("startScheduler", () => {

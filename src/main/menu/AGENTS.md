@@ -24,7 +24,8 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 ### `buildMeetingMenuTemplate(events, showTomorrow, callbacks, status?)`
 
-- Filters all-day / ended events; Today / Tomorrow groups.
+- Filters all-day / ended events via domain `filterUpcomingMeetings` / `isMeetingInProgress`; Today / Tomorrow groups.
+- “In progress” requires `start ≤ now < end` (not merely start ≤ now).
 - Meetings with URLs use a **submenu**: Join (`onJoinMeeting`) + Copy Link (`clipboard` + `buildMeetUrl`).
 - Footer: Join Next Meeting (`pickJoinTarget` + `onJoinMeeting`), Refresh (`onForcePoll`), Settings…, About, Quit.
 - `status: CalendarStatus` — optional last poll status from `facades/calendar-status.ts`.
@@ -39,7 +40,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 ## CONSUMERS
 
-`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings, refreshes on `meeting-list-updated` and `calendar-status-updated`. Installs with `setContextMenu()`; on Windows left-click also `popUpContextMenu`.
+`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings, refreshes on `meeting-list-updated`, `calendar-status-updated`, and display-horizon ticks. Menu signature includes **upcoming** (wall-clock filtered) membership so ended meetings invalidate the cached menu without calendar content changes. Installs with `setContextMenu()`; on Windows left-click rebuilds from cache then `popUpContextMenu`.
 
 ## ANTI-PATTERNS
 
