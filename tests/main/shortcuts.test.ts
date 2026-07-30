@@ -60,7 +60,11 @@ import { joinMeetingById } from "../../src/main/utils/join-meeting.js";
 function shortcutsGraph() {
   return testAppGraph({
     calendar: {
-      getEvents: () => getCalendarEventsResult(),
+      getEvents: async () => ({
+        publicationGeneration: 1,
+        result: await getCalendarEventsResult(),
+      }),
+      getEventsResult: () => getCalendarEventsResult(),
     },
     scheduler: {
       getLastKnownEvents: () => getLastKnownEvents(),
@@ -284,6 +288,39 @@ describe("shortcuts", () => {
       expect(electron.globalShortcut.register).toHaveBeenCalledTimes(1);
       registerShortcuts(shortcutsGraph());
       expect(electron.globalShortcut.register).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("notify and error paths", () => {
+    it("warns when join fails", async () => {
+      const log = (await import("electron-log")).default;
+      vi.mocked(joinMeetingById).mockResolvedValueOnce({ ok: false, error: "blocked url" });
+
+      registerShortcuts(shortcutsGraph());
+      const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
+      await handler();
+      expect(log.warn).toHaveBeenCalled();
+      expect(log.info).toHaveBeenCalledWith(
+        expect.stringMatching(/GogMeet/),
+      );
+    });
+
+    it("logs when calendar fetch throws", async () => {
+      const log = (await import("electron-log")).default;
+      vi.mocked(getCalendarEventsResult).mockRejectedValueOnce(new Error("boom"));
+      registerShortcuts(shortcutsGraph());
+      const handler = vi.mocked(globalShortcut.register).mock.calls[0]![1] as () => Promise<void>;
+      await handler();
+      expect(log.error).toHaveBeenCalled();
+    });
+
+    it("unregisterShortcuts clears registration so register can run again", async () => {
+      const mod = await import("../../src/main/system/shortcuts.js");
+      mod.registerShortcuts(shortcutsGraph());
+      mod.unregisterShortcuts();
+      expect(globalShortcut.unregisterAll).toHaveBeenCalled();
+      mod.registerShortcuts(shortcutsGraph());
+      expect(globalShortcut.register).toHaveBeenCalledTimes(2);
     });
   });
 });

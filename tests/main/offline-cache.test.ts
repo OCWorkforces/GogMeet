@@ -248,4 +248,85 @@ describe("offline-cache", () => {
     expect(loaded!.events).toHaveLength(1);
     expect(loaded!.events[0]!.meetUrl).toBeUndefined();
   });
+
+  it("refuses save when observedAt is non-finite or far in the future", async () => {
+    const { saveOfflineCache, loadOfflineCache } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await saveOfflineCache([createMockEvent()], Number.NaN);
+    await saveOfflineCache([createMockEvent()], Date.now() + 60 * 60_000);
+    expect(warn).toHaveBeenCalled();
+    expect(await loadOfflineCache()).toBeNull();
+    warn.mockRestore();
+  });
+
+  it("treats encryptionAvailable throw as unavailable", async () => {
+    const { safeStorage } = await import("electron");
+    vi.spyOn(safeStorage, "isEncryptionAvailable").mockImplementation(() => {
+      throw new Error("secure storage probe failed");
+    });
+    process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
+    appState.isPackaged = false;
+    const { saveOfflineCache, loadOfflineCache } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
+    await saveOfflineCache([e]);
+    expect(await loadOfflineCache()).not.toBeNull();
+  });
+
+  it("drops malformed event rows and rejects non-array events", async () => {
+    encryptionAvailable.value = false;
+    process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
+    const { loadOfflineCache, offlineCacheFilePath } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
+    const { writeFile } = await import("node:fs/promises");
+    const good = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
+    await writeFile(
+      offlineCacheFilePath(),
+      JSON.stringify({
+        version: 1,
+        observedAt: Date.now() - 100,
+        cachedAt: Date.now() - 50,
+        events: [
+          null,
+          { id: 1, title: "bad" },
+          {
+            id: good.id,
+            title: good.title,
+            startDate: good.startDate,
+            endDate: good.endDate,
+            calendarName: good.calendarName,
+            isAllDay: false,
+            userEmail: "a@b.com",
+            description: "x",
+          },
+        ],
+      }),
+      "utf-8",
+    );
+    const loaded = await loadOfflineCache();
+    expect(loaded!.events).toHaveLength(1);
+    expect(loaded!.events[0]!.userEmail).toBe("a@b.com");
+
+    await writeFile(
+      offlineCacheFilePath(),
+      JSON.stringify({
+        version: 1,
+        observedAt: Date.now() - 100,
+        cachedAt: Date.now() - 50,
+        events: "nope",
+      }),
+      "utf-8",
+    );
+    expect(await loadOfflineCache()).toBeNull();
+  });
 });

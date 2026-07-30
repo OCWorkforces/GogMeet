@@ -25,9 +25,21 @@ describe("parseGoogleApiErrorCode", () => {
     );
   });
 
+  it("extracts nested error.status / short message", () => {
+    expect(
+      parseGoogleApiErrorCode(JSON.stringify({ error: { status: "PERMISSION_DENIED" } })),
+    ).toBe("PERMISSION_DENIED");
+    expect(
+      parseGoogleApiErrorCode(JSON.stringify({ error: { message: "short reason" } })),
+    ).toBe("short reason");
+  });
+
   it("returns undefined for oversized or invalid bodies", () => {
     expect(parseGoogleApiErrorCode("not-json")).toBeUndefined();
     expect(parseGoogleApiErrorCode("x".repeat(5000))).toBeUndefined();
+    expect(parseGoogleApiErrorCode("")).toBeUndefined();
+    expect(parseGoogleApiErrorCode("null")).toBeUndefined();
+    expect(parseGoogleApiErrorCode(JSON.stringify({ error: { message: "x".repeat(200) } }))).toBeUndefined();
   });
 });
 
@@ -181,6 +193,97 @@ describe("googleHttpRequest", () => {
     const second = await googleHttpRequest({ url: "https://example.test/t2", timeoutMs: 50 });
     expect(second.ok).toBe(true);
   });
+
+  it("aborts immediately when the upstream signal is already aborted", async () => {
+    mockFetch((_input, init) => hangUntilAbort(init));
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      googleHttpRequest({
+        url: "https://example.test/pre-aborted",
+        signal: controller.signal,
+        timeoutMs: 10_000,
+      }),
+    ).rejects.toMatchObject({ errorClass: "abort" });
+  });
+
+  it("classifies fetch TypeError as network", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(googleHttpRequest({ url: "https://example.test/net" })).rejects.toMatchObject({
+      errorClass: "network",
+    });
+  });
+
+  it("classifies 403 as auth and other 4xx as protocol", async () => {
+    mockFetch(async () => new Response("{}", { status: 403 }));
+    await expect(googleHttpJson({ url: "https://example.test/403" })).rejects.toMatchObject({
+      errorClass: "auth",
+      status: 403,
+    });
+
+    mockFetch(async () => new Response(JSON.stringify({ error: "badRequest" }), { status: 400 }));
+    await expect(googleHttpJson({ url: "https://example.test/400" })).rejects.toMatchObject({
+      errorClass: "protocol",
+      status: 400,
+      apiErrorCode: "badRequest",
+    });
+  });
+
+  it("posts URLSearchParams and reads streamed bodies with empty chunks", async () => {
+    mockFetch(async (_url, init) => {
+      expect(init?.method).toBe("POST");
+      expect(init?.body).toBeInstanceOf(URLSearchParams);
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array());
+          controller.enqueue(new TextEncoder().encode('{"ok":true}'));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    const res = await googleHttpRequest({
+      url: "https://example.test/post",
+      method: "POST",
+      body: new URLSearchParams({ grant_type: "refresh_token" }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    expect(res.ok).toBe(true);
+    expect(res.bodyText).toContain("ok");
+  });
+
+  it("maps AbortError and TimeoutError from fetch", async () => {
+    mockFetch(async () => {
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    });
+    await expect(googleHttpRequest({ url: "https://example.test/ae" })).rejects.toMatchObject({
+      errorClass: "abort",
+    });
+
+    mockFetch(async () => {
+      const err = new Error("timed out");
+      err.name = "TimeoutError";
+      throw err;
+    });
+    // When signal is not aborted, TimeoutError from fetch becomes network unless mapped via abort reason.
+    // Force via aborted signal reason:
+    const controller = new AbortController();
+    controller.abort(
+      Object.assign(new Error("deadline"), { name: "TimeoutError" }),
+    );
+    mockFetch((_input, init) => hangUntilAbort(init));
+    await expect(
+      googleHttpRequest({
+        url: "https://example.test/to",
+        signal: controller.signal,
+        timeoutMs: 10_000,
+      }),
+    ).rejects.toMatchObject({ errorClass: "timeout" });
+  });
 });
 
 describe("createPollBudgetSignal", () => {
@@ -208,5 +311,23 @@ describe("GoogleHttpError redaction", () => {
     });
     expect(JSON.stringify(err)).not.toMatch(/Bearer|refresh_token|access_token/i);
     expect(err.message).not.toContain("secret");
+  });
+
+  it("preserves cause when provided", () => {
+    const cause = new Error("upstream");
+    const err = new GoogleHttpError("network", "Google HTTP network failure", { cause });
+    expect(err.cause).toBe(cause);
+    expect(err.status).toBeUndefined();
+  });
+});
+
+describe("createPollBudgetSignal defaults", () => {
+  it("uses default budget and cleanup is idempotent", () => {
+    vi.useFakeTimers();
+    const { signal, cleanup } = createPollBudgetSignal();
+    expect(signal.aborted).toBe(false);
+    cleanup();
+    cleanup();
+    vi.useRealTimers();
   });
 });

@@ -187,4 +187,34 @@ describe("calendar refresh coordinator", () => {
       expect(publication.result.events[0]?.title).toBe("recovered");
     }
   });
+
+  it("rejects immediately when the signal is already aborted", async () => {
+    bindCalendarRefreshFetcher(async (signal) => {
+      // Simulate a hang that only ends on abort.
+      await new Promise<void>((_resolve, reject) => {
+        if (signal.aborted) {
+          reject(new DOMException("Aborted", "AbortError"));
+          return;
+        }
+        signal.addEventListener(
+          "abort",
+          () => reject(new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      });
+      return okResult("never");
+    });
+
+    const pending = requestCalendarRefresh();
+    await Promise.resolve();
+    cancelCalendarRefresh();
+    await expect(pending).rejects.toBeInstanceOf(CalendarRefreshCancelledError);
+  });
+
+  it("propagates non-cancel fetch errors when no follow-up is queued", async () => {
+    bindCalendarRefreshFetcher(async () => {
+      throw new Error("hard-failure");
+    });
+    await expect(requestCalendarRefresh()).rejects.toThrow(/hard-failure/);
+  });
 });

@@ -358,4 +358,14 @@ describe("google-oauth", () => {
     expect(await runGooglePkceLogin()).toBe("denied");
     err.mockRestore();
   });
+
+  it("exposes in-flight flag and lifecycle abort without throwing", async () => {
+    const {
+      isGoogleOAuthInFlight,
+      abortGoogleTokenRefreshLifecycle,
+    } = await import("../../src/main/calendar/auth/google-oauth.js");
+    expect(isGoogleOAuthInFlight()).toBe(false);
+    expect(() => abortGoogleTokenRefreshLifecycle()).not.toThrow();
+    expect(() => abortGoogleTokenRefreshLifecycle()).not.toThrow();
+  });
 });
