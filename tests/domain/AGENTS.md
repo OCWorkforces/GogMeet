@@ -15,6 +15,7 @@ Vitest project `domain`: Node, no Electron, high coverage floors on `src/domain/
 | `clean-description.test.ts` | notes cleaner |
 | `pick-join-target.test.ts` | next joinable meeting |
 | `event-signature.test.ts` | stable signatures |
+| `meeting-time.test.ts` | in-progress / not-ended / upcoming filter / display horizon |
 | `parse-json.test.ts` | parseJsonObject / AppResult |
 | `settings-defaults.test.ts` / `quiet-hours.test.ts` | settings schema + quiet hours |
 | `time-utils.test.ts` | day boundaries / remaining time |

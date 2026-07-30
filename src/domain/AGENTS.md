@@ -60,6 +60,7 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | `services/url-extract.ts` | free-text Zoom → Meet → Calendly extract |
 | `services/clean-description.ts` | notes cleaner for EventKit/Google |
 | `services/pick-join-target.ts` | next joinable meeting |
+| `services/meeting-time.ts` | in-progress / not-ended / upcoming filter / display horizon |
 | `services/platform.ts` | Meet vs Zoom host detection (**not** OS) |
 | `services/time.ts` | day boundaries + remaining-time format |
 | `services/settings-parse.ts` | clamp/migrate settings blobs |

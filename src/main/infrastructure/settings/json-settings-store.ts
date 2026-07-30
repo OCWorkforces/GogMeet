@@ -128,6 +128,9 @@ export function createJsonSettingsStore(): JsonSettingsStore {
       if (typeof partial.showTomorrowMeetings === "boolean") {
         merged.showTomorrowMeetings = partial.showTomorrowMeetings;
       }
+      if (typeof partial.showCompletedTodayMeetings === "boolean") {
+        merged.showCompletedTodayMeetings = partial.showCompletedTodayMeetings;
+      }
       if (typeof partial.windowAlert === "boolean") {
         merged.windowAlert = partial.windowAlert;
       }

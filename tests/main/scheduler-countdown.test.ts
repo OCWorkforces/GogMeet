@@ -20,10 +20,11 @@ vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({
-    schemaVersion: 2,
+    schemaVersion: 3,
     openBeforeMinutes: 1,
     launchAtLogin: false,
     showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
     windowAlert: true,
     autoOpenEnabled: true,
     alertLeadSeconds: 60,
@@ -451,6 +452,24 @@ describe("startInMeetingCountdown", () => {
 
     vi.advanceTimersByTime(3 * 60 * 1000 + 100);
 
+    expect(state.activeInMeetingEventId).toBeNull();
+  });
+
+  it("per-minute tick cleans up when remaining drops to zero (sleep-delayed end)", () => {
+    const now = Date.now();
+    // End just under 60s away so the first interval tick sees remaining <= 0
+    // after advancing one minute past the end.
+    const endMs = now + 30 * 1000;
+    state.scheduledEventData.set("evt-1", makeSnapshot({ title: "Almost Done", endMs }));
+
+    startInMeetingCountdown("evt-1", { title: "Almost Done", endMs });
+    expect(state.inMeetingIntervals.has("evt-1")).toBe(true);
+
+    // Advance past end via interval path (simulate delayed end timeout).
+    vi.advanceTimersByTime(60_000 + 100);
+
+    expect(state.inMeetingIntervals.has("evt-1")).toBe(false);
+    expect(state.scheduledEventData.has("evt-1")).toBe(false);
     expect(state.activeInMeetingEventId).toBeNull();
   });
 });

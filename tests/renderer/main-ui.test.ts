@@ -30,7 +30,7 @@ describe("renderer/index.ts", () => {
 
 const RENDERER_TEST_NOW = new Date(2026, 5, 15, 12, 0, 0).getTime();
 
-async function startRenderer(events: MeetingEvent[]) {
+async function startRenderer(events: MeetingEvent[], settings = createMockSettings()) {
   let nextGen = 1;
   const getEvents = vi.fn().mockImplementation(async () => ({
     publicationGeneration: nextGen++,
@@ -43,12 +43,16 @@ async function startRenderer(events: MeetingEvent[]) {
     },
   }));
   const callbacks: {
-    resultUpdated: ((publication: {
-      publicationGeneration: number;
-      result: CalendarResult;
-    }) => void) | null;
+    resultUpdated:
+      ((publication: { publicationGeneration: number; result: CalendarResult }) => void) | null;
     settingsChanged: ((settings: ReturnType<typeof createMockSettings>) => void) | null;
   } = { resultUpdated: null, settingsChanged: null };
+
+  const settingsGet = vi.fn(() => Promise.resolve(settings));
+  const settingsSet = vi.fn((partial: Parameters<Api["settings"]["set"]>[0]) =>
+    Promise.resolve({ ...settings, ...partial }),
+  );
+  const joinMeeting = vi.fn(() => Promise.resolve({ ok: true as const, value: undefined }));
 
   const api: Api = {
     calendar: {
@@ -73,14 +77,12 @@ async function startRenderer(events: MeetingEvent[]) {
     window: { setHeight: vi.fn() },
     app: {
       openExternal: vi.fn(() => Promise.resolve({ ok: true as const, value: undefined })),
-      joinMeeting: vi.fn(() => Promise.resolve({ ok: true as const, value: undefined })),
+      joinMeeting,
       getVersion: vi.fn(() => Promise.resolve("1.0.0")),
     },
     settings: {
-      get: vi.fn(() => Promise.resolve(createMockSettings())),
-      set: vi.fn((partial: Parameters<Api["settings"]["set"]>[0]) =>
-        Promise.resolve({ ...createMockSettings(), ...partial }),
-      ),
+      get: settingsGet,
+      set: settingsSet,
       onChanged: vi.fn((callback: (settings: ReturnType<typeof createMockSettings>) => void) => {
         callbacks.settingsChanged = callback;
         return () => {};
@@ -113,7 +115,14 @@ async function startRenderer(events: MeetingEvent[]) {
 
   const resultUpdatedCallback = callbacks.resultUpdated;
   const settingsChangedCallback = callbacks.settingsChanged;
-  return { getEvents, resultUpdatedCallback, settingsChangedCallback };
+  return {
+    getEvents,
+    resultUpdatedCallback,
+    settingsChangedCallback,
+    settingsGet,
+    settingsSet,
+    joinMeeting,
+  };
 }
 
 describe("renderer unchanged calendar updates", () => {
@@ -188,6 +197,139 @@ describe("renderer unchanged calendar updates", () => {
     await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
     expect(document.body.textContent).toContain("Manual refresh meeting");
     expect(document.body.textContent).toContain("Updated just now");
+  });
+});
+
+describe("renderer completed-history presentation timer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(RENDERER_TEST_NOW);
+    document.body.innerHTML = '<div id="app"></div>';
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("moves a meeting into completed history at end without calendar/settings/join IPC", async () => {
+    const { asTestIsoUtc, isoFromNow } = await import("../helpers/test-utils.js");
+    const event = createMockEvent({
+      title: "Ending Soon",
+      startDate: asTestIsoUtc(isoFromNow(-10, RENDERER_TEST_NOW)),
+      endDate: asTestIsoUtc(isoFromNow(2, RENDERER_TEST_NOW)),
+    });
+    const settings = createMockSettings({ showCompletedTodayMeetings: true });
+    const renderer = await startRenderer([event], settings);
+
+    expect(document.body.textContent).toContain("Ending Soon");
+    expect(document.body.textContent).toContain("In progress");
+    expect(document.body.textContent).not.toContain("Completed today");
+
+    const getEventsCalls = renderer.getEvents.mock.calls.length;
+    const settingsGetCalls = renderer.settingsGet.mock.calls.length;
+
+    // Advance past event end — presentation timer fires local re-render only.
+    await vi.advanceTimersByTimeAsync(2 * 60_000 + 50);
+
+    expect(document.body.textContent).toContain("Completed today");
+    expect(document.body.textContent).toContain("Ended");
+    expect(document.body.textContent).toContain("Ending Soon");
+    expect(document.querySelector(".meeting-item--completed")).not.toBeNull();
+    expect(document.querySelector('[data-action="join-meeting"]')).toBeNull();
+
+    // No new calendar/settings/join traffic. lastUpdatedAt is preserved (relative
+    // footer label ages with wall clock rather than resetting to "just now").
+    expect(renderer.getEvents).toHaveBeenCalledTimes(getEventsCalls);
+    expect(renderer.settingsGet).toHaveBeenCalledTimes(settingsGetCalls);
+    expect(renderer.settingsSet).not.toHaveBeenCalled();
+    expect(renderer.joinMeeting).not.toHaveBeenCalled();
+    expect(document.querySelector(".footer-refresh-label")?.textContent).toMatch(
+      /Updated \d+ min ago/,
+    );
+    expect(document.querySelector(".footer-refresh-label")?.textContent).not.toBe(
+      "Updated just now",
+    );
+  });
+
+  it("re-arms for successive ends and clears history at local midnight", async () => {
+    const { asTestIsoUtc, isoFromNow } = await import("../helpers/test-utils.js");
+    const first = createMockEvent({
+      title: "First End",
+      startDate: asTestIsoUtc(isoFromNow(-30, RENDERER_TEST_NOW)),
+      endDate: asTestIsoUtc(isoFromNow(1, RENDERER_TEST_NOW)),
+    });
+    const second = createMockEvent({
+      title: "Second End",
+      startDate: asTestIsoUtc(isoFromNow(-20, RENDERER_TEST_NOW)),
+      endDate: asTestIsoUtc(isoFromNow(3, RENDERER_TEST_NOW)),
+    });
+    const settings = createMockSettings({ showCompletedTodayMeetings: true });
+    const renderer = await startRenderer([first, second], settings);
+
+    await vi.advanceTimersByTimeAsync(1 * 60_000 + 50);
+    expect(document.body.textContent).toContain("First End");
+    expect(document.body.textContent).toContain("Completed today");
+    expect(document.body.textContent).toContain("Second End");
+    expect(document.body.textContent).toContain("In progress");
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000 + 50);
+    expect(document.body.textContent).toContain("Second End");
+    expect(document.querySelectorAll(".meeting-item--completed").length).toBe(2);
+
+    // Jump to local midnight — history for "today" clears (both ends were before midnight of that day... wait)
+    // Both events ended "today" relative to RENDERER_TEST_NOW (June 15 12:00 local).
+    // At local midnight of June 16, they are prior-day and must disappear.
+    const midnight = new Date(RENDERER_TEST_NOW);
+    midnight.setHours(0, 0, 0, 0);
+    midnight.setDate(midnight.getDate() + 1);
+    const msToMidnight = midnight.getTime() - Date.now();
+    await vi.advanceTimersByTimeAsync(msToMidnight + 50);
+
+    expect(document.body.textContent).not.toContain("First End");
+    expect(document.body.textContent).not.toContain("Second End");
+    expect(document.body.textContent).not.toContain("Completed today");
+    // Still no extra calendar fetches from presentation timers
+    expect(renderer.getEvents).toHaveBeenCalledOnce();
+  });
+
+  it("toggles history on without calendar fetch and clears timer when toggled off", async () => {
+    const { asTestIsoUtc, isoFromNow } = await import("../helpers/test-utils.js");
+    const past = createMockEvent({
+      title: "Done Meeting",
+      startDate: asTestIsoUtc(isoFromNow(-60, RENDERER_TEST_NOW)),
+      endDate: asTestIsoUtc(isoFromNow(-30, RENDERER_TEST_NOW)),
+    });
+    const renderer = await startRenderer(
+      [past],
+      createMockSettings({ showCompletedTodayMeetings: false }),
+    );
+
+    expect(document.body.textContent).toContain("All done for today");
+    expect(document.body.textContent).not.toContain("Done Meeting");
+
+    // Enable via settings push — local render only
+    renderer.settingsChangedCallback(createMockSettings({ showCompletedTodayMeetings: true }));
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain("Completed today");
+      expect(document.body.textContent).toContain("Done Meeting");
+    });
+    expect(renderer.getEvents).toHaveBeenCalledOnce();
+
+    // Disable — history gone, no extra fetch
+    renderer.settingsChangedCallback(createMockSettings({ showCompletedTodayMeetings: false }));
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain("All done for today");
+      expect(document.body.textContent).not.toContain("Done Meeting");
+    });
+    expect(renderer.getEvents).toHaveBeenCalledOnce();
+  });
+
+  it("still loadEvents when a non-display setting changes", async () => {
+    const events = [createMockEvent({ title: "Keep Me" })];
+    const renderer = await startRenderer(events);
+    renderer.settingsChangedCallback(createMockSettings({ showTomorrowMeetings: false }));
+    await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
   });
 });
 
@@ -281,10 +423,7 @@ describe("isTomorrow logic", () => {
     const testDate = new Date(today);
     testDate.setHours(10, 0, 0, 0);
 
-    expect(
-      testDate >= tomorrow &&
-        testDate < new Date(tomorrow.getTime() + 86400000),
-    ).toBe(false);
+    expect(testDate >= tomorrow && testDate < new Date(tomorrow.getTime() + 86400000)).toBe(false);
   });
 
   it("rejects day after tomorrow", () => {
@@ -314,8 +453,7 @@ describe("renderer event delegation patterns", () => {
   });
 
   it("closest() finds data-action elements", () => {
-    document.body.innerHTML =
-      '<div id="app"><button data-action="refresh">Refresh</button></div>';
+    document.body.innerHTML = '<div id="app"><button data-action="refresh">Refresh</button></div>';
 
     const container = document.getElementById("app");
     const btn = container?.querySelector("[data-action]");
@@ -337,9 +475,7 @@ describe("renderer event delegation patterns", () => {
       '<div id="app"><button data-action="join-meeting" data-url="https://meet.google.com/abc-def-ghi">Join</button></div>';
 
     const btn = document.querySelector("[data-action='join-meeting']");
-    expect((btn as HTMLElement)?.dataset.url).toBe(
-      "https://meet.google.com/abc-def-ghi",
-    );
+    expect((btn as HTMLElement)?.dataset.url).toBe("https://meet.google.com/abc-def-ghi");
   });
 
   it("setHeight is called with clamped values", () => {
@@ -355,12 +491,9 @@ describe("renderer event delegation patterns", () => {
 describe("renderer escapeHtml usage", () => {
   it("escapeHtml is imported and used for user content", async () => {
     // Verify the shared escapeHtml utility exists and works
-    const { escapeHtml } =
-      await import("../../src/shared/utils/escape-html.js");
+    const { escapeHtml } = await import("../../src/shared/utils/escape-html.js");
     expect(typeof escapeHtml).toBe("function");
-    expect(escapeHtml("<script>alert('xss')</script>")).not.toContain(
-      "<script>",
-    );
+    expect(escapeHtml("<script>alert('xss')</script>")).not.toContain("<script>");
   });
 });
 
@@ -501,9 +634,7 @@ describe("Skip re-render when events unchanged", () => {
     function processEvents(events: SimpleEvent[]) {
       const prevStateType = state.type;
       state = { type: "loading" };
-      const key = events
-        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
-        .join("|");
+      const key = events.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
       if (key === lastEventsKey && prevStateType === "has-events") {
         return; // skip render
       }
@@ -545,9 +676,7 @@ describe("Skip re-render when events unchanged", () => {
     function processEvents(events: SimpleEvent[]) {
       const prevStateType = state.type;
       state = { type: "loading" };
-      const key = events
-        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
-        .join("|");
+      const key = events.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
       if (key === lastEventsKey && prevStateType === "has-events") {
         return;
       }
@@ -596,9 +725,7 @@ describe("Skip re-render when events unchanged", () => {
     function processEvents(events: SimpleEvent[]) {
       const prevStateType = state.type;
       state = { type: "loading" };
-      const key = events
-        .map((e) => e.id + e.startDate + e.endDate + e.meetUrl)
-        .join("|");
+      const key = events.map((e) => e.id + e.startDate + e.endDate + e.meetUrl).join("|");
       if (key === lastEventsKey && prevStateType === "has-events") {
         return;
       }

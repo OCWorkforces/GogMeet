@@ -34,10 +34,11 @@ vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({
-    schemaVersion: 2,
+    schemaVersion: 3,
     openBeforeMinutes: 1,
     launchAtLogin: false,
     showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
     windowAlert: true,
     autoOpenEnabled: true,
     alertLeadSeconds: 60,
@@ -578,6 +579,94 @@ describe("event list signature gating (renderer push)", () => {
     // Same set, reordered — signature is order-independent
     count = await pushAndCount([evtB, evtA]);
     expect(count).toBe(0);
+  });
+
+  it("re-pushes when display membership changes after meeting end (content unchanged)", async () => {
+    const start = Date.now() - 60 * 60_000;
+    const end = Date.now() + 5 * 60_000;
+    const fields = {
+      ...baseFields,
+      startDate: asTestIsoUtc(new Date(start).toISOString()),
+      endDate: asTestIsoUtc(new Date(end).toISOString()),
+    };
+    const evt = createMockEvent(fields);
+    let count = await pushAndCount([evt]);
+    expect(count).toBe(1);
+
+    // Advance past end without changing event fields — display signature must change.
+    vi.setSystemTime(end + 1000);
+    count = await pushAndCount([createMockEvent(fields)]);
+    expect(count).toBe(1);
+  });
+});
+
+describe("republishUiForDisplayTick", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetForTest();
+    refreshStateRefs();
+  });
+
+  afterEach(() => {
+    _resetForTest();
+    refreshStateRefs();
+    vi.useRealTimers();
+  });
+
+  it("force-pushes last publication even when content signature is unchanged", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/poll.js");
+    const evt = createMockEvent({
+      title: "Standup",
+      startDate: asTestIsoUtc(isoFromNow(5)),
+      endDate: asTestIsoUtc(isoFromNow(35)),
+    });
+    const publication = {
+      publicationGeneration: 3,
+      result: {
+        kind: "ok" as const,
+        source: "live" as const,
+        completeness: "complete" as const,
+        observedAt: Date.now(),
+        events: [evt],
+      },
+    };
+    const mockSend = vi.fn();
+    stateModule.state.win = {
+      isDestroyed: vi.fn().mockReturnValue(false),
+      webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
+    } as never;
+    vi.mocked(refreshCalendarPublication).mockResolvedValue(publication);
+    vi.mocked(getLastPublication).mockReturnValue(publication);
+    await poll();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    mockSend.mockClear();
+    // Identical content would normally skip; force path must send.
+    republishUiForDisplayTick();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to lastKnownEvents when coordinator has no publication", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/poll.js");
+    const { calendarLiveOk } = await import("../../src/domain/entities/calendar-result.js");
+    vi.mocked(getLastPublication).mockReturnValue(null);
+    const events = [createMockEvent()];
+    stateModule.state.lastKnownEvents = calendarLiveOk(events, "complete", Date.now());
+    const listener = vi.fn();
+    mainBus.on("meeting-list-updated", listener);
+    republishUiForDisplayTick();
+    expect(listener).toHaveBeenCalledWith(events);
+    mainBus.off("meeting-list-updated", listener);
+  });
+
+  it("facade re-export calls poll implementation", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/facade.js");
+    vi.mocked(getLastPublication).mockReturnValue(null);
+    stateModule.state.lastKnownEvents = null;
+    // No-op when nothing cached — must not throw.
+    expect(() => republishUiForDisplayTick()).not.toThrow();
   });
 });
 

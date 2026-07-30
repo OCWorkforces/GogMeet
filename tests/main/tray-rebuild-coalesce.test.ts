@@ -72,6 +72,18 @@ describe("trayMenuSignature", () => {
     );
     expect(trayMenuSignature({ ...baseUi, lastError: "x" }, events, true, "ok", null)).not.toBe(base);
   });
+
+  it("changes when wall clock passes meeting end (content unchanged)", () => {
+    const now = Date.UTC(2026, 6, 30, 14, 0, 0);
+    const end = now + 90 * 60_000;
+    const event = createMockEvent({
+      startDate: new Date(now - 60 * 60_000).toISOString(),
+      endDate: new Date(end).toISOString(),
+    });
+    const during = trayMenuSignature(baseUi, [event], true, "ok", null, now + 30 * 60_000);
+    const after = trayMenuSignature(baseUi, [event], true, "ok", null, end + 1000);
+    expect(after).not.toBe(during);
+  });
 });
 
 describe("tray tooltip helpers", () => {

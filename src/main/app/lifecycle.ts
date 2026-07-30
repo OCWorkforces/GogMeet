@@ -1,5 +1,5 @@
 import { app, dialog, type BrowserWindow } from "electron";
-import { setupTray } from "../tray.js";
+import { setupTray, forceTrayMenuRefresh, updateTrayTitle } from "../tray.js";
 import { registerIpcHandlers } from "./ipc.js";
 import {
   initPowerManagement,
@@ -9,17 +9,20 @@ import {
   preventSleep,
   allowSleep,
 } from "../system/power.js";
-import { updateTrayTitle } from "../tray.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { checkNotificationPermission } from "../system/notification.js";
 import { registerShortcuts, unregisterShortcuts } from "../system/shortcuts.js";
 import { initAutoUpdater } from "../system/auto-updater.js";
+import { onDisplayHorizonTick, clearDisplayHorizon } from "../system/display-horizon.js";
 import { createAppGraph, type AppGraph } from "../composition/app-graph.js";
-import { stopScheduler } from "../scheduler/facade.js";
+import { stopScheduler, republishUiForDisplayTick } from "../scheduler/facade.js";
 import { stopCalendarWatcher } from "../facades/calendar-watcher.js";
 
 /** Active graph for this process (set during initializeApp). */
 let activeGraph: AppGraph | null = null;
+
+/** Unsubscribe for display-horizon → UI refresh wiring. */
+let unsubscribeDisplayHorizon: (() => void) | null = null;
 
 export function getActiveAppGraph(): AppGraph | null {
   return activeGraph;
@@ -110,6 +113,14 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
     tryRun("initPowerCallbacks", () =>
       graph.scheduler.initPowerCallbacks({ getPollInterval, preventSleep, allowSleep }),
     );
+    tryRun("wireDisplayHorizon", () => {
+      unsubscribeDisplayHorizon?.();
+      unsubscribeDisplayHorizon = onDisplayHorizonTick(() => {
+        // Wall clock crossed a start/end boundary: force list UI to re-filter.
+        republishUiForDisplayTick();
+        forceTrayMenuRefresh();
+      });
+    });
 
     tryRun("startScheduler", () => graph.scheduler.start());
     tryRun("startCalendarWatcher", () => graph.watcher.start());
@@ -154,6 +165,9 @@ export async function initializeApp(mainWindow: BrowserWindow): Promise<void> {
  */
 export function shutdownApp(): void {
   cleanupPowerManagement();
+  unsubscribeDisplayHorizon?.();
+  unsubscribeDisplayHorizon = null;
+  clearDisplayHorizon();
   const graph = activeGraph;
   if (graph) {
     graph.scheduler.stop();

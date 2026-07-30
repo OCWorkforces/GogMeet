@@ -12,6 +12,7 @@ describe("DEFAULT_SETTINGS", () => {
     expect(DEFAULT_SETTINGS.openBeforeMinutes).toBe(1);
     expect(DEFAULT_SETTINGS.launchAtLogin).toBe(false);
     expect(DEFAULT_SETTINGS.showTomorrowMeetings).toBe(true);
+    expect(DEFAULT_SETTINGS.showCompletedTodayMeetings).toBe(false);
     expect(DEFAULT_SETTINGS.windowAlert).toBe(true);
     expect(DEFAULT_SETTINGS.autoOpenEnabled).toBe(true);
     expect(DEFAULT_SETTINGS.alertLeadSeconds).toBe(60);
@@ -21,12 +22,8 @@ describe("DEFAULT_SETTINGS", () => {
   });
 
   it("openBeforeMinutes is within valid range", () => {
-    expect(DEFAULT_SETTINGS.openBeforeMinutes).toBeGreaterThanOrEqual(
-      OPEN_BEFORE_MINUTES_MIN,
-    );
-    expect(DEFAULT_SETTINGS.openBeforeMinutes).toBeLessThanOrEqual(
-      OPEN_BEFORE_MINUTES_MAX,
-    );
+    expect(DEFAULT_SETTINGS.openBeforeMinutes).toBeGreaterThanOrEqual(OPEN_BEFORE_MINUTES_MIN);
+    expect(DEFAULT_SETTINGS.openBeforeMinutes).toBeLessThanOrEqual(OPEN_BEFORE_MINUTES_MAX);
   });
 });
 

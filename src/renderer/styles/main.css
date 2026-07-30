@@ -123,6 +123,26 @@ body {
   background: var(--surface);
 }
 
+/* Opt-in completed-today history: muted, non-interactive presentation only */
+.meeting-item--completed {
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+.meeting-item--completed:hover {
+  background: transparent;
+}
+
+.meeting-item--completed .meeting-title {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.meeting-item--completed .meeting-time {
+  color: var(--text-tertiary);
+}
+
 .meeting-item-row {
   display: flex;
   align-items: center;

@@ -8,6 +8,8 @@ export interface AppSettings {
   launchAtLogin: boolean;
   /** Whether to show tomorrow's meetings in the tray menu */
   showTomorrowMeetings: boolean;
+  /** Whether to show today's completed meetings as history in the popover */
+  showCompletedTodayMeetings: boolean;
   /** Whether to show a window alert before auto-open */
   windowAlert: boolean;
   /** Whether browser auto-open is armed for timed meetings with URLs */
@@ -26,7 +28,7 @@ export interface AppSettings {
   quietHoursEnd: string;
 }
 
-export const SETTINGS_SCHEMA_VERSION = 2 as const;
+export const SETTINGS_SCHEMA_VERSION = 3 as const;
 
 /** Default settings values */
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openBeforeMinutes: 1,
   launchAtLogin: false,
   showTomorrowMeetings: true,
+  showCompletedTodayMeetings: false,
   windowAlert: true,
   autoOpenEnabled: true,
   alertLeadSeconds: 60,

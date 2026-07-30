@@ -22,20 +22,7 @@ describe("settings/index.ts", () => {
     vi.resetModules();
     vi.stubGlobal("api", {
       settings: {
-        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({
-    schemaVersion: 2,
-    openBeforeMinutes: 1,
-    launchAtLogin: false,
-    showTomorrowMeetings: true,
-    windowAlert: true,
-    autoOpenEnabled: true,
-    alertLeadSeconds: 60,
-    nativeNotifications: true,
-    lateJoinGraceMinutes: 0,
-    quietHoursEnabled: false,
-    quietHoursStart: "22:00",
-    quietHoursEnd: "07:00",
-  }),
+        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({ ...DEFAULT_SETTINGS }),
         set: setSettings,
       },
     });
@@ -209,6 +196,56 @@ describe("settings/index.ts", () => {
     }
     await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
     expect(setSettings.mock.calls.some((c) => "showTomorrowMeetings" in (c[0] ?? {}))).toBe(true);
+  });
+
+  it("renders completed-meetings toggle off by default and saves true on change", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings);
+    const el = document.getElementById("show-completed-meetings-toggle");
+    expect(el).toBeInstanceOf(HTMLInputElement);
+    if (!(el instanceof HTMLInputElement)) throw new Error("missing toggle");
+    expect(el.checked).toBe(false);
+    const switchEl = el.closest(".toggle-switch");
+    expect(switchEl?.getAttribute("aria-checked")).toBe("false");
+
+    el.checked = true;
+    el.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+    expect(setSettings).toHaveBeenCalledWith({ showCompletedTodayMeetings: true });
+    await vi.waitFor(() => {
+      expect(document.getElementById("completed-save-indicator")?.textContent).toContain("Saved");
+    });
+  });
+
+  it("reverts completed-meetings toggle when save rejects", async () => {
+    const setSettings = vi.fn().mockRejectedValue(new Error("fail"));
+    await loadSettingsRenderer(setSettings);
+    const el = document.getElementById("show-completed-meetings-toggle");
+    expect(el).toBeInstanceOf(HTMLInputElement);
+    if (!(el instanceof HTMLInputElement)) throw new Error("missing toggle");
+    el.checked = true;
+    el.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+    await vi.waitFor(() => expect(el.checked).toBe(false));
+    expect(el.closest(".toggle-switch")?.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("reverts completed-meetings toggle when response does not preserve requested value", async () => {
+    const setSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      showCompletedTodayMeetings: false,
+    });
+    await loadSettingsRenderer(setSettings);
+    const el = document.getElementById("show-completed-meetings-toggle");
+    expect(el).toBeInstanceOf(HTMLInputElement);
+    if (!(el instanceof HTMLInputElement)) throw new Error("missing toggle");
+    el.checked = true;
+    el.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
+    await vi.waitFor(() => expect(el.checked).toBe(false));
   });
 
   it("saves auto-open and window-alert toggles after reload", async () => {
