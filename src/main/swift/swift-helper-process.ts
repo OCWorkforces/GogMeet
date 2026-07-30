@@ -9,6 +9,8 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
+import "../../shared/utils/as.js";
+
 /** stdout allocation ceiling for one-shot EventKit dumps (not a performance optimum). */
 export const SWIFT_HELPER_STDOUT_LIMIT_BYTES: number = 8 * 1024 * 1024;
 /** stderr diagnostic ceiling. */
@@ -231,7 +233,7 @@ export function runSwiftHelperProcess(
       child = spawn(options.binaryPath, [...args], {
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
-      }) as unknown as ChildProcessWithoutNullStreams;
+      }).As<ChildProcessWithoutNullStreams>();
     } catch (err) {
       const code =
         err !== null && typeof err === "object" && "code" in err && typeof err.code === "string"

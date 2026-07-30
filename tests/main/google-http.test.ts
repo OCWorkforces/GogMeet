@@ -46,7 +46,7 @@ describe("googleHttpRequest", () => {
   function mockFetch(
     impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
   ): void {
-    globalThis.fetch = vi.fn(impl) as unknown as typeof fetch;
+    globalThis.fetch = vi.fn(impl).As<typeof fetch>();
   }
 
   /** Hang until AbortSignal fires (mirrors real fetch abort behavior). */

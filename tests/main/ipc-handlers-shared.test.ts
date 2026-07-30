@@ -165,7 +165,7 @@ describe("typedHandle", () => {
     expect(handleCall).toBeDefined();
 
     const handler = handleCall![1];
-    const mockEvent = authorizedInvokeEvent("index") as unknown as IpcMainInvokeEvent;
+    const mockEvent = authorizedInvokeEvent("index").As<IpcMainInvokeEvent>();
 
     await handler(mockEvent, { openBeforeMinutes: 2 });
     expect(capturedRequest).toEqual({ openBeforeMinutes: 2 });

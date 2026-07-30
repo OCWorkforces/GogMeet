@@ -95,7 +95,7 @@ function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
     const handle = {
       unref: () => handle,
       ref: () => handle,
-    } as unknown as ReturnType<typeof setTimeout>;
+    }.As<ReturnType<typeof setTimeout>>();
     if (typeof handler === "function") {
       queueMicrotask(() => {
         (handler as (...a: unknown[]) => void)(...args);

@@ -40,7 +40,7 @@ function getRegisteredHandler(channel: string) {
   return call?.[1];
 }
 
-const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").IpcMainInvokeEvent>();
 
 describe("registerSettingsHandlers", () => {
   beforeEach(() => {
@@ -52,7 +52,7 @@ describe("registerSettingsHandlers", () => {
   it("registers 2 handlers", () => {
     const mockWin = {
       webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-    } as unknown as import("electron").BrowserWindow;
+    }.As<import("electron").BrowserWindow>();
 
     registerSettingsHandlers(mockWin, testAppGraph());
     expect(mockIpcMain.handle).toHaveBeenCalledTimes(2);
@@ -61,7 +61,7 @@ describe("registerSettingsHandlers", () => {
   describe("settings:get", () => {
     it("returns current settings for authorized sender", async () => {
       registerSettingsHandlers(
-        {} as unknown as import("electron").BrowserWindow,
+        {}.As<import("electron").BrowserWindow>(),
         testAppGraph(),
       );
       const handler = getRegisteredHandler("settings:get");
@@ -72,14 +72,14 @@ describe("registerSettingsHandlers", () => {
 
     it("returns fresh DEFAULT_SETTINGS without calling getSettings for unauthorized sender", async () => {
       registerSettingsHandlers(
-        {} as unknown as import("electron").BrowserWindow,
+        {}.As<import("electron").BrowserWindow>(),
         testAppGraph(),
       );
       const handler = getRegisteredHandler("settings:get");
 
       const result = await handler!({
         senderFrame: { url: "https://evil.com/" },
-      } as unknown as import("electron").IpcMainInvokeEvent);
+      }.As<import("electron").IpcMainInvokeEvent>());
       expect(mockGetSettings).not.toHaveBeenCalled();
       expect(result).toEqual(DEFAULT_SETTINGS);
       expect(result).not.toBe(DEFAULT_SETTINGS);
@@ -92,7 +92,7 @@ describe("registerSettingsHandlers", () => {
       mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
@@ -108,7 +108,7 @@ describe("registerSettingsHandlers", () => {
       mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
@@ -120,7 +120,7 @@ describe("registerSettingsHandlers", () => {
     it("does not sync auto-launch when launchAtLogin not changed", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
@@ -131,7 +131,7 @@ describe("registerSettingsHandlers", () => {
     it("sends settings:changed via webContents for display-affecting changes", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
       const updated = { ...DEFAULT_SETTINGS, showTomorrowMeetings: false };
       mockUpdateSettings.mockResolvedValue(updated);
 
@@ -148,14 +148,14 @@ describe("registerSettingsHandlers", () => {
     it("returns fresh DEFAULT_SETTINGS and performs no side effects for unauthorized sender", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
 
       const result = await handler!(
         {
           senderFrame: { url: "https://evil.com/" },
-        } as unknown as import("electron").IpcMainInvokeEvent,
+        }.As<import("electron").IpcMainInvokeEvent>(),
         { openBeforeMinutes: 2 },
       );
       expect(mockUpdateSettings).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe("registerSettingsHandlers", () => {
       mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
@@ -188,7 +188,7 @@ describe("registerSettingsHandlers", () => {
       mockUpdateSettings.mockResolvedValue(updated);
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");
@@ -201,7 +201,7 @@ describe("registerSettingsHandlers", () => {
     it("restarts scheduler for quiet hours and auto-open timing keys", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
       mockUpdateSettings.mockResolvedValue(DEFAULT_SETTINGS);
       registerSettingsHandlers(mockWin, testAppGraph());
       const handler = getRegisteredHandler("settings:set");

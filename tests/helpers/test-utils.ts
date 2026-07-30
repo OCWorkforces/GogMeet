@@ -20,6 +20,7 @@ import type { CalendarResultOk } from "../../src/domain/entities/calendar-result
 import { calendarLiveOk } from "../../src/domain/entities/calendar-result.js";
 import type { AppSettings } from "../../src/domain/entities/settings.js";
 import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
+import { As } from "../../src/shared/utils/as.js";
 
 /**
  * Internal helper: run a brand validator and throw on failure. Test fixtures
@@ -132,10 +133,10 @@ export function createMockIpcEvent(
     sender: merged,
     frameId: 0,
     processId: 0,
-    senderFrame: null as unknown as IpcMainInvokeEvent["senderFrame"],
+    senderFrame: As<IpcMainInvokeEvent["senderFrame"]>(null),
     ports: [],
   };
-  return partial as unknown as IpcMainInvokeEvent;
+  return partial.As<IpcMainInvokeEvent>();
 }
 
 /** Live-complete calendar ok result for tests. */

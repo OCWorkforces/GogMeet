@@ -23,13 +23,13 @@ function getRegisteredHandler(channel: string) {
 
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
-} as unknown as import("electron").IpcMainEvent;
+}.As<import("electron").IpcMainEvent>();
 
 const httpUnauthorizedEvent = {
   senderFrame: { url: "http://malicious.example/" },
-} as unknown as import("electron").IpcMainEvent;
+}.As<import("electron").IpcMainEvent>();
 
-const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").IpcMainInvokeEvent>();
 
 describe("registerSchedulerHandlers", () => {
   beforeEach(() => {
@@ -83,7 +83,7 @@ describe("registerSchedulerHandlers", () => {
     it("rejects file:// from outside lib/renderer/", () => {
       const badFileEvent = {
         senderFrame: { url: "file:///etc/passwd" },
-      } as unknown as import("electron").IpcMainEvent;
+      }.As<import("electron").IpcMainEvent>();
 
       registerSchedulerHandlers(testAppGraph());
       const handler = getRegisteredHandler("scheduler:force-poll");

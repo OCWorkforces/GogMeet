@@ -88,7 +88,7 @@ describe("shortcuts", () => {
     pickJoinTarget = (await import("../../src/domain/services/pick-join-target.js")).pickJoinTarget;
 
     const electron = await import("electron");
-    globalShortcut = electron.globalShortcut as unknown as typeof globalShortcut;
+    globalShortcut = electron.globalShortcut.As<typeof globalShortcut>();
     vi.mocked(globalShortcut.register).mockReturnValue(true);
   });
 

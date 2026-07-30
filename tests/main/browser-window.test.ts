@@ -57,7 +57,7 @@ function makeWindow(): BrowserWindow {
       setWindowOpenHandler: mockSetWindowOpenHandler,
     },
   };
-  return win as unknown as BrowserWindow;
+  return win.As<BrowserWindow>();
 }
 
 function navigationGuard(eventName: NavigationEventName): NavigationGuard {

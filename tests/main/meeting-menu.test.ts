@@ -86,8 +86,8 @@ describe("buildMeetingMenuTemplate", () => {
     buildMeetingMenuTemplate = mod.buildMeetingMenuTemplate;
 
     const electron = await import("electron");
-    app = electron.app as unknown as typeof app;
-    shell = electron.shell as unknown as typeof shell;
+    app = electron.app.As<typeof app>();
+    shell = electron.shell.As<typeof shell>();
 
     onAbout.mockClear();
     onOpenSettings.mockClear();

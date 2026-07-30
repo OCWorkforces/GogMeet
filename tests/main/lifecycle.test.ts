@@ -147,7 +147,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 
 import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
 
-const mockWindow = {} as unknown as import("electron").BrowserWindow;
+const mockWindow = {}.As<import("electron").BrowserWindow>();
 
 describe("lifecycle", () => {
   beforeEach(() => {

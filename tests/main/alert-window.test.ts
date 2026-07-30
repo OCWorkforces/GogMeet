@@ -75,14 +75,14 @@ function getWindow(n: number): Record<string, unknown> {
 
 /** Fire a captured event handler on a mock window instance */
 function fireEvent(win: Record<string, unknown>, eventName: string): void {
-  const onceHandlers = win._onceHandlers as unknown as Map<string, () => void>;
+  const onceHandlers = win._onceHandlers.As<Map<string, () => void>>();
   const handler = onceHandlers.get(eventName);
   if (handler) {
     handler();
     onceHandlers.delete(eventName);
     return;
   }
-  const onHandlers = win._onHandlers as unknown as Map<string, () => void>;
+  const onHandlers = win._onHandlers.As<Map<string, () => void>>();
   const onHandler = onHandlers.get(eventName);
   if (onHandler) {
     onHandler();
@@ -159,9 +159,9 @@ describe("alert-window", () => {
     });
 
     it("loads from file in production (no env var)", () => {
-      (app as unknown as Record<string, unknown>).isPackaged = true;
+      (app.As<Record<string, unknown>>()).isPackaged = true;
       showAlert(makeEvent());
-      (app as unknown as Record<string, unknown>).isPackaged = false;
+      (app.As<Record<string, unknown>>()).isPackaged = false;
 
       const mockWin = getWindow(1);
       expect(mockWin.loadFile).toHaveBeenCalledWith(

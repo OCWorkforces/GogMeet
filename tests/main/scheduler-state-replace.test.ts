@@ -22,7 +22,7 @@ describe("replaceState() preservation", () => {
   });
 
   it("preserves win, onTrayTitleUpdate, powerCallbacks, and lastKnownEvents from old state", () => {
-    const fakeWin = { id: 42 } as unknown as BrowserWindow;
+    const fakeWin = { id: 42 }.As<BrowserWindow>();
     const fakeCallback = vi.fn();
     const fakePower = {
       getPollInterval: () => 60_000,
