@@ -45,45 +45,69 @@ import { bindComposition } from "./bind-composition.js";
 export interface AppGraphCalendar {
   /** Coordinated refresh; returns publication envelope for IPC/renderer. */
   getEvents(): Promise<CalendarPublication>;
-  /** Result-only helper for join/shortcuts (uses lastKnown or coordinated refresh). */
+  /** Result-only coordinated refresh for join/shortcuts. */
   getEventsResult(): Promise<CalendarResult>;
+  /** Trigger permission flow (Darwin TCC / Windows OAuth from tray or Settings). */
   requestPermission(): Promise<CalendarPermission>;
+  /** Current permission without prompting when a status is already cached. */
   getPermissionStatus(): Promise<CalendarPermission>;
+  /** Disconnect Google account / reset the active provider and related UI state. */
   disconnect(): Promise<void>;
+  /** Synchronous UI-state snapshot for tray menu and settings rendering. */
   getUiState(): CalendarUiState;
+  /** Pre-warm the active provider (Swift compile on Darwin / soft token refresh on Google). */
   warmup(): Promise<void>;
+  /** Drop cached permission so the next status check re-queries the provider. */
   invalidatePermissionCache(): void;
+  /** Whether lifecycle may auto-prompt when status is not-determined (Darwin only). */
   shouldAutoRequestPermission(): boolean;
+  /** Publish a poll-level failure into UI state, optionally retaining last events. */
   reportPollError(error: string, lastEvents: MeetingEvent[] | null): void;
 }
 
 /** Settings surface on the app graph. */
 export interface AppGraphSettings {
+  /** Load settings from disk into the in-memory store. */
   load(): Promise<Result<AppSettings, string>>;
+  /** Synchronous in-memory settings snapshot. */
   get(): AppSettings;
+  /** Merge a partial update, persist, and return the new settings. */
   update(partial: Partial<AppSettings>): Promise<AppSettings>;
+  /** Persist a full settings object (no merge). */
   save(settings: AppSettings): Promise<void>;
 }
 
 /** Scheduler surface on the app graph. */
 export interface AppGraphScheduler {
+  /** Immediate coordinated poll; returns the publication when the poll completes. */
   forcePoll(): Promise<CalendarPublication | null>;
+  /** Cached last poll result for join/shortcuts without starting a refresh. */
   getLastKnownEvents(): CalendarResult | null;
+  /** Cancel a pending auto-open timer and mark the event fired (e.g. alert dismiss). */
   cancelPendingBrowserOpen(id: EventId): void;
+  /** Start background polling (idempotent while already running). */
   start(): void;
+  /** Stop polling and clear timers; optionally preserve fired/alert suppression state. */
   stop(options?: { preserveFiredState?: boolean }): void;
+  /** Stop then start, preserving suppression state across the cycle. */
   restart(): void;
+  /** Inject the BrowserWindow used for calendar result IPC pushes. */
   setWindow(w: BrowserWindow): void;
+  /** Tray title callback for countdown / in-meeting display updates. */
   setTrayTitleCallback(
     fn: (title: string | null, minsRemaining?: number, inMeeting?: boolean) => void,
   ): void;
+  /** Power-management hooks (poll interval, sleep prevention). */
   initPowerCallbacks(callbacks: PowerCallbacks): void;
 }
 
 /** Watcher surface on the app graph. */
 export interface AppGraphWatcher {
+  /** Start provider calendar-change watch (when supported). */
   start(): void;
+  /** Stop the active watch. */
   stop(): void;
+  /** Re-arm watch after resume / provider revive. */
   revive(): void;
 }
 
@@ -92,19 +116,27 @@ export interface AppGraphWatcher {
  * Construction is pure wiring — no network/OAuth; start/stop stay in lifecycle.
  */
 export interface AppGraph {
+  /** Calendar use cases and coordinated refresh. */
   readonly calendar: AppGraphCalendar;
+  /** Settings load/get/update/save. */
   readonly settings: AppGraphSettings;
+  /** Allowlisted meeting join hub. */
   readonly join: {
+    /** Open a meeting by event id and suppress duplicate auto-open. */
     byId(id: EventId): Promise<Result<void, string>>;
   };
+  /** Shell-backed meeting URL opener (egress allowlist). */
   readonly opener: MeetingOpenerPort;
+  /** Polling, auto-open, alerts, and tray countdown. */
   readonly scheduler: AppGraphScheduler;
+  /** Provider calendar-change watch lifecycle. */
   readonly watcher: AppGraphWatcher;
 }
 
 export interface CreateAppGraphOptions {
   /** Skip rebinding free-function defaults (tests that mock facades). */
   readonly skipBind?: boolean;
+  /** Override the default shell meeting opener (tests / alternate adapters). */
   readonly opener?: MeetingOpenerPort;
 }
 
