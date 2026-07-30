@@ -334,10 +334,9 @@ export function createGoogleCalendarProvider(): CalendarProvider {
             budget.signal,
           );
           const observedAt = Date.now();
-          // Cache write for complete snapshots is refined in the cache-automation task;
-          // still save when complete so offline path has data.
+          // Only complete live snapshots may overwrite the encrypted cache.
           if (completeness === "complete") {
-            await saveOfflineCache(events);
+            await saveOfflineCache(events, observedAt);
           }
           return calendarLiveOk(events, completeness, observedAt);
         } catch (err) {
@@ -365,7 +364,7 @@ export function createGoogleCalendarProvider(): CalendarProvider {
                 );
                 const observedAt = Date.now();
                 if (completeness === "complete") {
-                  await saveOfflineCache(events);
+                  await saveOfflineCache(events, observedAt);
                 }
                 return calendarLiveOk(events, completeness, observedAt);
               } catch (retryErr) {
@@ -385,12 +384,11 @@ export function createGoogleCalendarProvider(): CalendarProvider {
           }
 
           // Network / other / transient force-refresh: try offline cache
+          // Empty filtered list is still offline success (display + explicit join).
           const cache = await loadOfflineCache();
-          if (cache && cache.events.length > 0) {
+          if (cache !== null) {
             console.warn("[calendar:google] Network failure; using offline cache");
-            const cachedAt = cache.savedAt;
-            // Until versioned cache schema, treat savedAt as both observation and cache time.
-            return calendarOfflineOk(cache.events, cachedAt, cachedAt);
+            return calendarOfflineOk(cache.events, cache.observedAt, cache.cachedAt);
           }
 
           const message = err instanceof Error ? err.message : String(err);

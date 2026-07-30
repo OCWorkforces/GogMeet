@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createMockEvent, asTestMeetUrl } from "../helpers/test-utils.js";
+import {
+  createMockEvent,
+  asTestMeetUrl,
+  asTestIsoUtc,
+  asTestEventId,
+} from "../helpers/test-utils.js";
 
 const { appState, encryptMock, decryptMock, encryptionAvailable } = vi.hoisted(() => ({
   appState: { isPackaged: false, userData: "" },
@@ -38,6 +43,11 @@ describe("offline-cache", () => {
     encryptionAvailable.value = true;
     encryptMock.mockClear();
     decryptMock.mockClear();
+    encryptMock.mockImplementation((s: string) => Buffer.from(`enc:${s}`, "utf-8"));
+    decryptMock.mockImplementation((b: Buffer) => {
+      const s = b.toString("utf-8");
+      return s.startsWith("enc:") ? s.slice(4) : s;
+    });
     delete process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"];
     vi.resetModules();
   });
@@ -47,33 +57,28 @@ describe("offline-cache", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("round-trips events with encryption", async () => {
-    const { saveOfflineCache, loadOfflineCache } = await import(
+  it("round-trips v1 complete snapshot with encryption", async () => {
+    const { saveOfflineCache, loadOfflineCache, OFFLINE_CACHE_SCHEMA_VERSION } = await import(
       "../../src/main/calendar/offline-cache.js"
     );
-    const events = [
-      createMockEvent({
-        id: "evt-1" as never,
-        meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
-        userEmail: "u@example.com",
-        description: "notes",
-      }),
-    ];
-    // recreate with proper brand via helper
     const e = createMockEvent({
       meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
       userEmail: "u@example.com",
       description: "notes",
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
     });
-    await saveOfflineCache([e]);
+    const observedAt = Date.now() - 1_000;
+    await saveOfflineCache([e], observedAt);
     expect(encryptMock).toHaveBeenCalled();
     const loaded = await loadOfflineCache();
     expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(OFFLINE_CACHE_SCHEMA_VERSION);
+    expect(loaded!.observedAt).toBe(observedAt);
+    expect(typeof loaded!.cachedAt).toBe("number");
     expect(loaded!.events).toHaveLength(1);
     expect(loaded!.events[0]!.title).toBe(e.title);
     expect(loaded!.events[0]!.meetUrl).toBe(e.meetUrl);
-    expect(loaded!.events[0]!.userEmail).toBe("u@example.com");
-    expect(typeof loaded!.savedAt).toBe("number");
   });
 
   it("returns null when file missing", async () => {
@@ -81,24 +86,87 @@ describe("offline-cache", () => {
     expect(await loadOfflineCache()).toBeNull();
   });
 
-  it("returns null for corrupt payload", async () => {
+  it("rejects unversioned legacy payload", async () => {
+    encryptionAvailable.value = false;
+    process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
+    const { loadOfflineCache, offlineCacheFilePath } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
+    const { writeFile } = await import("node:fs/promises");
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
+    await writeFile(
+      offlineCacheFilePath(),
+      JSON.stringify({ savedAt: Date.now(), events: [e] }),
+      "utf-8",
+    );
+    expect(await loadOfflineCache()).toBeNull();
+  });
+
+  it("rejects unknown version and future timestamps", async () => {
+    encryptionAvailable.value = false;
+    process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
+    const { loadOfflineCache, offlineCacheFilePath } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
+    const { writeFile } = await import("node:fs/promises");
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
+    await writeFile(
+      offlineCacheFilePath(),
+      JSON.stringify({
+        version: 99,
+        observedAt: Date.now(),
+        cachedAt: Date.now(),
+        events: [e],
+      }),
+      "utf-8",
+    );
+    expect(await loadOfflineCache()).toBeNull();
+
+    await writeFile(
+      offlineCacheFilePath(),
+      JSON.stringify({
+        version: 1,
+        observedAt: Date.now() + 10 * 60_000,
+        cachedAt: Date.now(),
+        events: [e],
+      }),
+      "utf-8",
+    );
+    expect(await loadOfflineCache()).toBeNull();
+  });
+
+  it("filters ended events and allows empty offline success", async () => {
+    encryptionAvailable.value = false;
+    process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
     const { saveOfflineCache, loadOfflineCache } = await import(
       "../../src/main/calendar/offline-cache.js"
     );
+    const past = createMockEvent({
+      id: asTestEventId("past"),
+      startDate: asTestIsoUtc(new Date(Date.now() - 3_600_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() - 1_800_000).toISOString()),
+    });
+    await saveOfflineCache([past], Date.now() - 5_000);
+    const loaded = await loadOfflineCache();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.events).toEqual([]);
+  });
+
+  it("returns null for corrupt payload", async () => {
+    const { loadOfflineCache, offlineCacheFilePath } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
     const { writeFile, mkdir } = await import("node:fs/promises");
-    const path = join(dir, "calendar-cache.enc");
+    const path = offlineCacheFilePath();
     await mkdir(dir, { recursive: true });
     await writeFile(path, Buffer.from("enc:not-json", "utf-8"));
     expect(await loadOfflineCache()).toBeNull();
-    await writeFile(path, Buffer.from(`enc:${JSON.stringify({ savedAt: 1 })}`, "utf-8"));
-    expect(await loadOfflineCache()).toBeNull();
-    await writeFile(
-      path,
-      Buffer.from(`enc:${JSON.stringify({ savedAt: 1, events: [{ bad: true }] })}`, "utf-8"),
-    );
-    const emptyish = await loadOfflineCache();
-    expect(emptyish).not.toBeNull();
-    expect(emptyish!.events).toEqual([]);
   });
 
   it("uses plaintext when encryption unavailable and dev flag set", async () => {
@@ -107,7 +175,10 @@ describe("offline-cache", () => {
     const { saveOfflineCache, loadOfflineCache } = await import(
       "../../src/main/calendar/offline-cache.js"
     );
-    const e = createMockEvent();
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
     await saveOfflineCache([e]);
     expect(encryptMock).not.toHaveBeenCalled();
     const loaded = await loadOfflineCache();
@@ -131,24 +202,34 @@ describe("offline-cache", () => {
     const { saveOfflineCache, clearOfflineCache, loadOfflineCache } = await import(
       "../../src/main/calendar/offline-cache.js"
     );
-    await saveOfflineCache([createMockEvent()]);
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
+    await saveOfflineCache([e]);
     expect(await loadOfflineCache()).not.toBeNull();
     await clearOfflineCache();
     expect(await loadOfflineCache()).toBeNull();
-    await clearOfflineCache(); // no throw
+    await clearOfflineCache();
   });
 
   it("drops invalid meetUrl but keeps event", async () => {
     encryptionAvailable.value = false;
     process.env["GOGMEET_ALLOW_PLAINTEXT_TOKENS"] = "1";
-    const { loadOfflineCache } = await import("../../src/main/calendar/offline-cache.js");
+    const { loadOfflineCache, offlineCacheFilePath } = await import(
+      "../../src/main/calendar/offline-cache.js"
+    );
     const { writeFile } = await import("node:fs/promises");
-    const e = createMockEvent();
-    const path = join(dir, "calendar-cache.enc");
+    const e = createMockEvent({
+      startDate: asTestIsoUtc(new Date(Date.now() + 60_000).toISOString()),
+      endDate: asTestIsoUtc(new Date(Date.now() + 3_600_000).toISOString()),
+    });
     await writeFile(
-      path,
+      offlineCacheFilePath(),
       JSON.stringify({
-        savedAt: Date.now(),
+        version: 1,
+        observedAt: Date.now() - 100,
+        cachedAt: Date.now() - 50,
         events: [
           {
             id: e.id,
@@ -167,5 +248,4 @@ describe("offline-cache", () => {
     expect(loaded!.events).toHaveLength(1);
     expect(loaded!.events[0]!.meetUrl).toBeUndefined();
   });
-
 });

@@ -1,6 +1,10 @@
 /**
- * Encrypted offline calendar event cache (K29).
+ * Encrypted offline calendar event cache.
  * Path: {userData}/calendar-cache.enc
+ *
+ * Schema v1: { version:1, observedAt, cachedAt, events }.
+ * Only complete live snapshots should be written by callers.
+ * Load rejects unversioned/unknown/corrupt/future metadata and filters ended events.
  */
 
 import { app, safeStorage } from "electron";
@@ -8,16 +12,28 @@ import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
+import { isValidCalendarTimestamp } from "../../domain/entities/calendar-result.js";
 import { isObjectRecord } from "../../domain/entities/type-guards.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../domain/entities/brand.js";
 
+export const OFFLINE_CACHE_SCHEMA_VERSION = 1 as const;
+
 export interface OfflineCachePayload {
-  readonly savedAt: number;
+  readonly version: typeof OFFLINE_CACHE_SCHEMA_VERSION;
+  /** Observation time of the live complete snapshot that was cached. */
+  readonly observedAt: number;
+  /** Cache write time. */
+  readonly cachedAt: number;
   readonly events: MeetingEvent[];
 }
 
 function cachePath(): string {
   return join(app.getPath("userData"), "calendar-cache.enc");
+}
+
+/** Absolute path for tests / diagnostics. */
+export function offlineCacheFilePath(): string {
+  return cachePath();
 }
 
 function allowPlaintextDev(): boolean {
@@ -78,27 +94,71 @@ function mapEvent(raw: unknown): MeetingEvent | null {
   return event;
 }
 
-export async function loadOfflineCache(): Promise<OfflineCachePayload | null> {
+function filterActiveEvents(events: MeetingEvent[], nowMs: number): MeetingEvent[] {
+  return events.filter((e) => {
+    const endMs = new Date(e.endDate).getTime();
+    return Number.isFinite(endMs) && endMs > nowMs;
+  });
+}
+
+/**
+ * Load and validate cache. Returns null for missing, corrupt, unversioned,
+ * unknown-version, non-finite, or >5-minute-future timestamps (fail closed).
+ * Ended events (`endDate <= now`) are filtered; empty list is still a valid hit.
+ */
+export async function loadOfflineCache(nowMs: number = Date.now()): Promise<OfflineCachePayload | null> {
   try {
     const buf = await readFile(cachePath());
     const json = decode(buf);
     const parsed: unknown = JSON.parse(json);
-    if (!isObjectRecord(parsed) || typeof parsed["savedAt"] !== "number") return null;
+    if (!isObjectRecord(parsed)) return null;
+
+    // Reject unversioned / legacy {savedAt,events} and unknown versions.
+    if (parsed["version"] !== OFFLINE_CACHE_SCHEMA_VERSION) return null;
+    if (typeof parsed["observedAt"] !== "number" || typeof parsed["cachedAt"] !== "number") {
+      return null;
+    }
+    if (!isValidCalendarTimestamp(parsed["observedAt"], nowMs)) return null;
+    if (!isValidCalendarTimestamp(parsed["cachedAt"], nowMs)) return null;
     if (!Array.isArray(parsed["events"])) return null;
+
     const events: MeetingEvent[] = [];
     for (const item of parsed["events"]) {
       const mapped = mapEvent(item);
       if (mapped) events.push(mapped);
     }
-    return { savedAt: parsed["savedAt"], events };
+
+    return {
+      version: OFFLINE_CACHE_SCHEMA_VERSION,
+      observedAt: parsed["observedAt"],
+      cachedAt: parsed["cachedAt"],
+      events: filterActiveEvents(events, nowMs),
+    };
   } catch {
     return null;
   }
 }
 
-export async function saveOfflineCache(events: MeetingEvent[]): Promise<void> {
+/**
+ * Persist a complete live snapshot. Callers must only pass complete results.
+ * @param observedAt completion time of the live aggregation
+ */
+export async function saveOfflineCache(
+  events: MeetingEvent[],
+  observedAt: number = Date.now(),
+): Promise<void> {
   try {
-    const payload: OfflineCachePayload = { savedAt: Date.now(), events };
+    const now = Date.now();
+    if (!isValidCalendarTimestamp(observedAt, now)) {
+      console.warn("[calendar:cache] Refusing to save cache with invalid observedAt");
+      return;
+    }
+    const payload: OfflineCachePayload = {
+      version: OFFLINE_CACHE_SCHEMA_VERSION,
+      observedAt,
+      cachedAt: now,
+      events,
+    };
     const path = cachePath();
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, encode(JSON.stringify(payload)));

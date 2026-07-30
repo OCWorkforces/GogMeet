@@ -167,7 +167,9 @@ describe("createGoogleCalendarProvider", () => {
     // listSelected will fail via fetch throw → outer catch network
     // Actually fetch rejection isn't handled as NetworkError in googleFetch - it will throw
     const cached = {
-      savedAt: Date.now(),
+      version: 1 as const,
+      observedAt: Date.now() - 1_000,
+      cachedAt: Date.now(),
       events: [createMockEvent({ title: "Cached" })],
     };
     // First failure path: ensureFresh works, fetchAllEvents throws from fetch
@@ -438,7 +440,9 @@ describe("createGoogleCalendarProvider", () => {
     });
     fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
     loadOfflineCache.mockResolvedValue({
-      savedAt: Date.now(),
+      version: 1 as const,
+      observedAt: Date.now() - 1_000,
+      cachedAt: Date.now(),
       events: [
         createMockEvent({
           id: "cached",
@@ -452,6 +456,10 @@ describe("createGoogleCalendarProvider", () => {
     const provider = createGoogleCalendarProvider();
     const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.source).toBe("offline-cache");
+    }
     expect(clearGoogleTokens).not.toHaveBeenCalled();
   });
 });
+
