@@ -3,7 +3,13 @@ import type { MeetingEvent } from "./meeting-event.js";
 
 /** High-level tray/settings presentation phase for calendar connectivity. */
 export type CalendarUiPhase =
-  "disconnected" | "connecting" | "ready" | "empty" | "error" | "offline-cached";
+  | "disconnected"
+  | "connecting"
+  | "ready"
+  | "empty"
+  | "error"
+  | "offline-cached"
+  | "limited";
 
 /**
  * Snapshot for tray menu and Settings account section.
@@ -18,6 +24,11 @@ export interface CalendarUiState {
   readonly events: MeetingEvent[] | null;
   readonly offline: boolean;
   readonly oauthConfigured: boolean;
+  /**
+   * Age of offline cache in ms when phase is offline-cached; null otherwise.
+   * Derived from cachedAt at publish time.
+   */
+  readonly cacheAgeMs: number | null;
 }
 
 export function defaultCalendarUiState(): CalendarUiState {
@@ -29,5 +40,9 @@ export function defaultCalendarUiState(): CalendarUiState {
     events: null,
     offline: false,
     oauthConfigured: false,
+    cacheAgeMs: null,
   };
 }
+
+/** User-facing copy for the limited (live partial) phase. */
+export const CALENDAR_LIMITED_COPY = "Some calendars could not be refreshed";
