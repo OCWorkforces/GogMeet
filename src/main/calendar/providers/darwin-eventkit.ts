@@ -45,14 +45,22 @@ export function createDarwinEventKitProvider(): CalendarProvider {
   return {
     id: "darwin-eventkit",
 
-    async getEvents(): Promise<CalendarResult> {
+    async getEvents(signal: AbortSignal): Promise<CalendarResult> {
       try {
-        const output = await runSwiftHelper();
+        const output = await runSwiftHelper(signal);
         const { events, diagnostics } = parseEvents(output);
         for (const d of diagnostics) {
           console.warn(`[calendar:darwin] Parse diagnostic: line ${d.line}: ${d.reason}`);
         }
-        return { kind: "ok", events: [...events] };
+        // Any record diagnostic makes the live result partial (not silent drop of the fetch).
+        const completeness = diagnostics.length > 0 ? "partial" : "complete";
+        return {
+          kind: "ok",
+          source: "live",
+          completeness,
+          observedAt: Date.now(),
+          events: [...events],
+        };
       } catch (err) {
         if (err instanceof SwiftHelperError) {
           const appErr = err.toAppError();

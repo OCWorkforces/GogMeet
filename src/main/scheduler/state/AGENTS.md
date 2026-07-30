@@ -8,7 +8,7 @@ Internal state for the scheduler subsystem, split into slices composed by `index
 | --- | --- |
 | `index.ts` | Composition root: `SchedulerState` interface, `createSchedulerState()` factory, singleton, `replaceState()`, getters/setters |
 | `state-cleanup.ts` | Stale timer pruning, bulk resource cleanup, in-meeting timer cleanup |
-| `state-timers.ts` | Timer-handle Maps, `scheduledEventData` snapshots, fired/cancelled suppression state |
+| `state-timers.ts` | Timer-handle Maps, `scheduledEventData` snapshots (written via interpret `set-snapshot`, not browser-timer), fired/cancelled suppression state |
 | `state-display.ts` | Tray display scalars: `activeTitleEventId`, `activeInMeetingEventId`, dirty flags |
 | `state-poll.ts` | Poll metadata: `pollTimeout`, `pollEpoch`, `consecutiveErrors`, `lastKnownEvents` |
 | `state-runtime.ts` | Runtime callbacks: `win`, `onTrayTitleUpdate`, `powerCallbacks` |

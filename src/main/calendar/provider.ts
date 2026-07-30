@@ -10,7 +10,8 @@ export type CalendarProviderId =
  */
 export interface CalendarProvider {
   readonly id: CalendarProviderId;
-  getEvents(): Promise<CalendarResult>;
+  /** Fetch events; `signal` cancels transport (Swift helper / Google HTTP). */
+  getEvents(signal: AbortSignal): Promise<CalendarResult>;
   getPermissionStatus(): Promise<CalendarPermission>;
   requestPermission(): Promise<CalendarPermission>;
   /** Optional change watch (EventKit sidecar). No-op providers omit this. */

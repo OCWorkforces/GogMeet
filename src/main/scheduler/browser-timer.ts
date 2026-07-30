@@ -2,7 +2,6 @@ import { Notification } from "electron";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
-import type { ScheduledEventSnapshot } from "./state/index.js";
 import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
 import { openMeetingUrl } from "../utils/meet-url.js";
 import { getLateJoinGraceMs } from "./late-join.js";
@@ -22,16 +21,18 @@ export interface BrowserTimerOptions {
 /**
  * Schedule a browser-open timer for a meeting event.
  * Shows a notification and opens the meeting URL when the timer fires.
+ *
+ * Does not write schedule snapshots — the interpreter applies `set-snapshot`
+ * before arming browser/alert/title so auto-open can be disabled independently.
  */
 export function scheduleBrowserTimer(
   event: MeetingEvent,
   effectiveDelay: number,
-  openAtMs: number,
+  _openAtMs: number,
   startMs: number,
   endMs: number,
   timers: Map<EventId, ReturnType<typeof setTimeout>>,
   firedEvents: Map<EventId, number>,
-  scheduledEventData: Map<EventId, ScheduledEventSnapshot>,
   options: BrowserTimerOptions = {},
 ): void {
   const showNativeNotification = options.nativeNotifications !== false;
@@ -75,13 +76,6 @@ export function scheduleBrowserTimer(
   }, effectiveDelay);
 
   timers.set(event.id, handle);
-  scheduledEventData.set(event.id, {
-    title: event.title,
-    meetUrl: event.meetUrl,
-    openAtMs,
-    startMs,
-    endMs,
-  });
   console.log(
     `[scheduler] Scheduled "${event.title}" to open in ${Math.round(effectiveDelay / 1000)}s`,
   );

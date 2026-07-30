@@ -31,9 +31,11 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 ### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks, status?)`
 
-- Input: `CalendarUiState` (permission, phase, errors, events, offline, oauthConfigured).
+- Input: `CalendarUiState` (permission, phase, errors, events, offline, oauthConfigured, `cacheAgeMs`).
 - **Windows / non-Darwin:** Connect / Reconnect / Disconnect Google, error + Retry, offline hint.
 - **Darwin:** meeting list when granted; uses same meeting rows + footer.
+- **`phase === "limited"`:** show limited copy under meeting rows (partial live refresh).
+- **`offline`:** “Offline — showing last synced meetings” when events present.
 
 ## CONSUMERS
 

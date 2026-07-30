@@ -7,7 +7,8 @@ import type {
  * Application port for calendar backends (EventKit, Google, fixture).
  */
 export interface CalendarPort {
-  getEvents(): Promise<CalendarResult>;
+  /** Fetch events; `signal` cancels provider work (coordinator / poll budget). */
+  getEvents(signal: AbortSignal): Promise<CalendarResult>;
   getPermissionStatus(): Promise<CalendarPermission>;
   requestPermission(): Promise<CalendarPermission>;
   /** Optional change watch (EventKit sidecar). No-op providers omit this. */

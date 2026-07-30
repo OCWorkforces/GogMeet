@@ -10,28 +10,28 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `preload/` | `src/preload/index.ts` | `lib/preload/index.cjs` | sandboxed preload (CJS) |
 | `renderer/` | 3 entries | `lib/renderer/` | BrowserWindow pages (ESM) |
 | `domain/` | imported modules | bundled into consumers | pure, no side effects |
-| `shared/` | imported modules | bundled into consumers | no runtime side effects |
+| `shared/` | imported modules | bundled into consumers | contracts + cast side-effect when imported |
 
 ## Directory map
 
 | Path | Role |
 | --- | --- |
 | `domain/` | Pure entities, policies, services. See `domain/AGENTS.md`. |
-| `shared/` | IPC channel maps + thin DTOs (`alert`, `app-state`, escape-html). See `shared/AGENTS.md`. |
+| `shared/` | IPC maps + thin DTOs + `utils/as.ts` + `escape-html`. See `shared/AGENTS.md`. |
 | `main/composition/` | `createAppGraph`, `bindComposition`, `createTestAppGraph`. |
 | `main/application/` | Ports + use cases (no Electron). |
 | `main/infrastructure/` | Driven adapters: JsonSettingsStore, ShellMeetingOpener. |
 | `main/facades/` | Calendar, watcher, status, settings free-function surface + default binds. |
-| `main/calendar/` | Provider factory, Darwin/Google/fixture, auth, offline cache. |
+| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth, offline cache. |
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
 | `main/app/` | Lifecycle + IPC registrar. |
 | `main/menu/`, `tray.ts` | Tray context menu builders + tray lifecycle. |
 | `main/system/` | Power, shortcuts, auto-launch, auto-updater, notifications. |
 | `main/windows/` | About, alert, settings BrowserWindows. |
-| `main/utils/` | CSP/window helpers, join hub free-fn, thin open wrapper, logging. |
+| `main/utils/` | CSP/window helpers, join hub, meet-url, **performance-trace**, logging. |
 | `main/platform/` | OS predicates (`isDarwin` / `isWin32`). |
-| `main/swift/` | EventKit helper compile/run/JSON Lines (**Darwin provider leaf only**). |
+| `main/swift/` | EventKit helper compile/run/JSON Lines + **swift-helper-process** (Darwin leaf). |
 | `preload/` | `window.api` bridge. |
 | `renderer/` | popover, settings, alert UIs. |
 | `assets/` | tray icons (mac 18/36 + win 16/32); load via `nativeImage.createFromPath()`. |
@@ -42,8 +42,9 @@ Application source is split by Electron process and Clean Architecture layers. K
 | --- | --- |
 | Add IPC channel | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer |
 | Composition / DI | `main/composition/app-graph.ts` |
-| Calendar facade / UI status | `main/facades/calendar.ts`, `domain/entities/calendar-ui-state.ts`, `main/events.ts` |
-| Calendar backends | `main/calendar/factory.ts`, `providers/*`, `auth/*` |
+| Calendar result / phases | `domain/entities/calendar-result.ts`, `calendar-ui-state.ts` |
+| Calendar facade / UI status | `main/facades/calendar.ts`, `main/events.ts` |
+| Calendar backends | `main/calendar/factory.ts`, `providers/*`, `auth/*`, `google-http.ts` |
 | Meeting URL extract | `domain/services/url-extract.ts` (+ Swift `findMeetUrl`) |
 | Allowlist / validate | `domain/policies/meet-url-allowlist.ts`, `domain/services/url-validation.ts` |
 | buildMeetUrl / platform host | `domain/services/build-meet-url.ts`, `domain/services/platform.ts` |
@@ -51,7 +52,9 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Settings schema + parse | `domain/entities/settings.ts`, `domain/services/settings-parse.ts` |
 | Settings persistence | `infrastructure/settings/json-settings-store.ts` via `facades/settings.ts` |
 | Scheduler | `main/scheduler/facade.ts` only from outside scheduler |
-| Swift EventKit wire | `main/swift/*`, `main/googlemeet-events.swift` |
+| Swift EventKit wire | `main/swift/*` (incl. `swift-helper-process.ts`), `main/googlemeet-events.swift` |
+| Unchecked casts | `shared/utils/as.ts` (`.As<T>()` / free `As`) |
+| Opt-in perf marks | `main/utils/performance-trace.ts` |
 | OS branching | `main/platform/os.ts` |
 | Window chrome | `main/utils/window-chrome.ts`, `main/windows/*` |
 | Auto-update | `main/system/auto-updater.ts` (portable skipped) |
@@ -64,7 +67,9 @@ Application source is split by Electron process and Clean Architecture layers. K
 - No static `swift/*` imports outside Darwin provider + `swift/**`.
 - Facades must not import `swift/*` or `calendar/auth/*`.
 - Branded values only at trust boundaries.
-- Calendar: `isCalendarOk()` / `result.kind === "ok"`.
+- Prefer `.As<T>()` over `as unknown as T` (import `shared/utils/as.js` for the method).
+- Calendar: exhaustive provenance; `isCalendarOk` / `isCalendarAutomationEligible` (live complete).
+- `getEvents(signal: AbortSignal)` on ports/providers.
 - Renderer user HTML: `escapeHtml()`.
 - Windows OAuth only via tray/Settings — never lifecycle auto-start.
 - BrowserWindows: `sandbox`, `contextIsolation`, no Node integration.
@@ -83,4 +88,4 @@ Egress allowlisting remains in ShellMeetingOpener / `openMeetingUrl` / `joinMeet
 
 ## Tests
 
-Vitest projects: `tests/domain/`, `tests/application/`, `tests/main/` (Electron mocks), `tests/renderer/` (jsdom), `tests/shared/`, `tests/scripts/`. Helpers: `tests/helpers/` (`test-utils`, `ipc-sender`, `app-graph`).
+Vitest projects: `tests/domain/`, `tests/application/`, `tests/main/` (Electron mocks + `setup.main.ts` + `setup.as.ts`), `tests/renderer/` (jsdom + `setup.as.ts`), `tests/shared/`, `tests/scripts/`. Helpers: `tests/helpers/`. Bench: `vitest.bench.config.ts` (not workspace). Coverage floors: see `tests/AGENTS.md`.

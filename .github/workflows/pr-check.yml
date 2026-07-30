@@ -57,6 +57,12 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Permanent guardrails scan
+        run: bun run guardrails
+
+      - name: Permanent guardrails freeze tests
+        run: bun run guardrails:tests
+
       - name: Build
         run: bun run build
 

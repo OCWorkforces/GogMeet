@@ -64,6 +64,7 @@ export default defineConfig({
           name: "renderer",
           environment: "jsdom",
           include: ["tests/renderer/**/*.test.ts"],
+          setupFiles: ["./tests/setup.as.ts"],
           coverage: {
             provider: "v8",
             reporter: ["text", "json-summary"],
@@ -84,6 +85,7 @@ export default defineConfig({
           name: "application",
           environment: "node",
           include: ["tests/application/**/*.test.ts"],
+          setupFiles: ["./tests/setup.as.ts"],
           coverage: {
             provider: "v8",
             reporter: ["text", "json-summary"],
@@ -103,6 +105,7 @@ export default defineConfig({
           name: "domain",
           environment: "node",
           include: ["tests/domain/**/*.test.ts"],
+          setupFiles: ["./tests/setup.as.ts"],
           coverage: {
             provider: "v8",
             reporter: ["text", "json-summary"],
@@ -122,6 +125,7 @@ export default defineConfig({
           name: "shared",
           environment: "node",
           include: ["tests/shared/**/*.test.ts"],
+          setupFiles: ["./tests/setup.as.ts"],
           coverage: {
             provider: "v8",
             reporter: ["text", "json-summary"],
@@ -146,6 +150,7 @@ export default defineConfig({
           name: "scripts",
           environment: "node",
           include: ["tests/scripts/**/*.test.ts"],
+          setupFiles: ["./tests/setup.as.ts"],
         },
       },
     ],

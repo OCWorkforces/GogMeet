@@ -45,10 +45,91 @@ describe("planSchedule", () => {
     });
 
     const types = plan.actions.map((a) => a.type);
+    expect(types).toContain("set-snapshot");
     expect(types).toContain("arm-browser");
     expect(types).toContain("arm-alert");
     expect(types).toContain("arm-title");
     expect(plan.activeIds.has(event.id)).toBe(true);
+    // Snapshot must precede alert/title/browser so non-browser paths have state.
+    const snapshotIdx = types.indexOf("set-snapshot");
+    expect(snapshotIdx).toBeLessThan(types.indexOf("arm-alert"));
+    expect(snapshotIdx).toBeLessThan(types.indexOf("arm-browser"));
+    expect(snapshotIdx).toBeLessThan(types.indexOf("arm-title"));
+  });
+
+  it("with autoOpenEnabled=false: sets snapshot and arms alert/title, never browser", () => {
+    const start = now + 10 * 60_000;
+    const event = createMockEvent({
+      id: asTestEventId("e1"),
+      startDate: new Date(start).toISOString(),
+      endDate: new Date(start + 30 * 60_000).toISOString(),
+      meetUrl: asTestMeetUrl("https://meet.google.com/abc-def-ghi"),
+    });
+    const disabled = { ...settings, autoOpenEnabled: false };
+
+    const plan = planSchedule([event], disabled, now, emptySnapshot(), {
+      lateJoinGraceMs: 0,
+    });
+
+    const types = plan.actions.map((a) => a.type);
+    expect(types).toContain("set-snapshot");
+    expect(types).toContain("arm-alert");
+    expect(types).toContain("arm-title");
+    expect(types).not.toContain("arm-browser");
+
+    const setSnap = plan.actions.find((a) => a.type === "set-snapshot");
+    expect(setSnap).toMatchObject({
+      type: "set-snapshot",
+      eventId: event.id,
+      snapshot: {
+        title: event.title,
+        meetUrl: event.meetUrl,
+        startMs: start,
+        endMs: start + 30 * 60_000,
+        openAtMs: start - 60_000,
+      },
+    });
+  });
+
+  it("with autoOpenEnabled=false: identical second plan skips re-arm when snapshot present", () => {
+    const start = now + 10 * 60_000;
+    const openAtMs = start - 60_000;
+    const event = createMockEvent({
+      id: asTestEventId("e1"),
+      startDate: new Date(start).toISOString(),
+      endDate: new Date(start + 30 * 60_000).toISOString(),
+      meetUrl: asTestMeetUrl("https://meet.google.com/abc-def-ghi"),
+    });
+    const disabled = { ...settings, autoOpenEnabled: false };
+
+    const first = planSchedule([event], disabled, now, emptySnapshot(), {
+      lateJoinGraceMs: 0,
+    });
+    expect(first.actions.some((a) => a.type === "set-snapshot")).toBe(true);
+
+    const afterFirst = emptySnapshot({
+      scheduledEventData: new Map([
+        [
+          event.id,
+          {
+            title: event.title,
+            meetUrl: event.meetUrl,
+            openAtMs,
+            startMs: start,
+            endMs: start + 30 * 60_000,
+          },
+        ],
+      ]),
+      previousActiveIds: new Set([event.id]),
+    });
+    const second = planSchedule([event], disabled, now, afterFirst, {
+      lateJoinGraceMs: 0,
+    });
+    const secondTypes = second.actions.map((a) => a.type);
+    expect(secondTypes).not.toContain("set-snapshot");
+    expect(secondTypes).not.toContain("arm-alert");
+    expect(secondTypes).not.toContain("arm-title");
+    expect(secondTypes).not.toContain("arm-browser");
   });
 
   it("skips all-day events", () => {

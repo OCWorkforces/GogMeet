@@ -1,30 +1,36 @@
 import { bench, describe } from "vitest";
 import { parseEvents } from "../../src/main/swift/event-parser.js";
+import {
+  generateCalendarParserFixtures,
+  preflightCalendarParserFixtures,
+} from "./calendar-parser-fixtures.js";
 
-const EVENT_COUNT = 20;
-const MINUTE_MS = 60_000;
-const baseTime = Date.now() + 10 * MINUTE_MS;
-
-function isoFromBase(minutes: number): string {
-  return new Date(baseTime + minutes * MINUTE_MS).toISOString();
+// Fixtures generated outside timed regions.
+const fixtures = generateCalendarParserFixtures();
+const preflightCode = preflightCalendarParserFixtures(parseEvents);
+if (preflightCode !== 0) {
+  throw new Error("calendar-parser benchmark preflight failed — refusing to time invalid workloads");
 }
 
-const rawSwiftOutput = Array.from({ length: EVENT_COUNT }, (_, index) =>
-  [
-    `calendar-event-${index}`,
-    `Calendar Meeting ${index}`,
-    isoFromBase(index),
-    isoFromBase(index + 30),
-    "https://meet.google.com/abc-def-ghi",
-    index % 2 === 0 ? "Engineering" : "Product",
-    "false",
-    "user@example.com",
-    `Agenda for meeting ${index}`,
-  ].join("\t"),
-).join("\n");
+const envMeta = {
+  platform: process.platform,
+  arch: process.arch,
+  node: process.version,
+};
 
-describe("calendar parser benchmark", () => {
-  bench("parseEvents/20 swift rows", () => {
-    parseEvents(rawSwiftOutput);
-  });
+describe("calendar parser benchmark (production JSONL)", () => {
+  // Emit machine metadata once for receipt capture (not timed).
+  // eslint-disable-next-line no-console
+  console.log("[bench:calendar-parser] meta", JSON.stringify(envMeta));
+
+  for (const fixture of fixtures) {
+    if (fixture.kind === "malformed") continue; // preflight-only
+    bench(
+      `parseEvents/${fixture.kind}`,
+      () => {
+        parseEvents(fixture.raw);
+      },
+      { warmupIterations: 5, iterations: 30 },
+    );
+  }
 });

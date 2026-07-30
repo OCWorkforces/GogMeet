@@ -50,7 +50,6 @@ function applyAction(action: ScheduleAction, shouldAbort: () => boolean): void {
         action.endMs,
         s.timers,
         s.firedEvents,
-        s.scheduledEventData,
         { nativeNotifications: action.notify },
       );
       break;
@@ -120,6 +119,10 @@ function applyAction(action: ScheduleAction, shouldAbort: () => boolean): void {
 
     case "delete-snapshot":
       s.scheduledEventData.delete(action.eventId);
+      break;
+
+    case "set-snapshot":
+      s.scheduledEventData.set(action.eventId, action.snapshot);
       break;
 
     case "update-snapshot":

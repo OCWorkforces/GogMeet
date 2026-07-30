@@ -10,28 +10,28 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 
 | File | Exports | Purpose |
 | --- | --- | --- |
-| `calendar.ts` | `getCalendarEventsResult`, `requestCalendarPermission`, `getCalendarPermissionStatus`, `invalidateCalendarPermissionCache`, `warmupCalendarProvider`, `shouldAutoRequestCalendarPermission`, `disconnectCalendar`, `getCalendarUiState`, `reportCalendarPollError`, `getCalendarPort`, `bindCalendarUseCases`, `rebindCalendarDefaults` | Stable facade over `calendar/factory`; publishes `CalendarUiState` on the main bus |
+| `calendar.ts` | `getCalendarEventsResult(signal?)`, permission/disconnect/warmup/UI state, bind helpers | Stable facade over `calendar/factory`; publishes `CalendarUiState` on the main bus |
 | `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher`, `reviveCalendarWatcher` | Provider `startWatch` / `stopWatch` → `forcePoll()`; revive after give-up/resume |
-| `calendar-status.ts` | `recordCalendarResult`, `getLastCalendarStatus` | Last poll ok/err for tray menu error rows |
-| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings`, `bindSettingsUseCases`, `rebindSettingsDefaults` | JSON-persisted settings via JsonSettingsStore; schema v2 |
+| `calendar-status.ts` | `recordCalendarResult`, `getLastCalendarStatus` | Last poll ok/err for tray menu error rows (`isCalendarOk`) |
+| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings`, bind helpers | JSON-persisted settings via JsonSettingsStore; schema v2 |
 
 ## WHERE TO LOOK
 
 | Task | Location |
 | --- | --- |
 | Add a setting field | `settings.ts` + `domain/entities/settings.ts` + `domain/services/settings-parse.ts` |
-| Narrow CalendarResult | `domain/entities/calendar-result.ts` → `isCalendarOk()` |
-| Platform backends | `../calendar/` (factory + providers) |
+| CalendarResult provenance | `domain/entities/calendar-result.ts` → `isCalendarOk` / automation helpers |
+| UI phases (`limited`, offline age) | `domain/entities/calendar-ui-state.ts` + `application/use-cases/get-meetings.ts` |
+| Platform backends | `../calendar/` (factory + providers + google-http) |
 | Swift internals | `../swift/AGENTS.md` (Darwin provider only) |
-| Tray empty/error states | `getCalendarUiState` / `calendar-status-updated` |
-| Menu status rows | `calendar-status.ts` + `menu/meeting-menu.ts` |
+| Tray empty/error/limited states | `getCalendarUiState` / `calendar-status-updated` / `menu/meeting-menu.ts` |
 | Graph wiring | `../composition/app-graph.ts` |
 
 ## NOTES
 
 - **Must not** import `swift/*` or `calendar/auth/*`. Use CalendarPort methods (`getAccountLabel`, `reviveWatch`, …).
 - Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
-- Windows: `calendar/providers/google-calendar.ts` (OAuth + API).
+- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http).
 - Watch is poll-only when provider omits `startWatch` (Google/fixture).
 - `settings.ts` uses `domain/entities/type-guards` (`isObjectRecord`), never `swift/guards`.
 - Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.

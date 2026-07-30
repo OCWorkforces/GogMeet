@@ -86,8 +86,8 @@ describe("buildMeetingMenuTemplate", () => {
     buildMeetingMenuTemplate = mod.buildMeetingMenuTemplate;
 
     const electron = await import("electron");
-    app = electron.app as unknown as typeof app;
-    shell = electron.shell as unknown as typeof shell;
+    app = electron.app.As<typeof app>();
+    shell = electron.shell.As<typeof shell>();
 
     onAbout.mockClear();
     onOpenSettings.mockClear();
@@ -689,6 +689,7 @@ describe("status rows and calendar tray extras", () => {
         events: null,
         offline: false,
         oauthConfigured: true,
+        cacheAgeMs: null,
       },
       false,
       { ...baseCallbacks, onRetryPoll },
@@ -702,5 +703,92 @@ describe("status rows and calendar tray extras", () => {
     expect(onRetryPoll).toHaveBeenCalledOnce();
     // Footer still present for refresh
     expect(items.some((i) => i.label === "Refresh")).toBe(true);
+  });
+
+  it("Windows connecting / oauth-not-configured / limited / offline / disconnect paths", async () => {
+    platformState.darwin = false;
+    vi.resetModules();
+    const mod = await import("../../src/main/menu/meeting-menu.js");
+    buildCalendarTrayMenuTemplate = mod.buildCalendarTrayMenuTemplate;
+    const onDisconnectGoogle = vi.fn();
+    const onConnectGoogle = vi.fn();
+
+    const connecting = buildCalendarTrayMenuTemplate(
+      {
+        permission: "not-determined",
+        phase: "connecting",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: true,
+        cacheAgeMs: null,
+      },
+      true,
+      { ...baseCallbacks, onConnectGoogle, onDisconnectGoogle },
+    );
+    expect(connecting.some((i) => i.label === "Connecting to Google…")).toBe(true);
+
+    const noOauth = buildCalendarTrayMenuTemplate(
+      {
+        permission: "not-determined",
+        phase: "disconnected",
+        lastError: "config",
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: false,
+        cacheAgeMs: null,
+      },
+      true,
+      { ...baseCallbacks, onConnectGoogle },
+    );
+    expect(noOauth.some((i) => i.label === "No calendar connected")).toBe(true);
+    expect(noOauth.some((i) => String(i.label).includes("GOOGLE_OAUTH_CLIENT_ID"))).toBe(true);
+
+    const evt = makeEvent();
+    const limited = buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "limited",
+        lastError: "partial failure",
+        accountEmail: "u@example.com",
+        events: [evt],
+        offline: true,
+        oauthConfigured: true,
+        cacheAgeMs: 1000,
+      },
+      true,
+      { ...baseCallbacks, onDisconnectGoogle },
+    );
+    expect(limited.some((i) => String(i.label).includes("Connected as"))).toBe(true);
+    expect(limited.some((i) => String(i.label).includes("partial failure"))).toBe(true);
+    expect(limited.some((i) => String(i.label).includes("Offline"))).toBe(true);
+    const disconnect = limited.find((i) => i.label === "Disconnect Google Calendar");
+    expect(disconnect).toBeDefined();
+    disconnect?.click?.(undefined as never, undefined as never, undefined as never);
+    expect(onDisconnectGoogle).toHaveBeenCalledOnce();
+  });
+
+  it("Darwin loading label when permission undetermined and events null", async () => {
+    platformState.darwin = true;
+    vi.resetModules();
+    const mod = await import("../../src/main/menu/meeting-menu.js");
+    buildCalendarTrayMenuTemplate = mod.buildCalendarTrayMenuTemplate;
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "not-determined",
+        phase: "disconnected",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: false,
+        cacheAgeMs: null,
+      },
+      true,
+      baseCallbacks,
+    );
+    expect(items.some((i) => i.label === "Loading…")).toBe(true);
   });
 });

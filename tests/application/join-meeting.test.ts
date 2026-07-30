@@ -10,7 +10,7 @@ describe("createJoinMeeting", () => {
     userEmail: "user@test.com",
   });
 
-  const okCalendar: CalendarResult = { kind: "ok", events: [event] };
+  const okCalendar: CalendarResult = { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [event] };
 
   let getLastKnown: ReturnType<typeof vi.fn>;
   let fetchCalendar: ReturnType<typeof vi.fn>;
@@ -44,7 +44,7 @@ describe("createJoinMeeting", () => {
   });
 
   it("fetches when cache misses then opens", async () => {
-    getLastKnown.mockReturnValue({ kind: "ok", events: [] });
+    getLastKnown.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     fetchCalendar.mockResolvedValue(okCalendar);
     const join = create();
     const result = await join.execute(event.id);
@@ -62,8 +62,8 @@ describe("createJoinMeeting", () => {
   });
 
   it("returns error when meeting not found", async () => {
-    getLastKnown.mockReturnValue({ kind: "ok", events: [] });
-    fetchCalendar.mockResolvedValue({ kind: "ok", events: [] });
+    getLastKnown.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    fetchCalendar.mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     const join = create();
     const result = await join.execute(event.id);
     expect(result).toEqual({ ok: false, error: "Meeting not found" });
@@ -87,8 +87,8 @@ describe("createJoinMeeting", () => {
 
   it("returns error when event has no meetUrl after fetch", async () => {
     const bare = createMockEvent({ meetUrl: undefined });
-    getLastKnown.mockReturnValue({ kind: "ok", events: [bare] });
-    fetchCalendar.mockResolvedValue({ kind: "ok", events: [bare] });
+    getLastKnown.mockReturnValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [bare] });
+    fetchCalendar.mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [bare] });
     const join = create();
     const result = await join.execute(bare.id);
     expect(result).toEqual({ ok: false, error: "No joinable meeting URL" });
@@ -96,7 +96,7 @@ describe("createJoinMeeting", () => {
 
   it("returns not found when cache null and fetch empty", async () => {
     getLastKnown.mockReturnValue(null);
-    fetchCalendar.mockResolvedValue({ kind: "ok", events: [] });
+    fetchCalendar.mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
     const join = create();
     const result = await join.execute(asTestEventId("missing"));
     expect(result).toEqual({ ok: false, error: "Meeting not found" });

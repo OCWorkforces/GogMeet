@@ -28,9 +28,9 @@ function getRegisteredHandler(channel: string) {
 
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
-} as unknown as import("electron").IpcMainInvokeEvent;
+}.As<import("electron").IpcMainInvokeEvent>();
 
-const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").IpcMainInvokeEvent>();
 
 
 function appGraphForTest() {

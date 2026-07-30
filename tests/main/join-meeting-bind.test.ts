@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { asTestEventId } from "../helpers/test-utils.js";
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
 }));
 vi.mock("../../src/main/scheduler/facade.js", () => ({
   getLastKnownEvents: vi.fn().mockReturnValue(null),

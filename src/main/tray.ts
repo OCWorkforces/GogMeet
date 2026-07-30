@@ -17,6 +17,7 @@ import type { CalendarUiState } from "../domain/entities/calendar-ui-state.js";
 import { createSettingsWindow } from "./windows/settings-window.js";
 import { getLastCalendarStatus } from "./facades/calendar-status.js";
 import { formatRemainingTime } from "../domain/services/time.js";
+import { eventListSignature } from "../domain/services/event-signature.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
@@ -34,6 +35,10 @@ let statusListener: ((status: CalendarUiState) => void) | null = null;
 let lastToolTip: string | null = null;
 /** Built menu held for Windows popUpContextMenu on left-click. */
 let lastContextMenu: Electron.Menu | null = null;
+/** Signature of the last installed menu template (skip redundant rebuilds). */
+let lastMenuSignature: string | null = null;
+/** At most one microtask-coalesced rebuild while signals burst. */
+let rebuildCoalesceScheduled = false;
 
 let beforeQuitRegistered = false;
 /** Graph used for tray actions (set in setupTray). */
@@ -68,7 +73,7 @@ function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
     onDisconnectGoogle: () => {
       void graph.calendar.disconnect().then(() => {
         cachedMeetings = null;
-        refreshContextMenu(mainWindow);
+        requestTrayRebuild(mainWindow, { force: true });
       });
     },
     onRetryPoll: () => {
@@ -123,7 +128,70 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
   );
 }
 
+/**
+ * Coalesce bursty list+status updates into a single rebuild on the next microtask.
+ * Exported for tests.
+ */
+export function requestTrayRebuild(mainWindow: BrowserWindow, options?: { force?: boolean }): void {
+  if (options?.force) {
+    lastMenuSignature = null;
+  }
+  if (rebuildCoalesceScheduled) return;
+  rebuildCoalesceScheduled = true;
+  queueMicrotask(() => {
+    rebuildCoalesceScheduled = false;
+    refreshContextMenu(mainWindow);
+  });
+}
+
+/** Build a stable signature for tray menu content (status + events + settings). */
+export function trayMenuSignature(
+  ui: CalendarUiState,
+  events: MeetingEvent[] | null | undefined,
+  showTomorrow: boolean,
+  statusKind: string,
+  statusCode: string | null,
+): string {
+  const eventSig = eventListSignature(events ?? []);
+  return [
+    ui.permission,
+    ui.phase,
+    ui.offline ? "1" : "0",
+    ui.oauthConfigured ? "1" : "0",
+    ui.accountEmail ?? "",
+    ui.lastError ?? "",
+    showTomorrow ? "1" : "0",
+    statusKind,
+    statusCode ?? "",
+    eventSig,
+  ].join("|");
+}
+
 function refreshContextMenu(mainWindow: BrowserWindow): void {
+  const graph = trayGraph;
+  const ui: CalendarUiState =
+    cachedUi ??
+    graph?.calendar.getUiState() ??
+    ({
+      permission: "not-determined",
+      phase: "disconnected",
+      lastError: null,
+      accountEmail: null,
+      events: null,
+      offline: false,
+      oauthConfigured: false,
+      cacheAgeMs: null,
+    } satisfies CalendarUiState);
+  const events = cachedMeetings ?? ui.events ?? [];
+  const showTomorrow = graph?.settings.get().showTomorrowMeetings ?? true;
+  const status = getLastCalendarStatus();
+  const statusKind = status.kind;
+  const statusCode = status.kind === "err" ? status.code : null;
+  const signature = trayMenuSignature(ui, events, showTomorrow, statusKind, statusCode);
+  if (signature === lastMenuSignature && lastContextMenu !== null) {
+    return;
+  }
+  lastMenuSignature = signature;
   const template = buildContextMenuTemplate(mainWindow);
   const menu = Menu.buildFromTemplate(template);
   lastContextMenu = menu;
@@ -257,7 +325,7 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
   if (!meetingsListener) {
     meetingsListener = (events: MeetingEvent[]): void => {
       cachedMeetings = events;
-      refreshContextMenu(mainWindow);
+      requestTrayRebuild(mainWindow);
     };
     mainBus.on("meeting-list-updated", meetingsListener);
   }
@@ -268,7 +336,7 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
       if (status.events) {
         cachedMeetings = status.events;
       }
-      refreshContextMenu(mainWindow);
+      requestTrayRebuild(mainWindow);
       // Refresh idle tooltip if offline flag flipped while no countdown title
       if (!isDarwin() && lastToolTip !== null && !lastToolTip.includes(" — ")) {
         applyToolTip(status.offline ? OFFLINE_TRAY_TOOLTIP : DEFAULT_TRAY_TOOLTIP);
@@ -277,7 +345,7 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
     mainBus.on("calendar-status-updated", statusListener);
   }
 
-  refreshContextMenu(mainWindow);
+  requestTrayRebuild(mainWindow, { force: true });
 
   tray.on("click", () => {
     void graph.scheduler.forcePoll();
@@ -307,6 +375,8 @@ export function destroyTray(): void {
   cachedUi = null;
   lastToolTip = null;
   lastContextMenu = null;
+  lastMenuSignature = null;
+  rebuildCoalesceScheduled = false;
   beforeQuitRegistered = false;
   if (themeListener) {
     nativeTheme.removeListener("updated", themeListener);

@@ -24,7 +24,8 @@ export function registerShortcuts(graph: AppGraph): void {
   const ret = globalShortcut.register("CmdOrCtrl+Shift+M", async () => {
     log.info("[shortcuts] Cmd+Shift+M pressed — joining next meeting");
     try {
-      const result = graph.scheduler.getLastKnownEvents() ?? (await graph.calendar.getEvents());
+      const result =
+        graph.scheduler.getLastKnownEvents() ?? (await graph.calendar.getEventsResult());
       if (!isCalendarOk(result)) {
         log.warn("[shortcuts] No calendar access");
         notifyUser("GogMeet", "Calendar access is required to join a meeting.");

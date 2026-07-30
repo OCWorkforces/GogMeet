@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const {
   getCalendarEventsResult,
+  refreshCalendarPublication,
   requestCalendarPermission,
   getCalendarPermissionStatus,
   disconnectCalendar,
@@ -32,7 +33,11 @@ const {
   initPowerCallbacks,
   openMock,
 } = vi.hoisted(() => ({
-  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", events: [] }),
+  getCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  refreshCalendarPublication: vi.fn().mockResolvedValue({
+    publicationGeneration: 1,
+    result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] },
+  }),
   requestCalendarPermission: vi.fn().mockResolvedValue("granted"),
   getCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   disconnectCalendar: vi.fn().mockResolvedValue(undefined),
@@ -74,6 +79,7 @@ const {
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
   getCalendarEventsResult,
+  refreshCalendarPublication,
   requestCalendarPermission,
   getCalendarPermissionStatus,
   disconnectCalendar,
@@ -130,7 +136,17 @@ describe("createAppGraph surface coverage", () => {
 
   it("exposes and invokes all graph surfaces with real return values", async () => {
     const graph = createAppGraph({ skipBind: true });
-    expect(await graph.calendar.getEvents()).toEqual({ kind: "ok", events: [] });
+    expect(await graph.calendar.getEvents()).toMatchObject({
+      publicationGeneration: 1,
+      result: { kind: "ok", source: "live", completeness: "complete", events: [] },
+    });
+    expect(await graph.calendar.getEventsResult()).toEqual({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: expect.any(Number),
+      events: [],
+    });
     expect(await graph.calendar.requestPermission()).toBe("granted");
     expect(await graph.calendar.getPermissionStatus()).toBe("granted");
     await graph.calendar.disconnect();

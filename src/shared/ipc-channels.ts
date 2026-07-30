@@ -1,5 +1,5 @@
-import type { MeetingEvent } from "../domain/entities/meeting-event.js";
-import type { CalendarResult, CalendarPermission } from "../domain/entities/calendar-result.js";
+import type { CalendarPermission } from "../domain/entities/calendar-result.js";
+import type { CalendarPublication } from "../domain/entities/calendar-publication.js";
 import type { CalendarUiState } from "../domain/entities/calendar-ui-state.js";
 import type { EventId, MeetUrl, WindowHeight } from "../domain/entities/brand.js";
 import type { AppSettings } from "../domain/entities/settings.js";
@@ -20,9 +20,9 @@ export const IPC_CHANNELS = {
   SETTINGS_GET: "settings:get",
   SETTINGS_SET: "settings:set",
   SETTINGS_CHANGED: "settings:changed",
-  CALENDAR_EVENTS_UPDATED: "calendar:events-updated",
+  /** Main → renderer: full calendar publication (replaces events-only push). */
+  CALENDAR_RESULT_UPDATED: "calendar:result-updated",
   ALERT_SHOW: "alert:show",
-  SCHEDULER_FORCE_POLL: "scheduler:force-poll",
   ALERT_DISMISSED: "alert:dismissed",
 } as const;
 
@@ -35,7 +35,7 @@ export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
  * Each entry maps a channel string to its `{ request; response }` payload types.
  */
 export interface IpcChannelMap {
-  [IPC_CHANNELS.CALENDAR_GET_EVENTS]: { request: void; response: CalendarResult };
+  [IPC_CHANNELS.CALENDAR_GET_EVENTS]: { request: void; response: CalendarPublication };
   [IPC_CHANNELS.CALENDAR_REQUEST_PERMISSION]: { request: void; response: CalendarPermission };
   [IPC_CHANNELS.CALENDAR_PERMISSION_STATUS]: { request: void; response: CalendarPermission };
   [IPC_CHANNELS.CALENDAR_DISCONNECT]: { request: void; response: void };
@@ -65,5 +65,5 @@ export type IpcResponse<K extends keyof IpcChannelMap> = IpcChannelMap[K]["respo
 export interface PushChannelMap {
   [IPC_CHANNELS.ALERT_SHOW]: AlertPayload;
   [IPC_CHANNELS.SETTINGS_CHANGED]: AppSettings;
-  [IPC_CHANNELS.CALENDAR_EVENTS_UPDATED]: MeetingEvent[];
+  [IPC_CHANNELS.CALENDAR_RESULT_UPDATED]: CalendarPublication;
 }

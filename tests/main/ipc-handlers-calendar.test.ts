@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Use vi.hoisted for mock functions used in vi.mock factories
 const {
-  mockGetCalendarEventsResult,
+  mockRefreshCalendarPublication,
   mockRequestCalendarPermission,
   mockGetCalendarPermissionStatus,
   mockDisconnectCalendar,
   mockGetCalendarUiState,
   mockForcePoll,
 } = vi.hoisted(() => ({
-  mockGetCalendarEventsResult: vi.fn(),
+  mockRefreshCalendarPublication: vi.fn(),
   mockRequestCalendarPermission: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn(),
   mockDisconnectCalendar: vi.fn(),
@@ -26,7 +26,8 @@ const {
 }));
 
 vi.mock("../../src/main/facades/calendar.js", () => ({
-  getCalendarEventsResult: mockGetCalendarEventsResult,
+  refreshCalendarPublication: mockRefreshCalendarPublication,
+  getCalendarEventsResult: vi.fn(),
   requestCalendarPermission: mockRequestCalendarPermission,
   getCalendarPermissionStatus: mockGetCalendarPermissionStatus,
   disconnectCalendar: mockDisconnectCalendar,
@@ -52,9 +53,9 @@ function getRegisteredHandler(channel: string) {
 
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
-} as unknown as import("electron").IpcMainInvokeEvent;
+}.As<import("electron").IpcMainInvokeEvent>();
 
-const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").IpcMainInvokeEvent>();
 
 describe("registerCalendarHandlers", () => {
   beforeEach(() => {
@@ -78,14 +79,24 @@ describe("registerCalendarHandlers", () => {
           isAllDay: false,
         },
       ];
-      mockGetCalendarEventsResult.mockResolvedValue({ kind: "ok", events });
+      mockRefreshCalendarPublication.mockResolvedValue({
+        publicationGeneration: 7,
+        result: { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events },
+      });
 
-      registerCalendarHandlers(testAppGraph());
+      registerCalendarHandlers(
+        testAppGraph({
+          calendar: { getEvents: mockRefreshCalendarPublication },
+        }),
+      );
       const handler = getRegisteredHandler("calendar:get-events");
       expect(handler).toBeDefined();
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ kind: "ok", events });
+      expect(result).toMatchObject({
+        publicationGeneration: 7,
+        result: { kind: "ok", source: "live", completeness: "complete", events },
+      });
     });
 
     it("returns unauthorized for blocked sender", async () => {
@@ -93,33 +104,50 @@ describe("registerCalendarHandlers", () => {
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(unauthorizedEvent);
-      expect(result).toEqual({ kind: "err", error: "unauthorized", code: "unknown" });
+      expect(result).toEqual({
+        publicationGeneration: 0,
+        result: { kind: "err", error: "unauthorized", code: "unknown" },
+      });
     });
 
     it("returns error on exception", async () => {
-      mockGetCalendarEventsResult.mockRejectedValue(
+      mockRefreshCalendarPublication.mockRejectedValue(
         new Error("Calendar error"),
       );
 
-      registerCalendarHandlers(testAppGraph());
+      registerCalendarHandlers(
+        testAppGraph({
+          calendar: { getEvents: mockRefreshCalendarPublication },
+        }),
+      );
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
       expect(result).toEqual({
-        kind: "err",
-        error: "Calendar error",
-        code: "unknown",
+        publicationGeneration: 0,
+        result: {
+          kind: "err",
+          error: "Calendar error",
+          code: "unknown",
+        },
       });
     });
 
     it("returns stringified error for non-Error exceptions", async () => {
-      mockGetCalendarEventsResult.mockRejectedValue("string error");
+      mockRefreshCalendarPublication.mockRejectedValue("string error");
 
-      registerCalendarHandlers(testAppGraph());
+      registerCalendarHandlers(
+        testAppGraph({
+          calendar: { getEvents: mockRefreshCalendarPublication },
+        }),
+      );
       const handler = getRegisteredHandler("calendar:get-events");
 
       const result = await handler!(authorizedEvent);
-      expect(result).toEqual({ kind: "err", error: "string error", code: "unknown" });
+      expect(result).toEqual({
+        publicationGeneration: 0,
+        result: { kind: "err", error: "string error", code: "unknown" },
+      });
     });
   });
 

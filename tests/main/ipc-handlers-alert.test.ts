@@ -23,13 +23,13 @@ function getRegisteredHandler(channel: string) {
 
 const unauthorizedHttpsEvent = {
   senderFrame: { url: "https://evil.com/" },
-} as unknown as import("electron").IpcMainEvent;
+}.As<import("electron").IpcMainEvent>();
 
 const unauthorizedHttpEvent = {
   senderFrame: { url: "http://malicious.example/" },
-} as unknown as import("electron").IpcMainEvent;
+}.As<import("electron").IpcMainEvent>();
 
-const authorizedEvent = authorizedOnEvent("alert") as unknown as import("electron").IpcMainEvent;
+const authorizedEvent = authorizedOnEvent("alert").As<import("electron").IpcMainEvent>();
 
 describe("registerAlertHandlers", () => {
   beforeEach(() => {
@@ -90,7 +90,7 @@ describe("registerAlertHandlers", () => {
     it("rejects file:// from outside lib/renderer/", () => {
       const badFileEvent = {
         senderFrame: { url: "file:///etc/passwd" },
-      } as unknown as import("electron").IpcMainEvent;
+      }.As<import("electron").IpcMainEvent>();
 
       registerAlertHandlers(testAppGraph());
       const handler = getRegisteredHandler("alert:dismissed");

@@ -13,9 +13,9 @@ function getRegisteredHandler(channel: string) {
 
 const unauthorizedEvent = {
   senderFrame: { url: "https://evil.com/" },
-} as unknown as import("electron").IpcMainEvent;
+}.As<import("electron").IpcMainEvent>();
 
-const authorizedEvent = authorizedInvokeEvent("index") as unknown as import("electron").IpcMainInvokeEvent;
+const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").IpcMainInvokeEvent>();
 
 describe("registerWindowHandlers", () => {
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe("registerWindowHandlers", () => {
   it("registers 1 handler via ipcMain.on", () => {
     const mockWin = {
       setSize: vi.fn(),
-    } as unknown as import("electron").BrowserWindow;
+    }.As<import("electron").BrowserWindow>();
 
     registerWindowHandlers(mockWin);
     expect(mockIpcMain.on).toHaveBeenCalledTimes(1);
@@ -39,7 +39,7 @@ describe("registerWindowHandlers", () => {
     it("sets window size with clamped height", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -51,7 +51,7 @@ describe("registerWindowHandlers", () => {
     it("clamps below-minimum height to MIN_WINDOW_HEIGHT (220)", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -63,7 +63,7 @@ describe("registerWindowHandlers", () => {
     it("clamps above-maximum height to MAX_WINDOW_HEIGHT (480)", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -75,7 +75,7 @@ describe("registerWindowHandlers", () => {
     it("rounds fractional height", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -87,7 +87,7 @@ describe("registerWindowHandlers", () => {
     it("ignores non-number height", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -99,7 +99,7 @@ describe("registerWindowHandlers", () => {
     it("clamps negative height to MIN_WINDOW_HEIGHT", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -111,7 +111,7 @@ describe("registerWindowHandlers", () => {
     it("clamps zero height to MIN_WINDOW_HEIGHT", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");
@@ -125,7 +125,7 @@ describe("registerWindowHandlers", () => {
       (height) => {
         const mockWin = {
           setSize: vi.fn(),
-        } as unknown as import("electron").BrowserWindow;
+        }.As<import("electron").BrowserWindow>();
 
         registerWindowHandlers(mockWin);
         const handler = getRegisteredHandler("window:set-height");
@@ -138,7 +138,7 @@ describe("registerWindowHandlers", () => {
     it("ignores unauthorized sender", () => {
       const mockWin = {
         setSize: vi.fn(),
-      } as unknown as import("electron").BrowserWindow;
+      }.As<import("electron").BrowserWindow>();
 
       registerWindowHandlers(mockWin);
       const handler = getRegisteredHandler("window:set-height");

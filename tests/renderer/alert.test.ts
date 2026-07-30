@@ -193,7 +193,7 @@ function makeAlertPayload(
     calendarName: "Work",
     isAllDay: false,
     description: "Daily sync",
-  } as unknown as AP;
+  }.As<AP>();
   return { ...base, ...overrides };
 }
 

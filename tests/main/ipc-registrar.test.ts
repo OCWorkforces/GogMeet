@@ -32,7 +32,7 @@ import { testAppGraph } from "../helpers/app-graph.js";
 
 describe("registerIpcHandlers", () => {
   it("calls all handler registration functions", () => {
-    const mockWin = {} as unknown as import("electron").BrowserWindow;
+    const mockWin = {}.As<import("electron").BrowserWindow>();
     registerIpcHandlers(mockWin, testAppGraph());
 
     expect(mockRegisterCalendarHandlers).toHaveBeenCalledWith(expect.any(Object));

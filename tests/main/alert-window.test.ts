@@ -7,19 +7,25 @@ vi.mock("electron", () => {
   const mockLoadFile = vi.fn().mockResolvedValue(undefined);
   const mockSetSize = vi.fn();
   const mockShow = vi.fn();
+  const mockHide = vi.fn();
   const mockClose = vi.fn();
+  const mockDestroy = vi.fn();
   const mockIsDestroyed = vi.fn(() => false);
+  const mockIsVisible = vi.fn(() => true);
   const mockSetAlwaysOnTop = vi.fn();
 
   function MockBrowserWindow(this: Record<string, unknown>) {
     this.loadURL = mockLoadURL;
     this.loadFile = mockLoadFile;
     this.show = mockShow;
+    this.hide = mockHide;
     this.close = mockClose;
+    this.destroy = mockDestroy;
     this.setSize = mockSetSize;
     this.setAlwaysOnTop = mockSetAlwaysOnTop;
     this.setVisibleOnAllWorkspaces = vi.fn();
     this.isDestroyed = mockIsDestroyed;
+    this.isVisible = mockIsVisible;
     this.webContents = {
       send: mockSend,
       executeJavaScript: vi.fn().mockResolvedValue(300),
@@ -28,12 +34,12 @@ vi.mock("electron", () => {
       setWindowOpenHandler: vi.fn(),
     };
     // Capture handlers without invoking — allows deferred firing for race condition tests
-    this._onceHandlers = new Map<string, () => void>();
-    this._onHandlers = new Map<string, () => void>();
-    this.once = vi.fn((event: string, cb: () => void) => {
+    this._onceHandlers = new Map<string, (...args: unknown[]) => void>();
+    this._onHandlers = new Map<string, (...args: unknown[]) => void>();
+    this.once = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       this._onceHandlers.set(event, cb);
     });
-    this.on = vi.fn((event: string, cb: () => void) => {
+    this.on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       this._onHandlers.set(event, cb);
     });
   }
@@ -57,6 +63,7 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
 
 
 let showAlert: typeof import("../../src/main/windows/alert-window.js").showAlert;
+let destroyAlertWindow: typeof import("../../src/main/windows/alert-window.js").destroyAlertWindow;
 import { BrowserWindow, app } from "electron";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent } from "../helpers/test-utils.js";
@@ -75,17 +82,21 @@ function getWindow(n: number): Record<string, unknown> {
 
 /** Fire a captured event handler on a mock window instance */
 function fireEvent(win: Record<string, unknown>, eventName: string): void {
-  const onceHandlers = win._onceHandlers as unknown as Map<string, () => void>;
+  const onceHandlers = win._onceHandlers.As<Map<string, (...args: unknown[]) => void>>();
   const handler = onceHandlers.get(eventName);
   if (handler) {
     handler();
     onceHandlers.delete(eventName);
     return;
   }
-  const onHandlers = win._onHandlers as unknown as Map<string, () => void>;
+  const onHandlers = win._onHandlers.As<Map<string, (...args: unknown[]) => void>>();
   const onHandler = onHandlers.get(eventName);
   if (onHandler) {
-    onHandler();
+    if (eventName === "close") {
+      onHandler({ preventDefault: vi.fn() });
+    } else {
+      onHandler();
+    }
   }
 }
 
@@ -95,10 +106,13 @@ describe("alert-window", () => {
     vi.resetModules();
     vi.useFakeTimers();
     delete process.env.VITE_DEV_SERVER_URL;
-    ({ showAlert } = await import("../../src/main/windows/alert-window.js"));
+    ({ showAlert, destroyAlertWindow } = await import(
+      "../../src/main/windows/alert-window.js"
+    ));
   });
 
   afterEach(() => {
+    destroyAlertWindow();
     vi.useRealTimers();
   });
 
@@ -106,6 +120,16 @@ describe("alert-window", () => {
     it("creates a new BrowserWindow on first call", () => {
       showAlert(makeEvent());
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    });
+
+    it("force-destroys the window via destroyAlertWindow", () => {
+      showAlert(makeEvent({ id: "force-destroy" }));
+      const win = getWindow(1);
+      destroyAlertWindow();
+      expect(win.__forceDestroy).toBe(true);
+      expect(win.destroy).toHaveBeenCalled();
+      // Safe to call again when nothing is showing
+      expect(() => destroyAlertWindow()).not.toThrow();
     });
 
     it("passes correct BrowserWindow options", () => {
@@ -130,7 +154,7 @@ describe("alert-window", () => {
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
     });
 
-    it("creates a second window after the first one closes", () => {
+    it("reuses the hidden window for the next alert after dismiss", async () => {
       showAlert(makeEvent({ id: "first" }));
       const win1 = getWindow(1);
 
@@ -138,11 +162,12 @@ describe("alert-window", () => {
       // Second is queued, no new window yet
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
 
-      // Fire close on first, which triggers processNextAlert via setImmediate
-      fireEvent(win1, "closed");
-      vi.runAllTimers();
+      // User dismiss: close is prevented → hide → processNextAlert reuses win1
+      fireEvent(win1, "close");
+      await vi.runAllTimersAsync();
 
-      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      expect(win1.hide).toHaveBeenCalled();
     });
   });
 
@@ -159,9 +184,9 @@ describe("alert-window", () => {
     });
 
     it("loads from file in production (no env var)", () => {
-      (app as unknown as Record<string, unknown>).isPackaged = true;
+      (app.As<Record<string, unknown>>()).isPackaged = true;
       showAlert(makeEvent());
-      (app as unknown as Record<string, unknown>).isPackaged = false;
+      (app.As<Record<string, unknown>>()).isPackaged = false;
 
       const mockWin = getWindow(1);
       expect(mockWin.loadFile).toHaveBeenCalledWith(
@@ -234,28 +259,23 @@ describe("alert-window", () => {
       ).not.toHaveBeenCalled();
     });
 
-    it("processes the queued alert when the current window fires closed", () => {
-      // New behavior: queued alerts are processed after the active window closes.
+    it("processes the queued alert by reusing the window after dismiss", async () => {
       const mockSend = vi.fn();
 
       // First alert — creates window A
       showAlert(makeEvent({ id: "race-a" }));
       const winA = getWindow(1);
+      (winA.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
 
-      // Second alert — queued (no window B yet)
+      // Second alert — queued (no second BrowserWindow)
       showAlert(makeEvent({ id: "race-b" }));
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
 
-      // Window A closes — queue processes and creates window B via setImmediate
-      fireEvent(winA, "closed");
-      vi.runAllTimers();
+      // Dismiss A — hide + reuse for B
+      fireEvent(winA, "close");
+      await vi.runAllTimersAsync();
 
-      const winB = getWindow(2);
-      (winB.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
-
-      // Window B's ready-to-show should work normally
-      fireEvent(winB, "ready-to-show");
-      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
       expect(mockSend).toHaveBeenCalledWith(
         "alert:show",
         expect.objectContaining({ id: "race-b" }),
@@ -382,45 +402,50 @@ describe("alert-window", () => {
       expect(mockShow).not.toHaveBeenCalled();
     });
 
-    it("nulls alertWindow when current window fires closed", () => {
+    it("nulls alertWindow when current window fires closed (true destroy)", () => {
       showAlert(makeEvent({ id: "close-current" }));
       const win = getWindow(1);
 
-      // Fire closed on the current window — should null alertWindow
+      // Real destroy path (e.g. force-destroy) — closed fires and nulls the ref
       fireEvent(win, "closed");
 
       // Create another alert — should create a new window (not reuse the nulled one)
       showAlert(makeEvent({ id: "after-close" }));
       expect(BrowserWindow).toHaveBeenCalledTimes(2);
     });
+  });
+
   describe("reschedule handling", () => {
-    it("closes old window and queues new alert when same UID has different startMs", () => {
+    it("reuses the same window when same UID has different startMs", async () => {
       const oldStart = "2026-05-11T10:00:00Z";
       showAlert(makeEvent({ id: "resched", startDate: oldStart }));
       const win1 = getWindow(1);
       win1.__alertStartMs = new Date(oldStart).getTime();
+      const mockSend = vi.fn();
+      (win1.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
       const newStart = "2026-05-11T14:00:00Z";
       showAlert(makeEvent({ id: "resched", startDate: newStart }));
-      expect(win1.close).toHaveBeenCalled();
+      // In-place reuse — no second BrowserWindow, no close/destroy
+      expect(win1.close).not.toHaveBeenCalled();
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
-      fireEvent(win1, "closed");
-      vi.runAllTimers();
-      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "resched", startDate: newStart }),
+      );
     });
-    it("replaces queued entry when same UID with different startMs arrives", () => {
+    it("replaces queued entry when same UID with different startMs arrives", async () => {
       showAlert(makeEvent({ id: "blocker" }));
       showAlert(makeEvent({ id: "queued", startDate: "2026-05-11T10:00:00Z" }));
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
       showAlert(makeEvent({ id: "queued", startDate: "2026-05-11T14:00:00Z" }));
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
       const win1 = getWindow(1);
-      fireEvent(win1, "closed");
-      vi.runAllTimers();
-      expect(BrowserWindow).toHaveBeenCalledTimes(2);
-      const win2 = getWindow(2);
       const mockSend = vi.fn();
-      (win2.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
-      fireEvent(win2, "ready-to-show");
+      (win1.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+      fireEvent(win1, "close");
+      await vi.runAllTimersAsync();
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
       expect(mockSend).toHaveBeenCalledWith(
         "alert:show",
         expect.objectContaining({ id: "queued", startDate: "2026-05-11T14:00:00Z" }),
@@ -440,30 +465,29 @@ describe("alert-window", () => {
       const win1 = getWindow(1);
       win1.__alertStartMs = new Date("2026-05-11T10:00:00Z").getTime();
       win1.isDestroyed = vi.fn(() => true);
-      expect(() => showAlert(makeEvent({ id: "dstr", startDate: "2026-05-11T14:00:00Z" }))).not.toThrow();
+      expect(() =>
+        showAlert(makeEvent({ id: "dstr", startDate: "2026-05-11T14:00:00Z" })),
+      ).not.toThrow();
     });
 
-    describe("closed-handler cancels pending browser-open (F1)", () => {
-      it("cancels pending browser-open when user dismisses alert (no __replacing flag)", () => {
+    describe("close-handler cancels pending browser-open", () => {
+      it("cancels pending browser-open when user dismisses alert", () => {
         showAlert(makeEvent({ id: "dismiss-me" }));
         const win = getWindow(1);
-        fireEvent(win, "closed");
+        fireEvent(win, "close");
         expect(mockCancelPendingBrowserOpen).toHaveBeenCalledTimes(1);
         expect(mockCancelPendingBrowserOpen).toHaveBeenCalledWith("dismiss-me");
       });
 
-      it("does NOT cancel browser-open when window is closed due to reschedule replacement", () => {
+      it("does NOT cancel browser-open when reschedule reuses the window", () => {
         showAlert(makeEvent({ id: "resched", startDate: "2026-05-11T10:00:00Z" }));
         const win1 = getWindow(1);
         win1.__alertStartMs = new Date("2026-05-11T10:00:00Z").getTime();
-        // Reschedule — alert-window sets __replacing=true and closes win1
         showAlert(makeEvent({ id: "resched", startDate: "2026-05-11T14:00:00Z" }));
-        // Fire the deferred closed handler on win1
-        fireEvent(win1, "closed");
+        // No close path — reuse only
         expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+        expect(win1.close).not.toHaveBeenCalled();
       });
     });
-  });
-
   });
 });
