@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Permanent guardrail static scan (Wave A).
+ * Permanent guardrail static scan.
  * Exit 0 when clean; exit 1 with findings on stdout/stderr.
  *
  * Usage: bun run guardrails

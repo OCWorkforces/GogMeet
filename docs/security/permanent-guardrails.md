@@ -1,6 +1,7 @@
 # Permanent security & correctness guardrails
 
-**Status:** Active (Wave A of `docs/plans/gogmeet-out-of-scope-follow-on.md`)  
+**Status:** Active  
+**Plan:** `docs/plans/gogmeet-out-of-scope-follow-on.md`  
 **Updated:** 2026-07-30  
 **Enforcement:** `bun run guardrails` → `scripts/guardrails-scan.mjs` + freeze tests in CI
 
@@ -30,7 +31,7 @@ These invariants were **out of scope** for the performance program as *permanent
 | Class | Meaning |
 | --- | --- |
 | **P-NEVER** | Never implement; CI blocks regressions |
-| **FUTURE** | Separate design + gates (see follow-on plan Wave C) |
+| **FUTURE** | Separate design + gates (see follow-on plan deferred product tracks) |
 | **REMEASURE** | Measurement must return `retained` first |
 
 ## Allowlisted `shell.openExternal` call sites
