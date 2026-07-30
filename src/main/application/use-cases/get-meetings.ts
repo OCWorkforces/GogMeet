@@ -27,8 +27,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
       const oauthConfigured = deps.calendar.isOAuthConfigured?.() ?? false;
 
       if (result.kind === "ok") {
-        const email =
-          (await deps.calendar.getAccountLabel?.()) ?? prev.accountEmail;
+        const email = (await deps.calendar.getAccountLabel?.()) ?? prev.accountEmail;
 
         if (result.source === "offline-cache") {
           // Offline never sets permission from kind==="ok"; preserve last recorded.

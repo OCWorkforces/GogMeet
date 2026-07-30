@@ -106,7 +106,9 @@ function filterActiveEvents(events: MeetingEvent[], nowMs: number): MeetingEvent
  * unknown-version, non-finite, or >5-minute-future timestamps (fail closed).
  * Ended events (`endDate <= now`) are filtered; empty list is still a valid hit.
  */
-export async function loadOfflineCache(nowMs: number = Date.now()): Promise<OfflineCachePayload | null> {
+export async function loadOfflineCache(
+  nowMs: number = Date.now(),
+): Promise<OfflineCachePayload | null> {
   try {
     const buf = await readFile(cachePath());
     const json = decode(buf);

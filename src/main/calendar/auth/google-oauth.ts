@@ -111,6 +111,7 @@ async function exchangeCode(params: {
         err.apiErrorCode
           ? `Token exchange failed (${err.apiErrorCode})`
           : `Token exchange failed (${err.errorClass})`,
+        { cause: err },
       );
     }
     throw err;
@@ -200,9 +201,7 @@ async function performNetworkRefresh(
   // Shared refresh is bounded by its own 15s transport deadline + lifecycle abort.
   // Caller/poll abort must not cancel the shared flight (only the waiter).
   const composed =
-    signal !== undefined
-      ? AbortSignal.any([lifecycleAbort.signal, signal])
-      : lifecycleAbort.signal;
+    signal !== undefined ? AbortSignal.any([lifecycleAbort.signal, signal]) : lifecycleAbort.signal;
 
   let json: Record<string, unknown>;
   try {

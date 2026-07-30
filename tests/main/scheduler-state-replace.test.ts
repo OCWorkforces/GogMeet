@@ -61,13 +61,20 @@ describe("replaceState() preservation", () => {
 
     const handle = setTimeout(() => {}, 1_000_000);
     stateModule.state.pollTimeout = handle;
-    stateModule.state.lastKnownEvents = { kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] };
+    const lastKnown = {
+      kind: "ok" as const,
+      source: "live" as const,
+      completeness: "complete" as const,
+      observedAt: Date.now(),
+      events: [],
+    };
+    stateModule.state.lastKnownEvents = lastKnown;
 
     replaceState(createSchedulerState());
 
     expect(cleared).toContain(handle);
-    // Preserved across the swap
-    expect(stateModule.state.lastKnownEvents).toEqual({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] });
+    // Preserved across the swap (same reference / values; pin observedAt once)
+    expect(stateModule.state.lastKnownEvents).toEqual(lastKnown);
     // pollTimeout is reset on the new state
     expect(stateModule.state.pollTimeout).toBeNull();
 

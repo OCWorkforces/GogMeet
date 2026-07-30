@@ -3,13 +3,7 @@ import type { MeetingEvent } from "./meeting-event.js";
 
 /** High-level tray/settings presentation phase for calendar connectivity. */
 export type CalendarUiPhase =
-  | "disconnected"
-  | "connecting"
-  | "ready"
-  | "empty"
-  | "error"
-  | "offline-cached"
-  | "limited";
+  "disconnected" | "connecting" | "ready" | "empty" | "error" | "offline-cached" | "limited";
 
 /**
  * Snapshot for tray menu and Settings account section.

@@ -83,7 +83,11 @@ function decodePayload(buf: Buffer): string {
   throw new Error("OS secure storage is unavailable; cannot read Google OAuth tokens");
 }
 
-function parseTokenFile(raw: unknown): { ok: true; tokens: GoogleTokenFileV1 } | { ok: false; reason: "schema-mismatch" | "client-mismatch" } {
+function parseTokenFile(
+  raw: unknown,
+):
+  | { ok: true; tokens: GoogleTokenFileV1 }
+  | { ok: false; reason: "schema-mismatch" | "client-mismatch" } {
   if (!isObjectRecord(raw)) return { ok: false, reason: "schema-mismatch" };
   if (raw["authSchemaVersion"] !== GOOGLE_AUTH_SCHEMA_VERSION) {
     return { ok: false, reason: "schema-mismatch" };
@@ -160,9 +164,7 @@ export async function loadGoogleTokensResult(): Promise<GoogleTokenLoadResult> {
 
   const tokens = parseTokenFile(parsed);
   if (!tokens.ok) {
-    console.warn(
-      `[calendar:auth] Token ${tokens.reason} (ciphertext preserved)`,
-    );
+    console.warn(`[calendar:auth] Token ${tokens.reason} (ciphertext preserved)`);
     return { kind: "err", reason: tokens.reason, preservedCiphertext: true };
   }
   return { kind: "ok", tokens: tokens.tokens };

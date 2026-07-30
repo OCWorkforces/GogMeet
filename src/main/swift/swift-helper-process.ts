@@ -21,13 +21,7 @@ export const SWIFT_HELPER_TIMEOUT_MS: number = 15_000;
 export const SWIFT_HELPER_KILL_GRACE_MS: number = 5_000;
 
 export type SwiftHelperProcessFailureKind =
-  | "timeout"
-  | "abort"
-  | "stdout-overflow"
-  | "stderr-overflow"
-  | "spawn"
-  | "exit"
-  | "signal";
+  "timeout" | "abort" | "stdout-overflow" | "stderr-overflow" | "spawn" | "exit" | "signal";
 
 export class SwiftHelperProcessError extends Error {
   readonly failureKind: SwiftHelperProcessFailureKind;
@@ -271,16 +265,12 @@ export function runSwiftHelperProcess(
 
       if (spawnError) {
         settleErr(
-          new SwiftHelperProcessError(
-            "spawn",
-            spawnError.message || "Swift helper spawn failed",
-            {
-              spawnCode: typeof spawnError.code === "string" ? spawnError.code : undefined,
-              stdout,
-              stderr,
-              cause: spawnError,
-            },
-          ),
+          new SwiftHelperProcessError("spawn", spawnError.message || "Swift helper spawn failed", {
+            spawnCode: typeof spawnError.code === "string" ? spawnError.code : undefined,
+            stdout,
+            stderr,
+            cause: spawnError,
+          }),
         );
         return;
       }
@@ -320,11 +310,12 @@ export function runSwiftHelperProcess(
 
       if (timedOut) {
         settleErr(
-          new SwiftHelperProcessError(
-            "timeout",
-            `Swift helper timed out after ${timeoutMs}ms`,
-            { stdout, stderr, exitCode: code ?? undefined, signal },
-          ),
+          new SwiftHelperProcessError("timeout", `Swift helper timed out after ${timeoutMs}ms`, {
+            stdout,
+            stderr,
+            exitCode: code ?? undefined,
+            signal,
+          }),
         );
         return;
       }
@@ -347,15 +338,11 @@ export function runSwiftHelperProcess(
       }
 
       settleErr(
-        new SwiftHelperProcessError(
-          "exit",
-          `Swift helper exited with code ${code ?? "unknown"}`,
-          {
-            stdout,
-            stderr,
-            exitCode: code ?? undefined,
-          },
-        ),
+        new SwiftHelperProcessError("exit", `Swift helper exited with code ${code ?? "unknown"}`, {
+          stdout,
+          stderr,
+          exitCode: code ?? undefined,
+        }),
       );
     });
 
