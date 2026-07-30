@@ -14,6 +14,15 @@ Repository automation scripts for local development and asset generation. Invoke
 | `verify-windows-release.mjs` | Windows release inventory (NSIS + portable x64/arm64; optional latest.yml) |
 | `merge-windows-latest-yml.mjs` | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds |
 | `next-beta-tag.mjs` | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version |
+| `performance/report.mjs` | Aggregate opt-in perf JSONL → p50/p95/min/max/sampleCount (`bun run perf:report`) |
+| `performance/workspace-fingerprint.mjs` | Fixed-exclusion HEAD + tracked-diff + untracked manifest digests (`perf:workspace-fingerprint`) |
+
+## Performance tooling
+
+- **Not** CI gates. Opt-in product traces use `GOGMEET_PERF_TRACE=1` + `src/main/utils/performance-trace.ts`.
+- Fingerprint exclusions are fixed (cannot be chosen by reviewers): `.omo/evidence/**`, `lib/**`, `dist/**`, `coverage/**`, `node_modules/**`, `.eslintcache`, `*.tsbuildinfo`.
+- Tests: `tests/scripts/performance-report.test.ts`.
+- Parser microbench is separate: `bun run bench:calendar-parser` → `vitest.bench.config.ts` (outside workspace).
 
 ## `dev.ts` Contract
 

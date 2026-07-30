@@ -27,7 +27,8 @@ tests/renderer/
 - `jsdom`: render via `document.body.innerHTML`, assert on `textContent` / query selectors.
 - `window.api` stubbed via `Object.defineProperty(window, 'api', {...})` — match `src/preload/index.ts` signatures.
 - `onEventsUpdated` receives `MeetingEvent[]` directly.
-- Branded fixtures from `tests/helpers/test-utils.ts`.
+- Branded fixtures from `tests/helpers/test-utils.ts`; calendar `getEvents` mocks need exhaustive provenance (`source` / `completeness` / timestamps) or `okCalendarResult`.
+- Cast helper installed via `setup.as.ts` — prefer `.As<T>()`.
 - Meeting list: `parts.push()` + `.join('')`, never `html += ...`.
 
 ## ANTI-PATTERNS

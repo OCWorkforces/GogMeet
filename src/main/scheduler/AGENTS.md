@@ -9,15 +9,23 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `facade.ts` | Sole public entry. Owns start/stop/restart, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, force-poll coalescing |
 | `index.ts` | `scheduleEvents(events)` — snapshot → pure `planSchedule` → `interpretSchedulePlan` |
 | `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers) |
-| `core/schedule-types.ts` | `SchedulePlan` ADT / action types |
-| `adapters/interpret-schedule.ts` | Applies plan actions (arm/cancel timers, prune) |
-| `poll.ts` | Fetches calendar, `recordCalendarResult`, hash-gates, emits `meeting-list-updated`, `reportCalendarPollError` on failure, pushes `CALENDAR_EVENTS_UPDATED` |
+| `core/schedule-types.ts` | `SchedulePlan` ADT / action types (includes **`set-snapshot`**) |
+| `adapters/interpret-schedule.ts` | Applies plan actions; **sole schedule-path snapshot writer** via `set-snapshot` |
+| `poll.ts` | Fetches calendar, `recordCalendarResult`, hash-gates push, emits `meeting-list-updated`, schedules on ok |
 | `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden |
-| `browser-timer.ts` | Browser-open timer; optional native Notification; late-join grace cutoff |
+| `browser-timer.ts` | Browser-open timer + optional Notification; **does not write** `scheduledEventData` |
 | `alert-timer.ts` | Full-screen alert timer: `alertLeadSeconds` before browser open |
-| `title-countdown.ts` | 30-minute tray title window; `cancelledEvents` is title-bookkeeping only |
+| `title-countdown.ts` | 30-minute tray title window; requires snapshot entry; sleep blockers |
 | `countdown.ts` | In-meeting title countdown and active event resolution |
 | `late-join.ts` | Late-join eligibility helpers |
+| `TIMER_MANAGEMENT_LOOP.md` | Deep timer/sleep ownership notes |
+
+## Snapshot ownership
+
+1. `planFutureTimers` emits **`set-snapshot` first**, then alert, conditional browser, title.
+2. Interpreter applies `set-snapshot` to `scheduledEventData`.
+3. `browser-timer` only arms open/notification — never first-writes snapshot.
+4. Enables `autoOpenEnabled=false` title countdown + poll idempotence without manufacturing browser timers.
 
 ## Public API (`facade.ts` only)
 
@@ -38,7 +46,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 
 - Poll interval: 2 minutes on AC, 4 minutes on battery.
 - Open-before: `settings.openBeforeMinutes` (**0–10**; 0 = at start).
-- Auto-open gated by `settings.autoOpenEnabled`.
+- Auto-open gated by `settings.autoOpenEnabled` (no `arm-browser` when false).
 - Alert lead: `settings.alertLeadSeconds` (default 60) before browser open.
 - Native notifications gated by `settings.nativeNotifications` and quiet hours.
 - Quiet hours: suppress **alert show + Notification** only; auto-open continues.
@@ -48,6 +56,15 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 - Force-poll coalesce: 10 seconds after last completed poll.
 - Consecutive errors threshold 3; counter caps at 4.
 
+## Automation eligibility (current vs intended)
+
+| Intended | Current (`poll.ts`) |
+| --- | --- |
+| Arm timers only for **live complete** (`isCalendarAutomationEligible`) | Still schedules on **any** `isCalendarOk` (includes partial/offline) |
+| Partial/offline cancel pending auto work | Not yet — follow perf plan Task 6 |
+
+Degraded results remain **explicitly joinable** via tray/popover/shortcut + `graph.join.byId`.
+
 ## Rules
 
 - Outside scheduler, import from `scheduler/facade.js` only (or graph).
@@ -56,3 +73,4 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 - Auto-open suppression uses **`firedEvents` / `cancelPendingBrowserOpen` only** — never title-countdown `cancelledEvents`.
 - Browser open goes through `openMeetingUrl()` / `buildMeetUrl()`.
 - Alert dismissal and successful `joinMeetingById` both mark opened via facade.
+- Balance `preventSleep` / `allowSleep` on every terminal countdown path.

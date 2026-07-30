@@ -28,6 +28,7 @@ import { testAppGraph } from "../helpers/app-graph.js";
 | `createMockIpcEvent` | Minimal invoke event; prefer authorized helpers for `validateSender` |
 | `isoFromNow` | ISO-8601 UTC offset from now |
 | `asTestEventId` / `asTestIsoUtc` / `asTestMeetUrl` | Throw-on-invalid wrappers around domain brand validators |
+| `okCalendarResult` | Live-complete `CalendarResult` fixture |
 | `testAppGraph` | Minimal production-shaped `AppGraph` with optional surface overrides |
 
 ## CONTRACTS

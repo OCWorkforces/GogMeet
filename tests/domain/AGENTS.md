@@ -9,6 +9,7 @@ Vitest project `domain`: Node, no Electron, high coverage floors on `src/domain/
 | Suite | Covers |
 | --- | --- |
 | `brand.test.ts` | EventId / MeetUrl / IsoUtc / WindowHeight validators |
+| `calendar-result.test.ts` | exhaustive provenance, helpers, timestamps, automation eligibility |
 | `url-validation.test.ts` / `meet-url.test.ts` | allowlist + buildMeetUrl |
 | `url-extract.test.ts` / `url-extract-google-map.test.ts` | free-text host priority |
 | `clean-description.test.ts` | notes cleaner |

@@ -14,7 +14,7 @@ Composition root for the main process.
 
 | Surface | Typical methods |
 | --- | --- |
-| `calendar` | getEvents, requestPermission, getPermissionStatus, disconnect, getUiState, warmup, invalidatePermissionCache, shouldAutoRequestPermission, reportPollError |
+| `calendar` | getEvents(signal?), requestPermission, getPermissionStatus, disconnect, getUiState, warmup, invalidatePermissionCache, shouldAutoRequestPermission, reportPollError |
 | `settings` | load, get, update, save |
 | `join` | `byId(id)` |
 | `opener` | `MeetingOpenerPort.open` |
