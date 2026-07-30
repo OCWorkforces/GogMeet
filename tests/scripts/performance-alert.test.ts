@@ -28,7 +28,7 @@ describe("perf:alert", () => {
     const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
-    expect(receipt.task).toBe(14);
+    expect(receipt.experiment).toBe("alert-window-lifecycle");
     expect(receipt.productChange).toBe("none");
     expect(receipt.securityChecks.noUserContentInTrace).toBe(true);
     expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);

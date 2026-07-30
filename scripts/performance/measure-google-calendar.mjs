@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
  * Measure Google polling field set / pagination (measurement only).
- * Does not alter production requests. Live shadow requires GOGMEET_GOOGLE_BENCH_TOKEN.
+ * Does not write production cache or tokens.
+ * Live paired shadows require GOGMEET_GOOGLE_BENCH_TOKEN (never logged).
  *
  * Usage: bun run perf:google
+ * Docs: docs/performance/measurement-lab.md
  */
-import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import {
+  shadowListSelectedCalendarsAndEvents,
+  compareShadowSnapshots,
+} from "./lib/google-shadow.mjs";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
 
 /** Fields consumed by production mapGoogleEvent + listSelectedCalendarIds. */
 export const MAPPING_FIELDS = Object.freeze([
@@ -81,9 +87,22 @@ export function flattenPages(pages) {
 }
 
 export function compareShadow(a, b) {
-  if (a.calendarIds.join("|") !== b.calendarIds.join("|")) return "calendar-mismatch";
+  if (
+    a.calendarCount !== undefined &&
+    b.calendarCount !== undefined &&
+    a.calendarCount !== b.calendarCount
+  ) {
+    return "calendar-mismatch";
+  }
+  if (a.calendarIds && b.calendarIds && a.calendarIds.join("|") !== b.calendarIds.join("|")) {
+    return "calendar-mismatch";
+  }
   if (a.pageCount !== b.pageCount) return "page-count-mismatch";
-  if (a.eventIds.join("|") !== b.eventIds.join("|")) return "event-mismatch";
+  if (a.rawEventCount !== undefined && b.rawEventCount !== undefined) {
+    if (a.rawEventCount !== b.rawEventCount) return "event-mismatch";
+  } else if (a.eventIds.join("|") !== b.eventIds.join("|")) {
+    return "event-mismatch";
+  }
   if (a.errorClass !== b.errorClass) return "error-mismatch";
   return null;
 }
@@ -119,90 +138,140 @@ export function redactTrace(row, options = {}) {
   return row;
 }
 
-function percentile(sorted, p) {
-  if (sorted.length === 0) return null;
-  const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[Math.max(0, idx)];
+async function runLivePairedShadows(accessToken) {
+  const warmups = 3;
+  const pairs = 10;
+  const latencies = [];
+  const bytes = [];
+  let lastMismatch = null;
+  let lastSnap = null;
+
+  for (let i = 0; i < warmups; i++) {
+    await shadowListSelectedCalendarsAndEvents(accessToken);
+  }
+
+  for (let i = 0; i < pairs; i++) {
+    const a = await shadowListSelectedCalendarsAndEvents(accessToken);
+    const b = await shadowListSelectedCalendarsAndEvents(accessToken);
+    latencies.push(a.durationMs, b.durationMs);
+    bytes.push(a.transferredBytes, b.transferredBytes);
+    const mismatch = compareShadowSnapshots(a, b) ?? compareShadow(a, b);
+    if (mismatch) lastMismatch = mismatch;
+    lastSnap = a;
+  }
+
+  const sortedLat = [...latencies].sort((a, b) => a - b);
+  const sortedBytes = [...bytes].sort((a, b) => a - b);
+  return {
+    pairs,
+    warmups,
+    mismatch: lastMismatch,
+    p50LatencyMs: percentile(sortedLat, 50),
+    p95LatencyMs: percentile(sortedLat, 95),
+    medianBytes: percentile(sortedBytes, 50),
+    coefficientOfVariation: coefficientOfVariation(latencies),
+    last: lastSnap
+      ? {
+          calendarCount: lastSnap.calendarCount,
+          pageCount: lastSnap.pageCount,
+          eventCount: lastSnap.rawEventCount,
+          errorClass: lastSnap.errorClass,
+          transferredBytes: lastSnap.transferredBytes,
+        }
+      : null,
+  };
 }
 
-function cv(values) {
-  if (values.length < 2) return null;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  if (mean === 0) return null;
-  const variance = values.reduce((acc, d) => acc + (d - mean) ** 2, 0) / (values.length - 1);
-  return Math.sqrt(variance) / mean;
-}
-
-function main() {
+async function main() {
   const token = process.env["GOGMEET_GOOGLE_BENCH_TOKEN"];
   const evidenceDir = join(
     process.cwd(),
     ".omo/evidence/gogmeet-performance/task-10-google-measurement",
   );
-  mkdirSync(evidenceDir, { recursive: true });
 
-  // Synthetic harness always runs (deterministic substitutes).
   const pages = synthesizePagedResponse(3, 5);
   const flat = flattenPages(pages);
-  const bytes = pages.map((p) => p.byteLength);
-  const latencies = pages.map((_, i) => 12 + i * 3);
+  const syntheticBytes = pages.map((p) => p.byteLength);
+  const syntheticLatencies = pages.map((_, i) => 12 + i * 3);
 
-  const baseline = {
-    calendarIds: ["primary"],
-    pageCount: flat.pageCount,
-    eventIds: flat.eventIds,
-    errorClass: null,
-    transferredBytes: bytes.reduce((a, b) => a + b, 0),
-    latenciesMs: latencies,
-  };
-
-  // Candidate field set includes every mapping field + nextPageToken.
-  const candidateFields = [...MAPPING_FIELDS];
-  const missingRequired = MAPPING_FIELDS.filter((f) => !candidateFields.includes(f));
-
-  let status = "rejected";
-  let reason = "no-live-shadow-or-below-threshold";
+  let status = "blocked";
+  let reason = "missing-bench-credential-env";
   let live = null;
 
-  if (!token) {
-    status = "blocked";
-    reason = "missing-bench-credential-env";
-  } else if (missingRequired.length > 0) {
-    status = "rejected";
-    reason = "missing-required-fields";
-    process.stderr.write(`[perf:google] missing fields: ${missingRequired.join(",")}\n`);
-    process.exit(1);
-  } else {
-    // Live shadow is intentionally a no-op network call here: credential env
-    // alone is insufficient for a safe authenticated call without full OAuth
-    // client setup. Treat as blocked for external prereq completeness.
-    status = "blocked";
-    reason = "live-shadow-requires-full-oauth-harness";
-    live = { note: "credential-present-but-shadow-not-executed" };
+  if (token && token.length > 0) {
+    try {
+      live = await runLivePairedShadows(token);
+      if (live.mismatch) {
+        status = "rejected";
+        reason = `paired-shadow-mismatch:${live.mismatch}`;
+        process.stderr.write(`[perf:google] paired shadow mismatch: ${live.mismatch}\n`);
+        // Nonzero for equivalence failure per plan
+        const receipt = buildReceipt({
+          status,
+          reason,
+          flat,
+          syntheticBytes,
+          syntheticLatencies,
+          live,
+        });
+        writeReceiptJson(evidenceDir, receipt);
+        process.exit(1);
+      }
+      const coef = live.coefficientOfVariation;
+      // Live baseline has no alternate field-set candidate yet → cannot claim retained improvement.
+      // Equivalence-only success is rejected for product optimization (measurement complete).
+      if (coef !== null && coef >= 0.1) {
+        status = "rejected";
+        reason = "variance-invalid";
+      } else if (live.last?.errorClass === "auth") {
+        status = "blocked";
+        reason = "bench-credential-auth-failed";
+      } else {
+        status = "rejected";
+        reason = "equivalence-ok-no-candidate-optimization";
+      }
+    } catch (err) {
+      status = "blocked";
+      reason = "live-shadow-transport-failed";
+      live = {
+        errorClass: err instanceof Error ? err.name : "unknown",
+        // never include err.message if it might embed URLs with tokens
+      };
+      process.stderr.write("[perf:google] live shadow failed (details redacted)\n");
+    }
   }
 
-  // retained thresholds (documented; synthetic baseline cannot retain).
-  const p50 = percentile([...latencies].sort((a, b) => a - b), 50);
-  const p95 = percentile([...latencies].sort((a, b) => a - b), 95);
-  const coef = cv(latencies);
+  const receipt = buildReceipt({
+    status,
+    reason,
+    flat,
+    syntheticBytes,
+    syntheticLatencies,
+    live,
+  });
+  writeReceiptJson(evidenceDir, receipt);
+  process.exit(0);
+}
 
-  const receipt = redactTrace(
+function buildReceipt({ status, reason, flat, syntheticBytes, syntheticLatencies, live }) {
+  const sortedLat = [...syntheticLatencies].sort((a, b) => a - b);
+  return redactTrace(
     {
       version: 1,
-      task: 10,
+      experiment: "google-polling",
       status,
       reason,
       platform: process.platform,
       arch: process.arch,
       mappingFields: MAPPING_FIELDS,
       synthetic: {
-        pageCount: baseline.pageCount,
-        eventCount: baseline.eventIds.length,
+        pageCount: flat.pageCount,
+        eventCount: flat.eventIds.length,
         pageTokensSeen: flat.pageTokensSeen,
-        transferredBytes: baseline.transferredBytes,
-        p50LatencyMs: p50,
-        p95LatencyMs: p95,
-        coefficientOfVariation: coef,
+        transferredBytes: syntheticBytes.reduce((a, b) => a + b, 0),
+        p50LatencyMs: percentile(sortedLat, 50),
+        p95LatencyMs: percentile(sortedLat, 95),
+        coefficientOfVariation: coefficientOfVariation(syntheticLatencies),
       },
       live,
       retainedCriteria: {
@@ -211,14 +280,10 @@ function main() {
         p95LatencyRegressAtMostMs: 25,
         maxCoefficientOfVariation: 0.1,
       },
+      productChange: "none",
     },
     { allowFieldPaths: true },
   );
-
-  writeFileSync(join(evidenceDir, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
-  process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
-  // blocked and rejected synthetic runs exit 0 when receipt is conforming.
-  process.exit(0);
 }
 
 const isMain =
@@ -227,5 +292,8 @@ const isMain =
     process.argv[1].includes("measure-google-calendar"));
 
 if (isMain) {
-  main();
+  main().catch(() => {
+    process.stderr.write("[perf:google] fatal (redacted)\n");
+    process.exit(1);
+  });
 }

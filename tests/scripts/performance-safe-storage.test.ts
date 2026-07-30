@@ -66,8 +66,9 @@ describe("perf:safe-storage", () => {
     const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
-    expect(receipt.task).toBe(12);
+    expect(receipt.experiment).toBe("safe-storage");
     expect(receipt.temporaryUnavailabilityPreservesCiphertext).toBe(true);
     expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);
+    expect(receipt.productChange).toBe("none");
   });
 });

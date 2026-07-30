@@ -29,8 +29,9 @@ describe("perf:tray", () => {
     const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
-    expect(receipt.task).toBe(11);
+    expect(receipt.experiment).toBe("tray-menu-rebuild");
     expect(receipt.rebuildsPerSuccessfulPoll).toBe(2);
     expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);
+    expect(receipt.productChange).toBe("none");
   });
 });

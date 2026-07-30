@@ -30,11 +30,12 @@ describe("perf:build-package", () => {
     const receipts = JSON.parse(result.stdout);
     expect(Array.isArray(receipts)).toBe(true);
     for (const r of receipts) {
-      expect(r.task).toBe(15);
+      expect(r.experiment).toBe("build-package-baseline");
       expect(r.status).not.toBe("retained");
       if (r.status === "rejected") {
         expect(r.reason).toBe("baseline-only");
       }
+      expect(r.productChange).toBe("none");
     }
   });
 });

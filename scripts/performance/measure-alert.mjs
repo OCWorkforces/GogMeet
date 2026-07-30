@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 /**
  * Compare alert destroy/recreate vs hidden reuse (measurement only).
- * Synthetic payloads only; no real titles/URLs/IDs in traces.
+ * Synthetic payloads only. Optional Electron window timing via GOGMEET_ELECTRON_ALERT_BENCH=1.
+ *
  * Usage: bun run perf:alert
  */
-import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
+import { createRequire } from "node:module";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
 
 export function syntheticAlertPayload(seed) {
   return {
-    // Fully synthetic opaque markers — no user content.
     marker: `syn-${seed}`,
     hasJoin: seed % 2 === 0,
     screenW: 1440,
@@ -24,12 +25,10 @@ export function timeVariant(variant, cycles) {
     const payload = syntheticAlertPayload(i);
     const start = performance.now();
     if (variant === "destroy-recreate") {
-      // Simulate create + navigate + show + destroy costs.
       void JSON.stringify(payload);
       const work = new Array(200).fill(0).map((_, j) => j * (i + 1));
       void work.reduce((a, b) => a + b, 0);
     } else {
-      // Hidden reuse: payload swap + show only.
       void JSON.stringify(payload);
       const work = new Array(40).fill(0).map((_, j) => j * (i + 1));
       void work.reduce((a, b) => a + b, 0);
@@ -37,20 +36,6 @@ export function timeVariant(variant, cycles) {
     durations.push(performance.now() - start);
   }
   return durations;
-}
-
-function percentile(sorted, p) {
-  if (sorted.length === 0) return null;
-  const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[Math.max(0, idx)];
-}
-
-function cv(values) {
-  if (values.length < 2) return null;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  if (mean === 0) return null;
-  const variance = values.reduce((acc, d) => acc + (d - mean) ** 2, 0) / (values.length - 1);
-  return Math.sqrt(variance) / mean;
 }
 
 function stats(durations) {
@@ -61,8 +46,50 @@ function stats(durations) {
     p95: percentile(sorted, 95),
     min: sorted[0],
     max: sorted[sorted.length - 1],
-    coefficientOfVariation: cv(durations),
+    coefficientOfVariation: coefficientOfVariation(durations),
   };
+}
+
+/**
+ * Optional Electron BrowserWindow create/destroy vs hide/show timing.
+ * Requires Electron main-process context (not unit node).
+ */
+export function timeElectronWindowVariants(cycles = 10) {
+  let BrowserWindow;
+  let app;
+  try {
+    const require = createRequire(import.meta.url);
+    ({ BrowserWindow, app } = require("electron"));
+  } catch {
+    return null;
+  }
+  if (!BrowserWindow || !app) return null;
+
+  // When loaded as plain node require('electron'), often returns path string.
+  if (typeof BrowserWindow !== "function") return null;
+
+  const destroyDurations = [];
+  const reuseDurations = [];
+  const prefs = { sandbox: true, contextIsolation: true, nodeIntegration: false };
+
+  for (let i = 0; i < cycles; i++) {
+    const t0 = performance.now();
+    const w = new BrowserWindow({ show: false, width: 100, height: 100, webPreferences: prefs });
+    w.destroy();
+    destroyDurations.push(performance.now() - t0);
+  }
+
+  const reused = new BrowserWindow({ show: false, width: 100, height: 100, webPreferences: prefs });
+  for (let i = 0; i < cycles; i++) {
+    const t0 = performance.now();
+    reused.hide();
+    reused.showInactive?.() ?? reused.show();
+    reused.hide();
+    reuseDurations.push(performance.now() - t0);
+  }
+  reused.destroy();
+
+  return { destroyDurations, reuseDurations, prefs };
 }
 
 function main() {
@@ -70,11 +97,9 @@ function main() {
     process.cwd(),
     ".omo/evidence/gogmeet-performance/task-14-alert-measurement",
   );
-  mkdirSync(evidenceDir, { recursive: true });
 
   const functionalCycles = 100;
   const measuredCycles = 30;
-  // Functional synthetic open/dismiss
   for (let i = 0; i < functionalCycles; i++) {
     void syntheticAlertPayload(i);
   }
@@ -84,40 +109,56 @@ function main() {
   const destroyStats = stats(destroy);
   const reuseStats = stats(reuse);
 
-  const electronAvailable = process.env["GOGMEET_ELECTRON_ALERT_BENCH"] === "1";
+  const electronRequested = process.env["GOGMEET_ELECTRON_ALERT_BENCH"] === "1";
   let status = "blocked";
   let reason = "electron-alert-tooling-unavailable";
+  let electronNative = null;
 
-  if (electronAvailable) {
-    const p50Improve =
-      destroyStats.p50 > 0 ? (destroyStats.p50 - reuseStats.p50) / destroyStats.p50 : 0;
-    const p50ImproveMs = destroyStats.p50 - reuseStats.p50;
-    const p95RegressPct =
-      destroyStats.p95 > 0 ? (reuseStats.p95 - destroyStats.p95) / destroyStats.p95 : 0;
-    const p95RegressMs = reuseStats.p95 - destroyStats.p95;
-    const coefOk =
-      destroyStats.coefficientOfVariation !== null &&
-      destroyStats.coefficientOfVariation < 0.1 &&
-      reuseStats.coefficientOfVariation !== null &&
-      reuseStats.coefficientOfVariation < 0.1;
-    if (
-      p50Improve >= 0.2 &&
-      p50ImproveMs >= 25 &&
-      p95RegressPct <= 0.05 &&
-      p95RegressMs <= 25 &&
-      coefOk
-    ) {
-      status = "retained";
-      reason = "thresholds-met-follow-up-plan-only";
+  if (electronRequested) {
+    electronNative = timeElectronWindowVariants(10);
+    if (electronNative === null) {
+      status = "blocked";
+      reason = "electron-module-unavailable";
     } else {
-      status = "rejected";
-      reason = "below-threshold-or-high-variance";
+      const dStats = stats(electronNative.destroyDurations);
+      const rStats = stats(electronNative.reuseDurations);
+      const p50Improve = dStats.p50 > 0 ? (dStats.p50 - rStats.p50) / dStats.p50 : 0;
+      const p50ImproveMs = (dStats.p50 ?? 0) - (rStats.p50 ?? 0);
+      const p95RegressPct =
+        dStats.p95 > 0 ? ((rStats.p95 ?? 0) - (dStats.p95 ?? 0)) / dStats.p95 : 0;
+      const p95RegressMs = (rStats.p95 ?? 0) - (dStats.p95 ?? 0);
+      const coefOk =
+        dStats.coefficientOfVariation !== null &&
+        dStats.coefficientOfVariation < 0.1 &&
+        rStats.coefficientOfVariation !== null &&
+        rStats.coefficientOfVariation < 0.1;
+      const securityOk =
+        electronNative.prefs.sandbox === true &&
+        electronNative.prefs.contextIsolation === true &&
+        electronNative.prefs.nodeIntegration === false;
+      if (
+        securityOk &&
+        p50Improve >= 0.2 &&
+        p50ImproveMs >= 25 &&
+        p95RegressPct <= 0.05 &&
+        p95RegressMs <= 25 &&
+        coefOk
+      ) {
+        status = "retained";
+        reason = "thresholds-met-follow-up-plan-only";
+      } else {
+        status = "rejected";
+        reason = securityOk ? "below-threshold-or-high-variance" : "security-prefs-changed";
+      }
+      // Prefer native stats in receipt when measured
+      Object.assign(destroyStats, dStats);
+      Object.assign(reuseStats, rStats);
     }
   }
 
   const receipt = {
     version: 1,
-    task: 14,
+    experiment: "alert-window-lifecycle",
     status,
     reason,
     platform: process.platform,
@@ -140,12 +181,10 @@ function main() {
       maxSteadyRssDeltaMiB: 10,
       maxCoefficientOfVariation: 0.1,
     },
-    // Losing variants are not retained in product code.
     productChange: "none",
   };
 
-  writeFileSync(join(evidenceDir, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
-  process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+  writeReceiptJson(evidenceDir, receipt);
   process.exit(0);
 }
 

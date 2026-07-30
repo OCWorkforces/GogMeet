@@ -1,6 +1,6 @@
 # GogMeet — Out-of-Scope Follow-On Development Plan
 
-**Status:** Authorized — Wave A in progress / shipping  
+**Status:** Authorized — permanent guardrails shipped; measurement lab unblocking in progress  
 **Parent plan:** `docs/plans/gogmeet-performance-enhancement.md`  
 **Branch context:** `enhance-perfs-v2` performance correctness program  
 **Updated:** 2026-07-30
@@ -570,9 +570,9 @@ Every FUTURE/REMEASURE track PR stack must include:
 - [x] Deferred product items have measurement gates and phased delivery.
 - [x] No track authorizes violating security guardrails.
 - [x] User authorized implementation (2026-07-30).
-- [x] Wave A shipped: registry, scan, freeze tests, CI wiring.
-- [ ] Wave B measurement unblocking (native/API CI) — next.
-- [ ] Wave C product tracks — only after evidence gates.
+- [x] Permanent guardrails shipped: registry, scan, freeze tests, CI wiring.
+- [x] Measurement lab unblocking: live Google shadow client, optional Electron/safeStorage/startup probes, `measurement.yml` CI, lab docs.
+- [ ] Deferred product tracks — only after evidence gates (`retained` receipts).
 
 ---
 

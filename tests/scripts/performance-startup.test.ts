@@ -44,8 +44,9 @@ describe("perf:startup", () => {
     expect(Array.isArray(receipts)).toBe(true);
     expect(receipts.length).toBeGreaterThanOrEqual(2);
     for (const r of receipts) {
-      expect(r.task).toBe(13);
+      expect(r.experiment).toBe("startup-lifecycle");
       expect(["blocked", "rejected", "retained", "skipped"]).toContain(r.status);
+      expect(r.productChange).toBe("none");
     }
   });
 });

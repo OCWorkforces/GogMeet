@@ -21,7 +21,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 | Package build | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64` |
 | Updates/logging | `electron-updater` (packaged non-portable only), `electron-log` |
 | Lint edges | `eslint-plugin-boundaries` (`boundaries/dependencies: error`) |
-| Measurement | Opt-in `GOGMEET_PERF_TRACE=1`; `perf:*` / `bench:*` scripts (not CI gates) |
+| Measurement | Opt-in `GOGMEET_PERF_TRACE=1`; `perf:*` / `bench:*` scripts; lab docs `docs/performance/measurement-lab.md`; weekly `measurement.yml` |
 | Guardrails | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` |
 
 ## STRUCTURE

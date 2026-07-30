@@ -65,8 +65,9 @@ describe("perf:google synthetic harness", () => {
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.version).toBe(1);
-    expect(receipt.task).toBe(10);
+    expect(receipt.experiment).toBe("google-polling");
     expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);
     expect(receipt.mappingFields).toEqual(expect.arrayContaining(["nextPageToken"]));
+    expect(receipt.productChange).toBe("none");
   });
 });

@@ -109,7 +109,7 @@ function main() {
 
     return {
       version: 1,
-      task: 15,
+      experiment: "build-package-baseline",
       status,
       reason,
       platform: t.platform,
@@ -119,6 +119,7 @@ function main() {
       libInventory: { fileCount: libInv.fileCount, totalBytes: libInv.totalBytes },
       distInventory: { fileCount: distInv.fileCount, totalBytes: distInv.totalBytes },
       note: "baseline-only receipts can never be retained for product optimization",
+      productChange: "none",
     };
   });
 

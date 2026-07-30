@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 /**
- * Baseline packaged startup / Swift helper phases (measurement only).
- * Does not reorder lifecycle. Usage: bun run perf:startup
+ * Baseline packaged startup / helper phases (measurement only).
+ * Optional: GOGMEET_APP_PATH=/path/to/GogMeet.app/Contents/MacOS/GogMeet for cold-launch samples.
+ *
+ * Usage: bun run perf:startup
  */
-import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { performance } from "node:perf_hooks";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
 
 export const STARTUP_PHASES = Object.freeze([
   "process-start",
@@ -25,11 +30,8 @@ export const STARTUP_PHASES = Object.freeze([
 ]);
 
 export function syntheticPhaseDurations() {
-  // Deterministic substitutes when packaged cold/warm launch is unavailable.
   const base = 8;
-  return Object.fromEntries(
-    STARTUP_PHASES.map((phase, i) => [phase, base + (i % 5) * 3]),
-  );
+  return Object.fromEntries(STARTUP_PHASES.map((phase, i) => [phase, base + (i % 5) * 3]));
 }
 
 export function evaluateRetained(phaseMs, totalP95) {
@@ -41,45 +43,108 @@ export function evaluateRetained(phaseMs, totalP95) {
   return { ok: false };
 }
 
-function main() {
+/** Cold-launch wall times for a packaged binary (ms). */
+export async function sampleColdLaunches(appPath, samples = 5, settleMs = 2500) {
+  if (!appPath || !existsSync(appPath)) return null;
+  const durations = [];
+  for (let i = 0; i < samples; i++) {
+    const start = performance.now();
+    const child = spawn(appPath, [], {
+      stdio: "ignore",
+      detached: true,
+      env: { ...process.env, GOGMEET_PERF_TRACE: "0" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // ignore
+      }
+    }
+    durations.push(performance.now() - start);
+  }
+  return durations;
+}
+
+async function main() {
   const evidenceDir = join(
     process.cwd(),
     ".omo/evidence/gogmeet-performance/task-13-startup-measurement",
   );
-  mkdirSync(evidenceDir, { recursive: true });
 
+  const appPath = process.env["GOGMEET_APP_PATH"];
   const platforms = [
     { platform: "darwin", arch: process.arch },
     { platform: "win32", arch: process.arch },
   ];
 
+  let coldLaunches = null;
+  if (appPath) {
+    try {
+      coldLaunches = await sampleColdLaunches(appPath, 5, 2000);
+    } catch {
+      coldLaunches = null;
+    }
+  }
+
   const receipts = [];
   for (const target of platforms) {
     const hostMatch = process.platform === target.platform;
-    const packaged = process.env["GOGMEET_PACKAGED_STARTUP"] === "1";
     let status = "blocked";
     let reason = "packaged-cold-warm-launch-unavailable";
     const phases = syntheticPhaseDurations();
     const total = Object.values(phases).reduce((a, b) => a + b, 0);
 
-    if (hostMatch && packaged) {
+    if (hostMatch && coldLaunches && coldLaunches.length >= 3) {
+      const summary = {
+        sampleCount: coldLaunches.length,
+        p50: percentile([...coldLaunches].sort((a, b) => a - b), 50),
+        p95: percentile([...coldLaunches].sort((a, b) => a - b), 95),
+        coefficientOfVariation: coefficientOfVariation(coldLaunches),
+      };
       const evald = evaluateRetained(phases, total);
-      if (evald.ok) {
-        // Synthetic phases do not satisfy CV < 0.1 multi-sample requirement.
+      // Without per-phase instrumentation from a real trace, product retain is not claimed.
+      if (summary.coefficientOfVariation !== null && summary.coefficientOfVariation >= 0.1) {
         status = "rejected";
-        reason = "insufficient-native-samples-or-high-variance";
+        reason = "variance-invalid";
+      } else if (evald.ok) {
+        status = "rejected";
+        reason = "cold-launch-sampled-phase-instrumentation-required";
       } else {
         status = "rejected";
         reason = "no-phase-meets-threshold";
       }
-    } else if (!hostMatch) {
+      receipts.push({
+        version: 1,
+        experiment: "startup-lifecycle",
+        status,
+        reason,
+        platform: target.platform,
+        arch: target.arch,
+        phases,
+        totalMsSynthetic: total,
+        coldLaunchMs: summary,
+        retainedCriteria: {
+          minPhaseShareOfP95Total: 0.1,
+          minPhaseMs: 50,
+          maxCoefficientOfVariation: 0.1,
+        },
+        productChange: "none",
+      });
+      continue;
+    }
+
+    if (!hostMatch) {
       status = "blocked";
       reason = "not-running-on-target-platform";
     }
 
     receipts.push({
       version: 1,
-      task: 13,
+      experiment: "startup-lifecycle",
       status,
       reason,
       platform: target.platform,
@@ -91,15 +156,20 @@ function main() {
         minPhaseMs: 50,
         maxCoefficientOfVariation: 0.1,
       },
+      productChange: "none",
     });
   }
 
-  writeFileSync(join(evidenceDir, "receipt.json"), `${JSON.stringify(receipts, null, 2)}\n`);
-  process.stdout.write(`${JSON.stringify(receipts, null, 2)}\n`);
+  writeReceiptJson(evidenceDir, receipts);
   process.exit(0);
 }
 
 const isMain =
   process.argv[1] &&
   (process.argv[1].endsWith("measure-startup.mjs") || process.argv[1].includes("measure-startup"));
-if (isMain) main();
+if (isMain) {
+  main().catch(() => {
+    process.stderr.write("[perf:startup] fatal (redacted)\n");
+    process.exit(1);
+  });
+}
