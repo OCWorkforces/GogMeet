@@ -108,11 +108,17 @@ export function createFixtureCalendarProvider(filePath: string): CalendarProvide
   return {
     id: "fixture",
 
-    async getEvents(): Promise<CalendarResult> {
+    async getEvents(_signal: AbortSignal): Promise<CalendarResult> {
       try {
         const raw = await readFile(filePath, "utf-8");
         const events = parseFixturePayload(raw);
-        return { kind: "ok", events };
+        return {
+          kind: "ok",
+          source: "live",
+          completeness: "complete",
+          observedAt: Date.now(),
+          events,
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error("[calendar:fixture] getEvents failed:", message);

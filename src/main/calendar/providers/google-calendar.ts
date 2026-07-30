@@ -7,6 +7,11 @@ import type {
   CalendarPermission,
   CalendarResult,
 } from "../../../domain/entities/calendar-result.js";
+import {
+  calendarErr,
+  calendarLiveOk,
+  calendarOfflineOk,
+} from "../../../domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../../domain/entities/meeting-event.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../../domain/entities/brand.js";
 import { formatAppError } from "../../../domain/entities/errors.js";
@@ -25,6 +30,7 @@ import { isGoogleOAuthConfigured } from "../auth/google-client-id.js";
 import { clearOfflineCache, loadOfflineCache, saveOfflineCache } from "../offline-cache.js";
 import {
   createPollBudgetSignal,
+  GOOGLE_POLL_BUDGET_MS,
   GoogleHttpError,
   googleHttpRequest,
 } from "../google-http.js";
@@ -62,7 +68,7 @@ async function googleFetch(
     const res = await googleHttpRequest({
       url,
       headers: { Authorization: `Bearer ${accessToken}` },
-      signal,
+      ...(signal !== undefined ? { signal } : {}),
     });
     if (!res.ok) {
       // Do not propagate raw bodies upward for logging — keep a short redacted stub.
@@ -257,11 +263,12 @@ async function fetchAllEvents(
   accessToken: string,
   userEmail: string | undefined,
   signal?: AbortSignal,
-): Promise<MeetingEvent[]> {
+): Promise<{ events: MeetingEvent[]; completeness: "complete" | "partial" }> {
   const { timeMin, timeMax } = dayBoundsLocal();
   const calendarIds = await listSelectedCalendarIds(accessToken, signal);
   const merged: MeetingEvent[] = [];
   let successCount = 0;
+  let failedCount = 0;
   let lastError: Error | null = null;
 
   for (const calendarId of calendarIds) {
@@ -279,6 +286,7 @@ async function fetchAllEvents(
       successCount++;
     } catch (err) {
       if (err instanceof AuthError) throw err;
+      failedCount++;
       lastError = err instanceof Error ? err : new Error(String(err));
       console.warn(`[calendar:google] Calendar ${calendarId} failed:`, lastError.message);
     }
@@ -289,7 +297,11 @@ async function fetchAllEvents(
   }
 
   merged.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-  return merged;
+  // All selected calendars fully traversed → complete (even with zero events).
+  // At least one complete + any failed → partial.
+  const completeness: "complete" | "partial" =
+    failedCount === 0 && successCount === calendarIds.length ? "complete" : "partial";
+  return { events: merged, completeness };
 }
 
 /**
@@ -299,68 +311,73 @@ export function createGoogleCalendarProvider(): CalendarProvider {
   return {
     id: "google-calendar",
 
-    async getEvents(): Promise<CalendarResult> {
+    async getEvents(upstreamSignal: AbortSignal): Promise<CalendarResult> {
       // 60 s overall poll budget for list + pages + await of refresh/retry.
-      // Does not cancel shared OAuth transport; only stops this poll.
-      const budget = createPollBudgetSignal();
+      // Composed with upstream coordinator signal; does not cancel shared OAuth.
+      const budget = createPollBudgetSignal(GOOGLE_POLL_BUDGET_MS, upstreamSignal);
       try {
         let tokens = await ensureFreshGoogleAccessToken("if-needed");
         if (tokens === null) {
-          return {
-            kind: "err",
-            error: formatAppError({
+          return calendarErr(
+            formatAppError({
               kind: "calendar-permission-denied",
               message: "Connect Google Calendar from the tray menu or Settings.",
             }),
-            code: "permission-denied",
-          };
+            "permission-denied",
+          );
         }
 
         try {
-          const events = await fetchAllEvents(tokens.accessToken, tokens.email, budget.signal);
-          await saveOfflineCache(events);
-          return { kind: "ok", events };
+          const { events, completeness } = await fetchAllEvents(
+            tokens.accessToken,
+            tokens.email,
+            budget.signal,
+          );
+          const observedAt = Date.now();
+          // Cache write for complete snapshots is refined in the cache-automation task;
+          // still save when complete so offline path has data.
+          if (completeness === "complete") {
+            await saveOfflineCache(events);
+          }
+          return calendarLiveOk(events, completeness, observedAt);
         } catch (err) {
           if (err instanceof AuthError) {
-            // API 401: force one real refresh (not a no-op on unexpired token), then one retry.
-            // Poll abort stops only this waiter; shared OAuth uses its own deadline.
+            // API 401: force one real refresh, then one retry.
             const forced = await refreshGoogleAccessToken("force");
             if (forced.kind !== "ok") {
-              // invalidation already cleared credentials when definitive;
-              // transient failures preserve ciphertext and fall through to offline.
               if (forced.kind === "invalidated" || forced.kind === "no-tokens") {
-                return {
-                  kind: "err",
-                  error: formatAppError({
+                return calendarErr(
+                  formatAppError({
                     kind: "calendar-auth",
                     message: "Google session expired. Please reconnect.",
                   }),
-                  code: "permission-denied",
-                };
+                  "permission-denied",
+                );
               }
               // transient refresh failure — try offline, do not clear
             } else {
               tokens = forced.tokens;
               try {
-                const events = await fetchAllEvents(
+                const { events, completeness } = await fetchAllEvents(
                   tokens.accessToken,
                   tokens.email,
                   budget.signal,
                 );
-                await saveOfflineCache(events);
-                return { kind: "ok", events };
+                const observedAt = Date.now();
+                if (completeness === "complete") {
+                  await saveOfflineCache(events);
+                }
+                return calendarLiveOk(events, completeness, observedAt);
               } catch (retryErr) {
                 if (retryErr instanceof AuthError) {
-                  // Second API 401 after a real force refresh — definitive session loss.
                   await clearGoogleTokens();
-                  return {
-                    kind: "err",
-                    error: formatAppError({
+                  return calendarErr(
+                    formatAppError({
                       kind: "calendar-auth",
                       message: "Google session expired. Please reconnect.",
                     }),
-                    code: "permission-denied",
-                  };
+                    "permission-denied",
+                  );
                 }
                 throw retryErr;
               }
@@ -371,27 +388,24 @@ export function createGoogleCalendarProvider(): CalendarProvider {
           const cache = await loadOfflineCache();
           if (cache && cache.events.length > 0) {
             console.warn("[calendar:google] Network failure; using offline cache");
-            return { kind: "ok", events: cache.events };
+            const cachedAt = cache.savedAt;
+            // Until versioned cache schema, treat savedAt as both observation and cache time.
+            return calendarOfflineOk(cache.events, cachedAt, cachedAt);
           }
 
           const message = err instanceof Error ? err.message : String(err);
-          return {
-            kind: "err",
-            error: formatAppError({
+          return calendarErr(
+            formatAppError({
               kind: "calendar-network",
               message: message || "Can't reach Google Calendar",
             }),
-            code: "runtime",
-          };
+            "runtime",
+          );
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error("[calendar:google] getEvents error:", err);
-        return {
-          kind: "err",
-          error: formatAppError({ kind: "calendar-runtime", message }),
-          code: "runtime",
-        };
+        return calendarErr(formatAppError({ kind: "calendar-runtime", message }), "runtime");
       } finally {
         budget.cleanup();
       }

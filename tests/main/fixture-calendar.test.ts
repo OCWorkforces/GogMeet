@@ -66,7 +66,7 @@ describe("fixture calendar provider", () => {
     expect(provider.id).toBe("fixture");
     expect(await provider.getPermissionStatus()).toBe("granted");
 
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.events).toHaveLength(1);
@@ -180,10 +180,10 @@ describe("factory fixture gate (K23)", () => {
     );
     process.env["GOGMEET_CALENDAR_FIXTURE"] = fixturePath;
     const provider = createFixtureCalendarProvider(fixturePath);
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     const bad = createFixtureCalendarProvider(join(dir, "missing.json"));
-    const errResult = await bad.getEvents();
+    const errResult = await bad.getEvents(new AbortController().signal);
     expect(errResult.kind).toBe("err");
   });
 

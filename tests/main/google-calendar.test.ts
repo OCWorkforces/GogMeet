@@ -88,7 +88,7 @@ describe("createGoogleCalendarProvider", () => {
   it("returns permission-denied when no tokens", async () => {
     ensureFreshGoogleAccessToken.mockResolvedValue(null);
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") expect(result.code).toBe("permission-denied");
   });
@@ -150,7 +150,7 @@ describe("createGoogleCalendarProvider", () => {
     });
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
     // cancelled + declined filtered; all-day + meet + zoom kept
@@ -177,7 +177,7 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockResolvedValue(cached);
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     // outer catch may return runtime or network via cache
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
@@ -193,7 +193,7 @@ describe("createGoogleCalendarProvider", () => {
     loadOfflineCache.mockResolvedValue(null);
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
   });
 
@@ -228,7 +228,7 @@ describe("createGoogleCalendarProvider", () => {
     });
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.events[0]?.title).toBe("After retry");
@@ -247,7 +247,7 @@ describe("createGoogleCalendarProvider", () => {
     fetchMock.mockImplementation(async () => new Response("nope", { status: 401 }));
 
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") {
       expect(result.code).toBe("permission-denied");
@@ -269,7 +269,7 @@ describe("createGoogleCalendarProvider", () => {
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") expect(result.events).toEqual([]);
     warn.mockRestore();
@@ -324,7 +324,7 @@ describe("createGoogleCalendarProvider", () => {
     });
     const provider = createGoogleCalendarProvider();
     loadOfflineCache.mockResolvedValue(null);
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") {
       expect(result.code).toBe("runtime");
@@ -366,7 +366,7 @@ describe("createGoogleCalendarProvider", () => {
       });
     });
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
   });
 
@@ -411,7 +411,7 @@ describe("createGoogleCalendarProvider", () => {
       });
     });
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.events.length).toBeGreaterThanOrEqual(2);
@@ -423,7 +423,7 @@ describe("createGoogleCalendarProvider", () => {
     refreshGoogleAccessToken.mockResolvedValue({ kind: "no-tokens" });
     fetchMock.mockResolvedValue(new Response("nope", { status: 401 }));
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("err");
     if (result.kind === "err") expect(result.code).toBe("permission-denied");
     // no-tokens path does not call clear again (nothing to clear / already gone)
@@ -450,7 +450,7 @@ describe("createGoogleCalendarProvider", () => {
       ],
     });
     const provider = createGoogleCalendarProvider();
-    const result = await provider.getEvents();
+    const result = await provider.getEvents(new AbortController().signal);
     expect(result.kind).toBe("ok");
     expect(clearGoogleTokens).not.toHaveBeenCalled();
   });

@@ -15,7 +15,7 @@ const UNSUPPORTED_MESSAGE =
 export function createStubUnsupportedProvider(): CalendarProvider {
   return {
     id: "stub-unsupported",
-    async getEvents(): Promise<CalendarResult> {
+    async getEvents(_signal: AbortSignal): Promise<CalendarResult> {
       return {
         kind: "err",
         error: formatAppError({
