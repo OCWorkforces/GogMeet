@@ -48,6 +48,10 @@ export function parseSettingsRecord(parsed: Record<string, unknown>): AppSetting
       typeof parsed["showTomorrowMeetings"] === "boolean"
         ? parsed["showTomorrowMeetings"]
         : DEFAULT_SETTINGS.showTomorrowMeetings,
+    showCompletedTodayMeetings:
+      typeof parsed["showCompletedTodayMeetings"] === "boolean"
+        ? parsed["showCompletedTodayMeetings"]
+        : DEFAULT_SETTINGS.showCompletedTodayMeetings,
     windowAlert:
       typeof parsed["windowAlert"] === "boolean"
         ? parsed["windowAlert"]

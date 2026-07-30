@@ -31,10 +31,11 @@ vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi
     .fn()
     .mockReturnValue({
-    schemaVersion: 2,
+    schemaVersion: 3,
     openBeforeMinutes: 1,
     launchAtLogin: false,
     showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
     windowAlert: true,
     autoOpenEnabled: true,
     alertLeadSeconds: 60,

@@ -42,10 +42,11 @@ vi.mock("../../src/main/system/power.js", () => ({
 // Mock settings module — scheduler reads openBeforeMinutes via getSettings()
 vi.mock("../../src/main/facades/settings.js", () => ({
   getSettings: vi.fn().mockReturnValue({
-    schemaVersion: 2,
+    schemaVersion: 3,
     openBeforeMinutes: 3,
     launchAtLogin: false,
     showTomorrowMeetings: true,
+    showCompletedTodayMeetings: false,
     windowAlert: true,
     autoOpenEnabled: true,
     alertLeadSeconds: 60,
