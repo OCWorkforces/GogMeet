@@ -314,6 +314,20 @@ describe("renderBody", () => {
       expect(html).toContain('class="meeting-time now"');
     });
 
+    it("does not list or label a meeting that has already ended", () => {
+      const event = createMockEvent({
+        id: asTestEventId("evt-past"),
+        title: "Afternoon Sync",
+        startDate: asTestIsoUtc(isoFromNow(-120)),
+        endDate: asTestIsoUtc(isoFromNow(-50)),
+      });
+      const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
+
+      expect(html).not.toContain("Afternoon Sync");
+      expect(html).not.toContain("In progress");
+      expect(html).toContain("All done for today");
+    });
+
     it("renders 'In X min' soon label for meetings within 15 minutes", () => {
       const event = createMockEvent({
         id: asTestEventId("evt-soon"),

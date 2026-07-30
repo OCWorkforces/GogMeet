@@ -11,7 +11,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers) |
 | `core/schedule-types.ts` | `SchedulePlan` ADT / action types (includes **`set-snapshot`**) |
 | `adapters/interpret-schedule.ts` | Applies plan actions; **sole schedule-path snapshot writer** via `set-snapshot` |
-| `poll.ts` | Fetches calendar, publishes UI for any ok, schedules only live complete, else `suspendAutomation` |
+| `poll.ts` | Fetches calendar, publishes UI for any ok (content **or display** signature change), arms display horizon, schedules only live complete, else `suspendAutomation` |
 | `suspend-automation.ts` | Cancels browser/alert/title/countdown/in-meeting timers; keeps lastKnownEvents |
 | `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden |
 | `browser-timer.ts` | Browser-open timer + optional Notification; **does not write** `scheduledEventData` |
@@ -36,6 +36,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `stopScheduler()` | Cancels pending force poll, resets resources preserving window, clears tray title |
 | `restartScheduler()` | Stop then start; timing settings + wake events |
 | `forcePoll()` | Immediate poll with 10s completed-poll coalescing |
+| `republishUiForDisplayTick()` | Force re-push last publication for wall-clock list refresh (no fetch) |
 | `setSchedulerWindow(w)` | BrowserWindow for typed push channels |
 | `setTrayTitleCallback(fn)` | Tray title updater; scheduler never imports tray |
 | `initPowerCallbacks(callbacks)` | Poll interval + sleep-prevention hooks from `system/power.ts` |
@@ -53,6 +54,8 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 - Quiet hours: suppress **alert show + Notification** only; auto-open continues.
 - Late-join: `settings.lateJoinGraceMinutes` (default 0 = off).
 - Title countdown window: 30 minutes before start.
+- Display horizon (wall-clock list refresh) is owned by `system/display-horizon.ts`, armed from poll publish; lifecycle wires ticks to `republishUiForDisplayTick` + tray force rebuild. Display-only — never auto-opens.
+- In-meeting: poll resyncs when calendar `endMs` changes while already in progress.
 - Schedule-ahead cap: 24 hours.
 - Force-poll coalesce: 10 seconds after last completed poll.
 - Consecutive errors threshold 3; counter caps at 4.

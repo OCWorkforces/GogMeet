@@ -18,6 +18,7 @@ import { createSettingsWindow } from "./windows/settings-window.js";
 import { getLastCalendarStatus } from "./facades/calendar-status.js";
 import { formatRemainingTime } from "../domain/services/time.js";
 import { eventListSignature } from "../domain/services/event-signature.js";
+import { filterUpcomingMeetings } from "../domain/services/meeting-time.js";
 import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
@@ -43,6 +44,8 @@ let rebuildCoalesceScheduled = false;
 let beforeQuitRegistered = false;
 /** Graph used for tray actions (set in setupTray). */
 let trayGraph: AppGraph | null = null;
+/** Main window last used for menu rebuild (horizon / force refresh). */
+let lastRebuildWindow: BrowserWindow | null = null;
 
 /** Max characters for the event title portion of the macOS status-item title */
 const TRAY_TITLE_MAX_CHARS = 12;
@@ -133,6 +136,7 @@ function buildContextMenuTemplate(mainWindow: BrowserWindow): MenuItemConstructo
  * Exported for tests.
  */
 export function requestTrayRebuild(mainWindow: BrowserWindow, options?: { force?: boolean }): void {
+  lastRebuildWindow = mainWindow;
   if (options?.force) {
     lastMenuSignature = null;
   }
@@ -140,7 +144,9 @@ export function requestTrayRebuild(mainWindow: BrowserWindow, options?: { force?
   rebuildCoalesceScheduled = true;
   queueMicrotask(() => {
     rebuildCoalesceScheduled = false;
-    refreshContextMenu(mainWindow);
+    if (lastRebuildWindow) {
+      refreshContextMenu(lastRebuildWindow);
+    }
   });
 }
 
@@ -151,8 +157,15 @@ export function trayMenuSignature(
   showTomorrow: boolean,
   statusKind: string,
   statusCode: string | null,
+  nowMs: number = Date.now(),
 ): string {
-  const eventSig = eventListSignature(events ?? []);
+  const list = events ?? [];
+  const eventSig = eventListSignature(list);
+  // Upcoming membership is wall-clock dependent: ended meetings must invalidate the menu
+  // even when the raw calendar payload (and content signature) is unchanged.
+  const upcomingSig = eventListSignature(
+    filterUpcomingMeetings(list, nowMs, { excludeAllDay: true }),
+  );
   return [
     ui.permission,
     ui.phase,
@@ -164,10 +177,11 @@ export function trayMenuSignature(
     statusKind,
     statusCode ?? "",
     eventSig,
+    upcomingSig,
   ].join("|");
 }
 
-function refreshContextMenu(mainWindow: BrowserWindow): void {
+function refreshContextMenu(mainWindow: BrowserWindow, options?: { force?: boolean }): void {
   const graph = trayGraph;
   const ui: CalendarUiState =
     cachedUi ??
@@ -188,7 +202,7 @@ function refreshContextMenu(mainWindow: BrowserWindow): void {
   const statusKind = status.kind;
   const statusCode = status.kind === "err" ? status.code : null;
   const signature = trayMenuSignature(ui, events, showTomorrow, statusKind, statusCode);
-  if (signature === lastMenuSignature && lastContextMenu !== null) {
+  if (options?.force !== true && signature === lastMenuSignature && lastContextMenu !== null) {
     return;
   }
   lastMenuSignature = signature;
@@ -351,10 +365,25 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
     void graph.scheduler.forcePoll();
     // Windows: left-click should open the menu (right-click uses setContextMenu).
     // macOS: keep click = refresh only; menu is the status-item context menu.
-    if (!isDarwin() && tray && lastContextMenu) {
-      tray.popUpContextMenu(lastContextMenu);
+    // Force sync rebuild from cache so ended meetings are filtered with Date.now()
+    // before popup (forcePoll remains async for calendar freshness).
+    if (!isDarwin() && tray) {
+      refreshContextMenu(mainWindow, { force: true });
+      if (lastContextMenu) {
+        tray.popUpContextMenu(lastContextMenu);
+      }
     }
   });
+}
+
+/**
+ * Force a tray menu rebuild with current wall clock (e.g. display-horizon tick).
+ * Safe no-op when tray is not set up.
+ */
+export function forceTrayMenuRefresh(): void {
+  if (!tray || !lastRebuildWindow) return;
+  // Sync rebuild: horizon ticks need the installed menu updated immediately.
+  refreshContextMenu(lastRebuildWindow, { force: true });
 }
 
 /**
@@ -363,6 +392,7 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
  */
 export function destroyTray(): void {
   trayGraph = null;
+  lastRebuildWindow = null;
   if (meetingsListener) {
     mainBus.off("meeting-list-updated", meetingsListener);
     meetingsListener = null;

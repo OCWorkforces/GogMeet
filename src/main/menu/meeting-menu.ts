@@ -3,6 +3,7 @@ import { formatMeetingTime, startOfDay, startOfTomorrow } from "../../domain/ser
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import { pickJoinTarget } from "../../domain/services/pick-join-target.js";
+import { filterUpcomingMeetings, isMeetingInProgress } from "../../domain/services/meeting-time.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import type { CalendarStatus } from "../facades/calendar-status.js";
 import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
@@ -56,7 +57,7 @@ function meetingItem(
   callbacks: MenuCallbacks,
 ): MenuItemConstructorOptions {
   const hasUrl = !!event.meetUrl;
-  const isInProgress = new Date(event.startDate) <= now;
+  const isInProgress = isMeetingInProgress(event, now.getTime());
   const timeLabel = isInProgress
     ? `${formatMeetingTime(event.startDate)} – In progress`
     : formatMeetingTime(event.startDate);
@@ -99,10 +100,7 @@ function meetingDayRows(
   const dayAfterStart = new Date(tomorrowStart);
   dayAfterStart.setDate(dayAfterStart.getDate() + 1);
 
-  const upcoming = events.filter((e) => {
-    if (e.isAllDay) return false;
-    return new Date(e.endDate) > now;
-  });
+  const upcoming = filterUpcomingMeetings(events, now.getTime(), { excludeAllDay: true });
 
   if (upcoming.length === 0) {
     return [{ label: "No upcoming meetings", enabled: false }];
@@ -189,10 +187,7 @@ export function buildMeetingMenuTemplate(
 
   const items: MenuItemConstructorOptions[] = [...statusRows(status)];
 
-  const upcoming = events.filter((e) => {
-    if (e.isAllDay) return false;
-    return new Date(e.endDate) > now;
-  });
+  const upcoming = filterUpcomingMeetings(events, now.getTime(), { excludeAllDay: true });
 
   if (upcoming.length === 0 && status.kind !== "err") {
     items.push({ label: "No upcoming meetings", enabled: false });

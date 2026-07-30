@@ -1,4 +1,5 @@
 import type { MeetingEvent } from "../entities/meeting-event.js";
+import { isMeetingInProgress } from "./meeting-time.js";
 
 /**
  * Prefer the joinable in-progress meeting; otherwise the next future meeting with a URL.
@@ -9,11 +10,7 @@ export function pickJoinTarget(
 ): MeetingEvent | null {
   const withUrl = events.filter((e) => !e.isAllDay && !!e.meetUrl);
   const inProgress = withUrl
-    .filter((e) => {
-      const start = new Date(e.startDate).getTime();
-      const end = new Date(e.endDate).getTime();
-      return start <= nowMs && nowMs < end;
-    })
+    .filter((e) => isMeetingInProgress(e, nowMs))
     .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
   if (inProgress[0]) return inProgress[0];
 

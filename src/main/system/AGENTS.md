@@ -7,6 +7,7 @@ Leaf modules wrapping Electron/OS platform APIs. Mostly one OS surface per file.
 | File | Role |
 | --- | --- |
 | `power.ts` | Battery-aware `getPollInterval()` (2min AC / 4min battery), ref-counted sleep prevention, `powerMonitor` events |
+| `display-horizon.ts` | Single wall-clock timer for next start/end display boundary; listeners force UI re-filter (no automation) |
 | `auto-launch.ts` | Login items: `syncAutoLaunch` / `enableAutoLaunch` via `app.setLoginItemSettings()` |
 | `auto-updater.ts` | `initAutoUpdater()` + `isPortableInstall()`; no-op when unpackaged or portable |
 | `notification.ts` | Notification permission probe + platform settings deep-link (`x-apple…` / `ms-settings:…`) |

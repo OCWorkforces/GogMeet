@@ -286,7 +286,7 @@ describe("tray module exports", () => {
     platformState.darwin = false;
     const { setupTray } = await import("../../src/main/tray.js");
     const { forcePoll } = await import("../../src/main/scheduler/facade.js");
-    const { BrowserWindow, Tray } = await import("electron");
+    const { BrowserWindow, Tray, Menu } = await import("electron");
 
     const mockWindow = new BrowserWindow();
     setupTray(mockWindow, testAppGraph());
@@ -297,9 +297,12 @@ describe("tray module exports", () => {
       | (() => void)
       | undefined;
     expect(clickHandler).toBeTypeOf("function");
+    vi.mocked(Menu.buildFromTemplate).mockClear();
     clickHandler?.();
 
     expect(forcePoll).toHaveBeenCalled();
+    // Sync rebuild-from-cache before popup so ended meetings are not shown stale.
+    expect(Menu.buildFromTemplate).toHaveBeenCalled();
     expect(trayInstance.popUpContextMenu).toHaveBeenCalled();
   });
 
@@ -364,6 +367,25 @@ describe("tray module exports", () => {
     expect(trayInstance.destroy).toHaveBeenCalled();
     expect(nativeTheme.removeListener).toHaveBeenCalledWith("updated", themeHandler);
     destroyTray();
+  });
+
+  it("forceTrayMenuRefresh no-ops before setup and rebuilds after setupTray", async () => {
+    vi.resetModules();
+    const { forceTrayMenuRefresh, setupTray, destroyTray } = await import("../../src/main/tray.js");
+    const { Tray, Menu } = await import("electron");
+    // No tray yet — must not throw.
+    forceTrayMenuRefresh();
+    setupTray({} as never, testAppGraph());
+    await flushTrayRebuild();
+    const trayInstance = getLatestTrayInstance(Tray);
+    vi.mocked(trayInstance.setContextMenu).mockClear();
+    vi.mocked(Menu.buildFromTemplate).mockClear();
+    forceTrayMenuRefresh();
+    await flushTrayRebuild();
+    expect(Menu.buildFromTemplate).toHaveBeenCalled();
+    expect(trayInstance.setContextMenu).toHaveBeenCalled();
+    destroyTray();
+    forceTrayMenuRefresh(); // after destroy — still no throw
   });
 
   it("status listener rebuilds menu and offline tooltip on Windows", async () => {

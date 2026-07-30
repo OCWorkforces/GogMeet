@@ -34,7 +34,9 @@ src/renderer/
 - States: `loading` → `no-permission` → `no-events` → `has-events` → `error`.
 - `loadEvents()` uses `window.api.calendar.getEvents()` → `CalendarPublication`; pushes deliver the same envelope via `onResultUpdated`.
 - Refresh/retry use the same `loadEvents()` path (no renderer force-poll IPC). `loadGeneration` ignores stale publications.
-- Visibility-aware refresh when stale; `lastPollTime` gates first-show fetch.
+- On show: always local `render()` with `Date.now()` so ended meetings drop immediately; network refresh is debounced separately (`lastPollTime` ≥5s).
+- Soft labels / end membership while open are refreshed by main display-horizon pushes (`CALENDAR_RESULT_UPDATED`), not a renderer interval.
+- List filter / “In progress” use domain `meeting-time` helpers (`end > now`, `start ≤ now < end`).
 
 ## EVENT HANDLING
 
