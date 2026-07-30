@@ -16,6 +16,8 @@ import type { IpcMainInvokeEvent, WebContents } from "electron";
 import type { EventId, IsoUtc, MeetUrl } from "../../src/domain/entities/brand.js";
 import { asEventId, asIsoUtc, asMeetUrl } from "../../src/domain/entities/brand.js";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import type { CalendarResultOk } from "../../src/domain/entities/calendar-result.js";
+import { calendarLiveOk } from "../../src/domain/entities/calendar-result.js";
 import type { AppSettings } from "../../src/domain/entities/settings.js";
 import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 
@@ -135,3 +137,9 @@ export function createMockIpcEvent(
   };
   return partial as unknown as IpcMainInvokeEvent;
 }
+
+/** Live-complete calendar ok result for tests. */
+export function okCalendarResult(events: MeetingEvent[] = []): CalendarResultOk {
+  return calendarLiveOk(events, "complete", Date.now());
+}
+

@@ -42,15 +42,57 @@ describe("createGetMeetings", () => {
     });
   }
 
-  it("publishes ready state on successful fetch with events", async () => {
+  it("publishes ready state on successful live complete fetch with events", async () => {
     const events = [createMockEvent()];
-    vi.mocked(calendar.getEvents).mockResolvedValue({ kind: "ok", events });
+    vi.mocked(calendar.getEvents).mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
+      events,
+    });
     const result = await create().execute();
     expect(result.kind).toBe("ok");
     expect(uiState.phase).toBe("ready");
     expect(uiState.accountEmail).toBe("user@example.com");
+    expect(uiState.offline).toBe(false);
     expect(cachedPermission).toBe("granted");
     expect(published.at(-1)?.phase).toBe("ready");
+  });
+
+  it("publishes limited phase on live partial success", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents).mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "partial",
+      observedAt: Date.now(),
+      events,
+    });
+    await create().execute();
+    expect(uiState.phase).toBe("limited");
+    expect(uiState.offline).toBe(false);
+    expect(uiState.lastError).toMatch(/could not be refreshed/i);
+    expect(cachedPermission).toBe("granted");
+  });
+
+  it("publishes offline-cached without granting permission from kind alone", async () => {
+    uiState = { ...uiState, permission: "not-determined" };
+    const events = [createMockEvent()];
+    const cachedAt = Date.now() - 60_000;
+    vi.mocked(calendar.getEvents).mockResolvedValue({
+      kind: "ok",
+      source: "offline-cache",
+      observedAt: cachedAt - 1_000,
+      cachedAt,
+      events,
+    });
+    await create().execute();
+    expect(uiState.phase).toBe("offline-cached");
+    expect(uiState.offline).toBe(true);
+    expect(uiState.permission).toBe("not-determined");
+    expect(cachedPermission).toBeNull();
+    expect(uiState.cacheAgeMs).toBeGreaterThanOrEqual(60_000);
   });
 
   it("publishes error phase on failed fetch", async () => {
