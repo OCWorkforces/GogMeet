@@ -2,15 +2,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const { execFileAsyncMock } = vi.hoisted(() => ({
+const { execFileAsyncMock, runSwiftHelperProcessMock } = vi.hoisted(() => ({
   execFileAsyncMock: vi.fn(),
+  runSwiftHelperProcessMock: vi.fn(),
 }));
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   const fn = Object.assign(vi.fn(), {
     [promisify.custom]: execFileAsyncMock,
   });
-  return { execFile: fn };
+  return { execFile: fn, spawn: vi.fn() };
+});
+vi.mock("../../src/main/swift/swift-helper-process.js", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../src/main/swift/swift-helper-process.js")
+  >("../../src/main/swift/swift-helper-process.js");
+  return {
+    ...actual,
+    runSwiftHelperProcess: runSwiftHelperProcessMock,
+  };
 });
 
 const {
@@ -97,6 +107,7 @@ function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
 
 beforeEach(() => {
   execFileAsyncMock.mockReset();
+  runSwiftHelperProcessMock.mockReset();
   accessMock.mockReset();
   mkdirMock.mockReset();
   readFileMock.mockReset();
@@ -111,6 +122,11 @@ beforeEach(() => {
   writeFileMock.mockResolvedValue(undefined);
   unlinkMock.mockResolvedValue(undefined);
   execFileAsyncMock.mockResolvedValue({ stdout: "", stderr: "" });
+  runSwiftHelperProcessMock.mockResolvedValue({
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+  });
 });
 
 afterEach(() => {
@@ -479,35 +495,56 @@ describe("runSwiftHelper", () => {
   it("returns trimmed stdout from the binary on the happy path", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
+    accessMock.mockResolvedValue(undefined);
 
-    execFileAsyncMock.mockResolvedValueOnce({
+    runSwiftHelperProcessMock.mockResolvedValueOnce({
       stdout: "  line1\nline2  \n",
       stderr: "",
+      exitCode: 0,
     });
 
     const mod = await loadModule();
     const out = await mod.runSwiftHelper();
 
     expect(out).toBe("line1\nline2");
-    expect(execFileAsyncMock).toHaveBeenCalledWith(
-      EXPECTED_BINARY_PATH,
-      [],
-      expect.objectContaining({ timeout: 15_000 }),
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledWith(
+      expect.objectContaining({ binaryPath: EXPECTED_BINARY_PATH, args: [] }),
     );
+    expect(unlinkMock).not.toHaveBeenCalled();
   });
 
-  it("recompiles and retries once when the binary fails on first invocation", async () => {
+  it("recompiles once on integrity spawn ENOENT after revalidation", async () => {
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    // ensureBinary cache hit; revalidate after spawn fail reports missing binary
+    accessMock
+      .mockResolvedValueOnce(undefined) // ensureBinary isBinaryExecutable
+      .mockRejectedValueOnce(new Error("ENOENT")) // revalidateIntegrityFailure
+      .mockResolvedValue(undefined);
 
+    // Use duck-typed error so class identity survives vi.resetModules
+    const spawnEnoent = Object.assign(new Error("spawn ENOENT"), {
+      name: "SwiftHelperProcessError",
+      failureKind: "spawn",
+      spawnCode: "ENOENT",
+      exitCode: undefined,
+      signal: undefined,
+      stdout: "",
+      stderr: "",
+    });
+
+    runSwiftHelperProcessMock
+      .mockRejectedValueOnce(spawnEnoent)
+      .mockResolvedValueOnce({
+        stdout: "fresh-output\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+    // After invalidate, ensureBinary recompiles via execFile (swiftc + strip)
     execFileAsyncMock
-      .mockRejectedValueOnce(new Error("binary crashed"))
       .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "fresh-output\n", stderr: "" });
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
 
     const mod = await loadModule();
     const out = await mod.runSwiftHelper();
@@ -515,49 +552,96 @@ describe("runSwiftHelper", () => {
     expect(out).toBe("fresh-output");
     expect(unlinkMock).toHaveBeenCalledWith(EXPECTED_BINARY_PATH);
     expect(unlinkMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH);
-    expect(execFileAsyncMock).toHaveBeenCalledTimes(4);
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledTimes(2);
   });
 
-  it("throws when the retry also fails", async () => {
+  it("does not recompile on timeout", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
     const expectedHash = await sha256Hex(FAKE_SOURCE);
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-    accessMock.mockResolvedValueOnce(undefined);
-    accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+    accessMock.mockResolvedValue(undefined);
 
-    execFileAsyncMock
-      .mockRejectedValueOnce(new Error("first binary failure"))
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockResolvedValueOnce({ stdout: "", stderr: "" })
-      .mockRejectedValueOnce(new Error("retry failure"));
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("timeout", "timed out"),
+    );
 
     const mod = await loadModule();
-    await expect(mod.runSwiftHelper()).rejects.toThrow("retry failure");
+    await expect(mod.runSwiftHelper()).rejects.toThrow(/timed out|Swift helper/);
+    expect(unlinkMock).not.toHaveBeenCalled();
+    expect(runSwiftHelperProcessMock).toHaveBeenCalledTimes(1);
   });
 
-  it("throws when the recompile itself fails during retry", async () => {
+  it("does not recompile on stdout overflow", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("stdout-overflow", "overflow"),
+    );
+
+    const mod = await loadModule();
+    await expect(mod.runSwiftHelper()).rejects.toThrow(/overflow|Swift helper/);
+    expect(unlinkMock).not.toHaveBeenCalled();
+  });
+
+  it("does not recompile on semantic permission exit", async () => {
+    const { SwiftHelperProcessError } = await import(
+      "../../src/main/swift/swift-helper-process.js"
+    );
+    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
+    accessMock.mockResolvedValue(undefined);
+
+    runSwiftHelperProcessMock.mockRejectedValueOnce(
+      new SwiftHelperProcessError("exit", "permission", {
+        exitCode: 2,
+        stderr: "denied",
+      }),
+    );
+
+    const mod = await loadModule();
+    await expect(mod.runSwiftHelper()).rejects.toMatchObject({
+      name: "SwiftHelperError",
+      kind: "permission-denied",
+      exitCode: 2,
+    });
+    expect(unlinkMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when recompile after integrity spawn fails", async () => {
     const setTimeoutSpy = mockImmediateSetTimeout();
     try {
       const expectedHash = await sha256Hex(FAKE_SOURCE);
       setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
-      accessMock.mockResolvedValueOnce(undefined);
-      accessMock.mockRejectedValueOnce(new Error("ENOENT"));
+      accessMock
+        .mockResolvedValueOnce(undefined) // initial ensureBinary
+        .mockRejectedValueOnce(new Error("ENOENT")) // revalidateIntegrityFailure
+        .mockRejectedValueOnce(new Error("ENOENT")); // ensureBinary during recompile
 
-      // Binary run fails once, then 5 compile attempts × 2 swiftc calls all fail
-      execFileAsyncMock
-        .mockRejectedValueOnce(new Error("first binary failure"))
-        .mockRejectedValueOnce(new Error("swiftc fail 1a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 1b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 3a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 3b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 4a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 4b"))
-        .mockRejectedValueOnce(new Error("swiftc fail 5a"))
-        .mockRejectedValueOnce(new Error("swiftc fail 2"));
+      runSwiftHelperProcessMock.mockRejectedValueOnce(
+        Object.assign(new Error("spawn ENOENT"), {
+          name: "SwiftHelperProcessError",
+          failureKind: "spawn",
+          spawnCode: "ENOENT",
+          exitCode: undefined,
+          signal: undefined,
+          stdout: "",
+          stderr: "",
+        }),
+      );
+
+      for (let i = 0; i < 10; i++) {
+        execFileAsyncMock.mockRejectedValueOnce(new Error(`swiftc fail ${i}`));
+      }
 
       const mod = await loadModule();
-      await expect(mod.runSwiftHelper()).rejects.toThrow(/swiftc fail 2/);
+      await expect(mod.runSwiftHelper()).rejects.toThrow(/swiftc fail/);
     } finally {
       setTimeoutSpy.mockRestore();
     }
