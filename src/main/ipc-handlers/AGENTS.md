@@ -15,16 +15,17 @@ Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-fo
 | `calendar.ts` | `registerCalendarHandlers(graph)` | get events / permission / disconnect / UI state; forcePoll on granted |
 | `settings.ts` | `registerSettingsHandlers(win, graph)` | get/set settings; invalid sender → fresh defaults without persistence |
 | `window.ts` | `registerWindowHandlers(win)` | `WINDOW_SET_HEIGHT` fire-and-forget |
-| `scheduler.ts` | `registerSchedulerHandlers(graph)` | `SCHEDULER_FORCE_POLL` → `graph.scheduler.forcePoll` |
 | `alert.ts` | `registerAlertHandlers(graph)` | `ALERT_DISMISSED` re-brands `id` then `graph.scheduler.cancelPendingBrowserOpen` |
+
+Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` / `refreshCalendarPublication` (no separate force-poll IPC channel).
 
 ## PATTERNS
 
 **Invoke handlers** — every invoke handler uses `validateSender()` and returns typed `IpcResponse`.
 
-**Fire-and-forget** (`window.ts`, `scheduler.ts`, `alert.ts`) — `validateOnSender` + re-validate payload at main.
+**Fire-and-forget** (`window.ts`, `alert.ts`) — `validateOnSender` + re-validate payload at main.
 
-**Push channels** — `typedSend` with destroyed-window guards: `SETTINGS_CHANGED`, `CALENDAR_EVENTS_UPDATED`, `ALERT_SHOW`.
+**Push channels** — `typedSend` with destroyed-window guards: `SETTINGS_CHANGED`, `CALENDAR_RESULT_UPDATED`, `ALERT_SHOW`.
 
 **Settings side effects** (`settings.ts`):
 - Timing keys (`openBeforeMinutes`, `windowAlert`, `autoOpenEnabled`, `alertLeadSeconds`, `lateJoinGraceMinutes`, quiet hours, `nativeNotifications`) → `graph.scheduler.restart()`.
@@ -39,15 +40,14 @@ Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-fo
 | `APP_OPEN_EXTERNAL` | app.ts | invoke → `Result` via `graph.opener` |
 | `APP_JOIN_MEETING` | app.ts | invoke `{ id }` → `Result` via `graph.join.byId` |
 | `APP_GET_VERSION` | app.ts | invoke |
-| `CALENDAR_GET_EVENTS` | calendar.ts | invoke |
-| `CALENDAR_REQUEST_PERMISSION` | calendar.ts | invoke (+ forcePoll when granted) |
+| `CALENDAR_GET_EVENTS` | calendar.ts | invoke → `CalendarPublication` |
+| `CALENDAR_REQUEST_PERMISSION` | calendar.ts | invoke (+ main `forcePoll` when granted) |
 | `CALENDAR_PERMISSION_STATUS` | calendar.ts | invoke |
 | `CALENDAR_DISCONNECT` | calendar.ts | invoke |
 | `CALENDAR_UI_STATE` | calendar.ts | invoke → `CalendarUiState` |
 | `SETTINGS_GET` | settings.ts | invoke |
 | `SETTINGS_SET` | settings.ts | invoke (+ selective restart / auto-launch) |
 | `WINDOW_SET_HEIGHT` | window.ts | fire-and-forget |
-| `SCHEDULER_FORCE_POLL` | scheduler.ts | fire-and-forget |
 | `ALERT_DISMISSED` | alert.ts | fire-and-forget |
 
 ## ANTI-PATTERNS

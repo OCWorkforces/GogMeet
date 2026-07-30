@@ -4,12 +4,12 @@ import { registerCalendarHandlers } from "../ipc-handlers/calendar.js";
 import { registerSettingsHandlers } from "../ipc-handlers/settings.js";
 import { registerAppHandlers } from "../ipc-handlers/app.js";
 import { registerWindowHandlers } from "../ipc-handlers/window.js";
-import { registerSchedulerHandlers } from "../ipc-handlers/scheduler.js";
 import { registerAlertHandlers } from "../ipc-handlers/alert.js";
 
 /**
  * Registers all IPC handlers for the application.
  * Handler implementations live in focused modules under ipc-handlers/.
+ * Calendar refresh is coordinated via CALENDAR_GET_EVENTS (no separate force-poll channel).
  */
 export function registerIpcHandlers(win: BrowserWindow, graph: AppGraph): void {
   registerCalendarHandlers(graph);
@@ -17,5 +17,4 @@ export function registerIpcHandlers(win: BrowserWindow, graph: AppGraph): void {
   registerAppHandlers(graph);
   registerWindowHandlers(win);
   registerAlertHandlers(graph);
-  registerSchedulerHandlers(graph);
 }

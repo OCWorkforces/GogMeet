@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type IpcRequest, type IpcResponse } from "../shared/ipc-channels.js";
 import type { AlertPayload } from "../shared/alert.js";
 import type { AppSettings } from "../domain/entities/settings.js";
-import type { MeetingEvent } from "../domain/entities/meeting-event.js";
+import type { CalendarPublication } from "../domain/entities/calendar-publication.js";
 import {
   asEventId,
   asMeetUrl,
@@ -44,13 +44,16 @@ const api = {
     getUiState: (): Promise<IpcResponse<typeof IPC_CHANNELS.CALENDAR_UI_STATE>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CALENDAR_UI_STATE),
 
-    onEventsUpdated: (callback: (events: MeetingEvent[]) => void): (() => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, events: MeetingEvent[]): void => {
-        callback(events);
+    onResultUpdated: (callback: (publication: CalendarPublication) => void): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        publication: CalendarPublication,
+      ): void => {
+        callback(publication);
       };
-      ipcRenderer.on(IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, handler);
+      ipcRenderer.on(IPC_CHANNELS.CALENDAR_RESULT_UPDATED, handler);
       return () => {
-        ipcRenderer.removeListener(IPC_CHANNELS.CALENDAR_EVENTS_UPDATED, handler);
+        ipcRenderer.removeListener(IPC_CHANNELS.CALENDAR_RESULT_UPDATED, handler);
       };
     },
   },
@@ -115,10 +118,6 @@ const api = {
     notifyDismissed: (id: EventId): void => {
       ipcRenderer.send(IPC_CHANNELS.ALERT_DISMISSED, { id });
     },
-  },
-
-  scheduler: {
-    forcePoll: (): void => ipcRenderer.send(IPC_CHANNELS.SCHEDULER_FORCE_POLL),
   },
 };
 
