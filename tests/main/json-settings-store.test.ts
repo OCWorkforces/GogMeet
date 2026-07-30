@@ -28,9 +28,8 @@ describe("JsonSettingsStore", () => {
   });
 
   it("loads defaults when missing, save and update round-trip", async () => {
-    const { createJsonSettingsStore } = await import(
-      "../../src/main/infrastructure/settings/json-settings-store.js"
-    );
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
     const store = createJsonSettingsStore();
     const loaded = await store.load();
     expect(loaded.ok).toBe(true);
@@ -46,9 +45,8 @@ describe("JsonSettingsStore", () => {
   it("handles corrupt file without throwing", async () => {
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "settings.json"), "not-json", "utf-8");
-    const { createJsonSettingsStore } = await import(
-      "../../src/main/infrastructure/settings/json-settings-store.js"
-    );
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
     const store = createJsonSettingsStore();
     const loaded = await store.load();
     expect(loaded).toHaveProperty("ok");
@@ -66,22 +64,85 @@ describe("JsonSettingsStore", () => {
       }),
       "utf-8",
     );
-    const { createJsonSettingsStore } = await import(
-      "../../src/main/infrastructure/settings/json-settings-store.js"
-    );
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
     const store = createJsonSettingsStore();
     const loaded = await store.load();
     expect(loaded.ok).toBe(true);
     if (loaded.ok) {
       expect(loaded.value.openBeforeMinutes).toBeLessThanOrEqual(10);
-      expect(loaded.value.schemaVersion).toBe(2);
+      expect(loaded.value.schemaVersion).toBe(3);
+      expect(loaded.value.showCompletedTodayMeetings).toBe(false);
     }
   });
 
-  it("get throws before load and works after", async () => {
-    const { createJsonSettingsStore } = await import(
-      "../../src/main/infrastructure/settings/json-settings-store.js"
+  it("migrates v2 settings to v3 with showCompletedTodayMeetings default false", async () => {
+    await writeFile(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        openBeforeMinutes: 2,
+        launchAtLogin: false,
+        showTomorrowMeetings: true,
+        windowAlert: true,
+        autoOpenEnabled: true,
+        alertLeadSeconds: 60,
+        nativeNotifications: true,
+        lateJoinGraceMinutes: 0,
+        quietHoursEnabled: false,
+        quietHoursStart: "22:00",
+        quietHoursEnd: "07:00",
+      }),
+      "utf-8",
     );
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
+    const store = createJsonSettingsStore();
+    const loaded = await store.load();
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) {
+      expect(loaded.value.schemaVersion).toBe(3);
+      expect(loaded.value.showCompletedTodayMeetings).toBe(false);
+      expect(loaded.value.openBeforeMinutes).toBe(2);
+    }
+
+    // Rewrite persisted to v3
+    const { readFile } = await import("node:fs/promises");
+    const rewritten = JSON.parse(await readFile(join(dir, "settings.json"), "utf-8")) as {
+      schemaVersion: number;
+      showCompletedTodayMeetings?: boolean;
+    };
+    expect(rewritten.schemaVersion).toBe(3);
+    expect(rewritten.showCompletedTodayMeetings).toBe(false);
+  });
+
+  it("round-trips explicit showCompletedTodayMeetings true across reload", async () => {
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
+    const store = createJsonSettingsStore();
+    await store.load();
+    const updated = await store.update({ showCompletedTodayMeetings: true });
+    expect(updated.showCompletedTodayMeetings).toBe(true);
+
+    const store2 = createJsonSettingsStore();
+    const reloaded = await store2.load();
+    expect(reloaded.ok && reloaded.value.showCompletedTodayMeetings).toBe(true);
+  });
+
+  it("ignores non-boolean showCompletedTodayMeetings on update", async () => {
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
+    const store = createJsonSettingsStore();
+    await store.load();
+    const next = await store.update({
+      showCompletedTodayMeetings: "yes" as unknown as boolean,
+    });
+    expect(next.showCompletedTodayMeetings).toBe(false);
+  });
+
+  it("get throws before load and works after", async () => {
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
     const store = createJsonSettingsStore();
     expect(() => store.get()).toThrow(/not loaded/);
     await store.load();
@@ -89,9 +150,8 @@ describe("JsonSettingsStore", () => {
   });
 
   it("update merges partial quiet hours fields", async () => {
-    const { createJsonSettingsStore } = await import(
-      "../../src/main/infrastructure/settings/json-settings-store.js"
-    );
+    const { createJsonSettingsStore } =
+      await import("../../src/main/infrastructure/settings/json-settings-store.js");
     const store = createJsonSettingsStore();
     await store.load();
     const next = await store.update({

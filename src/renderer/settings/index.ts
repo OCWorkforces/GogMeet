@@ -132,6 +132,23 @@ function render(errorMessage?: string): void {
       </div>
       <div class="setting-row setting-row--toggle">
         <div class="setting-row-inner">
+          <label class="setting-label" for="show-completed-meetings-toggle">
+            ✅ Show completed meetings
+          </label>
+          <span class="setting-description">Show today's finished meetings as muted history in the popover</span>
+        </div>
+        <div class="setting-control">
+          <span class="save-indicator" id="completed-save-indicator" aria-live="polite"></span>
+          <label class="toggle-switch" role="switch" aria-checked="${settings.showCompletedTodayMeetings ? "true" : "false"}">
+            <input type="checkbox" id="show-completed-meetings-toggle" class="toggle-input"${settings.showCompletedTodayMeetings ? " checked" : ""} />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row setting-row--toggle">
+        <div class="setting-row-inner">
           <label class="setting-label" for="window-alert-toggle">
             🔔 Show Window Alert
           </label>
@@ -207,6 +224,11 @@ function render(errorMessage?: string): void {
   setupSelectListener();
   setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
   setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
+  setupToggleListener(
+    "show-completed-meetings-toggle",
+    "showCompletedTodayMeetings",
+    "completed-save-indicator",
+  );
   setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
   setupToggleListener("auto-open-toggle", "autoOpenEnabled", "auto-open-save-indicator");
   setupToggleListener("native-notif-toggle", "nativeNotifications", "native-notif-save-indicator");
@@ -335,6 +357,8 @@ function buildTogglePatch(key: ToggleSettingKey, value: boolean): Partial<AppSet
       return { launchAtLogin: value };
     case "showTomorrowMeetings":
       return { showTomorrowMeetings: value };
+    case "showCompletedTodayMeetings":
+      return { showCompletedTodayMeetings: value };
     case "windowAlert":
       return { windowAlert: value };
     case "autoOpenEnabled":

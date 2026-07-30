@@ -23,4 +23,11 @@ describe("isInQuietHours", () => {
     const noon = new Date(2026, 0, 1, 12, 0, 0);
     expect(isInQuietHours(noon, "10:00", "10:00")).toBe(false);
   });
+
+  it("returns false when start or end is not valid HH:mm", () => {
+    const noon = new Date(2026, 0, 1, 12, 0, 0);
+    expect(isInQuietHours(noon, "25:00", "07:00")).toBe(false);
+    expect(isInQuietHours(noon, "22:00", "not-a-time")).toBe(false);
+    expect(isInQuietHours(noon, "bad", "also-bad")).toBe(false);
+  });
 });

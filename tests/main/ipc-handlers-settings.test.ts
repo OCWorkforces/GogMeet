@@ -198,6 +198,26 @@ describe("registerSettingsHandlers", () => {
       expect(mockForcePoll).toHaveBeenCalledOnce();
     });
 
+    it("persists and broadcasts showCompletedTodayMeetings without scheduler work", async () => {
+      const updated = { ...DEFAULT_SETTINGS, showCompletedTodayMeetings: true };
+      mockUpdateSettings.mockResolvedValue(updated);
+      const mockWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      }.As<import("electron").BrowserWindow>();
+
+      registerSettingsHandlers(mockWin, testAppGraph());
+      const handler = getRegisteredHandler("settings:set");
+
+      const result = await handler!(authorizedEvent, { showCompletedTodayMeetings: true });
+      expect(mockUpdateSettings).toHaveBeenCalledWith({ showCompletedTodayMeetings: true });
+      expect(result).toEqual(updated);
+      expect(mockWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
+      expect(mockWin.webContents.send).toHaveBeenCalledTimes(1);
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
+      expect(mockForcePoll).not.toHaveBeenCalled();
+      expect(mockSyncAutoLaunch).not.toHaveBeenCalled();
+    });
+
     it("restarts scheduler for quiet hours and auto-open timing keys", async () => {
       const mockWin = {
         webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
