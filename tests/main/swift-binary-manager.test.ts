@@ -327,6 +327,32 @@ describe("tryInstallBundledHelper", () => {
       "utf-8",
     );
   });
+
+  it("probes additional Resources layouts when resourcesPath is set", async () => {
+    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    const preferred = "/App/Resources/googlemeet-events-arm64";
+    const fallback = "/App/Resources/helpers/googlemeet-events";
+    accessMock.mockImplementation(async (path: string) => {
+      if (path === preferred) throw new Error("ENOENT");
+      if (path === fallback) return undefined;
+      if (String(path).includes("googlemeet-events")) throw new Error("ENOENT");
+      throw new Error(`unexpected ${path}`);
+    });
+    copyFileMock.mockResolvedValue(undefined);
+    Object.defineProperty(process, "resourcesPath", {
+      value: "/App/Resources",
+      configurable: true,
+    });
+    Object.defineProperty(process, "arch", {
+      value: "arm64",
+      configurable: true,
+    });
+
+    const mod = await loadModule();
+    const ok = await mod.tryInstallBundledHelper(() => preferred);
+    expect(ok).toBe(true);
+    expect(copyFileMock).toHaveBeenCalledWith(fallback, EXPECTED_BINARY_PATH);
+  });
 });
 
 describe("ensureBinary", () => {

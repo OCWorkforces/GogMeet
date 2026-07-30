@@ -55,4 +55,39 @@ describe("trayMenuSignature", () => {
     const err = trayMenuSignature(baseUi, events, true, "err", "permission-denied");
     expect(err).not.toBe(a);
   });
+
+  it("changes when account, permission, phase, or showTomorrow change", () => {
+    const events = [createMockEvent()];
+    const base = trayMenuSignature(baseUi, events, true, "ok", null);
+    expect(trayMenuSignature({ ...baseUi, accountEmail: "x@y.z" }, events, true, "ok", null)).not.toBe(
+      base,
+    );
+    expect(trayMenuSignature({ ...baseUi, permission: "denied" }, events, true, "ok", null)).not.toBe(
+      base,
+    );
+    expect(trayMenuSignature({ ...baseUi, phase: "error" }, events, true, "ok", null)).not.toBe(base);
+    expect(trayMenuSignature(baseUi, events, false, "ok", null)).not.toBe(base);
+    expect(trayMenuSignature({ ...baseUi, oauthConfigured: false }, events, true, "ok", null)).not.toBe(
+      base,
+    );
+    expect(trayMenuSignature({ ...baseUi, lastError: "x" }, events, true, "ok", null)).not.toBe(base);
+  });
+});
+
+describe("tray tooltip helpers", () => {
+  it("truncates and formats countdown labels", async () => {
+    const {
+      truncateTrayTooltip,
+      formatTrayCountdownLabel,
+      buildWindowsTrayTooltip,
+      TRAY_TOOLTIP_MAX_CHARS,
+    } = await import("../../src/main/tray.js");
+    expect(truncateTrayTooltip("short")).toBe("short");
+    expect(truncateTrayTooltip("x".repeat(100), 5)).toBe("xxxx\u2026");
+    expect(truncateTrayTooltip("ab", 1)).toBe("\u2026");
+    expect(formatTrayCountdownLabel("Hello World Meeting", 1, false)).toContain("in 1 min");
+    expect(formatTrayCountdownLabel("Hello World Meeting", 5, true)).toMatch(/Hello|min/);
+    expect(buildWindowsTrayTooltip(null, undefined, undefined, true)).toContain("Offline");
+    expect(buildWindowsTrayTooltip("Meet", 3).length).toBeLessThanOrEqual(TRAY_TOOLTIP_MAX_CHARS);
+  });
 });

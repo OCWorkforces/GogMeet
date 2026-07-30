@@ -104,6 +104,65 @@ describe("fixture calendar provider", () => {
     const result = await createFixtureCalendarProvider(join(dir, "missing.json")).getEvents();
     expect(result.kind).toBe("err");
   });
+
+  it("skips invalid events and maps optional meetUrl/userEmail/description", async () => {
+    await writeFile(
+      fixturePath,
+      JSON.stringify([
+        null,
+        { id: 1 },
+        {
+          id: "bad-dates",
+          title: "Bad",
+          startDate: "not-iso",
+          endDate: "nope",
+          calendarName: "W",
+          isAllDay: false,
+        },
+        {
+          id: "ok-1",
+          title: "Good",
+          startDate: "2026-04-08T15:00:00.000Z",
+          endDate: "2026-04-08T15:30:00.000Z",
+          calendarName: "Work",
+          isAllDay: false,
+          meetUrl: "meet.google.com/abc-defg-hij",
+          userEmail: "  a@b.com ",
+          description: "notes",
+        },
+      ]),
+      "utf-8",
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await createFixtureCalendarProvider(fixturePath).getEvents(
+      new AbortController().signal,
+    );
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.events).toHaveLength(1);
+      expect(result.events[0]?.title).toBe("Good");
+      expect(result.events[0]?.meetUrl).toContain("https://");
+      expect(result.events[0]?.userEmail).toBe("a@b.com");
+      expect(result.events[0]?.description).toBe("notes");
+    }
+    warn.mockRestore();
+  });
+
+  it("returns err for invalid JSON and wrong shape", async () => {
+    await writeFile(fixturePath, "{not json", "utf-8");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r1 = await createFixtureCalendarProvider(fixturePath).getEvents(
+      new AbortController().signal,
+    );
+    expect(r1.kind).toBe("err");
+
+    await writeFile(fixturePath, JSON.stringify({ notEvents: [] }), "utf-8");
+    const r2 = await createFixtureCalendarProvider(fixturePath).getEvents(
+      new AbortController().signal,
+    );
+    expect(r2.kind).toBe("err");
+    err.mockRestore();
+  });
 });
 
 describe("factory fixture gate (K23)", () => {

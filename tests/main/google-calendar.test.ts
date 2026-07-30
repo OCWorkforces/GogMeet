@@ -705,5 +705,196 @@ describe("createGoogleCalendarProvider", () => {
     }
     expect(stored["primary"]).toBe("s3");
   });
+
+  it("calendarList non-auth failure surfaces as error when no offline cache", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return new Response("nope", { status: 503 });
+      }
+      return jsonResponse({}, 404);
+    });
+    loadOfflineCache.mockResolvedValue(null);
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("err");
+  });
+
+  it("skips unselected calendars and defaults to primary when none selected", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({
+          items: [
+            { id: "ignored", selected: false },
+            { id: "not-an-id" }, // missing id
+            "bad-item",
+          ],
+        });
+      }
+      if (url.includes("/calendars/primary/events") || url.includes("/calendars/primary%2F")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Primary only",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "p1",
+        });
+      }
+      // encodeURIComponent("primary") path
+      if (url.includes("/events")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "e1",
+              summary: "Primary only",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "p1",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+    const provider = createGoogleCalendarProvider();
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.events.some((e) => e.title === "Primary only")).toBe(true);
+    }
+  });
+
+  it("incremental pageToken continues without repeating syncToken param", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(13, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    clearAllGoogleSyncTokens.mockImplementation(async () => {
+      stored = {};
+    });
+
+    // Seed index via full then incremental with pagination
+    let phase: "full" | "inc1" | "inc2" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc1";
+          return jsonResponse({
+            items: [
+              {
+                id: "a",
+                summary: "A",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "sync-start",
+          });
+        }
+        if (phase === "inc1") {
+          phase = "inc2";
+          expect(url).toContain("syncToken=");
+          return jsonResponse({
+            items: [
+              {
+                id: "b",
+                summary: "B",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextPageToken: "page-2",
+          });
+        }
+        // second incremental page — should have pageToken, not syncToken
+        expect(url).toContain("pageToken=");
+        expect(url).not.toContain("syncToken=");
+        return jsonResponse({
+          items: [
+            {
+              id: "c",
+              summary: "C",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "sync-end",
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    // Clear process-local index left by prior tests in this file
+    await provider.disconnect?.();
+    clearGoogleTokens.mockClear();
+    clearOfflineCache.mockClear();
+
+    await provider.getEvents(new AbortController().signal); // full seed
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("ok");
+    if (r2.kind === "ok") {
+      expect(r2.events.map((e) => e.title).sort()).toEqual(["A", "B", "C"]);
+    }
+    expect(stored["primary"]).toBe("sync-end");
+  });
+
+  it("incremental AuthError (401) propagates as permission-denied", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    refreshGoogleAccessToken.mockResolvedValue({ kind: "no-tokens" });
+    const start = new Date();
+    start.setHours(10, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    let stored: Record<string, string> = {};
+    loadGoogleSyncTokens.mockImplementation(async () => ({ ...stored }));
+    saveGoogleSyncTokens.mockImplementation(async (t: Record<string, string>) => {
+      stored = { ...t };
+    });
+    let phase: "full" | "inc" = "full";
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({ items: [{ id: "primary", primary: true }] });
+      }
+      if (url.includes("/events")) {
+        if (phase === "full") {
+          phase = "inc";
+          return jsonResponse({
+            items: [
+              {
+                id: "e1",
+                summary: "X",
+                start: { dateTime: start.toISOString() },
+                end: { dateTime: end.toISOString() },
+              },
+            ],
+            nextSyncToken: "t1",
+          });
+        }
+        return new Response("auth", { status: 401 });
+      }
+      return jsonResponse({}, 404);
+    });
+    const provider = createGoogleCalendarProvider();
+    await provider.getEvents(new AbortController().signal);
+    const r2 = await provider.getEvents(new AbortController().signal);
+    expect(r2.kind).toBe("err");
+    if (r2.kind === "err") expect(r2.code).toBe("permission-denied");
+  });
 });
 

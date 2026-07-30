@@ -8,6 +8,7 @@ const {
   getGoogleOAuthClientId,
   isGoogleOAuthConfigured,
   openExternal,
+  googleHttpJsonMock,
 } = vi.hoisted(() => ({
   loadGoogleTokens: vi.fn(),
   loadGoogleTokensResult: vi.fn(),
@@ -16,6 +17,7 @@ const {
   getGoogleOAuthClientId: vi.fn(),
   isGoogleOAuthConfigured: vi.fn(),
   openExternal: vi.fn(),
+  googleHttpJsonMock: vi.fn(),
 }));
 
 vi.mock("../../src/main/calendar/auth/google-token-store.js", () => ({
@@ -32,6 +34,20 @@ vi.mock("electron", () => ({
   shell: { openExternal },
 }));
 
+const useGoogleHttpJsonMock = vi.hoisted(() => ({ enabled: false }));
+vi.mock("../../src/main/calendar/google-http.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/main/calendar/google-http.js")>();
+  return {
+    ...actual,
+    googleHttpJson: (req: Parameters<typeof actual.googleHttpJson>[0]) => {
+      if (useGoogleHttpJsonMock.enabled) {
+        return googleHttpJsonMock(req);
+      }
+      return actual.googleHttpJson(req);
+    },
+  };
+});
+
 const baseTokens = {
   authSchemaVersion: 1 as const,
   clientId: "client",
@@ -46,6 +62,8 @@ describe("google-oauth", () => {
 
   beforeEach(() => {
     vi.resetModules();
+    useGoogleHttpJsonMock.enabled = false;
+    googleHttpJsonMock.mockReset();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     loadGoogleTokens.mockReset();
@@ -367,5 +385,247 @@ describe("google-oauth", () => {
     expect(isGoogleOAuthInFlight()).toBe(false);
     expect(() => abortGoogleTokenRefreshLifecycle()).not.toThrow();
     expect(() => abortGoogleTokenRefreshLifecycle()).not.toThrow();
+  });
+
+  it.each([
+    { status: 429, body: {}, reason: "rate-limit" },
+    { status: 500, body: {}, reason: "server" },
+    { status: 400, body: { error: "invalid_request" }, reason: "protocol" },
+    { status: 403, body: {}, reason: "protocol" },
+  ] as const)(
+    "maps refresh HTTP $status to transient $reason without clearing tokens",
+    async ({ status, body, reason }) => {
+      loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { refreshGoogleAccessToken } = await import(
+        "../../src/main/calendar/auth/google-oauth.js"
+      );
+      const result = await refreshGoogleAccessToken("if-needed");
+      expect(result).toEqual({ kind: "transient", reason });
+      expect(clearGoogleTokens).not.toHaveBeenCalled();
+      warn.mockRestore();
+    },
+  );
+
+  it("clears tokens on invalid_token api error during refresh", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "invalid_token" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result.kind).toBe("invalidated");
+    expect(clearGoogleTokens).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("returns protocol transient when access_token missing from refresh response", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result).toEqual({ kind: "transient", reason: "protocol" });
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+  });
+
+  it("joins concurrent if-needed refresh into a single flight", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    let release!: (v: Response) => void;
+    const gate = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(() => gate);
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const p1 = refreshGoogleAccessToken("if-needed");
+    // Yield so p1 reaches fetch
+    await Promise.resolve();
+    await Promise.resolve();
+    const p2 = refreshGoogleAccessToken("if-needed");
+    release(
+      new Response(JSON.stringify({ access_token: "shared", expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const [a, b] = await Promise.all([p1, p2]);
+    expect(a.kind).toBe("ok");
+    expect(b.kind).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("force refresh with pre-aborted signal returns abort transient", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 120_000 });
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ access_token: "x", expires_in: 3600 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const ac = new AbortController();
+    ac.abort();
+    const result = await refreshGoogleAccessToken("force", ac.signal);
+    expect(result).toEqual({ kind: "transient", reason: "abort" });
+  });
+
+  it("maps fetch AbortError with timeout name to transient timeout", async () => {
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    fetchMock.mockRejectedValue(Object.assign(new Error("The operation was aborted"), {
+      name: "TimeoutError",
+    }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result.kind).toBe("transient");
+    if (result.kind === "transient") {
+      expect(["timeout", "abort", "network"]).toContain(result.reason);
+    }
+    expect(clearGoogleTokens).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("returns denied when token exchange omits refresh_token", { timeout: 10_000 }, async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : String((input as Request).url);
+      if (url.includes("token")) {
+        return new Response(JSON.stringify({ access_token: "only" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("{}", { status: 404 });
+    });
+    const http = await import("node:http");
+    openExternal.mockImplementation(async (authUrl: string) => {
+      const u = new URL(authUrl);
+      const redirect = u.searchParams.get("redirect_uri")!;
+      const state = u.searchParams.get("state")!;
+      await new Promise<void>((resolve, reject) => {
+        http
+          .get(`${redirect}?code=c&state=${state}`, (res) => {
+            res.resume();
+            res.on("end", () => resolve());
+          })
+          .on("error", reject);
+      });
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { runGooglePkceLogin } = await import("../../src/main/calendar/auth/google-oauth.js");
+    expect(await runGooglePkceLogin()).toBe("denied");
+    err.mockRestore();
+  });
+
+  it("returns denied when callback path is not root", { timeout: 10_000 }, async () => {
+    const http = await import("node:http");
+    openExternal.mockImplementation(async (authUrl: string) => {
+      const u = new URL(authUrl);
+      const redirect = u.searchParams.get("redirect_uri")!;
+      // Hit a non-/ path so handler returns 404, then complete with access_denied
+      await new Promise<void>((resolve, reject) => {
+        http
+          .get(`${redirect}/favicon.ico`, (res) => {
+            res.resume();
+            res.on("end", () => resolve());
+          })
+          .on("error", reject);
+      });
+      await new Promise<void>((resolve, reject) => {
+        http
+          .get(`${redirect}?error=access_denied`, (res) => {
+            res.resume();
+            res.on("end", () => resolve());
+          })
+          .on("error", reject);
+      });
+    });
+    const { runGooglePkceLogin } = await import("../../src/main/calendar/auth/google-oauth.js");
+    expect(await runGooglePkceLogin()).toBe("denied");
+  });
+
+  it.each([
+    { errorClass: "timeout" as const, reason: "timeout" },
+    { errorClass: "abort" as const, reason: "abort" },
+    { errorClass: "network" as const, reason: "network" },
+    { errorClass: "payload-too-large" as const, reason: "protocol" },
+  ])(
+    "maps GoogleHttpError $errorClass from googleHttpJson to transient $reason",
+    async ({ errorClass, reason }) => {
+      useGoogleHttpJsonMock.enabled = true;
+      loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+      const { GoogleHttpError } = await import("../../src/main/calendar/google-http.js");
+      googleHttpJsonMock.mockRejectedValue(new GoogleHttpError(errorClass, `sim ${errorClass}`));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { refreshGoogleAccessToken } = await import(
+        "../../src/main/calendar/auth/google-oauth.js"
+      );
+      const result = await refreshGoogleAccessToken("if-needed");
+      expect(result).toEqual({ kind: "transient", reason });
+      expect(clearGoogleTokens).not.toHaveBeenCalled();
+      warn.mockRestore();
+    },
+  );
+
+  it("maps non-GoogleHttpError from googleHttpJson to network transient", async () => {
+    useGoogleHttpJsonMock.enabled = true;
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 5_000 });
+    googleHttpJsonMock.mockRejectedValue(new Error("weird"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    const result = await refreshGoogleAccessToken("if-needed");
+    expect(result).toEqual({ kind: "transient", reason: "network" });
+    warn.mockRestore();
+  });
+
+  it("force joins existing forceFollowUp promise", async () => {
+    useGoogleHttpJsonMock.enabled = true;
+    loadGoogleTokens.mockResolvedValue({ ...baseTokens, expiryMs: Date.now() + 120_000 });
+    let release!: (v: unknown) => void;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    googleHttpJsonMock.mockImplementation(() => gate);
+    const { refreshGoogleAccessToken } = await import(
+      "../../src/main/calendar/auth/google-oauth.js"
+    );
+    // Force while tokens are fresh still does network refresh
+    const p1 = refreshGoogleAccessToken("force");
+    await Promise.resolve();
+    const p2 = refreshGoogleAccessToken("force");
+    release({ access_token: "forced-shared", expires_in: 3600 });
+    const [a, b] = await Promise.all([p1, p2]);
+    expect(a.kind).toBe("ok");
+    expect(b.kind).toBe("ok");
   });
 });
