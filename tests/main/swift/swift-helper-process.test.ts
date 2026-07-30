@@ -306,19 +306,43 @@ describe("runSwiftHelperProcess", () => {
     });
   });
 
-  it("surfaces signal failures when the child is killed without timeout/abort", async () => {
-    const path = await writeNodeFixture(`
+  // Windows does not deliver POSIX signals to Node children the same way
+  // (process.kill(pid, "SIGTERM") often surfaces as a plain exit). Signal
+  // classification is covered cross-platform via the mock close path below.
+  it.skipIf(process.platform === "win32")(
+    "surfaces signal failures when a real child is killed with SIGTERM",
+    async () => {
+      const path = await writeNodeFixture(`
       process.kill(process.pid, "SIGTERM");
       setInterval(() => {}, 1000);
     `);
-    await expect(
-      runSwiftHelperProcess({
-        binaryPath: process.execPath,
-        args: [path],
-        timeoutMs: 5_000,
-        killGraceMs: 50,
-      }),
-    ).rejects.toMatchObject({
+      await expect(
+        runSwiftHelperProcess({
+          binaryPath: process.execPath,
+          args: [path],
+          timeoutMs: 5_000,
+          killGraceMs: 50,
+        }),
+      ).rejects.toMatchObject({
+        failureKind: "signal",
+        signal: "SIGTERM",
+      });
+    },
+  );
+
+  it("classifies close-with-signal as signal failure (cross-platform)", async () => {
+    const child = createMockChild();
+    spawnControl.useMockChild(child);
+
+    const promise = runSwiftHelperProcess({
+      binaryPath: "/mock-helper",
+      timeoutMs: 2_000,
+      killGraceMs: 10,
+    });
+
+    child.emit("close", null, "SIGTERM");
+
+    await expect(promise).rejects.toMatchObject({
       failureKind: "signal",
       signal: "SIGTERM",
     });
