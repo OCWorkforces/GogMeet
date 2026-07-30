@@ -181,7 +181,10 @@ export function trayMenuSignature(
   ].join("|");
 }
 
-function refreshContextMenu(mainWindow: BrowserWindow): void {
+function refreshContextMenu(
+  mainWindow: BrowserWindow,
+  options?: { force?: boolean },
+): void {
   const graph = trayGraph;
   const ui: CalendarUiState =
     cachedUi ??
@@ -202,7 +205,11 @@ function refreshContextMenu(mainWindow: BrowserWindow): void {
   const statusKind = status.kind;
   const statusCode = status.kind === "err" ? status.code : null;
   const signature = trayMenuSignature(ui, events, showTomorrow, statusKind, statusCode);
-  if (signature === lastMenuSignature && lastContextMenu !== null) {
+  if (
+    options?.force !== true &&
+    signature === lastMenuSignature &&
+    lastContextMenu !== null
+  ) {
     return;
   }
   lastMenuSignature = signature;
@@ -365,10 +372,10 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
     void graph.scheduler.forcePoll();
     // Windows: left-click should open the menu (right-click uses setContextMenu).
     // macOS: keep click = refresh only; menu is the status-item context menu.
-    // Rebuild synchronously from cache first so ended meetings are not shown
-    // while forcePoll is still in flight.
+    // Force sync rebuild from cache so ended meetings are filtered with Date.now()
+    // before popup (forcePoll remains async for calendar freshness).
     if (!isDarwin() && tray) {
-      refreshContextMenu(mainWindow);
+      refreshContextMenu(mainWindow, { force: true });
       if (lastContextMenu) {
         tray.popUpContextMenu(lastContextMenu);
       }
@@ -382,7 +389,8 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
  */
 export function forceTrayMenuRefresh(): void {
   if (!tray || !lastRebuildWindow) return;
-  requestTrayRebuild(lastRebuildWindow, { force: true });
+  // Sync rebuild: horizon ticks need the installed menu updated immediately.
+  refreshContextMenu(lastRebuildWindow, { force: true });
 }
 
 /**

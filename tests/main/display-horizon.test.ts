@@ -96,4 +96,39 @@ describe("display-horizon", () => {
     vi.advanceTimersByTime(60 * 60_000);
     expect(tick).not.toHaveBeenCalled();
   });
+
+  it("continues notifying other listeners when one throws", () => {
+    const now = Date.UTC(2026, 6, 30, 14, 0, 0);
+    vi.setSystemTime(now);
+    const event = createMockEvent({
+      startDate: new Date(now - 60_000).toISOString(),
+      endDate: new Date(now + 5 * 60_000).toISOString(),
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const good = vi.fn();
+    onDisplayHorizonTick(() => {
+      throw new Error("listener boom");
+    });
+    onDisplayHorizonTick(good);
+    setDisplayHorizonEvents([event], now);
+    vi.advanceTimersByTime(5 * 60_000);
+    expect(good).toHaveBeenCalledTimes(1);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it("unsubscribe removes a listener", () => {
+    const now = Date.UTC(2026, 6, 30, 14, 0, 0);
+    vi.setSystemTime(now);
+    const event = createMockEvent({
+      startDate: new Date(now - 60_000).toISOString(),
+      endDate: new Date(now + 5 * 60_000).toISOString(),
+    });
+    const tick = vi.fn();
+    const unsub = onDisplayHorizonTick(tick);
+    unsub();
+    setDisplayHorizonEvents([event], now);
+    vi.advanceTimersByTime(5 * 60_000);
+    expect(tick).not.toHaveBeenCalled();
+  });
 });

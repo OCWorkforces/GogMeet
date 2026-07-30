@@ -599,6 +599,76 @@ describe("event list signature gating (renderer push)", () => {
   });
 });
 
+describe("republishUiForDisplayTick", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    _resetForTest();
+    refreshStateRefs();
+  });
+
+  afterEach(() => {
+    _resetForTest();
+    refreshStateRefs();
+    vi.useRealTimers();
+  });
+
+  it("force-pushes last publication even when content signature is unchanged", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/poll.js");
+    const evt = createMockEvent({
+      title: "Standup",
+      startDate: asTestIsoUtc(isoFromNow(5)),
+      endDate: asTestIsoUtc(isoFromNow(35)),
+    });
+    const publication = {
+      publicationGeneration: 3,
+      result: {
+        kind: "ok" as const,
+        source: "live" as const,
+        completeness: "complete" as const,
+        observedAt: Date.now(),
+        events: [evt],
+      },
+    };
+    const mockSend = vi.fn();
+    stateModule.state.win = {
+      isDestroyed: vi.fn().mockReturnValue(false),
+      webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
+    } as never;
+    vi.mocked(refreshCalendarPublication).mockResolvedValue(publication);
+    vi.mocked(getLastPublication).mockReturnValue(publication);
+    await poll();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    mockSend.mockClear();
+    // Identical content would normally skip; force path must send.
+    republishUiForDisplayTick();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to lastKnownEvents when coordinator has no publication", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/poll.js");
+    const { calendarLiveOk } = await import("../../src/domain/entities/calendar-result.js");
+    vi.mocked(getLastPublication).mockReturnValue(null);
+    const events = [createMockEvent()];
+    stateModule.state.lastKnownEvents = calendarLiveOk(events, "complete", Date.now());
+    const listener = vi.fn();
+    mainBus.on("meeting-list-updated", listener);
+    republishUiForDisplayTick();
+    expect(listener).toHaveBeenCalledWith(events);
+    mainBus.off("meeting-list-updated", listener);
+  });
+
+  it("facade re-export calls poll implementation", async () => {
+    const { getLastPublication } = await import("../../src/main/facades/calendar.js");
+    const { republishUiForDisplayTick } = await import("../../src/main/scheduler/facade.js");
+    vi.mocked(getLastPublication).mockReturnValue(null);
+    stateModule.state.lastKnownEvents = null;
+    // No-op when nothing cached — must not throw.
+    expect(() => republishUiForDisplayTick()).not.toThrow();
+  });
+});
+
 describe("startScheduler", () => {
   beforeEach(() => {
     vi.useFakeTimers();
