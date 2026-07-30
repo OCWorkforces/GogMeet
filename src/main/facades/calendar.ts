@@ -1,4 +1,12 @@
 import type { CalendarPermission, CalendarResult } from "../../domain/entities/calendar-result.js";
+import type { CalendarPublication } from "../../domain/entities/calendar-publication.js";
+import {
+  bindCalendarRefreshFetcher,
+  cancelCalendarRefresh,
+  requestCalendarRefresh,
+  getLastCalendarPublication,
+  _resetCalendarRefreshCoordinatorForTest,
+} from "../calendar/refresh-coordinator.js";
 import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import { defaultCalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
@@ -167,6 +175,7 @@ export function bindCalendarUseCases(bindings: {
   if (bindings.requestAccess) _requestAccess = bindings.requestAccess;
   if (bindings.permissionStatus) _permissionStatus = bindings.permissionStatus;
   if (bindings.disconnect) _disconnect = bindings.disconnect;
+  bindCalendarRefreshFetcher((signal) => _getMeetings.execute(signal));
 }
 
 /** Reset module-level defaults (tests / composition re-bind). */
@@ -175,18 +184,43 @@ export function rebindCalendarDefaults(): void {
   _requestAccess = createDefaultRequestAccess();
   _permissionStatus = createDefaultPermissionStatus();
   _disconnect = createDefaultDisconnect();
+  bindCalendarRefreshFetcher((signal) => _getMeetings.execute(signal));
 }
+
+// Ensure coordinator is wired on module load (production defaults).
+bindCalendarRefreshFetcher((signal) => _getMeetings.execute(signal));
 
 /** Synchronous snapshot for tray menu builders. */
 export function getCalendarUiState(): CalendarUiState {
   return uiState;
 }
 
-/** Fetch calendar events — returns structured result with events or error. */
-export async function getCalendarEventsResult(
-  signal: AbortSignal = new AbortController().signal,
-): Promise<CalendarResult> {
-  return _getMeetings.execute(signal);
+/**
+ * Coordinated refresh: single in-flight provider call + at most one follow-up.
+ * Updates UI state via GetMeetings and returns the publication envelope.
+ */
+export async function refreshCalendarPublication(): Promise<CalendarPublication> {
+  return requestCalendarRefresh();
+}
+
+/** Fetch calendar events through the coordinator (result only). */
+export async function getCalendarEventsResult(_signal?: AbortSignal): Promise<CalendarResult> {
+  const publication = await requestCalendarRefresh();
+  return publication.result;
+}
+
+export function getLastPublication(): CalendarPublication | null {
+  return getLastCalendarPublication();
+}
+
+export function cancelActiveCalendarRefresh(): void {
+  cancelCalendarRefresh();
+}
+
+/** Test-only: reset facade + coordinator. */
+export function _resetCalendarRefreshForTest(): void {
+  _resetCalendarRefreshCoordinatorForTest();
+  rebindCalendarDefaults();
 }
 
 /**

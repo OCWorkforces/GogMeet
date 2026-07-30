@@ -1,6 +1,7 @@
 import type { BrowserWindow } from "electron";
 import type { EventId } from "../../domain/entities/brand.js";
 import type { CalendarPermission, CalendarResult } from "../../domain/entities/calendar-result.js";
+import type { CalendarPublication } from "../../domain/entities/calendar-publication.js";
 import type { CalendarUiState } from "../../domain/entities/calendar-ui-state.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import type { AppSettings } from "../../domain/entities/settings.js";
@@ -10,6 +11,7 @@ import type { PowerCallbacks } from "../scheduler/state/index.js";
 import { createShellMeetingOpener } from "../infrastructure/electron/shell-meeting-opener.js";
 import {
   getCalendarEventsResult,
+  refreshCalendarPublication,
   requestCalendarPermission,
   getCalendarPermissionStatus,
   disconnectCalendar,
@@ -41,7 +43,10 @@ import { bindComposition } from "./bind-composition.js";
 
 /** Calendar surface exposed on the app graph. */
 export interface AppGraphCalendar {
-  getEvents(signal?: AbortSignal): Promise<CalendarResult>;
+  /** Coordinated refresh; returns publication envelope for IPC/renderer. */
+  getEvents(): Promise<CalendarPublication>;
+  /** Result-only helper for join/shortcuts (uses lastKnown or coordinated refresh). */
+  getEventsResult(): Promise<CalendarResult>;
   requestPermission(): Promise<CalendarPermission>;
   getPermissionStatus(): Promise<CalendarPermission>;
   disconnect(): Promise<void>;
@@ -62,7 +67,7 @@ export interface AppGraphSettings {
 
 /** Scheduler surface on the app graph. */
 export interface AppGraphScheduler {
-  forcePoll(): Promise<void>;
+  forcePoll(): Promise<CalendarPublication | null>;
   getLastKnownEvents(): CalendarResult | null;
   cancelPendingBrowserOpen(id: EventId): void;
   start(): void;
@@ -115,7 +120,8 @@ export function createAppGraph(options: CreateAppGraphOptions = {}): AppGraph {
 
   return {
     calendar: {
-      getEvents: (signal) => getCalendarEventsResult(signal),
+      getEvents: () => refreshCalendarPublication(),
+      getEventsResult: () => getCalendarEventsResult(),
       requestPermission: () => requestCalendarPermission(),
       getPermissionStatus: () => getCalendarPermissionStatus(),
       disconnect: () => disconnectCalendar(),
