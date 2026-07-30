@@ -4,6 +4,7 @@ import { isCalendarOk } from "../domain/entities/calendar-result.js";
 import type { CalendarPublication } from "../domain/entities/calendar-publication.js";
 import type { AppSettings } from "../domain/entities/settings.js";
 import { DEFAULT_SETTINGS } from "../domain/entities/settings.js";
+import { startOfDay } from "../domain/services/time.js";
 import { renderBody } from "./rendering/body.js";
 import { setupDelegatedEvents } from "./events/delegation.js";
 import { applyEventsPush } from "./lib/apply-events-push.js";
@@ -27,6 +28,8 @@ interface RendererState {
   lastPollTime: number;
   /** Defense-in-depth: ignore stale publications with older generations. */
   loadGeneration: number;
+  /** Renderer-owned presentation timer for completed-history invalidation. */
+  presentationTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const rs: RendererState = {
@@ -40,7 +43,79 @@ const rs: RendererState = {
   lastEventsSignature: "",
   lastPollTime: Date.now(),
   loadGeneration: 0,
+  presentationTimer: null,
 };
+
+/**
+ * True when only the completed-history display toggle differs.
+ * Fails closed: any other key difference (including future AppSettings fields)
+ * returns false so the caller still runs loadEvents.
+ */
+function isOnlyCompletedHistoryToggle(prev: AppSettings, next: AppSettings): boolean {
+  if (prev.showCompletedTodayMeetings === next.showCompletedTodayMeetings) return false;
+  const keys = Object.keys(next) as (keyof AppSettings)[];
+  for (const key of keys) {
+    if (key === "showCompletedTodayMeetings") continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  // Also fail closed if prev has keys next lacks (defensive against partial objects).
+  for (const key of Object.keys(prev) as (keyof AppSettings)[]) {
+    if (key === "showCompletedTodayMeetings") continue;
+    if (!(key in next) || prev[key] !== next[key]) return false;
+  }
+  return true;
+}
+
+function clearPresentationTimer(): void {
+  if (rs.presentationTimer !== null) {
+    clearTimeout(rs.presentationTimer);
+    rs.presentationTimer = null;
+  }
+}
+
+/**
+ * Earliest wall-clock deadline for completed-history presentation: the next
+ * strictly future event end, or local midnight — whichever comes first.
+ * Returns null when history is disabled or there is no event state.
+ */
+function nextPresentationDeadlineMs(nowMs: number): number | null {
+  if (!rs.settings.showCompletedTodayMeetings) return null;
+  if (rs.state.type !== "has-events") return null;
+
+  let soonest: number | null = null;
+  const consider = (ms: number): void => {
+    if (!Number.isFinite(ms) || ms <= nowMs) return;
+    if (soonest === null || ms < soonest) soonest = ms;
+  };
+
+  const midnight = startOfDay(new Date(nowMs));
+  midnight.setDate(midnight.getDate() + 1);
+  consider(midnight.getTime());
+
+  for (const event of rs.state.events) {
+    const endMs = new Date(event.endDate).getTime();
+    consider(endMs);
+  }
+
+  return soonest;
+}
+
+/**
+ * Arm a single presentation timeout. Fires a local re-render only — no
+ * calendar fetch, settings IPC, join call, or footer freshness update.
+ */
+function armPresentationTimer(): void {
+  clearPresentationTimer();
+  const nowMs = Date.now();
+  const deadline = nextPresentationDeadlineMs(nowMs);
+  if (deadline === null) return;
+  const delay = Math.max(0, deadline - nowMs);
+  rs.presentationTimer = setTimeout(() => {
+    rs.presentationTimer = null;
+    // Local re-filter only — preserve lastUpdatedAt.
+    render();
+  }, delay);
+}
 
 function formatLastUpdated(ts: number): string {
   const diffMs = Date.now() - ts;
@@ -68,7 +143,10 @@ function renderFooter(): string {
 function render() {
   try {
     const app = document.getElementById("app");
-    if (!app) return;
+    if (!app) {
+      clearPresentationTimer();
+      return;
+    }
 
     app.innerHTML = `<div role="dialog" aria-label="GogMeet meetings" aria-live="polite">
         <div class="body">${renderBody(rs.state, rs.settings)}</div>
@@ -86,6 +164,8 @@ function render() {
   } catch (error) {
     console.error("[renderer] Render error:", error);
   }
+  // Re-arm (or clear) after a successful render decision so presentation stays current.
+  armPresentationTimer();
 }
 
 async function grantAccess() {
@@ -188,8 +268,14 @@ async function init() {
 
   // Listen for settings changes from the settings window
   window.api.settings.onChanged((updated: AppSettings) => {
+    const previous = rs.settings;
     rs.cachedSettings = updated;
     rs.settings = updated;
+    // Display-only toggle: local re-render/re-arm — no calendar fetch.
+    if (isOnlyCompletedHistoryToggle(previous, updated)) {
+      render();
+      return;
+    }
     void loadEvents();
   });
 

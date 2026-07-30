@@ -1,7 +1,7 @@
 import type { AppSettings } from "../../domain/entities/settings.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
-import { isTomorrow } from "../../domain/services/time.js";
+import { isTomorrow, startOfDay } from "../../domain/services/time.js";
 import {
   filterUpcomingMeetings,
   isMeetingInProgress,
@@ -35,6 +35,51 @@ function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string
   const hours = startTime.getHours().toString().padStart(2, "0");
   const minutes = startTime.getMinutes().toString().padStart(2, "0");
   return { label: `${hours}:${minutes}`, cls: "" };
+}
+
+/**
+ * True when both local start and end fall on the local calendar day of `nowMs`
+ * and the meeting has already ended (`endMs <= nowMs`).
+ * Excludes overnight, prior-day, and multi-day spanning events.
+ */
+export function isCompletedTodayMeeting(event: MeetingEvent, nowMs: number): boolean {
+  const startMs = new Date(event.startDate).getTime();
+  const endMs = new Date(event.endDate).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  if (endMs > nowMs) return false;
+
+  const dayStart = startOfDay(new Date(nowMs));
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayEnd.getTime();
+  return startMs >= dayStartMs && startMs < dayEndMs && endMs >= dayStartMs && endMs < dayEndMs;
+}
+
+/** Completed-today events, newest-ended first. */
+export function filterCompletedTodayMeetings(
+  events: readonly MeetingEvent[],
+  nowMs: number,
+): MeetingEvent[] {
+  return events
+    .filter((e) => isCompletedTodayMeeting(e, nowMs))
+    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+}
+
+function renderCompletedHistoryRow(event: MeetingEvent): string {
+  return `
+            <div class="meeting-item meeting-item--completed">
+              <div class="meeting-item-row">
+                <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
+              </div>
+              <div class="meeting-item-row">
+                <span class="meeting-time">Ended</span>
+                <span class="meeting-meta">
+                  <span class="meeting-cal">${escapeHtml(event.calendarName)}</span>
+                </span>
+              </div>
+            </div>
+          `;
 }
 
 export function renderBody(s: AppState, settings: AppSettings): string {
@@ -82,6 +127,9 @@ export function renderBody(s: AppState, settings: AppSettings): string {
       const now = Date.now();
       const upcoming = filterUpcomingMeetings(s.events, now);
       const hasPastEvents = s.events.some((e) => !isMeetingNotEnded(e, now));
+      const completedToday = settings.showCompletedTodayMeetings
+        ? filterCompletedTodayMeetings(s.events, now)
+        : [];
 
       // Check if any upcoming event is tomorrow
       const hasTomorrowEvents = upcoming.some((e) => isTomorrow(e.startDate));
@@ -112,7 +160,7 @@ export function renderBody(s: AppState, settings: AppSettings): string {
         });
       }
 
-      if (hasPastEvents && upcoming.length === 0) {
+      if (hasPastEvents && upcoming.length === 0 && completedToday.length === 0) {
         parts.push(`
           <div class="state-screen">
             <div class="state-icon">✅</div>
@@ -120,6 +168,14 @@ export function renderBody(s: AppState, settings: AppSettings): string {
             <p class="state-desc">No more upcoming meetings.</p>
           </div>
         `);
+      }
+
+      if (completedToday.length > 0) {
+        parts.push(`<p class="section-header">Completed today</p>`);
+        completedToday.forEach((event, i) => {
+          parts.push(renderCompletedHistoryRow(event));
+          if (i < completedToday.length - 1) parts.push(`<div class="meeting-divider"></div>`);
+        });
       }
 
       return parts.join("");

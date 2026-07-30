@@ -328,6 +328,249 @@ describe("renderBody", () => {
       expect(html).toContain("All done for today");
     });
 
+    describe("completed-today history (showCompletedTodayMeetings)", () => {
+      it("keeps All done empty state when toggle is off", () => {
+        const event = createMockEvent({
+          id: asTestEventId("evt-past"),
+          title: "Old Meeting",
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [event] },
+          createMockSettings({ showCompletedTodayMeetings: false }),
+        );
+        expect(html).toContain("All done for today!");
+        expect(html).not.toContain("Completed today");
+        expect(html).not.toContain("Old Meeting");
+      });
+
+      it("renders muted completed history newest-ended first when enabled", () => {
+        const earlier = createMockEvent({
+          id: asTestEventId("evt-early"),
+          title: "Morning Standup",
+          startDate: asTestIsoUtc(isoFromNow(-120)),
+          endDate: asTestIsoUtc(isoFromNow(-90)),
+          calendarName: "Work",
+        });
+        const later = createMockEvent({
+          id: asTestEventId("evt-late"),
+          title: "Afternoon Sync",
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+          calendarName: "Personal",
+        });
+        const html = renderBody(
+          { type: "has-events", events: [earlier, later] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+
+        expect(html).toContain("Completed today");
+        expect(html).toContain("Morning Standup");
+        expect(html).toContain("Afternoon Sync");
+        expect(html).toContain("Ended");
+        expect(html).toContain('class="meeting-item meeting-item--completed"');
+        expect(html).not.toContain("All done for today!");
+
+        const idxLate = html.indexOf("Afternoon Sync");
+        const idxEarly = html.indexOf("Morning Standup");
+        expect(idxLate).toBeGreaterThan(-1);
+        expect(idxEarly).toBeGreaterThan(idxLate);
+
+        // Non-interactive: no join affordance, actions, badges, or focusable controls
+        expect(html).not.toContain('data-action="join-meeting"');
+        expect(html).not.toContain("data-event-id");
+        expect(html).not.toContain("btn-join");
+        expect(html).not.toContain("badge-auto");
+        expect(html).not.toContain("<button");
+      });
+
+      it("shows completed history after upcoming rows", () => {
+        const past = createMockEvent({
+          id: asTestEventId("evt-past"),
+          title: "Past Meeting",
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+        });
+        const future = createMockEvent({
+          id: asTestEventId("evt-future"),
+          title: "Future Meeting",
+          startDate: asTestIsoUtc(isoFromNow(30)),
+          endDate: asTestIsoUtc(isoFromNow(60)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [past, future] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+
+        expect(html).toContain("Future Meeting");
+        expect(html).toContain("Past Meeting");
+        expect(html).toContain("Completed today");
+        expect(html.indexOf("Future Meeting")).toBeLessThan(html.indexOf("Completed today"));
+        expect(html.indexOf("Completed today")).toBeLessThan(html.indexOf("Past Meeting"));
+        // Upcoming still has Join; completed section does not expose event id for the past row as a join target
+        expect(html).toContain('data-event-id="evt-future"');
+        expect(html).not.toContain('data-event-id="evt-past"');
+      });
+
+      it("excludes in-progress meetings from history", () => {
+        const live = createMockEvent({
+          id: asTestEventId("evt-live"),
+          title: "Live Meeting",
+          startDate: asTestIsoUtc(isoFromNow(-5)),
+          endDate: asTestIsoUtc(isoFromNow(25)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [live] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(html).toContain("In progress");
+        expect(html).not.toContain("Completed today");
+        expect(html).toContain('data-action="join-meeting"');
+      });
+
+      it("excludes prior-day and overnight-spanning events", () => {
+        const localMidnight = new Date(FIXED_NOW);
+        localMidnight.setHours(0, 0, 0, 0);
+
+        // Ended yesterday entirely
+        const priorDay = createMockEvent({
+          id: asTestEventId("evt-prior"),
+          title: "Yesterday Meeting",
+          startDate: asTestIsoUtc(
+            new Date(localMidnight.getTime() - 5 * 60 * 60_000).toISOString(),
+          ),
+          endDate: asTestIsoUtc(new Date(localMidnight.getTime() - 4 * 60 * 60_000).toISOString()),
+        });
+
+        // Started yesterday, ended today (overnight)
+        const overnight = createMockEvent({
+          id: asTestEventId("evt-overnight"),
+          title: "Overnight Call",
+          startDate: asTestIsoUtc(
+            new Date(localMidnight.getTime() - 2 * 60 * 60_000).toISOString(),
+          ),
+          endDate: asTestIsoUtc(new Date(localMidnight.getTime() + 1 * 60 * 60_000).toISOString()),
+        });
+
+        // Tomorrow (upcoming if showTomorrow)
+        const tomorrowNoon = new Date(localMidnight);
+        tomorrowNoon.setDate(tomorrowNoon.getDate() + 1);
+        tomorrowNoon.setHours(12, 0, 0, 0);
+        const tomorrow = createMockEvent({
+          id: asTestEventId("evt-tomorrow"),
+          title: "Tomorrow Meeting",
+          startDate: asTestIsoUtc(tomorrowNoon.toISOString()),
+          endDate: asTestIsoUtc(new Date(tomorrowNoon.getTime() + 30 * 60_000).toISOString()),
+        });
+
+        const html = renderBody(
+          { type: "has-events", events: [priorDay, overnight, tomorrow] },
+          createMockSettings({ showCompletedTodayMeetings: true, showTomorrowMeetings: true }),
+        );
+
+        expect(html).not.toContain("Yesterday Meeting");
+        expect(html).not.toContain("Overnight Call");
+        expect(html).toContain("Tomorrow Meeting");
+        // overnight ended already relative to FIXED_NOW (10:00 UTC) — still excluded by day bounds
+        // tomorrow is upcoming — not history
+        expect(html).not.toContain("Completed today");
+      });
+
+      it("excludes multi-day events that start today and end after local midnight", () => {
+        const localMidnight = new Date(FIXED_NOW);
+        localMidnight.setHours(0, 0, 0, 0);
+        const nextMidnight = new Date(localMidnight);
+        nextMidnight.setDate(nextMidnight.getDate() + 1);
+
+        // Starts later today, ends tomorrow — both bounds must be today for history.
+        // While still in progress it is upcoming; once "ended" it still must not be history.
+        const multiDayLive = createMockEvent({
+          id: asTestEventId("evt-multiday-live"),
+          title: "Multi Day Live",
+          startDate: asTestIsoUtc(isoFromNow(-30)),
+          endDate: asTestIsoUtc(new Date(nextMidnight.getTime() + 2 * 60 * 60_000).toISOString()),
+        });
+        const liveHtml = renderBody(
+          { type: "has-events", events: [multiDayLive] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(liveHtml).toContain("Multi Day Live");
+        expect(liveHtml).toContain("In progress");
+        expect(liveHtml).not.toContain("Completed today");
+
+        // Past end but end is after local midnight of FIXED_NOW day → still not history.
+        const multiDayEnded = createMockEvent({
+          id: asTestEventId("evt-multiday-ended"),
+          title: "Multi Day Ended",
+          startDate: asTestIsoUtc(
+            new Date(localMidnight.getTime() + 8 * 60 * 60_000).toISOString(),
+          ),
+          endDate: asTestIsoUtc(new Date(nextMidnight.getTime() + 2 * 60 * 60_000).toISOString()),
+        });
+        // Advance past that end for classification
+        vi.setSystemTime(nextMidnight.getTime() + 3 * 60 * 60_000);
+        const endedHtml = renderBody(
+          { type: "has-events", events: [multiDayEnded] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(endedHtml).not.toContain("Multi Day Ended");
+        expect(endedHtml).not.toContain("Completed today");
+        // Restore FIXED_NOW for subsequent tests in this describe
+        vi.setSystemTime(FIXED_NOW);
+      });
+
+      it("includes meeting that ended exactly at now", () => {
+        const event = createMockEvent({
+          id: asTestEventId("evt-exact"),
+          title: "Just Ended",
+          startDate: asTestIsoUtc(isoFromNow(-30)),
+          endDate: asTestIsoUtc(isoFromNow(0)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [event] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(html).toContain("Just Ended");
+        expect(html).toContain("Completed today");
+        expect(html).toContain("Ended");
+      });
+
+      it("escapes malicious title and calendar in completed rows", () => {
+        const event = createMockEvent({
+          id: asTestEventId("evt-xss-done"),
+          title: '<img src=x onerror="alert(1)">',
+          calendarName: 'Evil & "Cal"',
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [event] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(html).toContain("&lt;img src=x onerror=");
+        expect(html).toContain("Evil &amp; &quot;Cal&quot;");
+        expect(html).not.toContain('<img src=x onerror="alert(1)">');
+      });
+
+      it("includes completed meetings without meetUrl", () => {
+        const event = createMockEvent({
+          id: asTestEventId("evt-nourl-done"),
+          title: "No URL Done",
+          meetUrl: undefined,
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [event] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+        expect(html).toContain("No URL Done");
+        expect(html).toContain("Completed today");
+        expect(html).not.toContain("btn-join");
+      });
+    });
+
     it("renders 'In X min' soon label for meetings within 15 minutes", () => {
       const event = createMockEvent({
         id: asTestEventId("evt-soon"),
