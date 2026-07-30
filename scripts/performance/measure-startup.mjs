@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./helpers/stats.mjs";
 
 export const STARTUP_PHASES = Object.freeze([
   "process-start",

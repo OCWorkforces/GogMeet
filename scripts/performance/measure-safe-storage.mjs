@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { performance } from "node:perf_hooks";
 import { createRequire } from "node:module";
-import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./helpers/stats.mjs";
 
 export function classifyStorageFailure(opts) {
   const { fileExists, encryptionAvailable, decryptThrows, payloadValid } = opts;

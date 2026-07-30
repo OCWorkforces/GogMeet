@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareShadowSnapshots } from "../../scripts/performance/lib/google-shadow.mjs";
+import { compareShadowSnapshots } from "../../scripts/performance/helpers/google-shadow.mjs";
 
 describe("google shadow comparison", () => {
   it("matches on counts and error class only", () => {

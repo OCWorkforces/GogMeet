@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { createRequire } from "node:module";
-import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./helpers/stats.mjs";
 
 export function syntheticAlertPayload(seed) {
   return {

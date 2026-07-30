@@ -11,8 +11,8 @@ import { join } from "node:path";
 import {
   shadowListSelectedCalendarsAndEvents,
   compareShadowSnapshots,
-} from "./lib/google-shadow.mjs";
-import { percentile, coefficientOfVariation, writeReceiptJson } from "./lib/stats.mjs";
+} from "./helpers/google-shadow.mjs";
+import { percentile, coefficientOfVariation, writeReceiptJson } from "./helpers/stats.mjs";
 
 /** Fields consumed by production mapGoogleEvent + listSelectedCalendarIds. */
 export const MAPPING_FIELDS = Object.freeze([
