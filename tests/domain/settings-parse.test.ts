@@ -36,4 +36,19 @@ describe("parseSettingsRecord", () => {
     });
     expect(parsed.showCompletedTodayMeetings).toBe(false);
   });
+
+  it("migrates legacy fullScreenAlert into windowAlert when windowAlert is missing", () => {
+    const parsed = parseSettingsRecord({
+      fullScreenAlert: false,
+    });
+    expect(parsed.windowAlert).toBe(false);
+  });
+
+  it("does not overwrite explicit windowAlert with fullScreenAlert", () => {
+    const parsed = parseSettingsRecord({
+      fullScreenAlert: false,
+      windowAlert: true,
+    });
+    expect(parsed.windowAlert).toBe(true);
+  });
 });
