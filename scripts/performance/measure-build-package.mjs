@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 15 — Clean build / package / artifact baselines (measurement only).
+ * Clean build / package / artifact baselines (measurement only).
  * Always ends rejected for product optimization with reason baseline-only.
  * Usage: bun run perf:build-package
  */

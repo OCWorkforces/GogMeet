@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 13 — Baseline packaged startup / Swift helper phases (measurement only).
+ * Baseline packaged startup / Swift helper phases (measurement only).
  * Does not reorder lifecycle. Usage: bun run perf:startup
  */
 import { writeFileSync, mkdirSync } from "node:fs";

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 12 — Measure safeStorage responsiveness; verify non-destructive temporary unavailability.
+ * Measure safeStorage responsiveness; verify non-destructive temporary unavailability.
  * Live timing only on packaged Electron + native Windows when available.
  * Usage: bun run perf:safe-storage
  */

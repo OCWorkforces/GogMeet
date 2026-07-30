@@ -364,7 +364,7 @@ describe("renderer escapeHtml usage", () => {
   });
 });
 
-describe("IPC caching — settings (Task 1a)", () => {
+describe("IPC caching — settings", () => {
   it("uses cached settings on subsequent calls via nullish coalescing", () => {
     // Simulates: settings = cachedSettings ?? await window.api.settings.get()
     const settingsGet = vi.fn(() => ({
@@ -408,7 +408,7 @@ describe("IPC caching — settings (Task 1a)", () => {
   });
 });
 
-describe("IPC caching — permission (Task 1b)", () => {
+describe("IPC caching — permission", () => {
   it("uses cached permission on subsequent calls", () => {
     const getPermissionStatus = vi.fn(() => "granted" as const);
 
@@ -440,7 +440,7 @@ describe("IPC caching — permission (Task 1b)", () => {
   });
 });
 
-describe("IPC guard — setHeight dedup (Task 1c)", () => {
+describe("IPC guard — setHeight dedup", () => {
   it("setHeight only fires when height changes", () => {
     const setHeight = vi.fn();
     let lastHeight = 0;

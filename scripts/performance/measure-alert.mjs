@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 14 — Compare alert destroy/recreate vs hidden reuse (measurement only).
+ * Compare alert destroy/recreate vs hidden reuse (measurement only).
  * Synthetic payloads only; no real titles/URLs/IDs in traces.
  * Usage: bun run perf:alert
  */

@@ -31,7 +31,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-describe("safeStorage temporary unavailability (Task 12)", () => {
+describe("safeStorage temporary unavailability", () => {
   let dir: string;
 
   beforeEach(async () => {

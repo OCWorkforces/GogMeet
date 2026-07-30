@@ -3,7 +3,7 @@ import { IPC_CHANNELS } from "../../src/shared/ipc-channels.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("scheduler IPC cutover (Task 7)", () => {
+describe("scheduler IPC cutover", () => {
   it("does not expose a force-poll scheduler channel", () => {
     const keys = Object.keys(IPC_CHANNELS);
     const values = Object.values(IPC_CHANNELS);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 10 — Measure Google polling field set / pagination (measurement only).
+ * Measure Google polling field set / pagination (measurement only).
  * Does not alter production requests. Live shadow requires GOGMEET_GOOGLE_BENCH_TOKEN.
  *
  * Usage: bun run perf:google

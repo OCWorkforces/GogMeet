@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Task 11 — Measure tray menu rebuild incidence/cost (measurement only).
+ * Measure tray menu rebuild incidence/cost (measurement only).
  * Usage: bun run perf:tray
  */
 import { writeFileSync, mkdirSync } from "node:fs";
