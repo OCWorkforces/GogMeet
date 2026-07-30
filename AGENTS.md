@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-07-30  
-**App version:** 1.17.0  
+**App version:** 1.17.1  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -112,7 +112,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Never static-import `swift/*` outside `calendar/providers/darwin-eventkit.ts` and `swift/**`.
 - Facades must not import `swift/*` or `calendar/auth/*`.
 - Branded values created only at trust boundaries.
-- Prefer `.As<T>()` / free `As<T>(v)` over `as unknown as T` (import `shared/utils/as.js` once for the method).
+- Prefer free-function `As<T>(v)` in production main/preload (survives Rslib tree-shaking); method `.As<T>()` is fine in tests once `setup.as.ts` installs the prototype. Never bare side-effect-only import of `as.js` for production call sites.
 - **CalendarResult** success is exhaustive: live `complete`\|`partial` or `offline-cache` with timestamps. Narrow with `isCalendarOk` / `isCalendarLiveOk` / `isCalendarOfflineOk`.
 - **Automation rule:** only live complete (`isCalendarAutomationEligible`) arms timers; partial/offline call `suspendAutomation` while keeping display/join data.
 - `CalendarPort.getEvents(signal: AbortSignal)` — providers must honor cancel.

@@ -1,6 +1,6 @@
 {
   "name": "gogmeet",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "author": "OCWorkforces Engineers",
   "repository": "https://github.com/OCWorkforces/GogMeet",
   "authorEmail": "kennydizi@ocworkforces.com",
@@ -85,7 +85,11 @@
     "format:check": "prettier --check \"src/**/*.{ts,css}\"",
     "format": "prettier --write \"src/**/*.{ts,css}\""
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css",
+    "**/shared/utils/as.ts",
+    "**/shared/utils/as.js"
+  ],
   "type": "module",
   "allowScripts": {}
 }

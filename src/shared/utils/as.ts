@@ -3,15 +3,22 @@
  *
  * Prefer type guards and branded constructors at trust boundaries.
  *
- * Method form (objects / boxed values):
+ * Method form (objects / boxed values) — tests / non-bundled contexts:
  *   value.As<TargetType>()
  *
- * Free function (null / undefined / any value):
+ * Free function (any value, including null / undefined) — **prefer in production
+ * main/preload code** that is bundled by Rslib/Rspack:
  *   As<TargetType>(value)
  *
- * Import this module once for side effects so the prototype method is installed:
- *   import "../../shared/utils/as.js";
+ * Why free function in production: package side-effects + minification can drop
+ * a bare `import ".../as.js"` that only installs `Object.prototype.As`, leaving
+ * `value.As()` as a runtime TypeError (e.g. `spawn(...).As is not a function`).
+ * A named `import { As }` keeps the module and does not depend on the prototype.
+ *
+ * Vitest installs the prototype via `tests/setup.as.ts`. Import this module for
+ * the free function or for side effects where method form is intentional:
  *   import { As } from "../../shared/utils/as.js";
+ *   import "../../shared/utils/as.js";
  */
 
 declare global {
