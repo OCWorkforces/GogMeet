@@ -8,11 +8,12 @@
 
 ```text
 src/domain/
-├── entities/    # brands, MeetingEvent, CalendarResult, CalendarUiState,
-│                # settings, Result, AppError, parse-json, type-guards
+├── entities/    # brands, MeetingEvent, CalendarResult, CalendarPublication,
+│                # CalendarUiState, settings (v3), Result, AppError, parse-json, type-guards
 ├── policies/    # meet URL allowlist + hostname helpers
 └── services/    # buildMeetUrl, validateMeetUrl, url-extract, cleanDescription,
-                 # pickJoinTarget, event-signature, time, settings-parse, platform
+                 # pickJoinTarget, meeting-time, truncate-middle, event-signature,
+                 # time, settings-parse, platform
 ```
 
 ## FILES (entities)
@@ -22,8 +23,9 @@ src/domain/
 | `brand.ts` | `EventId`, `MeetUrl`, `IsoUtc`, `WindowHeight` + validators |
 | `meeting-event.ts` | `MeetingEvent` shape |
 | `calendar-result.ts` | Exhaustive `CalendarResult` + permission + helpers (see below) |
+| `calendar-publication.ts` | `CalendarPublication` — `{ publicationGeneration, result }` for coordinated refreshes / IPC |
 | `calendar-ui-state.ts` | tray/settings UI state, phases, `cacheAgeMs`, defaults |
-| `settings.ts` | `AppSettings`, `DEFAULT_SETTINGS`, quiet hours types |
+| `settings.ts` | `AppSettings` (schema **v3**), `DEFAULT_SETTINGS`, quiet hours types |
 | `result.ts` | `Result<T,E>`, `ok` / `err` |
 | `errors.ts` | `AppError` taxonomy |
 | `parse-json.ts` | `parseJsonObject` → `AppResult` |
@@ -60,10 +62,11 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | `services/url-extract.ts` | free-text Zoom → Meet → Calendly extract |
 | `services/clean-description.ts` | notes cleaner for EventKit/Google |
 | `services/pick-join-target.ts` | next joinable meeting |
-| `services/meeting-time.ts` | in-progress / not-ended / upcoming filter / display horizon |
+| `services/meeting-time.ts` | in-progress / not-ended / upcoming filter / **completed-today** / display horizon |
+| `services/truncate-middle.ts` | code-point middle-truncate; `MEETING_TITLE_DISPLAY_MAX_CHARS` (25) for meeting titles |
 | `services/platform.ts` | Meet vs Zoom host detection (**not** OS) |
 | `services/time.ts` | day boundaries + remaining-time format |
-| `services/settings-parse.ts` | clamp/migrate settings blobs |
+| `services/settings-parse.ts` | clamp/migrate settings blobs (v2 → v3 rewrite) |
 | `services/event-signature.ts` | stable event/list signatures for push gating |
 
 ## RULES
@@ -81,8 +84,21 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | Brands / validators | `entities/brand.ts` |
 | Result provenance / automation eligibility | `entities/calendar-result.ts` |
 | UI phase / offline age | `entities/calendar-ui-state.ts` |
-| Settings schema + quiet hours | `entities/settings.ts` |
+| Settings schema + quiet hours | `entities/settings.ts` (`showCompletedTodayMeetings`, schema v3) |
 | Settings parse/clamp | `services/settings-parse.ts` |
+| Wall-clock / completed-today | `services/meeting-time.ts` |
+| Display title middle-truncate | `services/truncate-middle.ts` (`truncateMiddle`, max 25) |
 | Allowlist + validateMeetUrl | `policies/meet-url-allowlist.ts`, `services/url-validation.ts` |
 | buildMeetUrl (pure) | `services/build-meet-url.ts` |
 | URL extract / clean notes | `services/url-extract.ts`, `services/clean-description.ts` |
+| Publication envelope | `entities/calendar-publication.ts` |
+
+## Settings contract (v3)
+
+| Field | Notes |
+| --- | --- |
+| `schemaVersion` | `3` (`SETTINGS_SCHEMA_VERSION`) |
+| `showCompletedTodayMeetings` | default `false`; display-only history in tray + popover |
+| Timing / automation fields | `openBeforeMinutes` 0–10, `autoOpenEnabled`, `alertLeadSeconds`, quiet hours, etc. |
+
+Pre-v3 files migrate/rewrite on load with `showCompletedTodayMeetings: false`. Incomplete/malformed booleans fall back to defaults.

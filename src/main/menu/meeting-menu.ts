@@ -8,11 +8,20 @@ import {
   filterUpcomingMeetings,
   isMeetingInProgress,
 } from "../../domain/services/meeting-time.js";
+import {
+  MEETING_TITLE_DISPLAY_MAX_CHARS,
+  truncateMiddle,
+} from "../../domain/services/truncate-middle.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import type { CalendarStatus } from "../facades/calendar-status.js";
 import { buildMeetUrl } from "../../domain/services/build-meet-url.js";
 import { openSystemSettings } from "../utils/system-settings.js";
 import { isDarwin } from "../platform/os.js";
+
+/** Tray/popover display title — middle-truncate only; full title stays on MeetingEvent. */
+function displayMeetingTitle(title: string): string {
+  return truncateMiddle(title, MEETING_TITLE_DISPLAY_MAX_CHARS);
+}
 
 export interface MenuCallbacks {
   onAbout: () => void;
@@ -66,15 +75,17 @@ function meetingItem(
     ? `${formatMeetingTime(event.startDate)} – In progress`
     : formatMeetingTime(event.startDate);
 
+  const title = displayMeetingTitle(event.title);
+
   if (!hasUrl) {
     return {
-      label: `${event.title}  –  ${timeLabel}`,
+      label: `${title}  –  ${timeLabel}`,
       enabled: false,
     };
   }
 
   return {
-    label: `${event.title}  –  ${timeLabel}`,
+    label: `${title}  –  ${timeLabel}`,
     submenu: [
       {
         label: "Join",
@@ -107,7 +118,7 @@ function completedHistoryRows(
   for (const event of completed) {
     // Non-interactive history only — no Join/Copy submenu.
     items.push({
-      label: `${event.title}  –  Ended`,
+      label: `${displayMeetingTitle(event.title)}  –  Ended`,
       enabled: false,
     });
   }

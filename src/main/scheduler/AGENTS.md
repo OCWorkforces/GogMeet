@@ -11,7 +11,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers) |
 | `core/schedule-types.ts` | `SchedulePlan` ADT / action types (includes **`set-snapshot`**) |
 | `adapters/interpret-schedule.ts` | Applies plan actions; **sole schedule-path snapshot writer** via `set-snapshot` |
-| `poll.ts` | Fetches calendar, publishes UI for any ok (content **or display** signature change), arms display horizon, schedules only live complete, else `suspendAutomation` |
+| `poll.ts` | Fetches via `refreshCalendarPublication` (coordinator), publishes UI for any ok (content **or display** signature change), arms display horizon, schedules only live complete, else `suspendAutomation` |
 | `suspend-automation.ts` | Cancels browser/alert/title/countdown/in-meeting timers; keeps lastKnownEvents |
 | `state/` | Internal sliced state; see `state/AGENTS.md`. External imports forbidden |
 | `browser-timer.ts` | Browser-open timer + optional Notification; **does not write** `scheduledEventData` |

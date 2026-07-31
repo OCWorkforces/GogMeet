@@ -28,6 +28,7 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 - All subsequent calendar/settings/scheduler/watcher/tray/shortcuts use `graph.*` surfaces.
 - Calendar permission: status always checked; `requestPermission` only when `shouldAutoRequestPermission()` (Darwin).
 - Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
+- Display-horizon ticks (from `system/display-horizon.ts`) are wired here to `scheduler.republishUiForDisplayTick` + tray force rebuild — display-only, never auto-open.
 - Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.
 - `shutdownApp` prefers graph stop; falls back to free-function `stopScheduler` / `stopCalendarWatcher` if no graph (tests / early quit).
 - Both files are for `index.ts` only (plus tests).

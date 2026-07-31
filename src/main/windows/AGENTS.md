@@ -27,6 +27,6 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 - About and settings load via `loadWindowContent` / chrome helpers. About may use inline `data:` HTML with CSP-safe close via sentinel navigation.
 - Alert payload omits `meetUrl` by design; renderer joins via `app.joinMeeting(id)`.
 - Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows.
-- Scheduler restart on settings save is owned by IPC handlers, not these files.
+- Scheduler restart / display-only tray rebuild on settings save is owned by IPC handlers, not these files.
 - Alert always-on-top uses `applyAlertAlwaysOnTop` (screen-saver level + all workspaces on Darwin).
 - Singleton pattern: module-level `let win`, focus if alive, null on `closed`.

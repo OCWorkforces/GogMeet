@@ -23,7 +23,7 @@ import { testAppGraph } from "../helpers/app-graph.js";
 | Helper | Purpose |
 | --- | --- |
 | `createMockEvent` | Fully-formed `MeetingEvent` with sensible defaults |
-| `createMockSettings` | `AppSettings` from `DEFAULT_SETTINGS` + shallow overrides |
+| `createMockSettings` | `AppSettings` from `DEFAULT_SETTINGS` (schema **v3**, incl. `showCompletedTodayMeetings`) + shallow overrides |
 | `authorizedInvokeEvent` / `authorizedOnEvent` / `rendererFileUrl` | Packaged renderer `file://` senders via `pathToFileURL(app.getAppPath()...)` |
 | `createMockIpcEvent` | Minimal invoke event; prefer authorized helpers for `validateSender` |
 | `isoFromNow` | ISO-8601 UTC offset from now |

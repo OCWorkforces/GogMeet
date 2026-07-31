@@ -19,7 +19,7 @@ When adding tests:
 
 | Concern | Prefer |
 | --- | --- |
-| Brands, Result, AppError, settings, MeetingEvent, CalendarResult | `tests/domain/` |
+| Brands, Result, AppError, settings (v3), MeetingEvent, CalendarResult, CalendarPublication | `tests/domain/` |
 | IPC channel constants / maps | often covered in `tests/main/ipc-channels.test.ts` |
 | Thin shared DTOs / cast helper | `tests/shared/` |
 

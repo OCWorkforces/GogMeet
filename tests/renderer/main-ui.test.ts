@@ -3,7 +3,13 @@ import type { Api } from "../../src/preload/index.js";
 import type { CalendarPermission } from "../../src/domain/entities/calendar-result.js";
 import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import { truncateMiddle } from "../../src/domain/services/truncate-middle.js";
 import { createMockEvent, createMockSettings } from "../helpers/test-utils.js";
+
+/** Visible popover title (middle-truncated) for textContent assertions. */
+function displayedTitle(title: string): string {
+  return truncateMiddle(title);
+}
 
 /**
  * Tests for renderer/index.ts — the main popover UI
@@ -148,7 +154,7 @@ describe("renderer unchanged calendar updates", () => {
 
     // Then: loading does not remain visible and completion is rendered.
     await vi.waitFor(() => {
-      expect(document.body.textContent).toContain("Unchanged direct meeting");
+      expect(document.body.textContent).toContain(displayedTitle("Unchanged direct meeting"));
       expect(document.body.textContent).toContain("Updated just now");
     });
   });
@@ -176,7 +182,7 @@ describe("renderer unchanged calendar updates", () => {
     });
 
     // Then: the visible meeting and the refreshed completion timestamp remain observable.
-    expect(document.body.textContent).toContain("Unchanged pushed meeting");
+    expect(document.body.textContent).toContain(displayedTitle("Unchanged pushed meeting"));
     expect(document.body.textContent).toContain("Updated just now");
   });
 
@@ -195,7 +201,7 @@ describe("renderer unchanged calendar updates", () => {
 
     // Then: coordinated getEvents runs again and UI shows completion.
     await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
-    expect(document.body.textContent).toContain("Manual refresh meeting");
+    expect(document.body.textContent).toContain(displayedTitle("Manual refresh meeting"));
     expect(document.body.textContent).toContain("Updated just now");
   });
 });
