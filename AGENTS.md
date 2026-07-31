@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-07-31  
-**App version:** 1.17.3  
+**App version:** 1.17.4  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
