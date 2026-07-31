@@ -1,10 +1,10 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-07-30  
+**Updated:** 2026-07-31  
 **App version:** 1.17.3  
 **Branch:** develop
 
-Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, and `CmdOrCtrl+Shift+M` to join the next meeting.
+Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
 ## STACK
 
@@ -36,7 +36,7 @@ GogMeet/
 │   │   ├── application/  # ports + use cases
 │   │   ├── infrastructure/ # JsonSettingsStore, ShellMeetingOpener
 │   │   ├── facades/      # calendar, watcher, status, settings (default binds)
-│   │   ├── calendar/     # factory, providers, google-http, offline-cache, auth
+│   │   ├── calendar/     # factory, providers, google-http, offline-cache, auth, refresh-coordinator
 │   │   ├── scheduler/    # facade + planSchedule (pure) + interpret
 │   │   ├── ipc-handlers/ # typed IPC (receives AppGraph)
 │   │   ├── menu/, system/, windows/, utils/, platform/, swift/, app/
@@ -45,12 +45,12 @@ GogMeet/
 │   ├── renderer/         # popover, settings, alert (vanilla TS)
 │   └── assets/           # tray icons
 ├── tests/                # domain, application, main, renderer, shared, scripts, helpers, bench
-├── scripts/              # dev, icons, release verifiers, performance, latest.yml merge
+├── scripts/              # dev, icons, release verifiers, performance lab, latest.yml merge
 ├── build/                # electron-builder hooks, entitlements, icons
-├── docs/                 # CA plan, windows design/dogfood, ADR, plans/
+├── docs/                 # CA plan, windows design/dogfood, ADR, plans/, security/
 ├── vitest.workspace.ts   # unit/coverage projects
 ├── vitest.bench.config.ts # isolated microbenchmarks (not in workspace)
-├── .github/workflows/    # PR + release-mac/win + beta
+├── .github/workflows/    # PR + release-mac/win + beta + weekly measurement
 └── .sentrux/             # secondary architecture constraints
 ```
 
@@ -68,19 +68,22 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Calendar UI phases | `domain/entities/calendar-ui-state.ts` | includes `limited`, `cacheAgeMs` |
 | Calendar facade | `facades/calendar.ts` | use cases + CalendarPort; **no** `swift/*` or `calendar/auth/*` |
 | Calendar providers | `calendar/factory.ts`, `providers/*` | Darwin EventKit; Windows Google; fixture |
+| Calendar refresh | `calendar/refresh-coordinator.ts` | single-flight + one queued follow-up; `CalendarPublication` generation |
 | Google HTTP bounds | `calendar/google-http.ts` | 15s / 8MiB / 60s poll budget; typed errors |
 | Google OAuth / tokens | `calendar/auth/*` | PKCE; `if-needed` \| `force` refresh; preserve ciphertext |
-| Offline cache | `calendar/offline-cache.ts` | still simple `{savedAt,events}`; complete writes only from Google |
+| Offline cache | `calendar/offline-cache.ts` | schema v1 `{version,observedAt,cachedAt,events}`; complete writes only from Google |
 | URL extract / buildMeetUrl | `domain/services/url-extract.ts`, `build-meet-url.ts` | pure |
 | Allowlist / validate | `domain/policies/meet-url-allowlist.ts`, `services/url-validation.ts` | pure |
+| Meeting wall-clock | `domain/services/meeting-time.ts` | in-progress / upcoming / completed-today / display horizon |
 | Open meeting URL | `infrastructure/electron/shell-meeting-opener.ts` | allowlisted egress; thin free-fn in `utils/meet-url.ts` |
-| Settings store | `infrastructure/settings/json-settings-store.ts` | FS under userData |
+| Settings store | `infrastructure/settings/json-settings-store.ts` | FS under userData; schema **v3** |
 | Join hub | `utils/join-meeting.ts` / `graph.join.byId` | marks opened via scheduler cancel |
 | Scheduler public API | `scheduler/facade.ts` | only external scheduler import |
 | Schedule decisions | `scheduler/core/plan-schedule.ts` | pure; `set-snapshot` before timers |
+| Display horizon | `system/display-horizon.ts` | wall-clock re-filter timer; no automation |
 | Swift one-shot runner | `swift/swift-helper-process.ts` | bounded spawn; integrity-only recompile in binary-manager |
 | Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
-| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; tray takes AppGraph |
+| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph |
 | Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
 | Opt-in perf trace | `main/utils/performance-trace.ts` | `GOGMEET_PERF_TRACE=1` |
 | Perf scripts | `scripts/performance/*` | `perf:report`, `perf:workspace-fingerprint` |
@@ -95,12 +98,14 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | --- | --- |
 | `createAppGraph()` | composition root for main drivers |
 | `initializeApp()` / `shutdownApp()` | lifecycle; graph stored as `activeGraph` |
-| `facades/calendar.ts` | calendar use cases + UI state bus |
+| `facades/calendar.ts` | calendar use cases + UI state bus + refresh coordinator bind |
+| `refreshCalendarPublication` / `requestCalendarRefresh` | single-flight fetch → `CalendarPublication` |
 | `scheduler/facade.ts` | only external scheduler import |
 | `scheduler/core/plan-schedule.ts` | pure schedule plan ADT (`set-snapshot`, arm-*) |
 | `domain/services/build-meet-url.ts` | pure join URL with identity params |
+| `filterCompletedTodayMeetings` / `isCompletedTodayMeeting` | completed-today history membership |
 | `joinMeetingById` / `graph.join.byId` | join hub + suppress auto-open |
-| `isCalendarOk` / `isCalendarAutomationEligible` | ok narrowing; **intended** automation gate (live complete) |
+| `isCalendarOk` / `isCalendarAutomationEligible` | ok narrowing; automation gate (live complete only) |
 | `googleHttpRequest` / `refreshGoogleAccessToken` | bounded Google transport; force/if-needed refresh |
 
 ## CONVENTIONS
@@ -173,9 +178,12 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Google: bounded HTTP (15 s request, 8 MiB body, 60 s poll budget); 401 → force refresh once; credentials preserved on transient failures.
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
+- Settings schema **v3**: adds `showCompletedTodayMeetings` (default `false`). Display-only — does **not** restart scheduler or force a poll; settings IPC rebuilds the tray menu; renderer re-renders on `SETTINGS_CHANGED`.
+- Completed-today history (when enabled): same-local-day timed events with `end ≤ now`, newest-ended first; muted non-joinable rows in **tray menu** and **popover**. All-day excluded from tray history. Presentation timer in renderer (next end or local midnight); tray uses display-horizon + signature that includes the toggle.
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
+- Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
 - Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
-- Performance plan (in progress): `docs/plans/gogmeet-performance-enhancement.md` — remaining: refresh coordinator, measurement experiments.
+- Performance plan: `docs/plans/gogmeet-performance-enhancement.md` — refresh coordinator shipped; remaining work is measurement experiments / deferred optimizations. Weekly lab: `measurement.yml`.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

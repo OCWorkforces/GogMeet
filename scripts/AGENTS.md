@@ -14,14 +14,18 @@ Repository automation scripts for local development and asset generation. Invoke
 | `verify-windows-release.mjs` | Windows release inventory (NSIS + portable x64/arm64; optional latest.yml) |
 | `merge-windows-latest-yml.mjs` | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds |
 | `next-beta-tag.mjs` | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version |
+| `guardrails-scan.mjs` | Permanent P-NEVER scan (`bun run guardrails`); `--self-test` for fixture mode |
 | `performance/report.mjs` | Aggregate opt-in perf JSONL → p50/p95/min/max/sampleCount (`bun run perf:report`) |
 | `performance/workspace-fingerprint.mjs` | Fixed-exclusion HEAD + tracked-diff + untracked manifest digests (`perf:workspace-fingerprint`) |
+| `performance/measure-*.mjs` | Lab harnesses: google-calendar, tray, safe-storage, startup, alert, build-package (`perf:lab`) |
+| `performance/helpers/*` | Shared stats + google-shadow helpers for lab scripts |
 
 ## Performance tooling
 
-- **Not** CI gates. Opt-in product traces use `GOGMEET_PERF_TRACE=1` + `src/main/utils/performance-trace.ts`.
+- **Not** PR quality gates. Weekly/manual collection: `.github/workflows/measurement.yml` + `docs/performance/measurement-lab.md`.
+- Opt-in product traces use `GOGMEET_PERF_TRACE=1` + `src/main/utils/performance-trace.ts`.
 - Fingerprint exclusions are fixed (cannot be chosen by reviewers): `.omo/evidence/**`, `lib/**`, `dist/**`, `coverage/**`, `node_modules/**`, `.eslintcache`, `*.tsbuildinfo`.
-- Tests: `tests/scripts/performance-report.test.ts`.
+- Tests: `tests/scripts/performance-*.test.ts`, `tests/scripts/guardrails-scan.test.ts`.
 - Parser microbench is separate: `bun run bench:calendar-parser` → `vitest.bench.config.ts` (outside workspace).
 
 ## `dev.ts` Contract

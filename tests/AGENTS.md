@@ -43,10 +43,13 @@ tests/
 | `google-http.test.ts` | bounds, timeout, abort, error classes |
 | `google-oauth.test.ts` / `google-token-store.test.ts` | force/if-needed, preserve ciphertext |
 | `google-calendar.test.ts` | 401 force refresh, offline, provenance |
+| `calendar-refresh-coordinator.test.ts` | single-flight, follow-up, cancel, generation |
 | `swift/swift-helper-process.test.ts` | real spawn bounds + kill paths |
 | `swift-binary-manager.test.ts` | integrity-only recompile |
 | `performance-trace.test.ts` | opt-in redacted traces |
-| `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off |
+| `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off, automation eligibility |
+| `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
+| `display-horizon.test.ts` | wall-clock re-filter arm/fire |
 
 ## Main-project mocks
 
@@ -89,5 +92,10 @@ bun run perf:workspace-fingerprint
 - No real EventKit/Swift/Google network execution in CI (mock fetch/exec).
 - No packaged Electron app smoke test.
 - Auto-updater download/install/relaunch lifecycle is mocked only.
-- Poll still schedules any `isCalendarOk` (automation eligibility not gated yet).
 - Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings.
+
+## Recent product contracts covered by tests
+
+- Poll automation: live **complete** only (`isCalendarAutomationEligible`); partial/offline → `suspendAutomation`.
+- Settings schema **v3**: `showCompletedTodayMeetings` defaults false; display-only IPC path (tray rebuild, no restart/poll).
+- Completed-today history: domain `meeting-time` filters + tray/menu + popover body rendering.

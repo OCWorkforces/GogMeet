@@ -22,9 +22,9 @@ Cast helper notes:
 
 | Concern | Canonical path |
 | --- | --- |
-| Brands, Result, errors, MeetingEvent, CalendarResult, settings, CalendarUiState | `src/domain/entities/*` |
+| Brands, Result, errors, MeetingEvent, CalendarResult, CalendarPublication, settings (v3), CalendarUiState | `src/domain/entities/*` |
 | Meet URL allowlist | `src/domain/policies/meet-url-allowlist.ts` |
-| buildMeetUrl, validateMeetUrl, pickJoinTarget, time, url-extract | `src/domain/services/*` |
+| buildMeetUrl, validateMeetUrl, pickJoinTarget, meeting-time, time, url-extract | `src/domain/services/*` |
 
 ## RULES
 

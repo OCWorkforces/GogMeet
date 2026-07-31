@@ -12,14 +12,14 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `application/` | `ports/`, `use-cases/` | ports + pure-ish use-case factories |
 | `infrastructure/` | `settings/`, `electron/` | JsonSettingsStore, ShellMeetingOpener |
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
-| `calendar/` | factory, providers, **google-http**, auth, offline-cache | CalendarProvider backends |
+| `calendar/` | factory, providers, **google-http**, auth, offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |
-| `system/` | power, shortcuts, auto-launch, auto-updater, notification | OS integration |
+| `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
 | `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
 | `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
 | `ipc-handlers/` | per-domain handlers | typed IPC (receive `AppGraph`) |
-| `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows) |
+| `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows; optional completed-today history) |
 | `utils/` | browser-window, window-chrome, meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
 
 ## Lifecycle order
@@ -46,8 +46,10 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - Prefer `AppGraph` for lifecycle, IPC, tray, and shortcuts. Free functions remain for internal adapters and tests.
 - `scheduler/facade.ts` is the only scheduler import outside `scheduler/` (and graph wrappers).
 - Callers use `facades/calendar.ts` (not factory/providers) for calendar access.
+- Calendar fetches go through the refresh coordinator (`refreshCalendarPublication` / `requestCalendarRefresh`) — one in-flight fetch + at most one queued follow-up.
 - `swift/` only from `calendar/providers/darwin-eventkit.ts` and internal `swift/**`.
 - Calendar results are exhaustive (live complete/partial / offline-cache); ports require `AbortSignal`.
+- Settings schema **v3** includes display-only `showCompletedTodayMeetings` (tray + popover history; no scheduler restart).
 - Meeting host detection: `domain/services/platform.ts`. OS: `platform/os.ts`.
 
 ## IPC and security
@@ -60,7 +62,8 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 ## Tray invariants
 
 - Install menu with `tray.setContextMenu()` before first activation.
-- Refresh on `meeting-list-updated` and `calendar-status-updated`.
+- Refresh on `meeting-list-updated`, `calendar-status-updated`, display-horizon ticks, and completed-history setting changes (`forceTrayMenuRefresh`).
+- Menu cache signature includes wall-clock upcoming membership **and** `showCompletedTodayMeetings` so ended meetings / history toggle invalidate without content changes.
 - macOS click: `forcePoll` only. Windows click: `forcePoll` + `popUpContextMenu`.
 - Countdown: `setTitle` on Darwin; capped tooltip on Windows (16/32 theme icons).
 - Menu join/refresh via `MenuCallbacks.onJoinMeeting` / `onForcePoll` (graph-backed).

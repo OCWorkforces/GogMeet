@@ -6,7 +6,7 @@ Driven adapters implementing application ports.
 
 | Path | Implements |
 | --- | --- |
-| `settings/json-settings-store.ts` | `SettingsStorePort` — JSON under `userData`, schema v2 migrate/rewrite |
+| `settings/json-settings-store.ts` | `SettingsStorePort` — JSON under `userData`, schema **v3** migrate/rewrite (incl. `showCompletedTodayMeetings`) |
 | `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` — allowlisted `shell.openExternal` |
 
 Calendar providers remain under `src/main/calendar/` and satisfy `CalendarPort` methods via the facade adapter (not a separate infra class).

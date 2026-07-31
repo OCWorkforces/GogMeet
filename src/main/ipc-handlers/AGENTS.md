@@ -32,6 +32,7 @@ Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` / `refreshCalendarPubl
 **Settings side effects** (`settings.ts`):
 - Timing keys (`openBeforeMinutes`, `windowAlert`, `autoOpenEnabled`, `alertLeadSeconds`, `lateJoinGraceMinutes`, quiet hours, `nativeNotifications`) → `graph.scheduler.restart()`.
 - `showTomorrowMeetings` alone → optional `forcePoll()` (no full restart).
+- `showCompletedTodayMeetings` alone → `forceTrayMenuRefresh()` only (display-only; **no** restart / force-poll).
 - `launchAtLogin` → `syncAutoLaunch` only.
 - Always `typedSend` `SETTINGS_CHANGED` after successful set.
 
