@@ -8,8 +8,17 @@ import {
   isMeetingInProgress,
   isMeetingNotEnded,
 } from "../../domain/services/meeting-time.js";
+import {
+  MEETING_TITLE_DISPLAY_MAX_CHARS,
+  truncateMiddle,
+} from "../../domain/services/truncate-middle.js";
 
 import type { AppState } from "../../shared/app-state.js";
+
+/** Visible title: middle-truncate then escape. Full title stays on tooltip/aria. */
+function displayMeetingTitle(title: string): string {
+  return escapeHtml(truncateMiddle(title, MEETING_TITLE_DISPLAY_MAX_CHARS));
+}
 
 function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string; cls: string } {
   const start = new Date(event.startDate).getTime();
@@ -39,10 +48,11 @@ function formatRelativeTime(event: MeetingEvent, nowMs: number): { label: string
 }
 
 function renderCompletedHistoryRow(event: MeetingEvent): string {
+  const fullTitle = escapeHtml(event.title);
   return `
             <div class="meeting-item meeting-item--completed">
               <div class="meeting-item-row">
-                <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
+                <span class="meeting-title" title="${fullTitle}">${displayMeetingTitle(event.title)}</span>
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time">Ended</span>
@@ -113,11 +123,12 @@ export function renderBody(s: AppState, settings: AppSettings): string {
         upcoming.forEach((event, i) => {
           const rel = formatRelativeTime(event, now);
           const autoJoin = !event.isAllDay && !!event.meetUrl;
+          const fullTitle = escapeHtml(event.title);
           parts.push(`
             <div class="meeting-item">
               <div class="meeting-item-row">
-                <span class="meeting-title" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</span>
-                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-event-id="${escapeHtml(event.id)}" aria-label="Join ${escapeHtml(event.title)}">Join</button>` : ""}
+                <span class="meeting-title" title="${fullTitle}">${displayMeetingTitle(event.title)}</span>
+                ${event.meetUrl ? `<button class="btn-join" data-action="join-meeting" data-event-id="${escapeHtml(event.id)}" aria-label="Join ${fullTitle}">Join</button>` : ""}
               </div>
               <div class="meeting-item-row">
                 <span class="meeting-time ${rel.cls}">${rel.label}</span>

@@ -37,6 +37,7 @@ src/renderer/
 - On show: always local `render()` with `Date.now()` so ended meetings drop immediately; network refresh is debounced separately (`lastPollTime` ≥5s).
 - Soft labels / end membership while open are refreshed by main display-horizon pushes (`CALENDAR_RESULT_UPDATED`), not a renderer interval.
 - List filter / “In progress” use domain `meeting-time` helpers (`end > now`, `start ≤ now < end`).
+- **Title display:** visible meeting titles use domain `truncateMiddle` with `MEETING_TITLE_DISPLAY_MAX_CHARS` (**25**, middle `…`). Full title stays on the span `title` tooltip and Join `aria-label`. Escape **after** truncate. CSS `.meeting-title` uses `min-width: 0` so flex cannot widen the 360px window.
 - **Completed today** (when `settings.showCompletedTodayMeetings`): after actionable rows, muted non-interactive history via `filterCompletedTodayMeetings` (same-local-day, newest-ended first). Renderer owns a presentation timer for the next event end or local midnight — re-render/re-arm only; no calendar/settings/join IPC.
 - `SETTINGS_CHANGED` for only the history toggle re-renders/re-arms without a full refresh path used for timing keys.
 

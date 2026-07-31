@@ -598,6 +598,75 @@ describe("renderBody", () => {
       expect(html).toContain("Work &amp; &quot;Home&quot;");
       expect(html).toContain('data-event-id="evt-cal"');
     });
+
+    describe("meeting title middle-truncation", () => {
+      it("middle-truncates long upcoming titles while keeping full title on tooltip and aria", () => {
+        const longTitle = "Weekly Product Sync with Design";
+        const event = createMockEvent({
+          id: asTestEventId("evt-long"),
+          title: longTitle,
+          startDate: asTestIsoUtc(isoFromNow(30)),
+          endDate: asTestIsoUtc(isoFromNow(60)),
+          meetUrl: asTestMeetUrl("https://meet.google.com/abc-defg-hij"),
+        });
+        const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
+
+        // Display: head 12 + … + tail 12 (max 25 code points)
+        expect(html).toContain(">Weekly Produ\u2026 with Design</span>");
+        expect(html).toContain(`title="${longTitle}"`);
+        expect(html).toContain(`aria-label="Join ${longTitle}"`);
+        // Full untruncated string must not appear as the span's text content path alone —
+        // the raw full title still appears in attributes; ensure the visible label is truncated.
+        expect(html).not.toContain(`>${longTitle}</span>`);
+      });
+
+      it("leaves short titles unchanged", () => {
+        const event = createMockEvent({
+          id: asTestEventId("evt-short"),
+          title: "Standup",
+          startDate: asTestIsoUtc(isoFromNow(30)),
+          endDate: asTestIsoUtc(isoFromNow(60)),
+        });
+        const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
+        expect(html).toContain('title="Standup">Standup</span>');
+      });
+
+      it("escapes after truncate for malicious long titles", () => {
+        const malicious = "<script>alert(1)</script>EXTRA";
+        const event = createMockEvent({
+          id: asTestEventId("evt-xss"),
+          title: malicious,
+          startDate: asTestIsoUtc(isoFromNow(30)),
+          endDate: asTestIsoUtc(isoFromNow(60)),
+        });
+        const html = renderBody({ type: "has-events", events: [event] }, createMockSettings());
+
+        expect(html).not.toContain("<script>alert(1)</script>");
+        // Truncated form still HTML-escaped
+        expect(html).toContain("&lt;");
+        expect(html).toContain(`title="${malicious.replace(/</g, "&lt;").replace(/>/g, "&gt;")}"`);
+      });
+
+      it("middle-truncates completed-today history titles with full title tooltip", () => {
+        const longTitle = "Weekly Product Sync with Design";
+        const event = createMockEvent({
+          id: asTestEventId("evt-done-long"),
+          title: longTitle,
+          startDate: asTestIsoUtc(isoFromNow(-60)),
+          endDate: asTestIsoUtc(isoFromNow(-30)),
+        });
+        const html = renderBody(
+          { type: "has-events", events: [event] },
+          createMockSettings({ showCompletedTodayMeetings: true }),
+        );
+
+        expect(html).toContain("Completed today");
+        expect(html).toContain(">Weekly Produ\u2026 with Design</span>");
+        expect(html).toContain(`title="${longTitle}"`);
+        expect(html).not.toContain(`>${longTitle}</span>`);
+        expect(html).not.toContain("btn-join");
+      });
+    });
   });
 
   describe("Zoom events", () => {
