@@ -12,7 +12,8 @@ src/domain/
 │                # CalendarUiState, settings (v3), Result, AppError, parse-json, type-guards
 ├── policies/    # meet URL allowlist + hostname helpers
 └── services/    # buildMeetUrl, validateMeetUrl, url-extract, cleanDescription,
-                 # pickJoinTarget, meeting-time, event-signature, time, settings-parse, platform
+                 # pickJoinTarget, meeting-time, truncate-middle, event-signature,
+                 # time, settings-parse, platform
 ```
 
 ## FILES (entities)
@@ -62,6 +63,7 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | `services/clean-description.ts` | notes cleaner for EventKit/Google |
 | `services/pick-join-target.ts` | next joinable meeting |
 | `services/meeting-time.ts` | in-progress / not-ended / upcoming filter / **completed-today** / display horizon |
+| `services/truncate-middle.ts` | code-point middle-truncate; `MEETING_TITLE_DISPLAY_MAX_CHARS` (25) for meeting titles |
 | `services/platform.ts` | Meet vs Zoom host detection (**not** OS) |
 | `services/time.ts` | day boundaries + remaining-time format |
 | `services/settings-parse.ts` | clamp/migrate settings blobs (v2 → v3 rewrite) |
@@ -85,6 +87,7 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | Settings schema + quiet hours | `entities/settings.ts` (`showCompletedTodayMeetings`, schema v3) |
 | Settings parse/clamp | `services/settings-parse.ts` |
 | Wall-clock / completed-today | `services/meeting-time.ts` |
+| Display title middle-truncate | `services/truncate-middle.ts` (`truncateMiddle`, max 25) |
 | Allowlist + validateMeetUrl | `policies/meet-url-allowlist.ts`, `services/url-validation.ts` |
 | buildMeetUrl (pure) | `services/build-meet-url.ts` |
 | URL extract / clean notes | `services/url-extract.ts`, `services/clean-description.ts` |
