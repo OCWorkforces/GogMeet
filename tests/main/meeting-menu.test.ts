@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import { truncateMiddle } from "../../src/domain/services/truncate-middle.js";
 import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
+
+/** Label fragment for a meeting title after tray middle-truncation. */
+function titleLabel(title: string): string {
+  return truncateMiddle(title);
+}
 
 vi.mock("../../src/main/utils/system-settings.js", () => ({
   openSystemSettings: vi.fn(),
@@ -168,6 +174,29 @@ describe("buildMeetingMenuTemplate", () => {
       const meetingItem = findItemContaining(items, "Team Sync");
       expect(meetingItem).toBeDefined();
       expect(Array.isArray(meetingItem?.submenu)).toBe(true);
+    });
+
+    it("middle-truncates long meeting titles to 25 code points", async () => {
+      const { truncateMiddle } = await import("../../src/domain/services/truncate-middle.js");
+      const longTitle =
+        "TEst very long titel lksgjhlakshg; lahgls ga;lgnal;sghsigh;a gh;aslghs;lg hgal;shgaos ghasl gal;sghlsahglasgha;";
+      const event = makeEvent({
+        title: longTitle,
+        startDate: todayAt(15, 30).toISOString(),
+        endDate: todayAt(16, 30).toISOString(),
+      });
+      const items = buildMeetingMenuTemplate([event], true, {
+        ...baseCallbacks,
+        onAbout,
+        onOpenSettings,
+      });
+
+      const expectedTitle = truncateMiddle(longTitle);
+      const meetingItem = findItemContaining(items, expectedTitle);
+      expect(meetingItem).toBeDefined();
+      expect(String(meetingItem?.label)).toContain(expectedTitle);
+      expect(String(meetingItem?.label)).not.toContain(longTitle);
+      expect(Array.from(expectedTitle)).toHaveLength(25);
     });
 
     it("submenu Join joins via onJoinMeeting", () => {
@@ -383,7 +412,7 @@ describe("buildMeetingMenuTemplate", () => {
         onOpenSettings,
       });
 
-      const meetingItem = findItemContaining(items, "Running Meeting");
+      const meetingItem = findItemContaining(items, titleLabel("Running Meeting"));
       expect(meetingItem).toBeDefined();
       expect(meetingItem?.label).toContain("In progress");
     });
@@ -401,7 +430,7 @@ describe("buildMeetingMenuTemplate", () => {
         onAbout,
         onOpenSettings,
       });
-      expect(findItemContaining(items, "Afternoon Sync")).toBeUndefined();
+      expect(findItemContaining(items, titleLabel("Afternoon Sync"))).toBeUndefined();
       expect(findItemContaining(items, "In progress")).toBeUndefined();
     });
   });
@@ -420,7 +449,7 @@ describe("buildMeetingMenuTemplate", () => {
         onOpenSettings,
       });
 
-      const meetingItem = findItemContaining(items, "Future Meeting");
+      const meetingItem = findItemContaining(items, titleLabel("Future Meeting"));
       expect(meetingItem).toBeDefined();
       expect(meetingItem?.label).not.toContain("In progress");
     });
@@ -577,9 +606,9 @@ describe("buildMeetingMenuTemplate", () => {
         { kind: "unknown" },
         true,
       );
-      expect(findItemContaining(items, "Afternoon Sync")).toBeDefined();
+      expect(findItemContaining(items, titleLabel("Afternoon Sync"))).toBeDefined();
       expect(findItem(items, "Completed today")).toBeDefined();
-      expect(findItemContaining(items, "Morning Sync")?.label).toContain("Ended");
+      expect(findItemContaining(items, titleLabel("Morning Sync"))?.label).toContain("Ended");
     });
   });
 
