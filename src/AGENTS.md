@@ -22,12 +22,12 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/application/` | Ports + use cases (no Electron). |
 | `main/infrastructure/` | Driven adapters: JsonSettingsStore, ShellMeetingOpener. |
 | `main/facades/` | Calendar, watcher, status, settings free-function surface + default binds. |
-| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth, offline cache. |
+| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth, offline cache, **refresh-coordinator**. |
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
 | `main/app/` | Lifecycle + IPC registrar. |
-| `main/menu/`, `tray.ts` | Tray context menu builders + tray lifecycle. |
-| `main/system/` | Power, shortcuts, auto-launch, auto-updater, notifications. |
+| `main/menu/`, `tray.ts` | Tray context menu builders + tray lifecycle (optional completed-today history). |
+| `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
 | `main/windows/` | About, alert, settings BrowserWindows. |
 | `main/utils/` | CSP/window helpers, join hub, meet-url, **performance-trace**, logging. |
 | `main/platform/` | OS predicates (`isDarwin` / `isWin32`). |
@@ -43,15 +43,19 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Add IPC channel | `shared/ipc-channels.ts` → `main/ipc-handlers/*` → `preload/index.ts` → renderer |
 | Composition / DI | `main/composition/app-graph.ts` |
 | Calendar result / phases | `domain/entities/calendar-result.ts`, `calendar-ui-state.ts` |
+| Calendar publication envelope | `domain/entities/calendar-publication.ts` (`publicationGeneration` + `result`) |
 | Calendar facade / UI status | `main/facades/calendar.ts`, `main/events.ts` |
 | Calendar backends | `main/calendar/factory.ts`, `providers/*`, `auth/*`, `google-http.ts` |
+| Single-flight refresh | `main/calendar/refresh-coordinator.ts` via facade `refreshCalendarPublication` |
 | Meeting URL extract | `domain/services/url-extract.ts` (+ Swift `findMeetUrl`) |
 | Allowlist / validate | `domain/policies/meet-url-allowlist.ts`, `domain/services/url-validation.ts` |
 | buildMeetUrl / platform host | `domain/services/build-meet-url.ts`, `domain/services/platform.ts` |
+| Wall-clock membership | `domain/services/meeting-time.ts` (in-progress / upcoming / completed-today / horizon) |
 | Open / join meeting | `infrastructure/electron/shell-meeting-opener.ts`, `utils/join-meeting.ts` |
-| Settings schema + parse | `domain/entities/settings.ts`, `domain/services/settings-parse.ts` |
+| Settings schema + parse | `domain/entities/settings.ts` (schema **v3**), `domain/services/settings-parse.ts` |
 | Settings persistence | `infrastructure/settings/json-settings-store.ts` via `facades/settings.ts` |
 | Scheduler | `main/scheduler/facade.ts` only from outside scheduler |
+| Display horizon | `main/system/display-horizon.ts` (wall-clock re-filter; no automation) |
 | Swift EventKit wire | `main/swift/*` (incl. `swift-helper-process.ts`), `main/googlemeet-events.swift` |
 | Unchecked casts | `shared/utils/as.ts` (`.As<T>()` / free `As`) |
 | Opt-in perf marks | `main/utils/performance-trace.ts` |

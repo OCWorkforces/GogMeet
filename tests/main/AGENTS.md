@@ -11,11 +11,11 @@ tests/main/
 ├── app-graph.test.ts / lifecycle.test.ts / app-bootstrap.test.ts
 ├── scheduler*.test.ts / scheduler/     # facade, poll, timers, plan-schedule, auto-open off
 ├── swift/ + swift-*.test.ts            # helper-process, parser, binary-manager, watch sidecar
-├── calendar*.test.ts / google-* / fixture / offline-cache
+├── calendar*.test.ts / google-* / fixture / offline-cache / refresh-coordinator
 ├── google-http.test.ts / performance-trace.test.ts
 ├── ipc*.test.ts                        # channels, typed wrappers, handlers, registrar
 ├── tray / meeting-menu / *-window / window-chrome
-├── system adapters                     # power, shortcuts, notification, auto-launch, updater
+├── system adapters                     # power, display-horizon, shortcuts, notification, auto-launch, updater
 └── utils                               # join-meeting, package-info, system-settings
 ```
 
@@ -41,7 +41,8 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `google-http.test.ts` — bounded transport (timeout, body limits, abort).
 - `google-oauth.test.ts` / `google-token-store.test.ts` — force/if-needed refresh, preserve ciphertext.
 - `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial.
-- `offline-cache.test.ts` — encrypt round-trip (simple schema).
+- `offline-cache.test.ts` — encrypt round-trip (schema v1 metadata + ended filter).
+- `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
 - `swift-binary-manager.test.ts` — integrity-only recompile.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
@@ -54,17 +55,17 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 
 - Channel contracts: `ipc-channels.test.ts` (includes `APP_JOIN_MEETING`), `ipc-types.test.ts`.
 - Boundary helpers: `ipc-handlers-shared.test.ts`.
-- Domain handlers: `ipc-handlers-*.test.ts` — pass `testAppGraph()`; cover Result open + join-by-id; settings selective restart.
+- Domain handlers: `ipc-handlers-*.test.ts` — pass `testAppGraph()`; cover Result open + join-by-id; settings selective restart vs display-only `showCompletedTodayMeetings` tray rebuild.
 - Registrar: `ipc-registrar.test.ts` tracks every handler from `src/main/app/ipc.ts`.
 - Preload API: `preload.test.ts` — joinMeeting, domain allowlist, invoke/send/listeners.
 - Composition: `app-graph.test.ts`; lifecycle asserts graph-first init + `initAutoUpdater` + resume revive.
 
 ## WINDOWS / SYSTEM / UTILS
 
-- Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click), `meeting-menu.test.ts` (callbacks for join/poll).
+- Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts`.
 - Windows: `alert-window`, `settings-window`, `browser-window`, `window-chrome`, `about-window`.
-- System: `power`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
-- Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`.
+- System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
+- Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate).
 
 ## MOCKING RULES
 

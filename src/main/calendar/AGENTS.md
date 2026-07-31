@@ -10,6 +10,7 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 | --- | --- |
 | `provider.ts` | `CalendarProvider` + id union; **`getEvents(signal: AbortSignal)`** |
 | `factory.ts` | `getActiveCalendarProvider()`, `resetCalendarProvider()` — selection order below |
+| `refresh-coordinator.ts` | Single-flight calendar refresh: one in-flight fetch, at most one queued follow-up, monotonic `publicationGeneration`, lifecycle cancel |
 | `google-http.ts` | Bounded Google transport: 15s deadline, 8 MiB body, poll budget 60s, typed redacted errors |
 | `offline-cache.ts` | Encrypted `userData/calendar-cache.enc` — schema v1 `{version,observedAt,cachedAt,events}`; rejects legacy/unversioned; filters ended events |
 | `auth/google-client-id.ts` | `GOOGLE_OAUTH_CLIENT_ID` |
@@ -19,6 +20,15 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 | `providers/google-calendar.ts` | Google API; live complete/partial; cache write **complete only**; offline ok on network fail |
 | `providers/fixture-calendar.ts` | Dev JSON fixture (live complete) |
 | `providers/stub-unsupported.ts` | Placeholder (factory no longer selects it for normal Windows) |
+
+## Refresh coordinator
+
+- Bound from `facades/calendar.ts` via `bindCalendarRefreshFetcher` → get-meetings use case.
+- Public facade surface: `refreshCalendarPublication()` / `getLastPublication()`; scheduler `poll.ts` and graph `calendar.getEvents` share it.
+- Waiters on an in-flight chain all resolve to the final publication of that chain.
+- `cancelCalendarRefresh()` on scheduler stop/restart rejects waiters once and aborts the active provider call.
+- Envelope type: domain `CalendarPublication` (`publicationGeneration` + `CalendarResult`).
+- Tests: `tests/main/calendar-refresh-coordinator.test.ts`.
 
 ## Factory selection order
 

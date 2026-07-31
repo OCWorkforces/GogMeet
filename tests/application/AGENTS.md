@@ -4,6 +4,14 @@
 
 Vitest project `application`: Node, no Electron mocks. Covers `src/main/application/use-cases/**` with port fakes.
 
+## Suites
+
+| Suite | Focus |
+| --- | --- |
+| `get-meetings.test.ts` | Maps live complete/partial/offline-cache → UI phases (`ready` / `limited` / `offline-cached`) |
+| `join-meeting.test.ts` | Explicit join from lastKnown or fetch; any ok provenance with events is joinable |
+| `disconnect-calendar.test.ts` | Disconnect port path |
+
 ## FILES
 
 | Suite | Covers |

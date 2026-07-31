@@ -9,6 +9,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 | `pr-check.yml` | PR/push validation on `develop` and `main`: quality gates on macOS + Windows, full and changed-source coverage, and Node 26 icon-drift validation (mac only). |
 | `release.yml` | Main pushes create a version tag only; `v*` tags run parallel `release-mac` and `release-win` jobs that package, verify, and upload to the same GitHub Release. |
 | `beta-release.yml` | Push to `develop` (e.g. after PR merge): parallel **mac + Windows** packaging into one **GitHub pre-release** with an auto-incremented beta tag. |
+| `measurement.yml` | Weekly (Mon 06:00 UTC) + `workflow_dispatch` measurement lab: synthetic harnesses on macOS/Windows; does **not** ship product changes or gate PRs. |
 
 ## PR Check
 
@@ -40,6 +41,12 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
   - **`release-win`**: LF checkout; optional `WIN_CSC_*`; sequential `package:win:x64` / `package:win:arm64`; merge `latest.yml`; verify; uploads four exes + `latest.yml` + `SHA256SUMS-win.txt`. Prefer `github.token` for `GH_TOKEN` (not an empty `secrets.GITHUB_TOKEN`).
 - Both attach to the **same** Release. Separate checksum fragments avoid race overwrites.
 
+## Measurement lab
+
+- Scheduled evidence collection for deferred optimization tracks (`docs/plans/gogmeet-performance-enhancement.md`, `docs/performance/measurement-lab.md`).
+- Optional native probes may fail non-fatally; keep this workflow out of PR gates.
+- Uses the same Bun install + LF-on-Windows patterns as other workflows where applicable.
+
 ## Anti-Patterns
 
 - Do not remove `fetch-depth: 0`; the PR check needs base comparisons and the release/beta jobs need tag visibility.
@@ -48,3 +55,4 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 - Do not add custom Apple password variables or a warning-only artifact check on **official** release. Built-in Electron Builder notarization path and the verifier own official-release proof.
 - Do not hand-edit generated icons to satisfy workflow drift; regenerate through `scripts/generate-calendar-tray-icons.mjs`.
 - Do not duplicate build/package rules here; source of truth remains package scripts plus `electron-builder.yml`.
+- Do not turn `measurement.yml` into a PR-blocking quality gate.
