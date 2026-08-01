@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-07-31  
-**App version:** 1.17.4  
+**App version:** 1.17.5
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -11,7 +11,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 | Layer | Tech |
 | --- | --- |
 | Runtime | Electron `^43.2.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
-| Language | TypeScript `^6.0.3`; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
+| Language | TypeScript `^7.0.2` compiler with TypeScript 6 for typed ESLint; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
 | Build | Rslib for main/preload CJS; Rsbuild for three renderer entries |
 | Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` |
 | Calendar (macOS) | Swift EventKit helper `src/main/googlemeet-events.swift`; binary under `{tmpdir}/googlemeet/`; bounded spawn runner |
