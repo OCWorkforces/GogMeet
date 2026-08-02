@@ -33,7 +33,7 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 
 - **Must not** import `swift/*` or `calendar/auth/*`. Use CalendarPort methods (`getAccountLabel`, `reviveWatch`, …).
 - Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
-- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http).
+- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http + incremental sync tokens). Auth modules stay provider-only.
 - Watch is poll-only when provider omits `startWatch` (Google/fixture).
 - `settings.ts` uses `domain/entities/type-guards` (`isObjectRecord`), never `swift/guards`.
 - Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.

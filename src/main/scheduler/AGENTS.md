@@ -36,7 +36,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | `stopScheduler()` | Cancels pending force poll, resets resources preserving window, clears tray title |
 | `restartScheduler()` | Stop then start; timing settings + wake events |
 | `forcePoll()` | Immediate poll with 10s completed-poll coalescing |
-| `republishUiForDisplayTick()` | Force re-push last publication for wall-clock list refresh (no fetch) |
+| `republishUiForDisplayTick()` | Force re-push last publication for wall-clock list refresh (no fetch). **Facade free-function only** — not on `AppGraph.scheduler`; lifecycle/display-horizon call this directly |
 | `setSchedulerWindow(w)` | BrowserWindow for typed push channels |
 | `setTrayTitleCallback(fn)` | Tray title updater; scheduler never imports tray |
 | `initPowerCallbacks(callbacks)` | Poll interval + sleep-prevention hooks from `system/power.ts` |

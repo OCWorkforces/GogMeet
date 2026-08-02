@@ -28,7 +28,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 - “In progress” requires `start ≤ now < end` (not merely start ≤ now).
 - Meetings with URLs use a **submenu**: Join (`onJoinMeeting`) + Copy Link (`clipboard` + `buildMeetUrl`).
 - Meeting **labels** use domain `truncateMiddle` / `MEETING_TITLE_DISPLAY_MAX_CHARS` (**25**, middle `…`); full title stays on `MeetingEvent` (join/copy still use full event).
-- Optional **Completed today** section when `showCompletedTodayMeetings` is true: domain `filterCompletedTodayMeetings`, exclude all-day, newest-ended first, non-interactive labels only (no Join/Copy); same title truncate.
+- Optional **Completed today** section when `showCompletedTodayMeetings` is true: domain `filterCompletedTodayMeetings`, exclude all-day, newest-ended first, non-interactive labels only (no Join/Copy); same title truncate. Toggle is display-only (no scheduler restart).
 - Footer: Join Next Meeting (`pickJoinTarget` + `onJoinMeeting`), Refresh (`onForcePoll`), Settings…, About, Quit.
 - `status: CalendarStatus` — optional last poll status from `facades/calendar-status.ts`.
 

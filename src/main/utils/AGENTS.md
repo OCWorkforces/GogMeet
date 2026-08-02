@@ -7,7 +7,7 @@
 | File | Role | Key Exports |
 |------|------|-------------|
 | `browser-window.ts` | BrowserWindow config factory, CSP enforcement | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()` |
-| `window-chrome.ts` | Platform BrowserWindow chrome + alert always-on-top | `platformWindowChrome()`, `applyAlertAlwaysOnTop()` |
+| `window-chrome.ts` | Platform BrowserWindow chrome (`popover` / `settings` / `alert` / `about`) + alert always-on-top | `platformWindowChrome()`, `applyAlertAlwaysOnTop()` |
 | `meet-url.ts` | Thin allowlisted open (delegates to ShellMeetingOpener) | `openMeetingUrl()` |
 | `join-meeting.ts` | Join hub free function (default-bound use case) | `joinMeetingById()`, `bindJoinMeeting()` |
 | `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo` |
