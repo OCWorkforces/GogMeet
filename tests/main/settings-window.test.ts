@@ -12,8 +12,11 @@ vi.mock("electron", () => ({
     this.loadURL = vi.fn().mockResolvedValue(undefined);
     this.loadFile = vi.fn().mockResolvedValue(undefined);
     this.show = vi.fn();
+    this.hide = vi.fn();
     this.focus = vi.fn();
+    this.destroy = vi.fn();
     this.isDestroyed = () => false;
+    this.isVisible = vi.fn().mockReturnValue(true);
     this.webContents = {
       send: vi.fn(),
       on: vi.fn(),
@@ -21,6 +24,7 @@ vi.mock("electron", () => ({
     };
     this.once = vi.fn((_event: string, cb: () => void) => cb());
     this.on = vi.fn();
+    this.__forceDestroy = false;
   }),
   session: {
     defaultSession: {
@@ -144,6 +148,120 @@ describe("settings-window", () => {
       createSettingsWindow();
 
       expect(vi.mocked(app.dock?.show)).toHaveBeenCalled();
+    });
+  });
+
+  describe("hide-cache reuse", () => {
+    it("re-presents the same window after hide without reloading", async () => {
+      const { createSettingsWindow } = await getModule();
+      const { BrowserWindow, app } = await getElectron();
+      const win1 = createSettingsWindow();
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        hide: ReturnType<typeof vi.fn>;
+        show: ReturnType<typeof vi.fn>;
+        focus: ReturnType<typeof vi.fn>;
+        isVisible: ReturnType<typeof vi.fn>;
+        loadURL: ReturnType<typeof vi.fn>;
+        on: ReturnType<typeof vi.fn>;
+      };
+
+      // Simulate user close → hide-cache
+      const closeHandler = mockWin.on.mock.calls.find((c) => c[0] === "close")?.[1] as
+        | ((e: { preventDefault: () => void }) => void)
+        | undefined;
+      expect(closeHandler).toBeTypeOf("function");
+      const event = { preventDefault: vi.fn() };
+      closeHandler?.(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(mockWin.hide).toHaveBeenCalled();
+      expect(vi.mocked(app.dock?.hide)).toHaveBeenCalled();
+
+      mockWin.isVisible.mockReturnValue(false);
+      mockWin.show.mockClear();
+      mockWin.focus.mockClear();
+      const loadCalls = mockWin.loadURL.mock.calls.length;
+
+      const win2 = createSettingsWindow();
+      expect(win2).toBe(win1);
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      expect(mockWin.show).toHaveBeenCalled();
+      expect(mockWin.focus).toHaveBeenCalled();
+      expect(mockWin.loadURL.mock.calls.length).toBe(loadCalls);
+    });
+
+    it("force-destroys on destroySettingsWindow", async () => {
+      const { createSettingsWindow, destroySettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        destroy: ReturnType<typeof vi.fn>;
+        __forceDestroy?: boolean;
+      };
+      destroySettingsWindow();
+      expect(mockWin.__forceDestroy).toBe(true);
+      expect(mockWin.destroy).toHaveBeenCalled();
+    });
+
+    it("supports multiple hide/show cycles without new BrowserWindow", async () => {
+      const { createSettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        hide: ReturnType<typeof vi.fn>;
+        show: ReturnType<typeof vi.fn>;
+        isVisible: ReturnType<typeof vi.fn>;
+        on: ReturnType<typeof vi.fn>;
+        loadURL: ReturnType<typeof vi.fn>;
+      };
+      const closeHandler = mockWin.on.mock.calls.find((c) => c[0] === "close")?.[1] as
+        | ((e: { preventDefault: () => void }) => void)
+        | undefined;
+      const loadCalls = mockWin.loadURL.mock.calls.length;
+
+      for (let i = 0; i < 3; i++) {
+        closeHandler?.({ preventDefault: vi.fn() });
+        mockWin.isVisible.mockReturnValue(false);
+        mockWin.show.mockClear();
+        createSettingsWindow();
+        expect(mockWin.show).toHaveBeenCalled();
+      }
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      expect(mockWin.loadURL.mock.calls.length).toBe(loadCalls);
+    });
+
+    it("creates a new window after force destroy", async () => {
+      const { createSettingsWindow, destroySettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+      destroySettingsWindow();
+      // Simulate destroyed singleton cleared
+      const first = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        isDestroyed: () => boolean;
+      };
+      // Module already nulls ref on destroySettingsWindow
+      createSettingsWindow();
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+      void first;
+    });
+
+    it("allows close to proceed when __forceDestroy is set", async () => {
+      const { createSettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        on: ReturnType<typeof vi.fn>;
+        hide: ReturnType<typeof vi.fn>;
+        __forceDestroy?: boolean;
+      };
+      const closeHandler = mockWin.on.mock.calls.find((c) => c[0] === "close")?.[1] as
+        | ((e: { preventDefault: () => void }) => void)
+        | undefined;
+      mockWin.__forceDestroy = true;
+      mockWin.hide.mockClear();
+      const event = { preventDefault: vi.fn() };
+      closeHandler?.(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(mockWin.hide).not.toHaveBeenCalled();
     });
   });
 });

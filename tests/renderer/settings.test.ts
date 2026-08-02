@@ -18,12 +18,39 @@ describe("settings/index.ts", () => {
 
   async function loadSettingsRenderer(
     setSettings: (partial: Partial<AppSettings>) => Promise<AppSettings>,
+    options?: {
+      getSettings?: () => Promise<AppSettings>;
+      getUiState?: () => Promise<unknown>;
+      onChanged?: (cb: (s: AppSettings) => void) => () => void;
+    },
   ): Promise<void> {
     vi.resetModules();
+    const onChanged =
+      options?.onChanged ??
+      vi.fn((cb: (s: AppSettings) => void) => {
+        void cb;
+        return () => undefined;
+      });
     vi.stubGlobal("api", {
       settings: {
-        get: vi.fn<() => Promise<AppSettings>>().mockResolvedValue({ ...DEFAULT_SETTINGS }),
+        get:
+          options?.getSettings ??
+          vi.fn<() => Promise<AppSettings>>().mockResolvedValue({ ...DEFAULT_SETTINGS }),
         set: setSettings,
+        onChanged,
+      },
+      calendar: {
+        getUiState:
+          options?.getUiState ??
+          vi.fn().mockResolvedValue({
+            permission: "not-determined",
+            phase: "disconnected",
+            lastError: null,
+            accountEmail: null,
+            events: null,
+            offline: false,
+            oauthConfigured: true,
+          }),
       },
     });
 
@@ -153,6 +180,7 @@ describe("settings/index.ts", () => {
           ...DEFAULT_SETTINGS,
           ...p,
         })),
+        onChanged: vi.fn(() => () => undefined),
       },
       calendar: {
         getUiState,
@@ -210,6 +238,61 @@ describe("settings/index.ts", () => {
     await vi.waitFor(() => expect(setSettings).toHaveBeenCalledWith({ alertLeadSeconds: 120 }));
   });
 
+  it("soft-refreshes from main when document becomes visible again", async () => {
+    let launchAtLogin = false;
+    const getSettings = vi.fn(async () => ({ ...DEFAULT_SETTINGS, launchAtLogin }));
+    const getUiState = vi.fn().mockResolvedValue({
+      permission: "granted",
+      phase: "ready",
+      lastError: null,
+      accountEmail: "a@example.com",
+      events: [],
+      offline: false,
+      oauthConfigured: true,
+    });
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, { getSettings, getUiState });
+    expect(getSettings).toHaveBeenCalled();
+    const callsAfterInit = getSettings.mock.calls.length;
+
+    launchAtLogin = true;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await vi.waitFor(() => expect(getSettings.mock.calls.length).toBeGreaterThan(callsAfterInit));
+    await vi.waitFor(() => {
+      const toggle = document.getElementById("launch-at-login-toggle");
+      expect(toggle).toBeInstanceOf(HTMLInputElement);
+      expect((toggle as HTMLInputElement).checked).toBe(true);
+    });
+  });
+
+  it("re-renders when settings.onChanged fires while idle", async () => {
+    let push: ((s: AppSettings) => void) | null = null;
+    const onChanged = vi.fn((cb: (s: AppSettings) => void) => {
+      push = cb;
+      return () => undefined;
+    });
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, { onChanged });
+    expect(onChanged).toHaveBeenCalled();
+    push?.({ ...DEFAULT_SETTINGS, showTomorrowMeetings: false });
+    await vi.waitFor(() => {
+      const toggle = document.getElementById("show-tomorrow-toggle");
+      expect(toggle).toBeInstanceOf(HTMLInputElement);
+      expect((toggle as HTMLInputElement).checked).toBe(false);
+    });
+  });
+
   it("disables dependent joining controls when auto-open is off", async () => {
     vi.resetModules();
     document.body.innerHTML = '<div id="app"></div>';
@@ -221,6 +304,7 @@ describe("settings/index.ts", () => {
           autoOpenEnabled: false,
           ...p,
         })),
+        onChanged: vi.fn(() => () => undefined),
       },
       calendar: {
         getUiState: vi.fn().mockResolvedValue({

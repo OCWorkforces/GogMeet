@@ -10,12 +10,16 @@ type WebContentsMock = {
 type WindowMock = {
   loadURL: ReturnType<typeof vi.fn>;
   show: ReturnType<typeof vi.fn>;
+  hide: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
+  isVisible: ReturnType<typeof vi.fn>;
   webContents: WebContentsMock;
   once: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
+  __forceDestroy?: boolean;
 };
 
 const windowInstances: WindowMock[] = [];
@@ -33,9 +37,12 @@ vi.mock("electron", () => ({
   BrowserWindow: vi.fn().mockImplementation(function (this: WindowMock) {
     this.loadURL = vi.fn().mockResolvedValue(undefined);
     this.show = vi.fn();
+    this.hide = vi.fn();
     this.focus = vi.fn();
     this.close = vi.fn();
+    this.destroy = vi.fn();
     this.isDestroyed = vi.fn().mockReturnValue(false);
+    this.isVisible = vi.fn().mockReturnValue(true);
     this.webContents = {
       send: vi.fn(),
       on: vi.fn(),
@@ -92,6 +99,15 @@ describe("about-window", () => {
   function getWebContentsHandlers(win: WindowMock): Map<string, (...args: unknown[]) => void> {
     const handlers = new Map<string, (...args: unknown[]) => void>();
     for (const call of win.webContents.on.mock.calls) {
+      const [event, handler] = call as [string, (...args: unknown[]) => void];
+      handlers.set(event, handler);
+    }
+    return handlers;
+  }
+
+  function getWindowHandlers(win: WindowMock): Map<string, (...args: unknown[]) => void> {
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    for (const call of win.on.mock.calls) {
       const [event, handler] = call as [string, (...args: unknown[]) => void];
       handlers.set(event, handler);
     }
@@ -172,12 +188,13 @@ describe("about-window", () => {
     await Promise.resolve();
 
     expect(win?.webContents.executeJavaScript).toHaveBeenCalled();
-    const script = String(win?.webContents.executeJavaScript.mock.calls[0]?.[0] ?? "");
-    expect(script).toContain("about-close");
-    expect(script).toContain("https://gogmeet.local/__about_close__");
+    const scripts = win?.webContents.executeJavaScript.mock.calls.map((c) => String(c[0] ?? "")) ?? [];
+    expect(scripts.some((s) => s.includes("about-close") && s.includes("https://gogmeet.local/__about_close__"))).toBe(
+      true,
+    );
   });
 
-  it("closes the window when will-navigate hits the close sentinel", async () => {
+  it("hides (caches) the window when will-navigate hits the close sentinel", async () => {
     const { showAbout } = await getModule();
     showAbout({} as never);
     const win = windowInstances[0];
@@ -191,10 +208,11 @@ describe("about-window", () => {
     const event = { preventDefault: vi.fn(), url: "https://gogmeet.local/__about_close__" };
     willNavigate?.(event);
     expect(event.preventDefault).toHaveBeenCalled();
-    expect(win.close).toHaveBeenCalled();
+    expect(win.hide).toHaveBeenCalled();
+    expect(win.destroy).not.toHaveBeenCalled();
   });
 
-  it("prevents other navigations without closing", async () => {
+  it("prevents other navigations without hiding", async () => {
     const { showAbout } = await getModule();
     showAbout({} as never);
     const win = windowInstances[0];
@@ -206,10 +224,10 @@ describe("about-window", () => {
     const event = { preventDefault: vi.fn(), url: "https://example.com" };
     willNavigate?.(event);
     expect(event.preventDefault).toHaveBeenCalled();
-    expect(win.close).not.toHaveBeenCalled();
+    expect(win.hide).not.toHaveBeenCalled();
   });
 
-  it("closes on Escape key", async () => {
+  it("hides on Escape key without destroying", async () => {
     const { showAbout } = await getModule();
     showAbout({} as never);
     const win = windowInstances[0];
@@ -220,7 +238,45 @@ describe("about-window", () => {
     const beforeInput = handlers.get("before-input-event");
     expect(beforeInput).toBeTypeOf("function");
     beforeInput?.({}, { type: "keyDown", key: "Escape" });
-    expect(win.close).toHaveBeenCalled();
+    expect(win.hide).toHaveBeenCalled();
+    expect(win.destroy).not.toHaveBeenCalled();
+  });
+
+  it("re-shows the cached About window without creating another", async () => {
+    const { showAbout } = await getModule();
+    const { BrowserWindow } = await getElectron();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    win.isVisible.mockReturnValue(false);
+    win.show.mockClear();
+    win.focus.mockClear();
+
+    showAbout({} as never);
+    expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    expect(win.show).toHaveBeenCalled();
+    expect(win.focus).toHaveBeenCalled();
+    expect(win.loadURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("prevents OS close and hides unless force-destroyed", async () => {
+    const { showAbout, destroyAboutWindow } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+
+    const closeHandler = getWindowHandlers(win).get("close");
+    expect(closeHandler).toBeTypeOf("function");
+    const event = { preventDefault: vi.fn() };
+    closeHandler?.(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(win.hide).toHaveBeenCalled();
+
+    destroyAboutWindow();
+    expect(win.__forceDestroy).toBe(true);
+    expect(win.destroy).toHaveBeenCalled();
   });
 
   it("opens repository via setWindowOpenHandler and denies the popup", async () => {
@@ -255,7 +311,7 @@ describe("about-window", () => {
     expect(shell.openExternal).not.toHaveBeenCalled();
   });
 
-  it("closes on will-frame-navigate sentinel", async () => {
+  it("hides on will-frame-navigate sentinel", async () => {
     const { showAbout } = await getModule();
     showAbout({} as never);
     const win = windowInstances[0];
@@ -268,6 +324,62 @@ describe("about-window", () => {
     const event = { preventDefault: vi.fn(), url: "https://gogmeet.local/__about_close__" };
     willFrame?.(event);
     expect(event.preventDefault).toHaveBeenCalled();
-    expect(win.close).toHaveBeenCalled();
+    expect(win.hide).toHaveBeenCalled();
+  });
+
+  it("supports multiple hide/show cycles without a new window", async () => {
+    const { showAbout } = await getModule();
+    const { BrowserWindow } = await getElectron();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    const loadCalls = win.loadURL.mock.calls.length;
+
+    for (let i = 0; i < 3; i++) {
+      win.isVisible.mockReturnValue(true);
+      const handlers = getWebContentsHandlers(win);
+      handlers.get("before-input-event")?.({}, { type: "keyDown", key: "Escape" });
+      expect(win.hide).toHaveBeenCalled();
+      win.isVisible.mockReturnValue(false);
+      win.show.mockClear();
+      showAbout({} as never);
+      expect(win.show).toHaveBeenCalled();
+    }
+    expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    expect(win.loadURL.mock.calls.length).toBe(loadCalls);
+  });
+
+  it("creates a new window after force destroy", async () => {
+    const { showAbout, destroyAboutWindow } = await getModule();
+    const { BrowserWindow } = await getElectron();
+    showAbout({} as never);
+    destroyAboutWindow();
+    showAbout({} as never);
+    expect(BrowserWindow).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows close to proceed when __forceDestroy is set", async () => {
+    const { showAbout } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    win.__forceDestroy = true;
+    win.hide.mockClear();
+    const closeHandler = getWindowHandlers(win).get("close");
+    const event = { preventDefault: vi.fn() };
+    closeHandler?.(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(win.hide).not.toHaveBeenCalled();
+  });
+
+  it("embeds script-src none in About CSP", async () => {
+    const { showAbout } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    const url = String(win?.loadURL.mock.calls[0]?.[0] ?? "");
+    const html = decodeURIComponent(url.replace(/^data:text\/html;charset=utf-8,/, ""));
+    expect(html).toContain("script-src 'none'");
   });
 });

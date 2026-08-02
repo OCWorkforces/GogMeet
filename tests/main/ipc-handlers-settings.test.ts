@@ -31,6 +31,11 @@ vi.mock("../../src/main/system/auto-launch.js", () => ({
 vi.mock("../../src/main/tray.js", () => ({
   forceTrayMenuRefresh: mockForceTrayMenuRefresh,
 }));
+vi.mock("../../src/main/windows/settings-window.js", () => ({
+  getSettingsWindow: vi.fn().mockReturnValue(null),
+  destroySettingsWindow: vi.fn(),
+  createSettingsWindow: vi.fn(),
+}));
 
 import { registerSettingsHandlers } from "../../src/main/ipc-handlers/settings.js";
 import { ipcMain } from "electron";
