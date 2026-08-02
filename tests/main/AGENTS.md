@@ -40,7 +40,8 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `calendar-factory.test.ts` / `fixture-calendar.test.ts` — factory selection, fixture gate.
 - `google-http.test.ts` — bounded transport (timeout, body limits, abort).
 - `google-oauth.test.ts` / `google-token-store.test.ts` — force/if-needed refresh, preserve ciphertext.
-- `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial.
+- `google-sync-tokens.test.ts` — encrypted nextSyncToken map (schema v1).
+- `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial, incremental path.
 - `offline-cache.test.ts` — encrypt round-trip (schema v1 metadata + ended filter).
 - `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
@@ -63,7 +64,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 ## WINDOWS / SYSTEM / UTILS
 
 - Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts`.
-- Windows: `alert-window`, `settings-window`, `browser-window`, `window-chrome`, `about-window`.
+- Windows: `alert-window` (queue + hide/reuse + destroy), `settings-window` (520×760), `about-window` (320×420, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`).
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate).
 

@@ -26,9 +26,10 @@ Internal state for the scheduler subsystem, split into slices composed by `index
 ## NOTES
 
 - Slices compose via spread in `createSchedulerState()`: `{ ...createTimersState(), ...createDisplayState(), ...createPollState(), ...createRuntimeState() }`.
-- `replaceState()` snapshots refs, calls `clearSchedulerResources`, restores runtime + optional fired state.
-- `firedEvents` / `alertFiredEvents` suppress browser open / alert re-fire. **`cancelledEvents` is title-countdown bookkeeping only**.
+- `replaceState()` snapshots refs, calls `clearSchedulerResources`, restores runtime + optional fired state (`preserveFiredState` from facade stop/restart).
+- `firedEvents` / `alertFiredEvents` suppress browser open / alert re-fire. **`cancelledEvents` is title-countdown bookkeeping only** — never use it for auto-open suppression.
 - `pollEpoch` is a race-condition guard for stale callbacks.
 - `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4).
+- Snapshot map `scheduledEventData` is written via interpret `set-snapshot` only (not by browser-timer).
 - All external access goes through getter/setter functions from `index.ts`. Never reach into raw Maps from outside `scheduler/`.
-- Importing `state/*` from outside `scheduler/` violates `state-internal-only`.
+- Importing `state/*` from outside `scheduler/` violates `.sentrux` `state-internal-only` (and project convention).

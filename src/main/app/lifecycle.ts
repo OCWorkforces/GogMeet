@@ -17,6 +17,9 @@ import { onDisplayHorizonTick, clearDisplayHorizon } from "../system/display-hor
 import { createAppGraph, type AppGraph } from "../composition/app-graph.js";
 import { stopScheduler, republishUiForDisplayTick } from "../scheduler/facade.js";
 import { stopCalendarWatcher } from "../facades/calendar-watcher.js";
+import { destroyAlertWindow } from "../windows/alert-window.js";
+import { destroySettingsWindow } from "../windows/settings-window.js";
+import { destroyAboutWindow } from "../windows/about-window.js";
 
 /** Active graph for this process (set during initializeApp). */
 let activeGraph: AppGraph | null = null;
@@ -168,6 +171,10 @@ export function shutdownApp(): void {
   unsubscribeDisplayHorizon?.();
   unsubscribeDisplayHorizon = null;
   clearDisplayHorizon();
+  // Drop hide-cached BrowserWindows so quit is not blocked by preventDefault close.
+  destroyAlertWindow();
+  destroySettingsWindow();
+  destroyAboutWindow();
   const graph = activeGraph;
   if (graph) {
     graph.scheduler.stop();

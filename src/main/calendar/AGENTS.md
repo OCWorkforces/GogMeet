@@ -15,9 +15,10 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 | `offline-cache.ts` | Encrypted `userData/calendar-cache.enc` — schema v1 `{version,observedAt,cachedAt,events}`; rejects legacy/unversioned; filters ended events |
 | `auth/google-client-id.ts` | `GOOGLE_OAUTH_CLIENT_ID` |
 | `auth/google-token-store.ts` | Encrypted `userData/calendar-auth/google.enc`; **preserve ciphertext** on load failures |
+| `auth/google-sync-tokens.ts` | Encrypted `userData/calendar-auth/google-sync.enc` — schema v1 `{version,tokens}` map of calendarId → opaque `nextSyncToken` (no event bodies) |
 | `auth/google-oauth.ts` | PKCE loopback; `refreshGoogleAccessToken("if-needed"\|"force")`; clear only on definitive invalidation |
 | `providers/darwin-eventkit.ts` | Swift EventKit + AppleScript (static `swift/*` OK here only); partial when parse diagnostics |
-| `providers/google-calendar.ts` | Google API; live complete/partial; cache write **complete only**; offline ok on network fail |
+| `providers/google-calendar.ts` | Google API; live complete/partial; **incremental sync** + process-local index; cache write **complete only**; offline ok on network fail |
 | `providers/fixture-calendar.ts` | Dev JSON fixture (live complete) |
 | `providers/stub-unsupported.ts` | Placeholder (factory no longer selects it for normal Windows) |
 
@@ -62,6 +63,17 @@ Use domain helpers: `calendarLiveOk`, `calendarOfflineOk`, `calendarErr`.
 | Load | Reject unversioned/legacy/unknown version / non-finite / >5 min future timestamps |
 | Filter | Drop `endDate <= now` on load; empty list remains valid offline hit |
 | Use | Display + explicit join; never drives automation |
+
+## Incremental sync (Google only — ADR 0002)
+
+| Rule | Detail |
+| --- | --- |
+| Tokens | Opaque `nextSyncToken` per calendar in `google-sync.enc` (encrypted when `safeStorage` available) |
+| Index | Process-local `workingEventsByCalendar` — **not** a durable event DB; cold process always full-window fetches |
+| Happy path | After successful full window list, persist token when present; later polls may `events.list?syncToken=` and merge upserts/deletes |
+| 410 Gone | Clear that calendar's token + index entry, then full-window fetch |
+| Disconnect | `clearAllGoogleSyncTokens` + clear process index |
+| Unchanged | Offline cache still **live complete only**; automation eligibility still live complete only; no push/webhooks |
 
 ## DOMAIN HELPERS (not in this folder)
 

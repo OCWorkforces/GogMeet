@@ -33,7 +33,7 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 
 - **Must not** import `swift/*` or `calendar/auth/*`. Use CalendarPort methods (`getAccountLabel`, `reviveWatch`, …).
 - Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
-- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http).
+- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http + incremental sync tokens). Auth modules stay provider-only.
 - Watch is poll-only when provider omits `startWatch` (Google/fixture).
 - `settings.ts` uses `domain/entities/type-guards` (`isObjectRecord`), never `swift/guards`.
 - Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.
@@ -41,4 +41,4 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 - Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.
 - `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change.
 - `poll.ts` must call `recordCalendarResult()` after every fetch so the tray menu can show permission/runtime rows.
-- Schema **v3** fields include timing/automation (`autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours) plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` range is **0–10**.
+- Schema **v3** fields include timing/automation (`autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours enable + start/end) plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` range is **0–10**. Full UI lives in `renderer/settings` (not this facade).

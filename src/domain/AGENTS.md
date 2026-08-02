@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-**Pure** domain layer. Zero Electron, `node:fs`, network, or Swift process dependencies. Enforced by `eslint-plugin-boundaries` and Vitest project `domain` (high coverage floors).
+**Pure** domain layer. Zero Electron, `node:fs`, network, or Swift process dependencies. Enforced by `eslint-plugin-boundaries` and Vitest project `domain` (coverage floors 90/90/90/80).
 
 ## STRUCTURE
 
@@ -99,6 +99,6 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | --- | --- |
 | `schemaVersion` | `3` (`SETTINGS_SCHEMA_VERSION`) |
 | `showCompletedTodayMeetings` | default `false`; display-only history in tray + popover |
-| Timing / automation fields | `openBeforeMinutes` 0–10, `autoOpenEnabled`, `alertLeadSeconds`, quiet hours, etc. |
+| Timing / automation fields | `openBeforeMinutes` 0–10, `autoOpenEnabled`, `alertLeadSeconds`, `lateJoinGraceMinutes`, quiet hours enable + start/end (`HH:mm`), etc. Full UI: `renderer/settings` |
 
 Pre-v3 files migrate/rewrite on load with `showCompletedTodayMeetings: false`. Incomplete/malformed booleans fall back to defaults.

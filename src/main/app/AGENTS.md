@@ -28,8 +28,8 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 - All subsequent calendar/settings/scheduler/watcher/tray/shortcuts use `graph.*` surfaces.
 - Calendar permission: status always checked; `requestPermission` only when `shouldAutoRequestPermission()` (Darwin).
 - Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
-- Display-horizon ticks (from `system/display-horizon.ts`) are wired here to `scheduler.republishUiForDisplayTick` + tray force rebuild — display-only, never auto-open.
+- Display-horizon ticks (from `system/display-horizon.ts`) are wired here to free-function `republishUiForDisplayTick()` from `scheduler/facade.js` + `forceTrayMenuRefresh()` — display-only, never auto-open. (Not on `AppGraph.scheduler`.)
 - Fatal init → `dialog.showErrorBox` + quit; non-fatal errors aggregated.
-- `shutdownApp` prefers graph stop; falls back to free-function `stopScheduler` / `stopCalendarWatcher` if no graph (tests / early quit).
+- `shutdownApp` force-destroys hide-cached alert/settings/about windows, then graph stop (or free-function scheduler/watcher fallback if no graph).
 - Both files are for `index.ts` only (plus tests).
 - `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged` or portable.

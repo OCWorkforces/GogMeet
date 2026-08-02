@@ -6,6 +6,11 @@ import {
   DEFAULT_SETTINGS,
   OPEN_BEFORE_MINUTES_MIN,
   OPEN_BEFORE_MINUTES_MAX,
+  ALERT_LEAD_SECONDS_MIN,
+  ALERT_LEAD_SECONDS_MAX,
+  LATE_JOIN_GRACE_MINUTES_MIN,
+  LATE_JOIN_GRACE_MINUTES_MAX,
+  isHHmm,
 } from "../../domain/entities/settings.js";
 import { queryRequiredElement } from "../utils/dom.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
@@ -13,8 +18,19 @@ import { escapeHtml } from "../../shared/utils/escape-html.js";
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let calendarUi: CalendarUiState = defaultCalendarUiState();
 let isSaving = false;
+/** Coalesce concurrent saves: merge latest partial; waiters resolve when applied. */
+let pendingSave: {
+  partial: Partial<AppSettings>;
+  indicatorId: string;
+  waiters: Array<{
+    resolve: () => void;
+    reject: (err: unknown) => void;
+  }>;
+} | null = null;
 let isCalendarBusy = false;
 let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+const ALERT_LEAD_OPTIONS = [0, 15, 30, 60, 120, 180, 300] as const;
 
 function calendarAccountSectionHtml(): string {
   const connected = calendarUi.permission === "granted";
@@ -27,201 +43,345 @@ function calendarAccountSectionHtml(): string {
   const actionLabel = connected
     ? "Disconnect"
     : calendarUi.permission === "denied"
-      ? "Reconnect Google Calendar"
-      : "Connect Google Calendar";
+      ? "Reconnect"
+      : "Connect";
   const actionId = connected ? "calendar-disconnect-btn" : "calendar-connect-btn";
   const disabled = isCalendarBusy || (!connected && !calendarUi.oauthConfigured) ? " disabled" : "";
+  const btnClass = connected ? "setting-button setting-button--destructive" : "setting-button";
+  const dotClass = connected ? "account-status-dot account-status-dot--on" : "account-status-dot";
+  const busyAttrs = isCalendarBusy ? ' aria-busy="true"' : "";
 
   return `
-      <div class="settings-section-heading">Google Calendar</div>
-      <div class="setting-row">
-        <div class="setting-row-inner">
-          <label class="setting-label">📅 Account</label>
-          <span class="setting-description">${statusLine}</span>
+      <section class="settings-section" aria-labelledby="section-calendar"${busyAttrs}>
+        <h2 class="settings-section-heading" id="section-calendar">Calendar</h2>
+        <div class="settings-group" id="calendar-account-group">
+          <div class="setting-row">
+            <div class="setting-row-inner">
+              <span class="setting-label" id="account-label">Account</span>
+              <span class="account-status" id="account-status-text">
+                <span class="${dotClass}" aria-hidden="true"></span>
+                <span class="setting-description">${statusLine}</span>
+              </span>
+            </div>
+            <div class="setting-control">
+              <button type="button" class="${btnClass}" id="${actionId}"${disabled}
+                aria-describedby="account-status-text">
+                ${isCalendarBusy ? "Working…" : actionLabel}
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="setting-control">
-          <button type="button" class="setting-button" id="${actionId}"${disabled}>
-            ${isCalendarBusy ? "Working…" : actionLabel}
-          </button>
-        </div>
-      </div>
-      ${
-        calendarUi.lastError
-          ? `<p class="settings-error">${escapeHtml(calendarUi.lastError)}</p>`
-          : ""
-      }
+        ${
+          calendarUi.lastError
+            ? `<p class="settings-error" role="alert">${escapeHtml(calendarUi.lastError)}</p>`
+            : ""
+        }
+        <p class="settings-section-footer">On Windows, connect a Google account to list meetings. On macOS, EventKit uses system calendars.</p>
+      </section>
   `;
+}
+
+/** Native checkbox + styled track (no hybrid role=switch on a label). */
+function toggleRowHtml(
+  id: string,
+  label: string,
+  description: string,
+  checked: boolean,
+  indicatorId: string,
+  options?: { disabled?: boolean; descriptionId?: string },
+): string {
+  const disabled = options?.disabled === true;
+  const descId = options?.descriptionId ?? `${id}-desc`;
+  const rowDisabledClass = disabled ? " setting-row--disabled" : "";
+  return `
+          <div class="setting-row setting-row--toggle${rowDisabledClass}">
+            <div class="setting-row-inner">
+              <label class="setting-label" for="${id}">${label}</label>
+              <span class="setting-description" id="${descId}">${description}</span>
+            </div>
+            <div class="setting-control">
+              <span class="save-indicator" id="${indicatorId}" aria-live="polite"></span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="${id}" class="toggle-input"${checked ? " checked" : ""}${
+                  disabled ? " disabled" : ""
+                }
+                  aria-describedby="${descId}" />
+                <span class="toggle-track" aria-hidden="true">
+                  <span class="toggle-thumb"></span>
+                </span>
+              </label>
+            </div>
+          </div>`;
+}
+
+function selectRowHtml(
+  id: string,
+  label: string,
+  description: string,
+  optionsHtml: string,
+  indicatorId: string,
+  options?: { disabled?: boolean; descriptionId?: string },
+): string {
+  const disabled = options?.disabled === true;
+  const descId = options?.descriptionId ?? `${id}-desc`;
+  const rowDisabledClass = disabled ? " setting-row--disabled" : "";
+  return `
+          <div class="setting-row${rowDisabledClass}">
+            <div class="setting-row-inner">
+              <label class="setting-label" for="${id}">${label}</label>
+              <span class="setting-description" id="${descId}">${description}</span>
+            </div>
+            <div class="setting-control">
+              <span class="save-indicator" id="${indicatorId}" aria-live="polite"></span>
+              <select class="setting-select" id="${id}" aria-describedby="${descId}"${
+                disabled ? " disabled" : ""
+              }>
+                ${optionsHtml}
+              </select>
+            </div>
+          </div>`;
+}
+
+function timeRowHtml(
+  id: string,
+  label: string,
+  value: string,
+  indicatorId: string,
+  options?: { disabled?: boolean },
+): string {
+  const disabled = options?.disabled === true;
+  const rowDisabledClass = disabled ? " setting-row--disabled" : "";
+  const safeValue = isHHmm(value) ? value : "00:00";
+  return `
+          <div class="setting-row${rowDisabledClass}">
+            <div class="setting-row-inner">
+              <label class="setting-label" for="${id}">${label}</label>
+            </div>
+            <div class="setting-control">
+              <span class="save-indicator" id="${indicatorId}" aria-live="polite"></span>
+              <input type="time" class="setting-time" id="${id}" value="${safeValue}"${
+                disabled ? " disabled" : ""
+              } />
+            </div>
+          </div>`;
+}
+
+function openBeforeOptionsHtml(): string {
+  return Array.from({ length: OPEN_BEFORE_MINUTES_MAX - OPEN_BEFORE_MINUTES_MIN + 1 }, (_, i) => {
+    const val = OPEN_BEFORE_MINUTES_MIN + i;
+    const selected = val === settings.openBeforeMinutes ? " selected" : "";
+    const label = val === 0 ? "At start" : val === 1 ? "1 minute" : `${val} minutes`;
+    return `<option value="${val}"${selected}>${label}</option>`;
+  }).join("");
+}
+
+function alertLeadOptionsHtml(): string {
+  const current = settings.alertLeadSeconds;
+  const values = ALERT_LEAD_OPTIONS.includes(current as (typeof ALERT_LEAD_OPTIONS)[number])
+    ? [...ALERT_LEAD_OPTIONS]
+    : [...ALERT_LEAD_OPTIONS, current].sort((a, b) => a - b);
+
+  return values
+    .map((val) => {
+      const selected = val === current ? " selected" : "";
+      const label =
+        val === 0
+          ? "At open"
+          : val < 60
+            ? `${val} seconds`
+            : `${val / 60} minute${val === 60 ? "" : "s"}`;
+      return `<option value="${val}"${selected}>${label}</option>`;
+    })
+    .join("");
+}
+
+function lateJoinOptionsHtml(): string {
+  return Array.from(
+    { length: LATE_JOIN_GRACE_MINUTES_MAX - LATE_JOIN_GRACE_MINUTES_MIN + 1 },
+    (_, i) => {
+      const val = LATE_JOIN_GRACE_MINUTES_MIN + i;
+      const selected = val === settings.lateJoinGraceMinutes ? " selected" : "";
+      const label = val === 0 ? "Off" : val === 1 ? "1 minute" : `${val} minutes`;
+      return `<option value="${val}"${selected}>${label}</option>`;
+    },
+  ).join("");
 }
 
 function render(errorMessage?: string): void {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const options = Array.from(
-    { length: OPEN_BEFORE_MINUTES_MAX - OPEN_BEFORE_MINUTES_MIN + 1 },
-    (_, i) => {
-      const val = OPEN_BEFORE_MINUTES_MIN + i;
-      const selected = val === settings.openBeforeMinutes ? " selected" : "";
-      const label = val === 0 ? "At start" : val === 1 ? "1 minute" : `${val} minutes`;
-      return `<option value="${val}"${selected}>${label}</option>`;
-    },
-  ).join("");
+  const autoOpen = settings.autoOpenEnabled;
+  const windowAlert = settings.windowAlert;
+  const quietOn = settings.quietHoursEnabled;
 
   app.innerHTML = `
-    <div class="settings-titlebar">
-      <span class="settings-title">Settings</span>
-    </div>
-    <div class="settings-hero">
-      <div class="settings-hero-icon">🎥</div>
-      <div class="settings-hero-text">
-        <div class="settings-hero-name">GogMeet</div>
-        <div class="settings-hero-desc">Calendar meeting reminders</div>
-      </div>
-    </div>
-    <div class="settings-content">
+    <header class="settings-titlebar">
+      <h1 class="settings-title">Settings</h1>
+    </header>
+    <main class="settings-content" id="settings-main">
       ${calendarAccountSectionHtml()}
-      <div class="settings-section-heading">Meeting Preferences</div>
-      <div class="setting-row">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="open-before-select">
-            ⏰ Open browser before meeting
-          </label>
-          <span class="setting-description">Automatically open meeting links before they start</span>
+
+      <section class="settings-section" aria-labelledby="section-joining">
+        <h2 class="settings-section-heading" id="section-joining">Joining Meetings</h2>
+        <div class="settings-group">
+          ${toggleRowHtml(
+            "auto-open-toggle",
+            "Auto-Open Browser",
+            "Open meeting links automatically before they start",
+            settings.autoOpenEnabled,
+            "auto-open-save-indicator",
+          )}
+          ${selectRowHtml(
+            "open-before-select",
+            "Open browser before meeting",
+            autoOpen ? "How early to open the join link" : "Used when Auto-Open is on",
+            openBeforeOptionsHtml(),
+            "save-indicator",
+            { disabled: !autoOpen },
+          )}
+          ${toggleRowHtml(
+            "window-alert-toggle",
+            "Meeting Alert",
+            autoOpen
+              ? "Show a full-screen alert before auto-open"
+              : "Requires Auto-Open to be enabled",
+            settings.windowAlert,
+            "alert-save-indicator",
+            { disabled: !autoOpen },
+          )}
+          ${selectRowHtml(
+            "alert-lead-select",
+            "Alert lead time",
+            windowAlert && autoOpen
+              ? "How long before open to show the alert"
+              : "Used when Meeting Alert is on",
+            alertLeadOptionsHtml(),
+            "alert-lead-save-indicator",
+            { disabled: !autoOpen || !windowAlert },
+          )}
+          ${toggleRowHtml(
+            "native-notif-toggle",
+            "Notifications",
+            autoOpen
+              ? "Show a system notification when a meeting auto-opens"
+              : "Requires Auto-Open to be enabled",
+            settings.nativeNotifications,
+            "native-notif-save-indicator",
+            { disabled: !autoOpen },
+          )}
+          ${selectRowHtml(
+            "late-join-select",
+            "Late join grace",
+            autoOpen
+              ? "Still auto-open shortly after a meeting has started"
+              : "Requires Auto-Open to be enabled",
+            lateJoinOptionsHtml(),
+            "late-join-save-indicator",
+            { disabled: !autoOpen },
+          )}
+          ${toggleRowHtml(
+            "quiet-hours-toggle",
+            "Quiet Hours",
+            "Hide alerts and notifications; auto-open continues",
+            settings.quietHoursEnabled,
+            "quiet-hours-save-indicator",
+          )}
+          ${timeRowHtml(
+            "quiet-hours-start",
+            "Quiet hours start",
+            settings.quietHoursStart,
+            "quiet-start-save-indicator",
+            {
+              disabled: !quietOn,
+            },
+          )}
+          ${timeRowHtml(
+            "quiet-hours-end",
+            "Quiet hours end",
+            settings.quietHoursEnd,
+            "quiet-end-save-indicator",
+            {
+              disabled: !quietOn,
+            },
+          )}
         </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="save-indicator" aria-live="polite"></span>
-          <select class="setting-select" id="open-before-select">
-            ${options}
-          </select>
+        ${
+          errorMessage
+            ? `<p class="settings-error" role="alert">${escapeHtml(errorMessage)}</p>`
+            : ""
+        }
+      </section>
+
+      <section class="settings-section" aria-labelledby="section-display">
+        <h2 class="settings-section-heading" id="section-display">Tray Menu</h2>
+        <div class="settings-group">
+          ${toggleRowHtml(
+            "show-tomorrow-toggle",
+            "Tomorrow's Meetings",
+            "Include tomorrow's meetings in the tray menu",
+            settings.showTomorrowMeetings,
+            "tomorrow-save-indicator",
+          )}
+          ${toggleRowHtml(
+            "show-completed-meetings-toggle",
+            "Completed Meetings",
+            "Show today's finished meetings as muted history",
+            settings.showCompletedTodayMeetings,
+            "completed-save-indicator",
+          )}
         </div>
-      </div>
-      ${errorMessage ? `<p class="settings-error">${errorMessage}</p>` : ""}
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="launch-at-login-toggle">
-            🚀 Launch at Login
-          </label>
-          <span class="setting-description">Automatically start GogMeet when you log in</span>
+      </section>
+
+      <section class="settings-section" aria-labelledby="section-general">
+        <h2 class="settings-section-heading" id="section-general">General</h2>
+        <div class="settings-group">
+          ${toggleRowHtml(
+            "launch-at-login-toggle",
+            "Open at Login",
+            "Start GogMeet when you log in to this computer",
+            settings.launchAtLogin,
+            "launch-save-indicator",
+          )}
         </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="launch-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.launchAtLogin ? "true" : "false"}">
-            <input type="checkbox" id="launch-at-login-toggle" class="toggle-input"${settings.launchAtLogin ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="show-tomorrow-toggle">
-            📅 Show Tomorrow's Meetings
-          </label>
-          <span class="setting-description">Display tomorrow's meetings in the tray menu</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="tomorrow-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.showTomorrowMeetings ? "true" : "false"}">
-            <input type="checkbox" id="show-tomorrow-toggle" class="toggle-input"${settings.showTomorrowMeetings ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="show-completed-meetings-toggle">
-            ✅ Show completed meetings
-          </label>
-          <span class="setting-description">Show today's finished meetings as muted history in the tray menu</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="completed-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.showCompletedTodayMeetings ? "true" : "false"}">
-            <input type="checkbox" id="show-completed-meetings-toggle" class="toggle-input"${settings.showCompletedTodayMeetings ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="window-alert-toggle">
-            🔔 Show Window Alert
-          </label>
-          <span class="setting-description">Show a full-screen alert before auto-open (lead time below)</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="alert-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.windowAlert ? "true" : "false"}">
-            <input type="checkbox" id="window-alert-toggle" class="toggle-input"${settings.windowAlert ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="auto-open-toggle">
-            🌐 Auto-Open Browser
-          </label>
-          <span class="setting-description">Automatically open meeting links before they start</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="auto-open-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.autoOpenEnabled ? "true" : "false"}">
-            <input type="checkbox" id="auto-open-toggle" class="toggle-input"${settings.autoOpenEnabled ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="native-notif-toggle">
-            📣 OS Notifications
-          </label>
-          <span class="setting-description">Show a system notification when a meeting auto-opens</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="native-notif-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.nativeNotifications ? "true" : "false"}">
-            <input type="checkbox" id="native-notif-toggle" class="toggle-input"${settings.nativeNotifications ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-      <div class="setting-row setting-row--toggle">
-        <div class="setting-row-inner">
-          <label class="setting-label" for="quiet-hours-toggle">
-            🌙 Quiet Hours
-          </label>
-          <span class="setting-description">Hide alerts and notifications during quiet hours (auto-open continues)</span>
-        </div>
-        <div class="setting-control">
-          <span class="save-indicator" id="quiet-hours-save-indicator" aria-live="polite"></span>
-          <label class="toggle-switch" role="switch" aria-checked="${settings.quietHoursEnabled ? "true" : "false"}">
-            <input type="checkbox" id="quiet-hours-toggle" class="toggle-input"${settings.quietHoursEnabled ? " checked" : ""} />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </label>
-        </div>
-      </div>
-    </div>
-    <div class="settings-footer">
-      <span class="settings-footer-text">GogMeet &middot; &copy; ${new Date().getFullYear()}</span>
-    </div>
+      </section>
+    </main>
+    <footer class="settings-footer">
+      <span class="settings-footer-text">GogMeet · ${new Date().getFullYear()}</span>
+    </footer>
   `;
 
-  setupSelectListener();
+  wireControls();
+}
+
+function wireControls(): void {
+  setupNumberSelectListener(
+    "open-before-select",
+    OPEN_BEFORE_MINUTES_MIN,
+    OPEN_BEFORE_MINUTES_MAX,
+    (v) => ({ openBeforeMinutes: v }),
+    "save-indicator",
+    true,
+  );
+  setupNumberSelectListener(
+    "alert-lead-select",
+    ALERT_LEAD_SECONDS_MIN,
+    ALERT_LEAD_SECONDS_MAX,
+    (v) => ({ alertLeadSeconds: v }),
+    "alert-lead-save-indicator",
+    true,
+  );
+  setupNumberSelectListener(
+    "late-join-select",
+    LATE_JOIN_GRACE_MINUTES_MIN,
+    LATE_JOIN_GRACE_MINUTES_MAX,
+    (v) => ({ lateJoinGraceMinutes: v }),
+    "late-join-save-indicator",
+    true,
+  );
+  setupTimeListener("quiet-hours-start", "quietHoursStart", "quiet-start-save-indicator");
+  setupTimeListener("quiet-hours-end", "quietHoursEnd", "quiet-end-save-indicator");
+
   setupToggleListener("launch-at-login-toggle", "launchAtLogin", "launch-save-indicator");
   setupToggleListener("show-tomorrow-toggle", "showTomorrowMeetings", "tomorrow-save-indicator");
   setupToggleListener(
@@ -229,10 +389,15 @@ function render(errorMessage?: string): void {
     "showCompletedTodayMeetings",
     "completed-save-indicator",
   );
-  setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator");
-  setupToggleListener("auto-open-toggle", "autoOpenEnabled", "auto-open-save-indicator");
+  setupToggleListener("window-alert-toggle", "windowAlert", "alert-save-indicator", true);
+  setupToggleListener("auto-open-toggle", "autoOpenEnabled", "auto-open-save-indicator", true);
   setupToggleListener("native-notif-toggle", "nativeNotifications", "native-notif-save-indicator");
-  setupToggleListener("quiet-hours-toggle", "quietHoursEnabled", "quiet-hours-save-indicator");
+  setupToggleListener(
+    "quiet-hours-toggle",
+    "quietHoursEnabled",
+    "quiet-hours-save-indicator",
+    true,
+  );
   setupCalendarAccountListeners();
 }
 
@@ -253,6 +418,8 @@ function setupCalendarAccountListeners(): void {
       } finally {
         isCalendarBusy = false;
         render();
+        document.getElementById("calendar-connect-btn")?.focus();
+        document.getElementById("calendar-disconnect-btn")?.focus();
       }
     })();
   });
@@ -270,6 +437,7 @@ function setupCalendarAccountListeners(): void {
       } finally {
         isCalendarBusy = false;
         render();
+        document.getElementById("calendar-connect-btn")?.focus();
       }
     })();
   });
@@ -279,17 +447,22 @@ function showSaveIndicator(id: string, text: string): void {
   const indicator = document.getElementById(id);
   if (!indicator) return;
 
-  // Clear existing timer for this specific indicator
   const existingTimer = saveIndicatorTimers.get(id);
   if (existingTimer) {
     clearTimeout(existingTimer);
   }
 
+  // Clear then set so polite live regions re-announce identical text.
+  indicator.textContent = "";
+  indicator.classList.remove("visible");
+  // Force a reflow so the subsequent text change is observed.
+  void indicator.offsetWidth;
   indicator.textContent = text;
   indicator.classList.add("visible");
 
   const timer = setTimeout(() => {
     indicator.classList.remove("visible");
+    indicator.textContent = "";
     saveIndicatorTimers.delete(id);
   }, 1500);
   saveIndicatorTimers.set(id, timer);
@@ -302,16 +475,41 @@ function clearSaveIndicatorTimers(): void {
   saveIndicatorTimers.clear();
 }
 
-function setupSelectListener(): void {
-  const select = queryRequiredElement("open-before-select", HTMLSelectElement);
+function setupNumberSelectListener(
+  selectId: string,
+  min: number,
+  max: number,
+  toPartial: (value: number) => Partial<AppSettings>,
+  indicatorId: string,
+  needsRerender: boolean,
+): void {
+  const select = queryRequiredElement(selectId, HTMLSelectElement);
   if (!select) return;
 
   select.addEventListener("change", () => {
     const value = parseInt(select.value, 10);
-    if (isNaN(value) || value < OPEN_BEFORE_MINUTES_MIN || value > OPEN_BEFORE_MINUTES_MAX) {
+    if (isNaN(value) || value < min || value > max) {
       return;
     }
-    void saveSettings({ openBeforeMinutes: value }, "save-indicator");
+    void saveSettings(toPartial(value), indicatorId, needsRerender);
+  });
+}
+
+function setupTimeListener(
+  inputId: string,
+  key: "quietHoursStart" | "quietHoursEnd",
+  indicatorId: string,
+): void {
+  const input = queryRequiredElement(inputId, HTMLInputElement);
+  if (!input) return;
+
+  input.addEventListener("change", () => {
+    const value = input.value;
+    if (!isHHmm(value)) {
+      input.value = settings[key];
+      return;
+    }
+    void saveSettings({ [key]: value }, indicatorId, false);
   });
 }
 
@@ -323,6 +521,7 @@ function setupToggleListener(
   toggleId: string,
   settingKey: ToggleSettingKey,
   indicatorId: string,
+  needsRerender = false,
 ): void {
   const toggle = queryRequiredElement(toggleId, HTMLInputElement);
   if (!toggle) return;
@@ -330,7 +529,7 @@ function setupToggleListener(
   toggle.addEventListener("change", () => {
     const previous = settings[settingKey];
     const next = toggle.checked;
-    void saveToggleSetting(toggle, settingKey, next, previous, indicatorId);
+    void saveToggleSetting(toggle, settingKey, next, previous, indicatorId, needsRerender);
   });
 }
 
@@ -340,13 +539,10 @@ async function saveToggleSetting(
   next: boolean,
   previous: boolean,
   indicatorId: string,
+  needsRerender: boolean,
 ): Promise<void> {
-  try {
-    await saveSettings(buildTogglePatch(settingKey, next), indicatorId);
-    if (settings[settingKey] !== next) {
-      revertToggle(toggle, previous);
-    }
-  } catch {
+  const ok = await saveSettings(buildTogglePatch(settingKey, next), indicatorId, needsRerender);
+  if (!ok || settings[settingKey] !== next) {
     revertToggle(toggle, previous);
   }
 }
@@ -372,38 +568,147 @@ function buildTogglePatch(key: ToggleSettingKey, value: boolean): Partial<AppSet
 
 function revertToggle(toggle: HTMLInputElement, previous: boolean): void {
   toggle.checked = previous;
-  const wrapper = toggle.closest(".toggle-switch");
-  if (wrapper) {
-    wrapper.setAttribute("aria-checked", previous ? "true" : "false");
-  }
+}
+
+function needsStructureRerender(partial: Partial<AppSettings>): boolean {
+  return (
+    partial.openBeforeMinutes !== undefined ||
+    partial.autoOpenEnabled !== undefined ||
+    partial.windowAlert !== undefined ||
+    partial.quietHoursEnabled !== undefined ||
+    partial.alertLeadSeconds !== undefined ||
+    partial.lateJoinGraceMinutes !== undefined ||
+    partial.quietHoursStart !== undefined ||
+    partial.quietHoursEnd !== undefined
+  );
 }
 
 async function saveSettings(
   partial: Partial<AppSettings>,
   indicatorId: string = "save-indicator",
-): Promise<void> {
-  if (isSaving) return;
+  forceRerender = false,
+): Promise<boolean> {
+  if (isSaving) {
+    return new Promise<boolean>((resolve) => {
+      if (pendingSave) {
+        pendingSave.partial = { ...pendingSave.partial, ...partial };
+        pendingSave.indicatorId = indicatorId;
+        pendingSave.waiters.push({
+          resolve: () => {
+            resolve(true);
+          },
+          reject: () => {
+            resolve(false);
+          },
+        });
+      } else {
+        pendingSave = {
+          partial: { ...partial },
+          indicatorId,
+          waiters: [
+            {
+              resolve: () => {
+                resolve(true);
+              },
+              reject: () => {
+                resolve(false);
+              },
+            },
+          ],
+        };
+      }
+    });
+  }
+
   isSaving = true;
+  const form = document.getElementById("settings-main");
+  form?.setAttribute("aria-busy", "true");
+
+  let toSave = partial;
+  let indicator = indicatorId;
+  let rerender = forceRerender;
+  let waiters: Array<{ resolve: () => void; reject: (err: unknown) => void }> = [];
+  let ok = true;
 
   try {
-    const updated = await window.api.settings.set(partial);
-    settings = updated;
+    for (;;) {
+      const updated = await window.api.settings.set(toSave);
+      settings = updated;
 
-    // Only re-render for dropdown changes — toggles already reflect visual state
-    // and a full re-render would cut short the CSS slide animation
-    if (partial.openBeforeMinutes !== undefined) {
-      clearSaveIndicatorTimers();
-      render();
+      if (rerender || needsStructureRerender(toSave)) {
+        clearSaveIndicatorTimers();
+        render();
+      }
+
+      showSaveIndicator(indicator, "Saved");
+      for (const w of waiters) w.resolve();
+      waiters = [];
+
+      if (!pendingSave) break;
+      toSave = pendingSave.partial;
+      indicator = pendingSave.indicatorId;
+      waiters = pendingSave.waiters;
+      pendingSave = null;
+      rerender = true;
     }
-
-    showSaveIndicator(indicatorId, "✓ Saved");
   } catch (err) {
+    ok = false;
+    for (const w of waiters) w.reject(err);
+    if (pendingSave) {
+      for (const w of pendingSave.waiters) w.reject(err);
+      pendingSave = null;
+    }
     const message = err instanceof Error ? err.message : "Failed to save settings";
     clearSaveIndicatorTimers();
     render(message);
   } finally {
     isSaving = false;
+    document.getElementById("settings-main")?.removeAttribute("aria-busy");
   }
+  return ok;
+}
+
+/**
+ * Soft-refresh from main without reloading the BrowserWindow.
+ * Used after hide-cache re-show and on SETTINGS_CHANGED from other surfaces.
+ */
+async function refreshFromMain(): Promise<void> {
+  if (isSaving || isCalendarBusy) return;
+  try {
+    const next = await window.api.settings.get();
+    if (next && typeof next === "object") {
+      settings = next;
+    }
+  } catch {
+    // keep last good settings
+  }
+  try {
+    const ui = await window.api.calendar.getUiState();
+    if (ui && typeof ui === "object") {
+      calendarUi = ui;
+    }
+  } catch {
+    // keep last good calendar UI
+  }
+  clearSaveIndicatorTimers();
+  render();
+}
+
+function wireLifetimeListeners(): void {
+  // Re-sync when the hide-cached window becomes visible again.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void refreshFromMain();
+    }
+  });
+
+  // External prefs updates (and fan-out from SETTINGS_SET while this window is open).
+  window.api.settings.onChanged((next) => {
+    if (isSaving) return;
+    settings = next;
+    clearSaveIndicatorTimers();
+    render();
+  });
 }
 
 async function init(): Promise<void> {
@@ -418,6 +723,7 @@ async function init(): Promise<void> {
     calendarUi = defaultCalendarUiState();
   }
   render();
+  wireLifetimeListeners();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

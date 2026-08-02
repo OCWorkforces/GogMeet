@@ -14,4 +14,5 @@ OS process-platform helpers. Do **not** confuse with `domain/services/platform.t
 
 - Prefer these helpers over raw `process.platform === "…"` (testable via module mock).
 - Leaf package: no calendar or Electron window logic here.
-- Factory/tray/chrome/notifications branch on these helpers for dual-platform behavior.
+- Factory/tray/chrome/notifications/auto-updater branch on these helpers for dual-platform behavior.
+- Tests: `tests/main/platform-os.test.ts`.
