@@ -41,6 +41,7 @@ vi.mock("electron", () => ({
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       executeJavaScript: vi.fn().mockResolvedValue(undefined),
+      isDestroyed: vi.fn().mockReturnValue(false),
     };
     this.once = vi.fn((_event: string, cb: () => void) => {
       cb();
@@ -70,6 +71,7 @@ vi.mock("../../src/main/utils/window-chrome.js", () => ({
   platformWindowChrome: vi.fn().mockReturnValue({
     titleBarStyle: "hiddenInset",
   }),
+  bindWindowsThemeBackground: vi.fn().mockReturnValue(() => undefined),
 }));
 
 describe("about-window", () => {
@@ -103,6 +105,30 @@ describe("about-window", () => {
     expect(BrowserWindow).toHaveBeenCalledTimes(1);
   });
 
+  it("uses a traffic-light-safe About size without alwaysOnTop", async () => {
+    const { showAbout } = await getModule();
+    const { BrowserWindow } = await getElectron();
+    showAbout({} as never);
+    const options = vi.mocked(BrowserWindow).mock.calls[0]?.[0] as {
+      width?: number;
+      height?: number;
+      alwaysOnTop?: boolean;
+      resizable?: boolean;
+    };
+    expect(options.width).toBe(320);
+    expect(options.height).toBe(420);
+    expect(options.resizable).toBe(false);
+    expect(options.alwaysOnTop).toBe(false);
+  });
+
+  it("exports isSafeAboutRepositoryUrl for https-only repos", async () => {
+    const { isSafeAboutRepositoryUrl } = await getModule();
+    expect(isSafeAboutRepositoryUrl("https://github.com/OCWorkforces/GogMeet")).toBe(true);
+    expect(isSafeAboutRepositoryUrl("http://github.com/OCWorkforces/GogMeet")).toBe(false);
+    expect(isSafeAboutRepositoryUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeAboutRepositoryUrl("not a url")).toBe(false);
+  });
+
   it("focuses existing window instead of creating another", async () => {
     const { showAbout } = await getModule();
     const { BrowserWindow } = await getElectron();
@@ -124,6 +150,15 @@ describe("about-window", () => {
     expect(html).toContain('id="about-close"');
     expect(html).not.toContain("onclick=");
     expect(html).not.toContain("window.close()");
+    expect(html).toContain("Content-Security-Policy");
+    expect(html).toContain("Version 1.16.3");
+    expect(html).toContain("GogMeet");
+    expect(html).toContain("Calendar meeting reminders");
+    expect(html).toContain("Copyright");
+    expect(html).toContain("OCWorkforces Engineers");
+    const repo = "https://github.com/OCWorkforces/GogMeet";
+    expect(html.match(new RegExp(`href="${repo}"`, "g"))?.length).toBe(1);
+    expect(html).toContain('class="repo-link"');
   });
 
   it("wires Close via executeJavaScript after load using a sentinel URL", async () => {
@@ -203,5 +238,36 @@ describe("about-window", () => {
     const result = handler?.({ url: "https://github.com/OCWorkforces/GogMeet" });
     expect(result).toEqual({ action: "deny" });
     expect(shell.openExternal).toHaveBeenCalledWith("https://github.com/OCWorkforces/GogMeet");
+  });
+
+  it("denies non-repository openExternal targets", async () => {
+    const { showAbout } = await getModule();
+    const { shell } = await getElectron();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0] as
+      | ((details: { url: string }) => { action: string })
+      | undefined;
+    expect(handler?.({ url: "https://evil.example" })).toEqual({ action: "deny" });
+    expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("closes on will-frame-navigate sentinel", async () => {
+    const { showAbout } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+
+    const handlers = getWebContentsHandlers(win);
+    const willFrame = handlers.get("will-frame-navigate");
+    expect(willFrame).toBeTypeOf("function");
+    const event = { preventDefault: vi.fn(), url: "https://gogmeet.local/__about_close__" };
+    willFrame?.(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(win.close).toHaveBeenCalled();
   });
 });

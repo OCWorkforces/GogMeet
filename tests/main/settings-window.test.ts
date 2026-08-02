@@ -68,7 +68,7 @@ describe("settings-window", () => {
 
       const options = vi.mocked(BrowserWindow).mock.calls[0][0];
       expect(options.width).toBe(520);
-      expect(options.height).toBe(680);
+      expect(options.height).toBe(760);
       expect(options.resizable).toBe(false);
       expect(options.show).toBe(false);
     });
@@ -94,10 +94,11 @@ describe("settings-window", () => {
       // opaque backgroundColor only on Windows.
       if (process.platform === "darwin") {
         expect(options.titleBarStyle).toBe("hiddenInset");
-        expect(options.vibrancy).toBe("under-window");
+        expect(options.backgroundColor).toBe("#0d1117");
+        expect(options.vibrancy).toBeUndefined();
       } else {
         expect(options.titleBarStyle).toBeUndefined();
-        expect(options.backgroundColor).toBe("#1c1c1e");
+        expect(options.backgroundColor).toBe("#0d1117");
       }
     });
 

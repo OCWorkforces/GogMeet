@@ -39,21 +39,28 @@ describe("platformWindowChrome", () => {
     });
   });
 
-  it("omits vibrancy for settings on Windows", async () => {
+  it("uses solid #0d1117 for settings/about on Windows", async () => {
     platformState.darwin = false;
-    const { platformWindowChrome } = await import("../../src/main/utils/window-chrome.js");
+    const { platformWindowChrome, DIALOG_BACKGROUND_COLOR } = await import(
+      "../../src/main/utils/window-chrome.js"
+    );
+    expect(DIALOG_BACKGROUND_COLOR).toBe("#0d1117");
     expect(platformWindowChrome("settings")).toEqual({
-      backgroundColor: "#1c1c1e",
+      backgroundColor: "#0d1117",
+    });
+    expect(platformWindowChrome("about")).toEqual({
+      backgroundColor: "#0d1117",
     });
   });
 
-  it("includes under-window vibrancy for settings on Darwin", async () => {
+  it("matches settings chrome for about on Darwin with solid dialog fill", async () => {
     platformState.darwin = true;
     const { platformWindowChrome } = await import("../../src/main/utils/window-chrome.js");
-    expect(platformWindowChrome("settings")).toMatchObject({
-      vibrancy: "under-window",
+    expect(platformWindowChrome("settings")).toEqual({
       titleBarStyle: "hiddenInset",
+      backgroundColor: "#0d1117",
     });
+    expect(platformWindowChrome("about")).toEqual(platformWindowChrome("settings"));
   });
 });
 

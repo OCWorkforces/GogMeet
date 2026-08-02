@@ -116,9 +116,20 @@ describe("settings/index.ts", () => {
   it("connect and disconnect calendar buttons update UI state", async () => {
     vi.resetModules();
     document.body.innerHTML = '<div id="app"></div>';
-    const getUiState = vi
-      .fn()
-      .mockResolvedValueOnce({
+    let phase: "disconnected" | "connected" = "disconnected";
+    const getUiState = vi.fn().mockImplementation(async () => {
+      if (phase === "connected") {
+        return {
+          permission: "granted",
+          phase: "ready",
+          lastError: null,
+          accountEmail: "u@example.com",
+          events: [],
+          offline: false,
+          oauthConfigured: true,
+        };
+      }
+      return {
         permission: "not-determined",
         phase: "disconnected",
         lastError: null,
@@ -126,27 +137,15 @@ describe("settings/index.ts", () => {
         events: null,
         offline: false,
         oauthConfigured: true,
-      })
-      .mockResolvedValueOnce({
-        permission: "granted",
-        phase: "ready",
-        lastError: null,
-        accountEmail: "u@example.com",
-        events: [],
-        offline: false,
-        oauthConfigured: true,
-      })
-      .mockResolvedValue({
-        permission: "not-determined",
-        phase: "disconnected",
-        lastError: null,
-        accountEmail: null,
-        events: null,
-        offline: false,
-        oauthConfigured: true,
-      });
-    const requestPermission = vi.fn().mockResolvedValue("granted");
-    const disconnect = vi.fn().mockResolvedValue(undefined);
+      };
+    });
+    const requestPermission = vi.fn().mockImplementation(async () => {
+      phase = "connected";
+      return "granted";
+    });
+    const disconnect = vi.fn().mockImplementation(async () => {
+      phase = "disconnected";
+    });
     vi.stubGlobal("api", {
       settings: {
         get: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS }),
@@ -168,7 +167,85 @@ describe("settings/index.ts", () => {
     });
     document.getElementById("calendar-connect-btn")!.click();
     await vi.waitFor(() => expect(requestPermission).toHaveBeenCalled());
-    await vi.waitFor(() => expect(getUiState).toHaveBeenCalled());
+    await vi.waitFor(() => expect(document.getElementById("calendar-disconnect-btn")).toBeTruthy());
+    expect(document.getElementById("calendar-disconnect-btn")?.textContent).toMatch(/Disconnect/);
+    document.getElementById("calendar-disconnect-btn")!.click();
+    await vi.waitFor(() => expect(disconnect).toHaveBeenCalled());
+    await vi.waitFor(() => expect(document.getElementById("calendar-connect-btn")).toBeTruthy());
+  });
+
+  it("renders timing controls and section structure", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings);
+    expect(document.getElementById("section-calendar")?.textContent).toBe("Calendar");
+    expect(document.getElementById("section-joining")?.textContent).toBe("Joining Meetings");
+    expect(document.getElementById("section-display")?.textContent).toBe("Tray Menu");
+    expect(document.getElementById("section-general")?.textContent).toBe("General");
+    expect(document.getElementById("alert-lead-select")).toBeInstanceOf(HTMLSelectElement);
+    expect(document.getElementById("late-join-select")).toBeInstanceOf(HTMLSelectElement);
+    expect(document.getElementById("quiet-hours-start")).toBeInstanceOf(HTMLInputElement);
+    expect(document.getElementById("quiet-hours-end")).toBeInstanceOf(HTMLInputElement);
+    const openBefore = getOpenBeforeSelect();
+    expect([...openBefore.options].map((o) => o.value)).toEqual(
+      Array.from({ length: 11 }, (_, i) => String(i)),
+    );
+    expect(openBefore.options[0]?.textContent).toBe("At start");
+  });
+
+  it("saves alert lead and late join selects", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings);
+    const lead = document.getElementById("alert-lead-select");
+    expect(lead).toBeInstanceOf(HTMLSelectElement);
+    if (lead instanceof HTMLSelectElement) {
+      lead.value = "120";
+      lead.dispatchEvent(new Event("change"));
+    }
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledWith({ alertLeadSeconds: 120 }));
+  });
+
+  it("disables dependent joining controls when auto-open is off", async () => {
+    vi.resetModules();
+    document.body.innerHTML = '<div id="app"></div>';
+    vi.stubGlobal("api", {
+      settings: {
+        get: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS, autoOpenEnabled: false }),
+        set: vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+          ...DEFAULT_SETTINGS,
+          autoOpenEnabled: false,
+          ...p,
+        })),
+      },
+      calendar: {
+        getUiState: vi.fn().mockResolvedValue({
+          permission: "not-determined",
+          phase: "disconnected",
+          lastError: null,
+          accountEmail: null,
+          events: null,
+          offline: false,
+          oauthConfigured: true,
+        }),
+      },
+    });
+    await import("../../src/renderer/settings/index.js");
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    await vi.waitFor(() => {
+      expect(document.getElementById("open-before-select")).toBeInstanceOf(HTMLSelectElement);
+    });
+    expect((document.getElementById("open-before-select") as HTMLSelectElement).disabled).toBe(
+      true,
+    );
+    expect((document.getElementById("window-alert-toggle") as HTMLInputElement).disabled).toBe(
+      true,
+    );
+    expect((document.getElementById("alert-lead-select") as HTMLSelectElement).disabled).toBe(true);
   });
 
   it("reverts toggle when save throws", async () => {
@@ -208,8 +285,6 @@ describe("settings/index.ts", () => {
     expect(el).toBeInstanceOf(HTMLInputElement);
     if (!(el instanceof HTMLInputElement)) throw new Error("missing toggle");
     expect(el.checked).toBe(false);
-    const switchEl = el.closest(".toggle-switch");
-    expect(switchEl?.getAttribute("aria-checked")).toBe("false");
 
     el.checked = true;
     el.dispatchEvent(new Event("change"));
@@ -218,6 +293,8 @@ describe("settings/index.ts", () => {
     await vi.waitFor(() => {
       expect(document.getElementById("completed-save-indicator")?.textContent).toContain("Saved");
     });
+    // Native checkbox remains the source of truth (no hybrid role=switch).
+    expect(el.checked).toBe(true);
   });
 
   it("reverts completed-meetings toggle when save rejects", async () => {
@@ -230,7 +307,6 @@ describe("settings/index.ts", () => {
     el.dispatchEvent(new Event("change"));
     await vi.waitFor(() => expect(setSettings).toHaveBeenCalled());
     await vi.waitFor(() => expect(el.checked).toBe(false));
-    expect(el.closest(".toggle-switch")?.getAttribute("aria-checked")).toBe("false");
   });
 
   it("reverts completed-meetings toggle when response does not preserve requested value", async () => {
@@ -354,26 +430,11 @@ describe("settings dropdown validation", () => {
     expect(isNaN(value)).toBe(true);
   });
 
-  it("rejects values below MIN (1)", () => {
-    const value = 0;
-    const MIN = 1;
-    const MAX = 5;
-    expect(value < MIN || value > MAX).toBe(true);
+  it("open-before range matches domain constants 0–10", async () => {
+    const { OPEN_BEFORE_MINUTES_MIN, OPEN_BEFORE_MINUTES_MAX } = await import(
+      "../../src/domain/entities/settings.js"
+    );
+    expect(OPEN_BEFORE_MINUTES_MIN).toBe(0);
+    expect(OPEN_BEFORE_MINUTES_MAX).toBe(10);
   });
-
-  it("rejects values above MAX (5)", () => {
-    const value = 6;
-    const MIN = 1;
-    const MAX = 5;
-    expect(value < MIN || value > MAX).toBe(true);
-  });
-
-  it("accepts values in range", () => {
-    for (const value of [1, 2, 3, 4, 5]) {
-      expect(value >= 1 && value <= 5).toBe(true);
-    }
-  });
-
-
-
 });
