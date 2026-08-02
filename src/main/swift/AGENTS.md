@@ -69,4 +69,4 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 
 - Leaf package relative to calendar: no Electron/window/scheduler imports. Sole production importer is Darwin EventKit provider.
 - Compile path may still use `execFile` for `swiftc`/`strip`; one-shot event dump uses spawn runner.
-- Tests: `tests/main/swift/swift-helper-process.test.ts` (real Node fixture); binary-manager mocks process runner + compile.
+- Tests: `tests/main/swift/swift-helper-process.test.ts` (real Node fixture), `tests/main/swift/event-parser.test.ts`, `swift-binary-manager.test.ts`, `swift-guards.test.ts`, `calendar-watch-sidecar.test.ts` (mocked exec/spawn as appropriate).

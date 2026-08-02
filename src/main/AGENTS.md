@@ -12,15 +12,15 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `application/` | `ports/`, `use-cases/` | ports + pure-ish use-case factories |
 | `infrastructure/` | `settings/`, `electron/` | JsonSettingsStore, ShellMeetingOpener |
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
-| `calendar/` | factory, providers, **google-http**, auth, offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh |
+| `calendar/` | factory, providers, **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
-| `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome |
+| `windows/` | about, alert, settings | BrowserWindow singletons; Settings/About canvas `#0d1117`; alert hide/reuse |
 | `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
 | `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
 | `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
 | `ipc-handlers/` | per-domain handlers | typed IPC (receive `AppGraph`) |
 | `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows; optional completed-today history) |
-| `utils/` | browser-window, window-chrome, meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
+| `utils/` | browser-window, **window-chrome** (`DIALOG_BACKGROUND_COLOR`), meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
 
 ## Lifecycle order
 
@@ -50,7 +50,9 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - `swift/` only from `calendar/providers/darwin-eventkit.ts` and internal `swift/**`.
 - Calendar results are exhaustive (live complete/partial / offline-cache); ports require `AbortSignal`.
 - Settings schema **v3** includes display-only `showCompletedTodayMeetings` (tray + popover history; no scheduler restart).
+- Google provider may use incremental `nextSyncToken` (encrypted sync file + process-local index); facades still must not import `calendar/auth/*`.
 - Meeting host detection: `domain/services/platform.ts`. OS: `platform/os.ts`.
+- Display-horizon ticks use free-function `republishUiForDisplayTick` (not on `AppGraph.scheduler`).
 
 ## IPC and security
 

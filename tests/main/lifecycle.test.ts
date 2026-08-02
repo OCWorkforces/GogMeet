@@ -127,6 +127,29 @@ vi.mock("../../src/main/system/auto-updater.js", () => ({
   initAutoUpdater: mockInitAutoUpdater,
 }));
 
+const {
+  mockDestroyAlertWindow,
+  mockDestroySettingsWindow,
+  mockDestroyAboutWindow,
+} = vi.hoisted(() => ({
+  mockDestroyAlertWindow: vi.fn(),
+  mockDestroySettingsWindow: vi.fn(),
+  mockDestroyAboutWindow: vi.fn(),
+}));
+
+vi.mock("../../src/main/windows/alert-window.js", () => ({
+  destroyAlertWindow: (...args: unknown[]) => mockDestroyAlertWindow(...args),
+}));
+
+vi.mock("../../src/main/windows/settings-window.js", () => ({
+  destroySettingsWindow: (...args: unknown[]) => mockDestroySettingsWindow(...args),
+  getSettingsWindow: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock("../../src/main/windows/about-window.js", () => ({
+  destroyAboutWindow: (...args: unknown[]) => mockDestroyAboutWindow(...args),
+}));
+
 vi.mock("../../src/main/composition/app-graph.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../../src/main/composition/app-graph.js")>();
   return {
@@ -306,6 +329,33 @@ describe("lifecycle", () => {
       expect(mockStopScheduler).toHaveBeenCalledOnce();
     });
 
+    it("force-destroys hide-cached dialog windows", () => {
+      shutdownApp();
+
+      expect(mockDestroyAlertWindow).toHaveBeenCalledOnce();
+      expect(mockDestroySettingsWindow).toHaveBeenCalledOnce();
+      expect(mockDestroyAboutWindow).toHaveBeenCalledOnce();
+    });
+
+    it("destroys dialogs after power cleanup and before scheduler stop", () => {
+      const callOrder: string[] = [];
+      mockCleanupPowerManagement.mockImplementation(() => callOrder.push("cleanup"));
+      mockDestroyAlertWindow.mockImplementation(() => callOrder.push("destroy-alert"));
+      mockDestroySettingsWindow.mockImplementation(() => callOrder.push("destroy-settings"));
+      mockDestroyAboutWindow.mockImplementation(() => callOrder.push("destroy-about"));
+      mockStopScheduler.mockImplementation(() => callOrder.push("stop"));
+
+      shutdownApp();
+
+      expect(callOrder).toEqual([
+        "cleanup",
+        "destroy-alert",
+        "destroy-settings",
+        "destroy-about",
+        "stop",
+      ]);
+    });
+
     it("calls cleanupPowerManagement before stopScheduler", () => {
       const callOrder: string[] = [];
       mockCleanupPowerManagement.mockImplementation(() => callOrder.push("cleanup"));
@@ -313,7 +363,8 @@ describe("lifecycle", () => {
 
       shutdownApp();
 
-      expect(callOrder).toEqual(["cleanup", "stop"]);
+      expect(callOrder[0]).toBe("cleanup");
+      expect(callOrder[callOrder.length - 1]).toBe("stop");
     });
   });
 });

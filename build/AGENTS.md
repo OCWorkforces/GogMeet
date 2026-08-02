@@ -1,6 +1,6 @@
 # Build Hooks and Packaging Assets
 
-Electron Builder resources and packaging hooks. Operational packaging code, not app runtime.
+Electron Builder resources and packaging hooks. Operational packaging code, not app runtime. App version and package scripts: root `package.json` / `electron-builder.yml` (mac DMG+ZIP; win NSIS+portable x64/arm64).
 
 ## Files
 
@@ -9,7 +9,7 @@ Electron Builder resources and packaging hooks. Operational packaging code, not 
 | `after-pack.cjs` | Post-package optimizations on **darwin only**; no-ops for win32/linux |
 | `entitlements.mac.plist` | Main app entitlements (mac signing) |
 | `entitlements.mac.inherit.plist` | Inherited helper/framework entitlements |
-| `icon.icns` | macOS app icon (`generate-calendar-tray-icons.mjs` + iconutil) |
+| `icon.icns` | macOS app icon (`scripts/generate-calendar-tray-icons.mjs` + iconutil) |
 | `icon.ico` | Windows app icon multi-size (same script via sharp, any OS) |
 | `notarize.cjs` | Optional Apple notarization helper; already returns early if not darwin |
 

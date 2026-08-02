@@ -6,11 +6,11 @@ IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Enti
 
 | File | Role |
 | --- | --- |
-| `ipc-channels.ts` | `IPC_CHANNELS`, `IpcChannelMap`, `PushChannelMap` — imports domain entity types |
-| `alert.ts` | Narrow `AlertPayload` for full-screen alert (`id`, title, times, `hasMeetUrl`, optional `autoOpenAt`) |
+| `ipc-channels.ts` | `IPC_CHANNELS`, `IpcChannelMap`, `PushChannelMap` — invoke + push maps; imports domain entity types |
+| `alert.ts` | Narrow `AlertPayload` for full-screen alert (`id`, title, times, `hasMeetUrl`, optional `autoOpenAt`) — **no `meetUrl`** |
 | `app-state.ts` | Renderer list UI state union |
 | `utils/escape-html.ts` | XSS escaping for HTML string renderers |
-| `utils/as.ts` | `.As<T>()` / free-function `As<T>(value)` for unchecked casts (replaces `as unknown as T`) |
+| `utils/as.ts` | `.As<T>()` / free-function `As<T>(value)` for unchecked casts (replaces `as unknown as T`); listed in package `sideEffects` |
 
 Cast helper notes:
 

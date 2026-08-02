@@ -28,9 +28,9 @@ window.api = {
 };
 ```
 
-Refresh is coordinated in main via the single-flight refresh coordinator: `calendar.getEvents()` is the sole renderer refresh path (no `scheduler.forcePoll` IPC). Responses and pushes use `CalendarPublication` (`publicationGeneration` + `result`).
+Refresh is coordinated in main via the single-flight refresh coordinator: `calendar.getEvents()` is the sole renderer refresh path (no `scheduler.forcePoll` IPC — permanent guardrail). Responses and pushes use `CalendarPublication` (`publicationGeneration` + `result`).
 
-`export type Api = typeof api` is consumed by renderer ambient typings.
+`export type Api = typeof api` is consumed by renderer ambient typings (`src/renderer/env.d.ts` and settings `env.d.ts`).
 
 Settings payloads include schema **v3** fields (e.g. `showCompletedTodayMeetings`); preload does not interpret display preferences.
 

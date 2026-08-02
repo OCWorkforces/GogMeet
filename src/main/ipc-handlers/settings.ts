@@ -4,6 +4,7 @@ import type { AppGraph } from "../composition/app-graph.js";
 import { syncAutoLaunch } from "../system/auto-launch.js";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../domain/entities/settings.js";
 import { forceTrayMenuRefresh } from "../tray.js";
+import { getSettingsWindow } from "../windows/settings-window.js";
 import { validateSender, typedHandle, typedSend } from "./shared.js";
 
 /** Keys that require restartScheduler() to reschedule timers / re-evaluate gates */
@@ -55,7 +56,17 @@ export function registerSettingsHandlers(win: BrowserWindow, graph: AppGraph): v
           syncAutoLaunch(partial.launchAtLogin);
         }
 
+        // Fan-out to popover and hide-cached Settings window when distinct.
         typedSend(win.webContents, IPC_CHANNELS.SETTINGS_CHANGED, updated);
+        const settingsWin = getSettingsWindow();
+        if (
+          settingsWin &&
+          !settingsWin.isDestroyed() &&
+          settingsWin.webContents !== win.webContents &&
+          !settingsWin.webContents.isDestroyed()
+        ) {
+          typedSend(settingsWin.webContents, IPC_CHANNELS.SETTINGS_CHANGED, updated);
+        }
         return updated;
       } catch (err) {
         console.error("[ipc] SETTINGS_SET error:", err);

@@ -8,6 +8,7 @@ const {
   mockForcePoll,
   mockSyncAutoLaunch,
   mockForceTrayMenuRefresh,
+  mockGetSettingsWindow,
 } = vi.hoisted(() => ({
   mockGetSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
@@ -15,6 +16,7 @@ const {
   mockForcePoll: vi.fn(),
   mockSyncAutoLaunch: vi.fn(),
   mockForceTrayMenuRefresh: vi.fn(),
+  mockGetSettingsWindow: vi.fn(),
 }));
 
 vi.mock("../../src/main/facades/settings.js", () => ({
@@ -30,6 +32,11 @@ vi.mock("../../src/main/system/auto-launch.js", () => ({
 }));
 vi.mock("../../src/main/tray.js", () => ({
   forceTrayMenuRefresh: mockForceTrayMenuRefresh,
+}));
+vi.mock("../../src/main/windows/settings-window.js", () => ({
+  getSettingsWindow: (...args: unknown[]) => mockGetSettingsWindow(...args),
+  destroySettingsWindow: vi.fn(),
+  createSettingsWindow: vi.fn(),
 }));
 
 import { registerSettingsHandlers } from "../../src/main/ipc-handlers/settings.js";
@@ -50,6 +57,7 @@ const authorizedEvent = authorizedInvokeEvent("index").As<import("electron").Ipc
 describe("registerSettingsHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSettingsWindow.mockReturnValue(null);
     mockGetSettings.mockReturnValue(DEFAULT_SETTINGS);
     mockUpdateSettings.mockResolvedValue(DEFAULT_SETTINGS);
   });
@@ -141,6 +149,41 @@ describe("registerSettingsHandlers", () => {
 
       await handler!(authorizedEvent, { showTomorrowMeetings: false });
       expect(mockWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
+    });
+
+    it("fans out settings:changed to a distinct hide-cached Settings window", async () => {
+      const popoverWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      }.As<import("electron").BrowserWindow>();
+      const settingsWin = {
+        isDestroyed: vi.fn(() => false),
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      };
+      mockGetSettingsWindow.mockReturnValue(settingsWin);
+      const updated = { ...DEFAULT_SETTINGS, openBeforeMinutes: 5 };
+      mockUpdateSettings.mockResolvedValue(updated);
+
+      registerSettingsHandlers(popoverWin, testAppGraph());
+      const handler = getRegisteredHandler("settings:set");
+      await handler!(authorizedEvent, { openBeforeMinutes: 5 });
+
+      expect(popoverWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
+      expect(settingsWin.webContents.send).toHaveBeenCalledWith("settings:changed", updated);
+    });
+
+    it("skips settings fan-out when settings webContents is destroyed", async () => {
+      const popoverWin = {
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => false) },
+      }.As<import("electron").BrowserWindow>();
+      mockGetSettingsWindow.mockReturnValue({
+        isDestroyed: vi.fn(() => false),
+        webContents: { send: vi.fn(), isDestroyed: vi.fn(() => true) },
+      });
+      mockUpdateSettings.mockResolvedValue({ ...DEFAULT_SETTINGS });
+      registerSettingsHandlers(popoverWin, testAppGraph());
+      const handler = getRegisteredHandler("settings:set");
+      await handler!(authorizedEvent, { openBeforeMinutes: 1 });
+      expect(popoverWin.webContents.send).toHaveBeenCalled();
     });
 
     it("returns fresh DEFAULT_SETTINGS and performs no side effects for unauthorized sender", async () => {

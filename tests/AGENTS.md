@@ -26,14 +26,14 @@ tests/
 ├── setup.main.ts          # Electron mock (main project)
 ├── setup.as.ts            # installs Object.prototype.As for all projects
 ├── helpers/               # test-utils, ipc-sender, app-graph
-├── domain/                # pure domain suites (incl. calendar-result)
+├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
-├── main/                  # Node + Electron mock suites
+├── main/                  # Node + Electron mock suites (~80 files)
 │   └── swift/             # swift-helper-process, event-parser
-├── renderer/              # jsdom suites
+├── renderer/              # jsdom suites (+ rendering/, utils/)
 ├── shared/                # as.test, contracts
-├── scripts/               # validate-node, release, performance-report, bench fixtures
-└── bench/                 # not in vitest.workspace.ts
+├── scripts/               # validate-node, release verifiers, guardrails, performance lab, latest.yml
+└── bench/                 # calendar-parser, tray-menu, scheduler-poll, alert, ipc, renderer-body
 ```
 
 ## High-value main suites (non-exhaustive)
@@ -42,7 +42,8 @@ tests/
 | --- | --- |
 | `google-http.test.ts` | bounds, timeout, abort, error classes |
 | `google-oauth.test.ts` / `google-token-store.test.ts` | force/if-needed, preserve ciphertext |
-| `google-calendar.test.ts` | 401 force refresh, offline, provenance |
+| `google-sync-tokens.test.ts` | encrypted nextSyncToken map load/save/clear |
+| `google-calendar.test.ts` | 401 force refresh, offline, provenance, incremental path |
 | `calendar-refresh-coordinator.test.ts` | single-flight, follow-up, cancel, generation |
 | `swift/swift-helper-process.test.ts` | real spawn bounds + kill paths |
 | `swift-binary-manager.test.ts` | integrity-only recompile |
@@ -50,6 +51,9 @@ tests/
 | `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off, automation eligibility |
 | `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
+| `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy |
+| `about-window.test.ts` | 320×420, CSP meta, https-only openExternal, close sentinel |
+| `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
 
 ## Main-project mocks
 
@@ -99,3 +103,6 @@ bun run perf:workspace-fingerprint
 - Poll automation: live **complete** only (`isCalendarAutomationEligible`); partial/offline → `suspendAutomation`.
 - Settings schema **v3**: `showCompletedTodayMeetings` defaults false; display-only IPC path (tray rebuild, no restart/poll).
 - Completed-today history: domain `meeting-time` filters + tray/menu + popover body rendering.
+- Meeting titles: domain `truncateMiddle` (max 25) in tray menu + popover.
+- Google incremental sync tokens (schema v1) + provider merge/410 behavior.
+- Alert window hide/reuse across presentations (`destroyAlertWindow` for hard teardown).

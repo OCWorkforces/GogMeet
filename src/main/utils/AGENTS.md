@@ -7,13 +7,20 @@
 | File | Role | Key Exports |
 |------|------|-------------|
 | `browser-window.ts` | BrowserWindow config factory, CSP enforcement | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()` |
-| `window-chrome.ts` | Platform BrowserWindow chrome + alert always-on-top | `platformWindowChrome()`, `applyAlertAlwaysOnTop()` |
+| `window-chrome.ts` | Platform chrome + dialog canvas `#0d1117` + alert always-on-top | `DIALOG_BACKGROUND_COLOR`, `platformWindowChrome()`, `windowsSolidBackgroundColor()`, `bindWindowsThemeBackground()`, `applyAlertAlwaysOnTop()` |
 | `meet-url.ts` | Thin allowlisted open (delegates to ShellMeetingOpener) | `openMeetingUrl()` |
 | `join-meeting.ts` | Join hub free function (default-bound use case) | `joinMeetingById()`, `bindJoinMeeting()` |
 | `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo` |
 | `log.ts` | electron-log bootstrap | `configureMainLogging()` |
 | `system-settings.ts` | Open OS settings (non-meeting egress) | `openSystemSettings()` |
 | `performance-trace.ts` | Opt-in redacted measurement records | `perfTrace`, `isPerfTraceEnabled`, `GOGMEET_PERF_TRACE=1` |
+
+## Window chrome notes
+
+- **Popover:** Darwin vibrancy; Windows opaque `#1c1c1e`.
+- **Settings / About:** solid **`DIALOG_BACKGROUND_COLOR` (`#0d1117`)** on Darwin and Windows (no vibrancy — hex must read true). Matches renderer settings CSS and About inline styles.
+- **Alert:** Darwin `titleBarStyle: hiddenInset` only; always-on-top via `applyAlertAlwaysOnTop`.
+- `bindWindowsThemeBackground` keeps Windows solid fills updated; for settings/about the fill is fixed `#0d1117`.
 
 ## Performance trace
 
