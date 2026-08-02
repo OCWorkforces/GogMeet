@@ -668,6 +668,49 @@ async function saveSettings(
   return ok;
 }
 
+/**
+ * Soft-refresh from main without reloading the BrowserWindow.
+ * Used after hide-cache re-show and on SETTINGS_CHANGED from other surfaces.
+ */
+async function refreshFromMain(): Promise<void> {
+  if (isSaving || isCalendarBusy) return;
+  try {
+    const next = await window.api.settings.get();
+    if (next && typeof next === "object") {
+      settings = next;
+    }
+  } catch {
+    // keep last good settings
+  }
+  try {
+    const ui = await window.api.calendar.getUiState();
+    if (ui && typeof ui === "object") {
+      calendarUi = ui;
+    }
+  } catch {
+    // keep last good calendar UI
+  }
+  clearSaveIndicatorTimers();
+  render();
+}
+
+function wireLifetimeListeners(): void {
+  // Re-sync when the hide-cached window becomes visible again.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void refreshFromMain();
+    }
+  });
+
+  // External prefs updates (and fan-out from SETTINGS_SET while this window is open).
+  window.api.settings.onChanged((next) => {
+    if (isSaving) return;
+    settings = next;
+    clearSaveIndicatorTimers();
+    render();
+  });
+}
+
 async function init(): Promise<void> {
   try {
     settings = await window.api.settings.get();
@@ -680,6 +723,7 @@ async function init(): Promise<void> {
     calendarUi = defaultCalendarUiState();
   }
   render();
+  wireLifetimeListeners();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
