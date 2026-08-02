@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-**Pure** domain layer. Zero Electron, `node:fs`, network, or Swift process dependencies. Enforced by `eslint-plugin-boundaries` and Vitest project `domain` (high coverage floors).
+**Pure** domain layer. Zero Electron, `node:fs`, network, or Swift process dependencies. Enforced by `eslint-plugin-boundaries` and Vitest project `domain` (coverage floors 90/90/90/80).
 
 ## STRUCTURE
 

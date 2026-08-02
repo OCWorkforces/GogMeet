@@ -22,7 +22,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/application/` | Ports + use cases (no Electron). |
 | `main/infrastructure/` | Driven adapters: JsonSettingsStore, ShellMeetingOpener. |
 | `main/facades/` | Calendar, watcher, status, settings free-function surface + default binds. |
-| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth, offline cache, **refresh-coordinator**. |
+| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth (OAuth + tokens + **sync tokens**), offline cache, **refresh-coordinator**. |
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
 | `main/app/` | Lifecycle + IPC registrar. |
@@ -46,6 +46,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Calendar publication envelope | `domain/entities/calendar-publication.ts` (`publicationGeneration` + `result`) |
 | Calendar facade / UI status | `main/facades/calendar.ts`, `main/events.ts` |
 | Calendar backends | `main/calendar/factory.ts`, `providers/*`, `auth/*`, `google-http.ts` |
+| Google incremental sync | `main/calendar/auth/google-sync-tokens.ts` + `providers/google-calendar.ts` (ADR 0002) |
 | Single-flight refresh | `main/calendar/refresh-coordinator.ts` via facade `refreshCalendarPublication` |
 | Meeting URL extract | `domain/services/url-extract.ts` (+ Swift `findMeetUrl`) |
 | Allowlist / validate | `domain/policies/meet-url-allowlist.ts`, `domain/services/url-validation.ts` |
@@ -60,7 +61,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Unchecked casts | `shared/utils/as.ts` (`.As<T>()` / free `As`) |
 | Opt-in perf marks | `main/utils/performance-trace.ts` |
 | OS branching | `main/platform/os.ts` |
-| Window chrome | `main/utils/window-chrome.ts`, `main/windows/*` |
+| Window chrome | `main/utils/window-chrome.ts`, `main/windows/*` (about / settings / alert hide-reuse) |
 | Auto-update | `main/system/auto-updater.ts` (portable skipped) |
 
 ## src-local rules

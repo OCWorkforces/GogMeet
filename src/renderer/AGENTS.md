@@ -63,6 +63,7 @@ src/renderer/
 - Join when `hasMeetUrl` → `app.joinMeeting(id)` then dismiss.
 - Dismiss → `alert.notifyDismissed(id)` (cancels pending auto-open).
 - Escape dismisses.
+- Main reuses a hidden BrowserWindow across presentations (see `main/windows/AGENTS.md`); renderer still fully re-renders from each `ALERT_SHOW` push.
 
 ## CONVENTIONS / ANTI-PATTERNS
 
