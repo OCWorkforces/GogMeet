@@ -6,6 +6,7 @@
  */
 
 import type { BrowserWindow } from "electron";
+import { nativeTheme } from "electron";
 
 import { isDarwin } from "../platform/os.js";
 
@@ -25,6 +26,23 @@ export type PlatformWindowChrome = {
   readonly hasShadow?: boolean;
 };
 
+/** Product canvas for Settings / About dialogs (matches renderer CSS). */
+export const DIALOG_BACKGROUND_COLOR = "#0d1117" as const;
+
+/** Solid fills for Windows (no vibrancy). */
+export function windowsSolidBackgroundColor(kind: WindowChromeKind): string {
+  switch (kind) {
+    case "popover":
+      // Tray popover stays dark for contrast against menu bar icons.
+      return "#1c1c1e";
+    case "settings":
+    case "about":
+      return DIALOG_BACKGROUND_COLOR;
+    case "alert":
+      return "#1c1c1e";
+  }
+}
+
 /**
  * Return platform-appropriate chrome options for a window kind.
  * Always safe to spread; mac-only keys are omitted on Windows.
@@ -35,14 +53,14 @@ export function platformWindowChrome(kind: WindowChromeKind): PlatformWindowChro
       case "popover":
         return {
           transparent: false,
-          backgroundColor: "#1c1c1e",
+          backgroundColor: windowsSolidBackgroundColor("popover"),
           hasShadow: true,
         };
       case "settings":
       case "about":
       case "alert":
         return {
-          backgroundColor: "#1c1c1e",
+          backgroundColor: windowsSolidBackgroundColor(kind),
         };
     }
   }
@@ -58,16 +76,34 @@ export function platformWindowChrome(kind: WindowChromeKind): PlatformWindowChro
       };
     case "settings":
     case "about":
+      // Solid product canvas (#0d1117) — skip vibrancy so the hex reads true.
       return {
         titleBarStyle: "hiddenInset",
-        vibrancy: "under-window",
-        visualEffectState: "active",
+        backgroundColor: DIALOG_BACKGROUND_COLOR,
       };
     case "alert":
       return {
         titleBarStyle: "hiddenInset",
       };
   }
+}
+
+/**
+ * Keep a Windows solid-background window in sync with OS light/dark changes.
+ * No-op on Darwin (vibrancy follows the system).
+ */
+export function bindWindowsThemeBackground(win: BrowserWindow, kind: WindowChromeKind): () => void {
+  if (isDarwin()) {
+    return () => undefined;
+  }
+  const apply = (): void => {
+    if (win.isDestroyed()) return;
+    win.setBackgroundColor(windowsSolidBackgroundColor(kind));
+  };
+  nativeTheme.on("updated", apply);
+  return () => {
+    nativeTheme.removeListener("updated", apply);
+  };
 }
 
 /**
