@@ -61,7 +61,8 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Unchecked casts | `shared/utils/as.ts` (`.As<T>()` / free `As`) |
 | Opt-in perf marks | `main/utils/performance-trace.ts` |
 | OS branching | `main/platform/os.ts` |
-| Window chrome | `main/utils/window-chrome.ts`, `main/windows/*` (about / settings / alert hide-reuse) |
+| Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs), `main/windows/*` (about / settings / alert hide-reuse) |
+| Settings renderer | `renderer/settings/*` | schema v3 full UI; grouped lists; canvas `#0d1117` |
 | Auto-update | `main/system/auto-updater.ts` (portable skipped) |
 
 ## src-local rules

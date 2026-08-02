@@ -52,6 +52,8 @@ tests/
 | `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
 | `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy |
+| `about-window.test.ts` | 320×420, CSP meta, https-only openExternal, close sentinel |
+| `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
 
 ## Main-project mocks
 

@@ -11,7 +11,7 @@ Primary meeting list UX for users is the **native tray menu**; the main BrowserW
 | Entry | HTML | Window | Role |
 | --- | --- | --- | --- |
 | `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
-| `settings/index.ts` | `settings/index.html` | Settings (Dock-visible on macOS) | Meeting prefs + Google account connect/disconnect; auto-save |
+| `settings/index.ts` | `settings/index.html` | Settings 520×760, canvas `#0d1117` (Dock on macOS) | Full schema v3 prefs + calendar connect; auto-save |
 | `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom; `alert:show` push |
 
 ## STRUCTURE
@@ -50,12 +50,14 @@ src/renderer/
 
 ## SETTINGS WINDOW (schema v3)
 
-- Google Calendar section: `calendar.getUiState()` / `requestPermission` / `disconnect`; escape email and lastError.
-- Meeting prefs auto-save: toggle → `window.api.settings.set()` → "✓ Saved" indicator.
-- `setupToggleListener(toggleId, settingKey, indicatorId)` wires each toggle; clear timers on re-render.
-- Save failure reverts toggle + shows error.
-- Timing fields include `openBeforeMinutes` (0–10), `autoOpenEnabled`, `alertLeadSeconds`, quiet hours, `nativeNotifications`, `lateJoinGraceMinutes`, `showTomorrowMeetings`, `launchAtLogin`.
-- Display toggle: **Show completed meetings** → `showCompletedTodayMeetings` (default off). Display-only — main rebuilds tray without scheduler restart/poll; popover re-renders on push.
+- Visual system: System Settings–inspired **grouped inset lists** on fixed product canvas **`#0d1117`** (groups `#161b22`); dark `color-scheme`; prefers-contrast / reduced-motion.
+- Sections: **Calendar** · **Joining Meetings** · **Tray Menu** · **General** (`settings/index.ts` + `settings/styles.css`).
+- Calendar: `getUiState` / `requestPermission` / `disconnect`; `escapeHtml` for email + lastError + save errors; status dot + Connect/Disconnect/Reconnect.
+- Prefs auto-save: toggle / select / time → `window.api.settings.set()` → "Saved" (concurrent saves coalesced).
+- Joining fields: `autoOpenEnabled`, `openBeforeMinutes` (0–10), `windowAlert` (Meeting Alert), `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, `quietHoursEnabled` + `quietHoursStart`/`End` (`HH:mm`). Dependents disable when Auto-Open / Meeting Alert / Quiet Hours are off.
+- Toggles use native checkboxes (styled track); no hybrid `role="switch"`.
+- Save failure reverts toggle + shows escaped error (`role="alert"`).
+- Tray Menu: tomorrow + completed history (display-only completed rebuilds tray without scheduler restart).
 
 ## ALERT WINDOW
 

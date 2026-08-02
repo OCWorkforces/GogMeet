@@ -14,7 +14,7 @@ tests/renderer/
 ├── escape-html.test.ts                  # XSS protection
 ├── main-ui.test.ts                      # List window state machine + render + completed-history timer
 ├── main-coverage.test.ts                # Extra list-window coverage paths
-├── settings.test.ts                     # Form auto-save; open-before 0–10; schema v3 + completed-history toggle
+├── settings.test.ts                     # Full schema v3 UI: timing fields, dependents, connect/disconnect, auto-save
 ├── rendering/body.test.ts               # Meeting list HTML; completed-today rows; title truncate; Join uses data-event-id
 └── utils/
     ├── dom.test.ts
@@ -31,6 +31,7 @@ tests/renderer/
 - Branded fixtures from `tests/helpers/test-utils.ts`; calendar `getEvents` mocks return publications with exhaustive provenance (`source` / `completeness` / timestamps) or `okCalendarResult` inside `result`.
 - Cast helper installed via `setup.as.ts` — prefer `.As<T>()`.
 - Meeting list: `parts.push()` + `.join('')`, never `html += ...`.
+- Settings: assert control **ids** (not hybrid switch ARIA); cover connect→disconnect round-trip; open-before options 0–10; dependent disable when auto-open off; alert-lead / late-join saves.
 
 ## ANTI-PATTERNS
 

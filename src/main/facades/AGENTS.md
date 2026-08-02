@@ -41,4 +41,4 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 - Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.
 - `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change.
 - `poll.ts` must call `recordCalendarResult()` after every fetch so the tray menu can show permission/runtime rows.
-- Schema **v3** fields include timing/automation (`autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours) plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` range is **0–10**.
+- Schema **v3** fields include timing/automation (`autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours enable + start/end) plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` range is **0–10**. Full UI lives in `renderer/settings` (not this facade).

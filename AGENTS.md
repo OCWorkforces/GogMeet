@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-02  
 **App version:** 1.17.5  
-**Branch:** develop (integration); feature work may land on short-lived branches first
+**Branch:** redesign-macos-dialogs (feature); integrate via develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -85,6 +85,9 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Swift one-shot runner | `swift/swift-helper-process.ts` | bounded spawn; integrity-only recompile in binary-manager |
 | Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
 | Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph |
+| Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; full schema v3 prefs; auto-save |
+| About UI | `windows/about-window.ts` | 320×420 data: HTML; canvas `#0d1117`; CSP meta; https-only repo |
+| Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; popover vibrancy; dialogs solid |
 | Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
 | Opt-in perf trace | `main/utils/performance-trace.ts` | `GOGMEET_PERF_TRACE=1` |
 | Perf scripts | `scripts/performance/*` | `perf:report`, `perf:workspace-fingerprint` |
@@ -186,8 +189,9 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches.
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - Alert window: prefer hide/show reuse of a single BrowserWindow (`destroyAlertWindow` for shutdown/tests); payload omits `meetUrl` (join via id).
+- Settings / About canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off. About 320×420 data: HTML is not always-on-top; Settings is.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
-- Settings schema **v3**: adds `showCompletedTodayMeetings` (default `false`). Display-only — does **not** restart scheduler or force a poll; settings IPC rebuilds the tray menu; renderer re-renders on `SETTINGS_CHANGED`.
+- Settings schema **v3**: includes `showCompletedTodayMeetings` (default `false`, display-only tray rebuild) plus full timing/automation fields surfaced in Settings UI. IPC still restarts scheduler only for TIMING_KEYS; completed-history toggle does not poll/restart.
 - Completed-today history (when enabled): same-local-day timed events with `end ≤ now`, newest-ended first; muted non-joinable rows in **tray menu** and **popover**. All-day excluded from tray history. Presentation timer in renderer (next end or local midnight); tray uses display-horizon + signature that includes the toggle.
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).

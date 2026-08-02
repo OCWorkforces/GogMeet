@@ -14,13 +14,13 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
 | `calendar/` | factory, providers, **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
-| `windows/` | about, alert, settings | BrowserWindow singletons + platform chrome (alert hide/reuse) |
+| `windows/` | about, alert, settings | BrowserWindow singletons; Settings/About canvas `#0d1117`; alert hide/reuse |
 | `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
 | `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
 | `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
 | `ipc-handlers/` | per-domain handlers | typed IPC (receive `AppGraph`) |
 | `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows; optional completed-today history) |
-| `utils/` | browser-window, window-chrome, meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
+| `utils/` | browser-window, **window-chrome** (`DIALOG_BACKGROUND_COLOR`), meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
 
 ## Lifecycle order
 
