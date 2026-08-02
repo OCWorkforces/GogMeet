@@ -6,16 +6,21 @@ import { readFileSync } from "node:fs";
 import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
 import { bindWindowsThemeBackground, platformWindowChrome } from "../utils/window-chrome.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
+import { acquireDockVisibility, releaseDockVisibility } from "./dock-visibility.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Reference to the singleton About BrowserWindow (null when not open). */
+/** Reference to the cached About BrowserWindow (null only after force destroy). */
 let aboutWindow: BrowserWindow | null = null;
+let unbindAboutTheme: (() => void) | null = null;
+/** Whether this module currently holds a Dock visibility claim. */
+let aboutDockHeld = false;
 
 /**
  * Sentinel URL used only to request close from the sandboxed about page.
- * Inline scripts are blocked by the page CSP meta; Close is wired via
- * executeJavaScript + this sentinel, intercepted in main (never loads).
+ * Close is wired from main via executeJavaScript + this sentinel (intercepted;
+ * never loads). Page CSP uses script-src 'none'; main-process executeJavaScript
+ * is not gated by page CSP.
  */
 const ABOUT_CLOSE_URL = "https://gogmeet.local/__about_close__";
 
@@ -25,10 +30,31 @@ const aboutIconSvg = readFileSync(
 );
 const ABOUT_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
 
-function closeAboutWindow(win: BrowserWindow): void {
-  if (!win.isDestroyed()) {
-    win.close();
+declare module "electron" {
+  interface BrowserWindow {
+    /** When true, close proceeds to destroy instead of hide-cache. */
+    __forceDestroy?: boolean;
   }
+}
+
+function holdAboutDock(): void {
+  if (aboutDockHeld) return;
+  aboutDockHeld = true;
+  acquireDockVisibility();
+}
+
+function releaseAboutDock(): void {
+  if (!aboutDockHeld) return;
+  aboutDockHeld = false;
+  releaseDockVisibility();
+}
+
+/** Hide (cache) the About window; used for Close button and Escape. */
+function hideAboutWindow(win: BrowserWindow): void {
+  if (!win.isDestroyed() && win.isVisible()) {
+    win.hide();
+  }
+  releaseAboutDock();
 }
 
 /** Allow only https repository URLs for shell.openExternal. */
@@ -45,10 +71,27 @@ function escapeAttr(str: string): string {
   return escapeHtml(str);
 }
 
+function presentAboutWindow(win: BrowserWindow): void {
+  if (win.isDestroyed()) return;
+  if (!win.isVisible()) {
+    win.show();
+  }
+  // Always claim Dock while this dialog is presented (idempotent).
+  holdAboutDock();
+  win.focus();
+  // Re-focus Close for keyboard users without reloading the document.
+  void win.webContents
+    .executeJavaScript(`document.getElementById("about-close")?.focus();`)
+    .catch(() => undefined);
+}
+
+/**
+ * Shows the About window. First call builds data: HTML once; later calls
+ * re-show the cached BrowserWindow (instant).
+ */
 export function showAbout(_mainWindow: BrowserWindow): void {
-  // Reuse existing about window if still alive
   if (aboutWindow && !aboutWindow.isDestroyed()) {
-    aboutWindow.focus();
+    presentAboutWindow(aboutWindow);
     return;
   }
 
@@ -67,14 +110,14 @@ export function showAbout(_mainWindow: BrowserWindow): void {
       : `href="#" aria-disabled="true"`;
 
   // Classic macOS About box. data: HTML (no preload / loadWindowContent).
-  // CSP is embedded as a meta tag; Close is CSP-safe via sentinel navigation.
+  // CSP meta: script-src 'none' (main executeJavaScript still wires Close).
   const html = `\
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="dark">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'none'; base-uri 'none'; form-action 'none'">
 <title>About ${appName}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -265,7 +308,8 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     webPreferences: { ...SECURE_WEB_PREFERENCES },
   });
 
-  const unbindTheme = bindWindowsThemeBackground(win, "about");
+  unbindAboutTheme?.();
+  unbindAboutTheme = bindWindowsThemeBackground(win, "about");
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (repoSafe.length > 0 && url === repoSafe && isSafeAboutRepositoryUrl(url)) {
@@ -276,11 +320,11 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     return { action: "deny" };
   });
 
-  // Block in-page navigations; treat the close sentinel as a main-process close request.
+  // Block in-page navigations; treat the close sentinel as a hide-cache request.
   const onNavigate = (event: { preventDefault: () => void; url: string }): void => {
     event.preventDefault();
     if (event.url === ABOUT_CLOSE_URL) {
-      closeAboutWindow(win);
+      hideAboutWindow(win);
     }
   };
   win.webContents.on("will-navigate", onNavigate);
@@ -288,15 +332,23 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 
   win.webContents.on("before-input-event", (_event, input) => {
     if (input.type === "keyDown" && input.key === "Escape") {
-      closeAboutWindow(win);
+      hideAboutWindow(win);
     }
+  });
+
+  // Hide-cache on OS close (traffic lights); real destroy only on quit/tests.
+  // destroy() does not emit "close" — __forceDestroy is for close()-based teardown.
+  win.on("close", (event) => {
+    if (win.__forceDestroy) return;
+    event.preventDefault();
+    hideAboutWindow(win);
   });
 
   win
     .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
     .then(() => {
       if (win.isDestroyed() || win.webContents.isDestroyed()) return;
-      // Wire Close without inline script (CSP-safe). Navigation is intercepted above.
+      // Wire Close from main (page CSP has script-src 'none'). Sentinel nav is intercepted.
       return win.webContents.executeJavaScript(
         `document.getElementById("about-close")?.addEventListener("click",()=>{location.href=${JSON.stringify(ABOUT_CLOSE_URL)};});document.getElementById("about-close")?.focus();`,
       );
@@ -307,15 +359,33 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;
-    win.show();
+    presentAboutWindow(win);
   });
 
   win.on("closed", () => {
-    unbindTheme();
+    unbindAboutTheme?.();
+    unbindAboutTheme = null;
+    releaseAboutDock();
     if (aboutWindow === win) {
       aboutWindow = null;
     }
   });
 
   aboutWindow = win;
+}
+
+/**
+ * Force-destroy the cached About window (shutdown / tests).
+ * destroy() skips the cancelable "close" event; __forceDestroy is belt-and-suspenders
+ * if any path calls close() instead.
+ */
+export function destroyAboutWindow(): void {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.__forceDestroy = true;
+    aboutWindow.destroy();
+  }
+  aboutWindow = null;
+  unbindAboutTheme?.();
+  unbindAboutTheme = null;
+  releaseAboutDock();
 }
