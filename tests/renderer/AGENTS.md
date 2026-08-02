@@ -13,8 +13,9 @@ tests/renderer/
 ├── delegation.test.ts                   # data-action (join uses data-event-id)
 ├── escape-html.test.ts                  # XSS protection
 ├── main-ui.test.ts                      # List window state machine + render + completed-history timer
+├── main-coverage.test.ts                # Extra list-window coverage paths
 ├── settings.test.ts                     # Form auto-save; open-before 0–10; schema v3 + completed-history toggle
-├── rendering/body.test.ts               # Meeting list HTML; completed-today rows; Join uses data-event-id
+├── rendering/body.test.ts               # Meeting list HTML; completed-today rows; title truncate; Join uses data-event-id
 └── utils/
     ├── dom.test.ts
     ├── escape-html.test.ts

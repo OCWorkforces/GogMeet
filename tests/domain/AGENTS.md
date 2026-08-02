@@ -16,7 +16,7 @@ Vitest project `domain`: Node, no Electron, high coverage floors on `src/domain/
 | `pick-join-target.test.ts` | next joinable meeting |
 | `event-signature.test.ts` | stable signatures |
 | `meeting-time.test.ts` | in-progress / not-ended / upcoming / **completed-today** / display horizon |
-| `truncate-middle.test.ts` | code-point middle-truncate; max-25 meeting title budget |
+| `truncate-middle.test.ts` | code-point middle-truncate; `MEETING_TITLE_DISPLAY_MAX_CHARS` (**25**) |
 | `parse-json.test.ts` | parseJsonObject / AppResult |
 | `settings-defaults.test.ts` / `settings-parse.test.ts` / `quiet-hours.test.ts` | schema **v3** defaults + parse/migrate + quiet hours |
 | `time-utils.test.ts` | day boundaries / remaining time |

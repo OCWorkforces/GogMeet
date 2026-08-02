@@ -2,23 +2,17 @@
 
 ## OVERVIEW
 
-Vitest project `application`: Node, no Electron mocks. Covers `src/main/application/use-cases/**` with port fakes.
+Vitest project `application`: Node, no Electron mocks. Covers `src/main/application/use-cases/**` with port fakes. Coverage floors: **80 / 80 / 80 / 70** (L/S/F/B).
 
 ## Suites
 
 | Suite | Focus |
 | --- | --- |
-| `get-meetings.test.ts` | Maps live complete/partial/offline-cache → UI phases (`ready` / `limited` / `offline-cached`) |
+| `get-meetings.test.ts` | Maps live complete/partial/offline-cache → UI phases (`ready` / `limited` / `offline-cached`) + error |
 | `join-meeting.test.ts` | Explicit join from lastKnown or fetch; any ok provenance with events is joinable |
-| `disconnect-calendar.test.ts` | Disconnect port path |
+| `disconnect-calendar.test.ts` | Disconnect port path + related clear hooks |
 
-## FILES
-
-| Suite | Covers |
-| --- | --- |
-| `join-meeting.test.ts` | JoinMeeting use case (opener + scheduler ports; any ok provenance) |
-| `get-meetings.test.ts` | GetMeetings: ready / limited / offline-cached / error UI mapping |
-| `disconnect-calendar.test.ts` | Disconnect + cache clear hooks |
+(Other use cases — permission status, request access, load/get/update settings — are covered via facade/main suites when not unit-tested here.)
 
 ## RULES
 
