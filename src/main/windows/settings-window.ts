@@ -4,7 +4,7 @@ import {
   getPreloadPath,
   loadWindowContent,
 } from "../utils/browser-window.js";
-import { platformWindowChrome } from "../utils/window-chrome.js";
+import { bindWindowsThemeBackground, platformWindowChrome } from "../utils/window-chrome.js";
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -23,8 +23,8 @@ export function createSettingsWindow(): BrowserWindow {
   const chrome = platformWindowChrome("settings");
   const win = new BrowserWindow({
     width: 520,
-    // Tall enough for schema-v2 prefs (open-before + 6 toggles + chrome)
-    height: 680,
+    // Grouped lists + timing fields (alert lead, quiet hours, late join)
+    height: 760,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -38,10 +38,13 @@ export function createSettingsWindow(): BrowserWindow {
     },
   });
 
+  const unbindTheme = bindWindowsThemeBackground(win, "settings");
+
   loadWindowContent(win, "settings");
 
   // Show window when ready
   win.once("ready-to-show", () => {
+    if (win.isDestroyed()) return;
     win.show();
     // Show in Dock when settings window is open
     app.dock?.show();
@@ -49,6 +52,7 @@ export function createSettingsWindow(): BrowserWindow {
 
   // Clean up reference on close
   win.on("closed", () => {
+    unbindTheme();
     settingsWindow = null;
     // Hide from Dock when settings window closes (tray-only app)
     app.dock?.hide();
