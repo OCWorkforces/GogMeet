@@ -57,6 +57,7 @@ src/renderer/
 - Joining fields: `autoOpenEnabled`, `openBeforeMinutes` (0–10), `windowAlert` (Meeting Alert), `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, `quietHoursEnabled` + `quietHoursStart`/`End` (`HH:mm`). Dependents disable when Auto-Open / Meeting Alert / Quiet Hours are off.
 - Toggles use native checkboxes (styled track); no hybrid `role="switch"`.
 - Save failure reverts toggle + shows escaped error (`role="alert"`).
+- Hide-cache soft-refresh: `visibilitychange` → re-`get()` settings + calendar UI; `settings.onChanged` re-renders when idle.
 - Tray Menu: tomorrow + completed history (display-only completed rebuilds tray without scheduler restart).
 
 ## ALERT WINDOW

@@ -34,7 +34,7 @@ Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` → `graph.calendar.ge
 - `showTomorrowMeetings` alone → optional `forcePoll()` (no full restart).
 - `showCompletedTodayMeetings` alone → `forceTrayMenuRefresh()` only (display-only; **no** restart / force-poll).
 - `launchAtLogin` → `syncAutoLaunch` only.
-- Always `typedSend` `SETTINGS_CHANGED` after successful set.
+- Always `typedSend` `SETTINGS_CHANGED` after successful set (popover + hide-cached Settings window via `getSettingsWindow()` when distinct).
 
 ## CHANNEL→HANDLER MAP
 
