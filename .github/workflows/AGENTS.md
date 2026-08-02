@@ -1,6 +1,6 @@
 # GitHub Workflows
 
-CI/release automation for the Electron app (macOS + Windows). Keep workflow behavior aligned with `package.json`, `.nvmrc`, `scripts/validate-node.mjs`, and packaging guidance in `build/AGENTS.md`.
+CI/release automation for the Electron app (macOS + Windows). Keep workflow behavior aligned with `package.json`, `.nvmrc` (Node **26**), `scripts/validate-node.mjs`, and packaging guidance in `build/AGENTS.md`. Host package manager: Bun (`packageManager: bun@1.3.14`). Typecheck in CI uses `@typescript/native` via `bun run typecheck`.
 
 ## Files
 

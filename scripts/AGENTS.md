@@ -14,11 +14,24 @@ Repository automation scripts for local development and asset generation. Invoke
 | `verify-windows-release.mjs` | Windows release inventory (NSIS + portable x64/arm64; optional latest.yml) |
 | `merge-windows-latest-yml.mjs` | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds |
 | `next-beta-tag.mjs` | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version |
-| `guardrails-scan.mjs` | Permanent P-NEVER scan (`bun run guardrails`); `--self-test` for fixture mode |
+| `guardrails-scan.mjs` | Permanent P-NEVER scan (`bun run guardrails`); `--self-test` / `guardrails:self-test` for fixture mode |
 | `performance/report.mjs` | Aggregate opt-in perf JSONL → p50/p95/min/max/sampleCount (`bun run perf:report`) |
 | `performance/workspace-fingerprint.mjs` | Fixed-exclusion HEAD + tracked-diff + untracked manifest digests (`perf:workspace-fingerprint`) |
 | `performance/measure-*.mjs` | Lab harnesses: google-calendar, tray, safe-storage, startup, alert, build-package (`perf:lab`) |
 | `performance/helpers/*` | Shared stats + google-shadow helpers for lab scripts |
+
+## Script tests (`tests/scripts/`)
+
+| Suite group | Covers |
+| --- | --- |
+| `validate-node.test.ts` | Host Node major + skip-generate flag |
+| `guardrails-scan.test.ts` | P-NEVER scanner + self-test fixtures |
+| `next-beta-tag.test.ts` | Beta tag / app version numbering |
+| `merge-windows-latest-yml.test.ts` | Dual-arch latest.yml merge |
+| `verify-macos-release.test.ts` / `macos-release-verifier-native.test.ts` | Official mac verifier pure helpers + natives |
+| `verify-windows-release.test.ts` | Windows artifact inventory |
+| `performance-*.test.ts` | report, tray, google, safe-storage, startup, alert, build-package, google-shadow |
+| `calendar-parser-bench-fixtures.test.ts` | Bench fixture integrity |
 
 ## Performance tooling
 
