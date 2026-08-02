@@ -1,12 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Bare "/app" does not round-trip through fileURLToPath on Windows.
+const { MOCK_APP_PATH } = vi.hoisted(() => ({
+  MOCK_APP_PATH: process.platform === "win32" ? "C:\\app" : "/app",
+}));
+
 // settings-window.ts has module-level state: `const isDev = !app.isPackaged`
-// Must reset modules between tests to get fresh state
+// Must reset modules between tests to get fresh state.
+// On Windows, createSettingsWindow → bindWindowsThemeBackground registers
+// nativeTheme listeners (Darwin short-circuits). The electron mock must export
+// nativeTheme or win32 CI fails with "No nativeTheme export".
 vi.mock("electron", () => ({
   app: {
     isPackaged: false,
     dock: { show: vi.fn(), hide: vi.fn() },
-    getAppPath: vi.fn().mockReturnValue("/app"),
+    getAppPath: vi.fn().mockReturnValue(MOCK_APP_PATH),
+  },
+  nativeTheme: {
+    shouldUseDarkColors: false,
+    on: vi.fn(),
+    removeListener: vi.fn(),
   },
   BrowserWindow: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this.loadURL = vi.fn().mockResolvedValue(undefined);
@@ -17,6 +30,7 @@ vi.mock("electron", () => ({
     this.destroy = vi.fn();
     this.isDestroyed = () => false;
     this.isVisible = vi.fn().mockReturnValue(true);
+    this.setBackgroundColor = vi.fn();
     this.webContents = {
       send: vi.fn(),
       on: vi.fn(),
