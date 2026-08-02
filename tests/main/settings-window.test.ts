@@ -263,5 +263,45 @@ describe("settings-window", () => {
       expect(event.preventDefault).not.toHaveBeenCalled();
       expect(mockWin.hide).not.toHaveBeenCalled();
     });
+
+    it("exposes getSettingsWindow and clears it on closed", async () => {
+      const { createSettingsWindow, getSettingsWindow, destroySettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      expect(getSettingsWindow()).toBeNull();
+      const win = createSettingsWindow();
+      expect(getSettingsWindow()).toBe(win);
+
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        on: ReturnType<typeof vi.fn>;
+        isDestroyed: () => boolean;
+      };
+      const closedHandler = mockWin.on.mock.calls.find((c) => c[0] === "closed")?.[1] as
+        | (() => void)
+        | undefined;
+      closedHandler?.();
+      expect(getSettingsWindow()).toBeNull();
+
+      createSettingsWindow();
+      destroySettingsWindow();
+      expect(getSettingsWindow()).toBeNull();
+    });
+
+    it("skips present when window is destroyed", async () => {
+      const { createSettingsWindow } = await getModule();
+      const { BrowserWindow } = await getElectron();
+      createSettingsWindow();
+      const mockWin = vi.mocked(BrowserWindow).mock.results[0]?.value as {
+        isDestroyed: ReturnType<typeof vi.fn>;
+        once: ReturnType<typeof vi.fn>;
+        show: ReturnType<typeof vi.fn>;
+      };
+      // ready-to-show already fired in constructor mock; simulate destroyed present via close hide then isDestroyed true
+      mockWin.isDestroyed = vi.fn().mockReturnValue(true);
+      mockWin.show.mockClear();
+      // Second create with destroyed flag still true on same ref should create new if module checks isDestroyed
+      // Module still holds settingsWindow with isDestroyed true → create new
+      createSettingsWindow();
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+    });
   });
 });

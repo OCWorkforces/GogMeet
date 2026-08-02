@@ -382,4 +382,103 @@ describe("about-window", () => {
     const html = decodeURIComponent(url.replace(/^data:text\/html;charset=utf-8,/, ""));
     expect(html).toContain("script-src 'none'");
   });
+
+  it("skips hide when already not visible", async () => {
+    const { showAbout } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    win.isVisible.mockReturnValue(false);
+    win.hide.mockClear();
+    const handlers = getWebContentsHandlers(win);
+    handlers.get("before-input-event")?.({}, { type: "keyDown", key: "Escape" });
+    expect(win.hide).not.toHaveBeenCalled();
+  });
+
+  it("skips present when destroyed", async () => {
+    const { showAbout } = await getModule();
+    const { BrowserWindow } = await getElectron();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    win.isDestroyed.mockReturnValue(true);
+    win.show.mockClear();
+    showAbout({} as never);
+    // Treated as destroyed → create a new window
+    expect(BrowserWindow).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles openExternal failure without throwing", async () => {
+    const { showAbout } = await getModule();
+    const { shell } = await getElectron();
+    vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error("no browser"));
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0] as
+      | ((details: { url: string }) => { action: string })
+      | undefined;
+    expect(handler?.({ url: "https://github.com/OCWorkforces/GogMeet" })).toEqual({
+      action: "deny",
+    });
+    await Promise.resolve();
+  });
+
+  it("handles loadURL failure without throwing", async () => {
+    const { BrowserWindow } = await getElectron();
+    // Next constructed window rejects loadURL
+    const orig = vi.mocked(BrowserWindow).getMockImplementation();
+    vi.mocked(BrowserWindow).mockImplementation(function (this: WindowMock) {
+      orig?.call(this);
+      this.loadURL = vi.fn().mockRejectedValue(new Error("load fail"));
+    });
+    vi.resetModules();
+    windowInstances.length = 0;
+    const { showAbout } = await import("../../src/main/windows/about-window.js");
+    expect(() => showAbout({} as never)).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  it("swallows focus executeJavaScript errors on present", async () => {
+    const { showAbout } = await getModule();
+    showAbout({} as never);
+    const win = windowInstances[0];
+    expect(win).toBeDefined();
+    if (!win) return;
+    win.webContents.executeJavaScript.mockRejectedValue(new Error("focus fail"));
+    win.isVisible.mockReturnValue(false);
+    showAbout({} as never);
+    await Promise.resolve();
+  });
+
+  it("destroyAboutWindow is a no-op when nothing is cached", async () => {
+    const { destroyAboutWindow } = await getModule();
+    expect(() => destroyAboutWindow()).not.toThrow();
+  });
+
+  it("disables repo link when repository is not https", async () => {
+    vi.doMock("../../src/main/utils/packageInfo.js", () => ({
+      getPackageInfo: vi.fn().mockReturnValue({
+        name: "gogmeet",
+        productName: "GogMeet",
+        version: "1.16.3",
+        description: "Calendar meeting reminders",
+        repository: "http://insecure.example/repo",
+        homepage: "https://example.com",
+        author: "OCWorkforces Engineers",
+      }),
+    }));
+    vi.resetModules();
+    windowInstances.length = 0;
+    const { showAbout } = await import("../../src/main/windows/about-window.js");
+    showAbout({} as never);
+    const win = windowInstances[0];
+    const url = String(win?.loadURL.mock.calls[0]?.[0] ?? "");
+    const html = decodeURIComponent(url.replace(/^data:text\/html;charset=utf-8,/, ""));
+    expect(html).toContain('aria-disabled="true"');
+  });
 });

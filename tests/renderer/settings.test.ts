@@ -236,6 +236,157 @@ describe("settings/index.ts", () => {
       lead.dispatchEvent(new Event("change"));
     }
     await vi.waitFor(() => expect(setSettings).toHaveBeenCalledWith({ alertLeadSeconds: 120 }));
+
+    const late = document.getElementById("late-join-select");
+    expect(late).toBeInstanceOf(HTMLSelectElement);
+    if (late instanceof HTMLSelectElement) {
+      late.value = "5";
+      late.dispatchEvent(new Event("change"));
+    }
+    await vi.waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({ lateJoinGraceMinutes: 5 }),
+    );
+  });
+
+  it("saves quiet-hours times when enabled", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      quietHoursEnabled: true,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, {
+      getSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        quietHoursEnabled: true,
+      }),
+    });
+    const start = document.getElementById("quiet-hours-start");
+    expect(start).toBeInstanceOf(HTMLInputElement);
+    if (start instanceof HTMLInputElement) {
+      expect(start.disabled).toBe(false);
+      start.value = "21:30";
+      start.dispatchEvent(new Event("change"));
+    }
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledWith({ quietHoursStart: "21:30" }));
+
+    const end = document.getElementById("quiet-hours-end");
+    if (end instanceof HTMLInputElement) {
+      end.value = "06:15";
+      end.dispatchEvent(new Event("change"));
+    }
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledWith({ quietHoursEnd: "06:15" }));
+  });
+
+  it("reverts invalid quiet-hours time input", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      quietHoursEnabled: true,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, {
+      getSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        quietHoursEnabled: true,
+        quietHoursStart: "22:00",
+      }),
+    });
+    const start = document.getElementById("quiet-hours-start");
+    if (start instanceof HTMLInputElement) {
+      start.value = "not-a-time";
+      start.dispatchEvent(new Event("change"));
+      expect(start.value).toBe("22:00");
+    }
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it("disables quiet-hours times when quiet hours is off", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings);
+    expect((document.getElementById("quiet-hours-start") as HTMLInputElement).disabled).toBe(true);
+    expect((document.getElementById("quiet-hours-end") as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("shows reconnect when calendar permission is denied", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, {
+      getUiState: vi.fn().mockResolvedValue({
+        permission: "denied",
+        phase: "error",
+        lastError: "Permission denied",
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: true,
+      }),
+    });
+    const btn = document.getElementById("calendar-connect-btn");
+    expect(btn?.textContent).toMatch(/Reconnect/);
+    expect(document.querySelector(".settings-error")?.textContent).toContain("Permission denied");
+  });
+
+  it("disables Connect when OAuth is not configured", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, {
+      getUiState: vi.fn().mockResolvedValue({
+        permission: "not-determined",
+        phase: "disconnected",
+        lastError: null,
+        accountEmail: null,
+        events: null,
+        offline: false,
+        oauthConfigured: false,
+      }),
+    });
+    const btn = document.getElementById("calendar-connect-btn") as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it("coalesces concurrent saves while one is in flight", async () => {
+    let release!: (v: AppSettings) => void;
+    const first = new Promise<AppSettings>((resolve) => {
+      release = resolve;
+    });
+    const setSettings = vi
+      .fn<(partial: Partial<AppSettings>) => Promise<AppSettings>>()
+      .mockImplementationOnce(() => first)
+      .mockImplementation(async (p: Partial<AppSettings>) => ({
+        ...DEFAULT_SETTINGS,
+        ...p,
+      }));
+    await loadSettingsRenderer(setSettings);
+
+    const openBefore = getOpenBeforeSelect();
+    openBefore.value = "2";
+    openBefore.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledTimes(1));
+
+    const toggle = getLaunchAtLoginToggle();
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event("change"));
+
+    release({ ...DEFAULT_SETTINGS, openBeforeMinutes: 2 });
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledTimes(2));
+    expect(setSettings).toHaveBeenLastCalledWith({ launchAtLogin: true });
+  });
+
+  it("uses defaults when calendar getUiState throws on init", async () => {
+    const setSettings = vi.fn().mockImplementation(async (p: Partial<AppSettings>) => ({
+      ...DEFAULT_SETTINGS,
+      ...p,
+    }));
+    await loadSettingsRenderer(setSettings, {
+      getUiState: vi.fn().mockRejectedValue(new Error("no ui")),
+    });
+    expect(document.getElementById("calendar-connect-btn")).toBeTruthy();
   });
 
   it("soft-refreshes from main when document becomes visible again", async () => {
