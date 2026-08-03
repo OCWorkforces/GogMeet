@@ -18,20 +18,22 @@ Primary meeting list UX for users is the **native tray menu**; the main BrowserW
 
 ```text
 src/renderer/
-├── index.ts          # List UI entry
-├── events/           # data-action event delegation
-├── lib/              # pure event-push filtering/signature helpers
-├── rendering/        # body renderer
-├── settings/         # Settings window entry
-├── alert/            # Full-screen alert entry
-├── styles/           # CSS reset + list styles
-└── utils/            # DOM query helpers
+├── index.ts / index.html     # List UI entry (popover)
+├── env.d.ts / css.d.ts       # ambient Api + CSS module typings
+├── tsconfig.json
+├── events/                   # data-action event delegation
+├── lib/apply-events-push.ts  # tomorrow filter + content/display signature gate for pushes
+├── rendering/body.ts         # meeting list HTML
+├── settings/                 # Settings window (index.html/ts/css + env.d.ts)
+├── alert/                    # Full-screen alert (index.html/ts/css)
+├── styles/                   # CSS reset + list styles
+└── utils/dom.ts              # DOM query helpers only (escapeHtml is shared)
 ```
 
 ## LIST WINDOW
 
 - `AppState` lives in `src/shared/app-state.ts` and is imported by `index.ts` and `rendering/body.ts`.
-- States: `loading` → `no-permission` → `no-events` → `has-events` → `error`.
+- Discriminated union (not a linear pipeline): `loading` \| `no-permission` \| `no-events` \| `has-events` \| `error`. Tray/settings phases `limited` / `offline-cached` are **`CalendarUiPhase`**, not popover `AppState`.
 - `loadEvents()` uses `window.api.calendar.getEvents()` → `CalendarPublication`; pushes deliver the same envelope via `onResultUpdated`.
 - Refresh/retry use the same `loadEvents()` path (no renderer force-poll IPC). `loadGeneration` ignores stale publications.
 - On show: always local `render()` with `Date.now()` so ended meetings drop immediately; network refresh is debounced separately (`lastPollTime` ≥5s).
@@ -70,7 +72,7 @@ src/renderer/
 
 ## CONVENTIONS / ANTI-PATTERNS
 
-- Always `escapeHtml` user content in templates (including completed-history titles).
+- Always `escapeHtml` user content in templates (including completed-history titles). Import from **`shared/utils/escape-html.js`** (not a renderer-local util).
 - Never put meeting URLs in alert payloads or join buttons as openable strings.
 - Full re-render on state change; no cross-render DOM refs.
 - Never import from `src/main/`.

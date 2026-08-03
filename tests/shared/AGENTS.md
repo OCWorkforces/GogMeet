@@ -11,9 +11,9 @@ Most pure logic that used to live under shared (brands, errors, pick-join-target
 | Suite | Covers |
 | --- | --- |
 | `as.test.ts` | `Object.prototype.As` + free-function `As` cast helper (`sideEffects` package entry) |
-| `contracts.test.ts` | IPC channel / shared contract smoke |
+| `contracts.test.ts` | IPC channel uniqueness + a few key names (deep map coverage lives in `tests/main/ipc-channels.test.ts`) |
 
-Setup: `tests/setup.as.ts` installs the cast extension for this project. Coverage floors: **90 / 90 / 80 / 80**; type-only modules `alert.ts` / `app-state.ts` excluded.
+Setup: `tests/setup.as.ts` installs the cast extension for this project. Coverage floors: **90 / 90 / 80 / 80**; type-only modules `alert.ts` / `app-state.ts` excluded. (`AppState` is also exercised from `tests/main/app-state.test.ts` under the main project.)
 
 When adding tests:
 

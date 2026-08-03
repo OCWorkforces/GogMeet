@@ -10,8 +10,8 @@
 | `window-chrome.ts` | Platform chrome + dialog canvas `#0d1117` + alert always-on-top | `DIALOG_BACKGROUND_COLOR`, `platformWindowChrome()`, `windowsSolidBackgroundColor()`, `bindWindowsThemeBackground()`, `applyAlertAlwaysOnTop()` |
 | `meet-url.ts` | Thin allowlisted open (delegates to ShellMeetingOpener) | `openMeetingUrl()` |
 | `join-meeting.ts` | Join hub free function (default-bound use case) | `joinMeetingById()`, `bindJoinMeeting()` |
-| `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo` |
-| `log.ts` | electron-log bootstrap | `configureMainLogging()` |
+| `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo`, `clearPackageInfoCache`, `isPackageInfoLoaded` |
+| `log.ts` | electron-log bootstrap + scopes | `configureMainLogging()`, `mainLog`, `schedulerLog`, `calendarLog` |
 | `system-settings.ts` | Open OS settings (non-meeting egress) | `openSystemSettings()` |
 | `performance-trace.ts` | Opt-in redacted measurement records | `perfTrace`, `isPerfTraceEnabled`, `GOGMEET_PERF_TRACE=1` |
 

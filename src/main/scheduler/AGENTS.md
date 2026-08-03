@@ -7,7 +7,7 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | File | Role |
 | --- | --- |
 | `facade.ts` | Sole public entry. Owns start/stop/restart, `forcePoll`, dependency injection, `cancelPendingBrowserOpen`, force-poll coalescing |
-| `index.ts` | `scheduleEvents(events)` — snapshot → pure `planSchedule` → `interpretSchedulePlan` |
+| `index.ts` | `scheduleEvents(events)` — snapshot → pure `planSchedule` → `interpretSchedulePlan`; also re-exports plan/types/late-join helpers for **internal** scheduler use (not a public package barrel) |
 | `core/plan-schedule.ts` | Pure scheduling decisions (no Electron / timers) |
 | `core/schedule-types.ts` | `SchedulePlan` ADT / action types (includes **`set-snapshot`**) |
 | `adapters/interpret-schedule.ts` | Applies plan actions; **sole schedule-path snapshot writer** via `set-snapshot` |
@@ -33,9 +33,9 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 | Function | Contract |
 | --- | --- |
 | `startScheduler()` | Bumps `pollEpoch`, initial `poll()`, arms recursive polling timeout |
-| `stopScheduler()` | Cancels pending force poll, resets resources preserving window, clears tray title |
-| `restartScheduler()` | Stop then start; timing settings + wake events |
-| `forcePoll()` | Immediate poll with 10s completed-poll coalescing |
+| `stopScheduler()` | Cancels pending force poll, **`cancelCalendarRefresh()`**, resets resources preserving window (`preserveFiredState` optional), clears tray title |
+| `restartScheduler()` | `stop({ preserveFiredState: true })` then start; timing settings + wake events |
+| `forcePoll(options?)` | Coordinated poll. `ForcePollReason`: `user` \| `auto` \| `watch` \| `power`. **`user` bypasses** 10s coalesce (tray Refresh); auto/watch/power coalesce. In-flight still queues one follow-up via `runGuardedPoll` |
 | `republishUiForDisplayTick()` | Force re-push last publication for wall-clock list refresh (no fetch). **Facade free-function only** — not on `AppGraph.scheduler`; lifecycle/display-horizon call this directly |
 | `setSchedulerWindow(w)` | BrowserWindow for typed push channels |
 | `setTrayTitleCallback(fn)` | Tray title updater; scheduler never imports tray |
@@ -57,8 +57,9 @@ Core scheduling engine for polling calendar, scheduling per-event timers, updati
 - Display horizon (wall-clock list refresh) is owned by `system/display-horizon.ts`, armed from poll publish; lifecycle wires ticks to `republishUiForDisplayTick` + tray force rebuild. Display-only — never auto-opens.
 - In-meeting: poll resyncs when calendar `endMs` changes while already in progress.
 - Schedule-ahead cap: 24 hours.
-- Force-poll coalesce: 10 seconds after last completed poll.
+- Force-poll coalesce: 10 seconds after last completed poll for **auto/watch/power** only. **`reason: "user"`** always re-fetches immediately (clears any pending deferred auto timer).
 - Consecutive errors threshold 3; counter caps at 4.
+- `firedEvents` / `alertFiredEvents` TTL: `FIRED_EVENT_TTL_MS` = **15 minutes** (`state/state-timers.ts`).
 
 ## Automation eligibility
 

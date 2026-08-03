@@ -17,10 +17,10 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder â
 | `onAbout` | yes | About window |
 | `onOpenSettings` | yes | Settings window |
 | `onJoinMeeting(id)` | yes | `graph.join.byId` |
-| `onForcePoll()` | yes | `graph.scheduler.forcePoll` |
-| `onConnectGoogle` | optional | `graph.calendar.requestPermission` then forcePoll |
+| `onForcePoll()` | yes | tray: `forcePoll({ reason: "user" })` then force menu rebuild |
+| `onConnectGoogle` | optional | `graph.calendar.requestPermission` then user forcePoll + rebuild |
 | `onDisconnectGoogle` | optional | `graph.calendar.disconnect` |
-| `onRetryPoll` | optional | forcePoll |
+| `onRetryPoll` | optional | same as `onForcePoll` (user-intent) |
 
 ### `buildMeetingMenuTemplate(events, showTomorrow, callbacks, status?, showCompletedToday?)`
 

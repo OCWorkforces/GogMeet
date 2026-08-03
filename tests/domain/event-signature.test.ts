@@ -104,6 +104,21 @@ describe("eventSignature", () => {
 });
 
 describe("eventListSignature", () => {
+  it("changes when the same event id is rescheduled (start/end)", () => {
+    const id = asTestEventId("standup");
+    const morning = makeEvent({
+      id,
+      startDate: asTestIsoUtc("2026-08-03T09:00:00Z"),
+      endDate: asTestIsoUtc("2026-08-03T09:30:00Z"),
+    });
+    const evening = makeEvent({
+      id,
+      startDate: asTestIsoUtc("2026-08-03T18:00:00Z"),
+      endDate: asTestIsoUtc("2026-08-03T18:30:00Z"),
+    });
+    expect(eventListSignature([morning])).not.toBe(eventListSignature([evening]));
+  });
+
   it("is independent of input array order (stable ordering)", () => {
     const a = makeEvent({ id: asTestEventId("a") });
     const b = makeEvent({ id: asTestEventId("b"), title: "B" });

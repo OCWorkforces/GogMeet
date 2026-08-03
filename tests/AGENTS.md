@@ -28,12 +28,12 @@ tests/
 ├── helpers/               # test-utils, ipc-sender, app-graph
 ├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
-├── main/                  # Node + Electron mock suites (~80 files)
-│   └── swift/             # swift-helper-process, event-parser
+├── main/                  # Node + Electron mock suites (~82 *.test.ts, flat layout)
+│   └── swift/             # swift-helper-process, event-parser only
 ├── renderer/              # jsdom suites (+ rendering/, utils/)
 ├── shared/                # as.test, contracts
 ├── scripts/               # validate-node, release verifiers, guardrails, performance lab, latest.yml
-└── bench/                 # calendar-parser, tray-menu, scheduler-poll, alert, ipc, renderer-body
+└── bench/                 # calendar-parser, tray-menu, scheduler-poll, alert, ipc-handler, renderer-body
 ```
 
 ## High-value main suites (non-exhaustive)
@@ -57,7 +57,7 @@ tests/
 
 ## Main-project mocks
 
-`setup.main.ts` mocks `app`, `BrowserWindow`, `Tray`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, and `nativeImage`, and pulls in `setup.as.ts`.
+`setup.main.ts` mocks `app`, `commandLine`, `BrowserWindow`, `Tray`, `Menu`, `screen`, `Notification`, `clipboard`, `ipcMain`, `shell`, `dialog`, `nativeTheme`, `powerMonitor`, `powerSaveBlocker`, `nativeImage`, and `session`, and pulls in `setup.as.ts`.
 
 Swift binary tests use `vi.hoisted()` plus process-runner mocks; helper-process tests use real Node children.
 
@@ -69,7 +69,7 @@ Mock source modules with `.js` import paths and current directories, e.g. `../..
 - Use `.js` extensions in imports/mocks.
 - Prefer `.As<T>()` / free `As<T>(v)` over `as unknown as T`.
 - Use `vi.useFakeTimers()` / `vi.useRealTimers()` around timer suites; prefer `vi.advanceTimersByTimeAsync()`.
-- Reset stateful modules in `beforeEach`; scheduler suites use `poll._resetForTest()` and `facade._resetForceTestState()`.
+- Reset stateful modules in `beforeEach`; scheduler suites import named `_resetForTest` / `_resetForceTestState` from poll/facade modules.
 - Dynamic import tests use `vi.resetModules()` before `await import(...)`.
 - For known-good branded fixtures, use `asTestEventId`, `asTestMeetUrl`, `asTestIsoUtc`; for calendar ok fixtures prefer `okCalendarResult` / explicit provenance fields.
 - Graph-backed handlers: `testAppGraph(overrides)` from `tests/helpers/app-graph.ts`.

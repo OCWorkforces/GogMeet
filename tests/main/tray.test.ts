@@ -311,7 +311,7 @@ describe("tray module exports", () => {
     vi.mocked(Menu.buildFromTemplate).mockClear();
     clickHandler?.();
 
-    expect(forcePoll).toHaveBeenCalled();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "auto" });
     // Sync rebuild-from-cache before popup so ended meetings are not shown stale.
     expect(Menu.buildFromTemplate).toHaveBeenCalled();
     expect(trayInstance.popUpContextMenu).toHaveBeenCalled();
@@ -334,7 +334,7 @@ describe("tray module exports", () => {
       .mock.calls.find((c) => c[0] === "click")?.[1] as (() => void) | undefined;
     clickHandler?.();
 
-    expect(forcePoll).toHaveBeenCalled();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "auto" });
     expect(trayInstance.popUpContextMenu).not.toHaveBeenCalled();
   });
 
@@ -504,7 +504,7 @@ describe("tray module exports", () => {
 
     const refresh = template?.find((i) => i.label === "Refresh");
     refresh?.click?.();
-    expect(forcePoll).toHaveBeenCalled();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "user" });
 
     // Join submenu on a meeting row
     const meeting = template?.find((i) => i.label?.includes(event.title));
@@ -618,6 +618,80 @@ describe("tray module exports", () => {
     }>;
     const retry = template3?.find((i) => i.label === "Retry");
     retry?.click?.();
-    expect(forcePoll).toHaveBeenCalled();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "user" });
+  });
+
+  it("Refresh awaits user forcePoll then force-rebuilds the menu", async () => {
+    let resolvePoll: (v: null) => void = () => {};
+    const pollPromise = new Promise<null>((r) => {
+      resolvePoll = r;
+    });
+    const forcePoll = vi.fn().mockReturnValue(pollPromise);
+    const event = createMockEvent();
+    const graph = testAppGraph({
+      settings: {
+        get: () =>
+          ({
+            showTomorrowMeetings: true,
+            showCompletedTodayMeetings: false,
+          }) as never,
+        load: vi.fn(),
+        update: vi.fn(),
+        save: vi.fn(),
+      },
+      scheduler: {
+        forcePoll,
+        getLastKnownEvents: () => null,
+        cancelPendingBrowserOpen: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        restart: vi.fn(),
+        setWindow: vi.fn(),
+        setTrayTitleCallback: vi.fn(),
+        initPowerCallbacks: vi.fn(),
+      },
+      calendar: {
+        getEvents: vi.fn(),
+        requestPermission: vi.fn(),
+        getPermissionStatus: vi.fn(),
+        disconnect: vi.fn(),
+        getUiState: () => ({
+          permission: "granted",
+          phase: "ready",
+          lastError: null,
+          accountEmail: null,
+          events: [event],
+          offline: false,
+          oauthConfigured: false,
+        }),
+        warmup: vi.fn(),
+        invalidatePermissionCache: vi.fn(),
+        shouldAutoRequestPermission: () => false,
+        reportPollError: vi.fn(),
+      },
+    });
+    platformState.darwin = true;
+    const { setupTray, destroyTray } = await import("../../src/main/tray.js");
+    const { Menu } = await import("electron");
+    setupTray({} as never, graph);
+    await flushTrayRebuild();
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
+      label?: string;
+      click?: () => void;
+    }>;
+    vi.mocked(Menu.buildFromTemplate).mockClear();
+
+    const refresh = template?.find((i) => i.label === "Refresh");
+    refresh?.click?.();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "user" });
+    // Rebuild waits for poll completion
+    await flushTrayRebuild();
+    expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
+
+    resolvePoll(null);
+    await pollPromise;
+    await flushTrayRebuild();
+    expect(Menu.buildFromTemplate).toHaveBeenCalled();
+    destroyTray();
   });
 });

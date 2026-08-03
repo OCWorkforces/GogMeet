@@ -13,8 +13,21 @@ import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import { cancelCalendarRefresh } from "../calendar/refresh-coordinator.js";
 
-/** Minimum ms between force-polls — prevents thrash from rapid tray clicks or wake storms */
+/** Minimum ms between auto/watch force-polls — prevents thrash from rapid clicks or wake storms */
 const FORCE_POLL_COALESCE_MS = 10_000;
+
+/**
+ * Why a force-poll was requested.
+ * - `user` — tray Refresh / Retry / Connect: always re-fetch immediately (no 10s coalesce)
+ * - `auto` — left-click / default / deferred timer: coalesce-friendly
+ * - `watch` — EventKit/Google change sidecar
+ * - `power` — resume / unlock paths
+ */
+export type ForcePollReason = "user" | "auto" | "watch" | "power";
+
+export type ForcePollOptions = {
+  readonly reason?: ForcePollReason;
+};
 
 /** Timestamp of the last completed poll (used by forcePoll coalesce guard) */
 let lastPollCompletedAt = 0;
@@ -68,27 +81,40 @@ async function runGuardedPoll(): Promise<CalendarPublication | null> {
 }
 
 /**
- * Force an immediate coordinated poll (fetch + schedule/suspend + push).
- * Cancels the pending setTimeout, runs poll now, then re-arms the next tick.
- * Coalesces within FORCE_POLL_COALESCE_MS after last completed poll.
+ * Force a coordinated poll (fetch + schedule/suspend + push).
+ * Cancels the pending setTimeout, runs poll, then re-arms the next tick.
+ *
+ * Coalesce (`FORCE_POLL_COALESCE_MS`) applies to non-`user` reasons only so
+ * background thrash is bounded while tray Refresh always re-fetches.
  */
-export async function forcePoll(): Promise<CalendarPublication | null> {
+export async function forcePoll(options?: ForcePollOptions): Promise<CalendarPublication | null> {
+  const reason = options?.reason ?? "auto";
+  const bypassCoalesce = reason === "user";
   const now = Date.now();
-  if (now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
-    // Defer one poll to fire at the end of the coalesce window instead of dropping it.
+
+  if (!bypassCoalesce && now - lastPollCompletedAt < FORCE_POLL_COALESCE_MS) {
+    // Defer one auto/watch poll to the end of the coalesce window instead of dropping it.
     if (pendingForcePollTimer === null) {
       const remainingMs = FORCE_POLL_COALESCE_MS - (now - lastPollCompletedAt);
       pendingForcePollTimer = setTimeout(() => {
         pendingForcePollTimer = null;
-        void forcePoll();
+        void forcePoll({ reason: "auto" });
       }, remainingMs);
       console.debug(`[scheduler] forcePoll deferred — running in ${remainingMs}ms`);
     } else {
       console.debug("[scheduler] forcePoll already deferred — skipping");
     }
-    // Caller still awaits in-flight/latest via guarded poll join when possible.
-    if (inFlightPoll !== null) return inFlightPoll;
+    // In-flight: join via guarded poll so a follow-up is queued (not bare join).
+    if (inFlightPoll !== null) {
+      return runGuardedPoll();
+    }
     return null;
+  }
+
+  // Real poll path: drop any pending deferred auto forcePoll to avoid double-fetch.
+  if (pendingForcePollTimer !== null) {
+    clearTimeout(pendingForcePollTimer);
+    pendingForcePollTimer = null;
   }
 
   // Cancel the pending background setTimeout so we don't double-poll

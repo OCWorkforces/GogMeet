@@ -26,7 +26,8 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
 | `main/app/` | Lifecycle + IPC registrar. |
-| `main/menu/`, `tray.ts` | Tray context menu builders + tray lifecycle (optional completed-today history). |
+| `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
+| `main/index.ts` | Single-instance bootstrap; popover BrowserWindow **360×480**. |
 | `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
 | `main/windows/` | About, alert, settings BrowserWindows. |
 | `main/utils/` | CSP/window helpers, join hub, meet-url, **performance-trace**, logging. |

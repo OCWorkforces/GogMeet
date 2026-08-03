@@ -1,8 +1,8 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-02  
-**App version:** 1.17.6  
-**Branch:** redesign-macos-dialogs (feature); integrate via develop
+**Updated:** 2026-08-03  
+**App version:** 1.17.7  
+**Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -50,7 +50,7 @@ GogMeet/
 ├── docs/                 # CA plan, windows design/dogfood, adr/, plans/, security/, performance/
 ├── vitest.workspace.ts   # unit/coverage projects
 ├── vitest.bench.config.ts # isolated microbenchmarks (not in workspace)
-├── .github/workflows/    # PR + release-mac/win + beta + weekly measurement
+├── .github/workflows/    # pr-check + release (release-mac/win jobs) + beta-release + measurement
 └── .sentrux/             # secondary architecture constraints (not CI-wired)
 ```
 
@@ -120,7 +120,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 
 - TypeScript imports use `.js` specifiers; type-only imports use `import type`.
 - Bun is the primary package manager; host Node 26 for validation/icon generation/release helpers.
-- No barrels. Scheduler public surface is `scheduler/facade.ts` only (outside `scheduler/`).
+- No package-level barrels. Outside `scheduler/`, import only `scheduler/facade.ts` (or `graph.scheduler`); `scheduler/index.ts` may re-export for internal use.
 - Prefer `platform/os.ts` over raw `process.platform` for OS branches.
 - Never static-import `swift/*` outside `calendar/providers/darwin-eventkit.ts` and `swift/**`.
 - Facades must not import `swift/*` or `calendar/auth/*`.
@@ -196,7 +196,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
-- Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
+- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then force menu rebuild. See `docs/plans/fix-tray-refresh-reschedule.md`.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
 - Performance plan: `docs/plans/gogmeet-performance-enhancement.md` — refresh coordinator shipped; remaining work is measurement experiments / deferred optimizations. Weekly lab: `measurement.yml`.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

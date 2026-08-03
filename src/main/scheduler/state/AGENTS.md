@@ -8,7 +8,7 @@ Internal state for the scheduler subsystem, split into slices composed by `index
 | --- | --- |
 | `index.ts` | Composition root: `SchedulerState` interface, `createSchedulerState()` factory, singleton, `replaceState()`, getters/setters |
 | `state-cleanup.ts` | Stale timer pruning, bulk resource cleanup, in-meeting timer cleanup |
-| `state-timers.ts` | Timer-handle Maps, `scheduledEventData` snapshots (written via interpret `set-snapshot`, not browser-timer), fired/cancelled suppression state |
+| `state-timers.ts` | Timer-handle Maps, `scheduledEventData` snapshots (written via interpret `set-snapshot`, not browser-timer), fired/cancelled suppression state; exports `FIRED_EVENT_TTL_MS` (15 min) |
 | `state-display.ts` | Tray display scalars: `activeTitleEventId`, `activeInMeetingEventId`, dirty flags |
 | `state-poll.ts` | Poll metadata: `pollTimeout`, `pollEpoch`, `consecutiveErrors`, `lastKnownEvents` |
 | `state-runtime.ts` | Runtime callbacks: `win`, `onTrayTitleUpdate`, `powerCallbacks` |
@@ -27,7 +27,8 @@ Internal state for the scheduler subsystem, split into slices composed by `index
 
 - Slices compose via spread in `createSchedulerState()`: `{ ...createTimersState(), ...createDisplayState(), ...createPollState(), ...createRuntimeState() }`.
 - `replaceState()` snapshots refs, calls `clearSchedulerResources`, restores runtime + optional fired state (`preserveFiredState` from facade stop/restart).
-- `firedEvents` / `alertFiredEvents` suppress browser open / alert re-fire. **`cancelledEvents` is title-countdown bookkeeping only** — never use it for auto-open suppression.
+- `firedEvents` / `alertFiredEvents` suppress browser open / alert re-fire (`FIRED_EVENT_TTL_MS` = 15 min). **`cancelledEvents` is title-countdown bookkeeping only** — never use it for auto-open suppression.
+- `PowerCallbacks` type lives on the composed state (used by composition `app-graph` / power wiring).
 - `pollEpoch` is a race-condition guard for stale callbacks.
 - `incrementConsecutiveErrors()` caps at `MAX_CONSECUTIVE_ERRORS_CAP` (4).
 - Snapshot map `scheduledEventData` is written via interpret `set-snapshot` only (not by browser-timer).

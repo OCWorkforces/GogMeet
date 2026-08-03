@@ -42,7 +42,7 @@ export function registerCalendarHandlers(graph: AppGraph): void {
       try {
         const status = await graph.calendar.requestPermission();
         if (status === "granted") {
-          void graph.scheduler.forcePoll();
+          void graph.scheduler.forcePoll({ reason: "user" });
         }
         return status;
       } catch (err) {
