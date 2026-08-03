@@ -62,6 +62,13 @@ function assetsDir(): string {
   return path.join(__dirname, "..", "..", "src", "assets");
 }
 
+/** User-intent refresh: always re-fetch (bypass 10s coalesce), then force menu rebuild. */
+function userForcePollAndRebuild(mainWindow: BrowserWindow, graph: AppGraph): void {
+  void graph.scheduler.forcePoll({ reason: "user" }).then(() => {
+    requestTrayRebuild(mainWindow, { force: true });
+  });
+}
+
 function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
   return {
     onAbout: () => showAbout(mainWindow),
@@ -69,7 +76,7 @@ function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
     onConnectGoogle: () => {
       void graph.calendar.requestPermission().then((status) => {
         if (status === "granted") {
-          void graph.scheduler.forcePoll();
+          userForcePollAndRebuild(mainWindow, graph);
         }
       });
     },
@@ -80,13 +87,13 @@ function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
       });
     },
     onRetryPoll: () => {
-      void graph.scheduler.forcePoll();
+      userForcePollAndRebuild(mainWindow, graph);
     },
     onJoinMeeting: (id: EventId) => {
       void graph.join.byId(id);
     },
     onForcePoll: () => {
-      void graph.scheduler.forcePoll();
+      userForcePollAndRebuild(mainWindow, graph);
     },
   };
 }
@@ -376,7 +383,9 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
   requestTrayRebuild(mainWindow, { force: true });
 
   tray.on("click", () => {
-    void graph.scheduler.forcePoll();
+    // Soft refresh: keep 10s auto coalesce so rapid clicks do not thrash EventKit.
+    // Explicit menu Refresh uses reason "user" (immediate re-fetch).
+    void graph.scheduler.forcePoll({ reason: "auto" });
     // Windows: left-click should open the menu (right-click uses setContextMenu).
     // macOS: keep click = refresh only; menu is the status-item context menu.
     // Force sync rebuild from cache so ended meetings are filtered with Date.now()

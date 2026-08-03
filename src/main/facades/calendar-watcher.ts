@@ -23,7 +23,7 @@ export function startCalendarWatcher(): void {
       watchPort = port;
       if (port.startWatch) {
         port.startWatch(() => {
-          void forcePoll();
+          void forcePoll({ reason: "watch" });
         });
         console.log("[calendar-watcher] Watch started");
       } else {
