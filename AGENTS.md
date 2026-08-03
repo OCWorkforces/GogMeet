@@ -196,7 +196,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
-- Poll: 2 min AC / 4 min battery; `forcePoll` coalesces within 10s.
+- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then force menu rebuild. See `docs/plans/fix-tray-refresh-reschedule.md`.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
 - Performance plan: `docs/plans/gogmeet-performance-enhancement.md` — refresh coordinator shipped; remaining work is measurement experiments / deferred optimizations. Weekly lab: `measurement.yml`.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

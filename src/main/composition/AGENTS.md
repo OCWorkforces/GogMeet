@@ -18,7 +18,7 @@ Composition root for the main process.
 | `settings` | load, get, update, save |
 | `join` | `byId(id)` |
 | `opener` | `MeetingOpenerPort.open` |
-| `scheduler` | `forcePoll` → `Promise<CalendarPublication | null>`, start, `stop({ preserveFiredState? })`, restart, setWindow, setTrayTitleCallback, initPowerCallbacks, getLastKnownEvents, cancelPendingBrowserOpen |
+| `scheduler` | `forcePoll(options?: ForcePollOptions)` → publication or null (`reason: "user"` bypasses 10s coalesce), start, `stop({ preserveFiredState? })`, restart, setWindow, setTrayTitleCallback, initPowerCallbacks, getLastKnownEvents, cancelPendingBrowserOpen |
 | `watcher` | start, stop, revive |
 
 **Not on the graph (free-function / facade only):** `republishUiForDisplayTick` — lifecycle imports it from `scheduler/facade.js` for display-horizon ticks (display-only republish; no fetch).

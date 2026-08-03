@@ -28,7 +28,7 @@ Domain-pure suites (brand, url-extract, meet-url build, pick-join-target, settin
 | Area | Files |
 | --- | --- |
 | State machine | `scheduler.test.ts`, `scheduler-state-replace.test.ts` |
-| Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts`, `scheduler-restart-preserves-suppression.test.ts` |
+| Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts` (user vs auto coalesce), `scheduler-restart-preserves-suppression.test.ts` |
 | Pure plan | `scheduler-plan-schedule.test.ts` |
 | Browser/alert timers | `scheduler-browser-timer.test.ts`, `scheduler-alert-timer.test.ts`, `scheduler-auto-open-deadline.test.ts`, `scheduler-facade-cancel-browser-open.test.ts` |
 | Late-join | `late-join.test.ts` (`firedEvents` only) |
@@ -66,7 +66,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 
 ## WINDOWS / SYSTEM / UTILS
 
-- Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts`.
+- Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature, user Refresh await+rebuild), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts` (incl. reschedule start/end signature).
 - Windows: `alert-window` (queue + hide/reuse + destroy), `settings-window` (520×760), `about-window` (320×420, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`).
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate).

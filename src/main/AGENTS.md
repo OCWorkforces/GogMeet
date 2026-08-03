@@ -67,7 +67,8 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - Install menu with `tray.setContextMenu()` before first activation.
 - Refresh on `meeting-list-updated`, `calendar-status-updated`, display-horizon ticks, and completed-history setting changes (`forceTrayMenuRefresh`).
 - Menu cache signature includes wall-clock upcoming membership **and** `showCompletedTodayMeetings` so ended meetings / history toggle invalidate without content changes.
-- macOS click: `forcePoll` only. Windows click: `forcePoll` + `popUpContextMenu`.
+- macOS click: `forcePoll({ reason: "auto" })` only (soft; 10s coalesce). Windows click: same + `popUpContextMenu`.
+- Menu **Refresh / Retry / Connect-granted**: `forcePoll({ reason: "user" })` then `requestTrayRebuild({ force: true })` — immediate re-fetch, no 10s coalesce.
 - Countdown: `setTitle` on Darwin; capped tooltip on Windows (16/32 theme icons).
 - Menu join/refresh via `MenuCallbacks.onJoinMeeting` / `onForcePoll` (graph-backed).
 

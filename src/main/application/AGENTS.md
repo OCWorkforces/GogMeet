@@ -12,7 +12,7 @@ application/
 │   ├── calendar-port.ts          # getEvents(signal), permission, optional watch/OAuth hooks
 │   ├── settings-store-port.ts    # load / get / update (save is JsonSettingsStore-only)
 │   ├── meeting-opener-port.ts    # open(url) → Result
-│   ├── scheduler-port.ts         # cancelPendingBrowserOpen, getLastKnownEvents, forcePoll(): Promise<void>
+│   ├── scheduler-port.ts         # cancelPendingBrowserOpen, getLastKnownEvents, forcePoll(): Promise<void> (narrow; graph has ForcePollOptions)
 │   ├── clock-port.ts             # now()
 │   └── event-publisher-port.ts   # publish calendar UI updates (publishMeetingList optional)
 └── use-cases/
