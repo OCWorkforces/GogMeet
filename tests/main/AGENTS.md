@@ -7,16 +7,18 @@ Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock
 ## STRUCTURE
 
 ```text
-tests/main/
-├── app-graph.test.ts / lifecycle.test.ts / app-bootstrap.test.ts
-├── scheduler*.test.ts / scheduler/     # facade, poll, timers, plan-schedule, auto-open off
-├── swift/ + swift-*.test.ts            # helper-process, parser, binary-manager, watch sidecar
-├── calendar*.test.ts / google-* / fixture / offline-cache / refresh-coordinator
-├── google-http.test.ts / performance-trace.test.ts
-├── ipc*.test.ts                        # channels, typed wrappers, handlers, registrar
-├── tray / meeting-menu / *-window / window-chrome
-├── system adapters                     # power, display-horizon, shortcuts, notification, auto-launch, updater
-└── utils                               # join-meeting, package-info, system-settings
+tests/main/                         # flat *.test.ts (no scheduler/ subdirectory)
+├── app-graph*.test.ts / lifecycle / app-bootstrap / index-bootstrap / bind-composition
+├── scheduler-*.test.ts             # facade, poll, timers, plan-schedule, auto-open off, …
+├── swift/                          # swift-helper-process, event-parser only
+├── swift-binary-manager / swift-guards / calendar-watch-sidecar  # top-level (not under swift/)
+├── calendar*.test.ts / google-* / fixture / offline-cache / refresh-coordinator / watcher
+├── google-http / performance-trace / shell-meeting-opener / guardrails-security / after-pack
+├── ipc*.test.ts                    # channels, typed wrappers, handlers, registrar
+│                                   # ipc-handlers-scheduler.test.ts = negative (module must not exist)
+├── tray / meeting-menu / *-window / window-chrome / dock-visibility
+├── system adapters                 # power, display-horizon, shortcuts, notification, auto-launch, updater
+└── utils                           # join-meeting, package-info, system-settings, log, …
 ```
 
 Domain-pure suites (brand, url-extract, meet-url build, pick-join-target, settings defaults, etc.) live under **`tests/domain/`**, not here.
@@ -45,12 +47,13 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `offline-cache.test.ts` — encrypt round-trip (schema v1 metadata + ended filter).
 - `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
-- `swift-binary-manager.test.ts` — integrity-only recompile.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
+- `swift-binary-manager.test.ts` — integrity-only recompile (top-level).
+- `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch (top-level; mocked exec).
 - `performance-trace.test.ts` — opt-in redacted trace primitive.
+- `shell-meeting-opener.test.ts` / `guardrails-security.test.ts` / `after-pack.test.ts` — egress, permanent guardrails, packaging hook.
 
 Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<T>()` for Electron mock shapes.
-- `swift-binary-manager.test.ts` / `calendar-watch-sidecar.test.ts` — compile/cache/watch (mocked exec).
 
 ## IPC / PRELOAD / GRAPH
 
