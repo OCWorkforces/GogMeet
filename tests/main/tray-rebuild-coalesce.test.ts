@@ -89,6 +89,24 @@ describe("trayMenuSignature", () => {
     expect(after).not.toBe(during);
   });
 
+  it("changes when the same event id is rescheduled (start/end)", () => {
+    const id = createMockEvent().id;
+    const morning = createMockEvent({
+      id,
+      startDate: "2026-08-03T09:00:00.000Z",
+      endDate: "2026-08-03T09:30:00.000Z",
+    });
+    const evening = createMockEvent({
+      id,
+      startDate: "2026-08-03T18:00:00.000Z",
+      endDate: "2026-08-03T18:30:00.000Z",
+    });
+    const now = Date.parse("2026-08-03T08:00:00.000Z");
+    const a = trayMenuSignature(baseUi, [morning], true, "ok", null, now);
+    const b = trayMenuSignature(baseUi, [evening], true, "ok", null, now);
+    expect(b).not.toBe(a);
+  });
+
   it("changes when showCompletedToday flag flips", () => {
     const events = [createMockEvent()];
     const off = trayMenuSignature(baseUi, events, true, "ok", null, Date.now(), false);
