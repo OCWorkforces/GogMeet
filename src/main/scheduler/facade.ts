@@ -87,9 +87,7 @@ async function runGuardedPoll(): Promise<CalendarPublication | null> {
  * Coalesce (`FORCE_POLL_COALESCE_MS`) applies to non-`user` reasons only so
  * background thrash is bounded while tray Refresh always re-fetches.
  */
-export async function forcePoll(
-  options?: ForcePollOptions,
-): Promise<CalendarPublication | null> {
+export async function forcePoll(options?: ForcePollOptions): Promise<CalendarPublication | null> {
   const reason = options?.reason ?? "auto";
   const bypassCoalesce = reason === "user";
   const now = Date.now();
