@@ -27,7 +27,7 @@ src/domain/
 | `calendar-ui-state.ts` | tray/settings UI state, phases, `cacheAgeMs`, defaults |
 | `settings.ts` | `AppSettings` (schema **v3**), `DEFAULT_SETTINGS`, quiet hours types |
 | `result.ts` | `Result<T,E>`, `ok` / `err` |
-| `errors.ts` | `AppError` taxonomy |
+| `errors.ts` | `AppError` taxonomy + guards / `formatAppError` / `errFrom` |
 | `parse-json.ts` | `parseJsonObject` → `AppResult` |
 | `type-guards.ts` | `isObjectRecord` |
 
@@ -50,13 +50,13 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | `calendarLiveOk` / `calendarOfflineOk` / `calendarErr` | constructors |
 | `isValidCalendarTimestamp` | finite, ≤5 min future skew |
 
-**UI (`calendar-ui-state.ts`):** phases include `limited` (live partial) and `offline-cached`. Field `cacheAgeMs` for offline age. Copy: `CALENDAR_LIMITED_COPY`. Offline success must **not** set permission from `kind==="ok"` alone.
+**UI (`calendar-ui-state.ts`):** `CalendarUiPhase` = `disconnected` \| `connecting` \| `ready` \| `empty` \| `error` \| `offline-cached` \| `limited` (live partial → `limited`). Field `cacheAgeMs` for offline age. Copy: `CALENDAR_LIMITED_COPY`. Offline success must **not** set permission from `kind==="ok"` alone.
 
 ## FILES (services / policies)
 
 | File | Role |
 | --- | --- |
-| `policies/meet-url-allowlist.ts` | HTTPS host allowlist + `isAllowedMeetHostname` |
+| `policies/meet-url-allowlist.ts` | HTTPS host allowlist + `isAllowedMeetHostname` (`meet.google.com`, `calendar.google.com`, `accounts.google.com`, `zoom.us` / `.zoom.us`, `calendly.com`) |
 | `services/url-validation.ts` | `validateMeetUrl` / `isAllowedMeetUrl` |
 | `services/build-meet-url.ts` | pure join URL + Meet `authuser` / Zoom `uname` |
 | `services/url-extract.ts` | free-text Zoom → Meet → Calendly extract |
@@ -66,7 +66,7 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 | `services/truncate-middle.ts` | code-point middle-truncate; `MEETING_TITLE_DISPLAY_MAX_CHARS` (25) for meeting titles |
 | `services/platform.ts` | Meet vs Zoom host detection (**not** OS) |
 | `services/time.ts` | day boundaries + remaining-time format |
-| `services/settings-parse.ts` | clamp/migrate settings blobs (v2 → v3 rewrite) |
+| `services/settings-parse.ts` | clamp + rewrite `schemaVersion` to **v3**; legacy `fullScreenAlert` → `windowAlert`; default missing booleans |
 | `services/event-signature.ts` | stable event/list signatures for push gating |
 
 ## RULES
