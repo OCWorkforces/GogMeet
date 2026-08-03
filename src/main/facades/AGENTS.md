@@ -10,10 +10,10 @@ These are **not** pure domain (see `src/domain/`). They may use Electron/`node:f
 
 | File | Exports | Purpose |
 | --- | --- | --- |
-| `calendar.ts` | `refreshCalendarPublication`, `getLastPublication`, permission/disconnect/warmup/UI state, bind helpers | Stable facade over factory + **refresh-coordinator**; publishes `CalendarUiState` on the main bus |
-| `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher`, `reviveCalendarWatcher` | Provider `startWatch` / `stopWatch` → `forcePoll()`; revive after give-up/resume |
+| `calendar.ts` | `refreshCalendarPublication`, `getCalendarEventsResult`, `getLastPublication`, `cancelActiveCalendarRefresh`, `getCalendarPort`, permission/disconnect/warmup/UI/`reportCalendarPollError`, bind/rebind helpers | Stable facade over factory + **refresh-coordinator**; publishes `CalendarUiState` on the main bus; module-load binds fetcher to get-meetings use case |
+| `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher`, `reviveCalendarWatcher` | Provider `startWatch` / `stopWatch` → scheduler `forcePoll()`; uses `getCalendarPort()`; revive after give-up/resume |
 | `calendar-status.ts` | `recordCalendarResult`, `getLastCalendarStatus` | Last poll ok/err for tray menu error rows (`isCalendarOk`) |
-| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings`, bind helpers | JSON-persisted settings via JsonSettingsStore; schema **v3** |
+| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings`, bind helpers | JSON-persisted settings via JsonSettingsStore; schema **v3**. Port is load/get/update; **`save` requires `JsonSettingsStore.save`** |
 
 ## WHERE TO LOOK
 

@@ -31,12 +31,13 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 3. `registerIpcHandlers(win, graph)`.
 4. Parallel `graph.settings.load()` + calendar permission status; **auto-request only on Darwin** (`shouldAutoRequestPermission()`).
 5. `setupTray(win, graph)`.
-6. Scheduler callbacks + window injection via `graph.scheduler.*`.
-7. `graph.scheduler.start()` then `graph.watcher.start()`.
-8. Power, shortcuts (`registerShortcuts(graph)`), notifications, auto-launch.
-9. `initAutoUpdater()` — packaged non-portable only.
+6. Scheduler callbacks + window injection via `graph.scheduler.*` (`setTrayTitleCallback`, `setSchedulerWindow`, `initPowerCallbacks`).
+7. Wire **display-horizon** ticks: `onDisplayHorizonTick` → free-function `republishUiForDisplayTick()` + `forceTrayMenuRefresh()` (display-only; not on `AppGraph.scheduler`).
+8. `graph.scheduler.start()` then `graph.watcher.start()`.
+9. Power events, shortcuts (`registerShortcuts(graph)`), notifications, auto-launch sync.
+10. `initAutoUpdater()` — packaged non-portable only.
 
-`shutdownApp()`: power cleanup → `graph.scheduler.stop()` + `graph.watcher.stop()` (or free-fn fallback) → unregister shortcuts → clear `activeGraph`.
+`shutdownApp()`: power cleanup → unsubscribe/clear display horizon → **`destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow`** → `graph.scheduler.stop()` + `graph.watcher.stop()` (or free-fn fallback) → unregister shortcuts → clear `activeGraph`.
 
 Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
 
