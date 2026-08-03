@@ -38,6 +38,7 @@ import {
   setSchedulerWindow,
   setTrayTitleCallback,
   initPowerCallbacks,
+  type ForcePollOptions,
 } from "../scheduler/facade.js";
 import { bindComposition } from "./bind-composition.js";
 
@@ -79,8 +80,11 @@ export interface AppGraphSettings {
 
 /** Scheduler surface on the app graph. */
 export interface AppGraphScheduler {
-  /** Immediate coordinated poll; returns the publication when the poll completes. */
-  forcePoll(): Promise<CalendarPublication | null>;
+  /**
+   * Coordinated poll; returns the publication when the poll completes.
+   * Pass `{ reason: "user" }` for tray Refresh (bypasses 10s auto coalesce).
+   */
+  forcePoll(options?: ForcePollOptions): Promise<CalendarPublication | null>;
   /** Cached last poll result for join/shortcuts without starting a refresh. */
   getLastKnownEvents(): CalendarResult | null;
   /** Cancel a pending auto-open timer and mark the event fired (e.g. alert dismiss). */
@@ -178,7 +182,7 @@ export function createAppGraph(options: CreateAppGraphOptions = {}): AppGraph {
     },
     opener,
     scheduler: {
-      forcePoll: () => forcePoll(),
+      forcePoll: (options) => forcePoll(options),
       getLastKnownEvents: () => getLastKnownEvents(),
       cancelPendingBrowserOpen: (id) => {
         cancelPendingBrowserOpen(id);
