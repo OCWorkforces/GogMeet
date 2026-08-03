@@ -1,8 +1,8 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-02  
+**Updated:** 2026-08-03  
 **App version:** 1.17.6  
-**Branch:** redesign-macos-dialogs (feature); integrate via develop
+**Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
@@ -50,7 +50,7 @@ GogMeet/
 ├── docs/                 # CA plan, windows design/dogfood, adr/, plans/, security/, performance/
 ├── vitest.workspace.ts   # unit/coverage projects
 ├── vitest.bench.config.ts # isolated microbenchmarks (not in workspace)
-├── .github/workflows/    # PR + release-mac/win + beta + weekly measurement
+├── .github/workflows/    # pr-check + release (release-mac/win jobs) + beta-release + measurement
 └── .sentrux/             # secondary architecture constraints (not CI-wired)
 ```
 
@@ -120,7 +120,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 
 - TypeScript imports use `.js` specifiers; type-only imports use `import type`.
 - Bun is the primary package manager; host Node 26 for validation/icon generation/release helpers.
-- No barrels. Scheduler public surface is `scheduler/facade.ts` only (outside `scheduler/`).
+- No package-level barrels. Outside `scheduler/`, import only `scheduler/facade.ts` (or `graph.scheduler`); `scheduler/index.ts` may re-export for internal use.
 - Prefer `platform/os.ts` over raw `process.platform` for OS branches.
 - Never static-import `swift/*` outside `calendar/providers/darwin-eventkit.ts` and `swift/**`.
 - Facades must not import `swift/*` or `calendar/auth/*`.
