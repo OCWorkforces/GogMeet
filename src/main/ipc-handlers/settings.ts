@@ -46,7 +46,7 @@ export function registerSettingsHandlers(win: BrowserWindow, graph: AppGraph): v
         if (settingsRequireSchedulerRestart(partial)) {
           graph.scheduler.restart();
         } else if (typeof partial.showTomorrowMeetings === "boolean") {
-          void graph.scheduler.forcePoll();
+          void graph.scheduler.forcePoll({ reason: "user" });
         } else if (typeof partial.showCompletedTodayMeetings === "boolean") {
           // Display-only: rebuild tray immediately so completed history appears without a poll.
           forceTrayMenuRefresh();

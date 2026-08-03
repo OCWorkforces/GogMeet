@@ -23,7 +23,7 @@ describe("calendar-watcher", () => {
     const watcher = await import("../../src/main/facades/calendar-watcher.js");
     watcher.startCalendarWatcher();
     await vi.waitFor(() => expect(startWatch).toHaveBeenCalled());
-    expect(forcePoll).toHaveBeenCalled();
+    expect(forcePoll).toHaveBeenCalledWith({ reason: "watch" });
 
     // idempotent
     watcher.startCalendarWatcher();

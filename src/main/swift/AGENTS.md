@@ -54,7 +54,7 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 ## Watch sidecar
 
 - Debounce CHANGED ~2s; exponential restart backoff up to MAX_RETRIES (5).
-- After give-up: **cooldown** then reset retries and spawn again.
+- After give-up: **cooldown** `GIVE_UP_COOLDOWN_MS` = **5 minutes**, then reset retries and spawn again.
 - `reviveWatchSidecar()` / facade `reviveCalendarWatcher()` / `graph.watcher.revive()` on power resume.
 - SIGTERM → SIGKILL after grace; stable runtime resets retry budget.
 
@@ -69,4 +69,9 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 
 - Leaf package relative to calendar: no Electron/window/scheduler imports. Sole production importer is Darwin EventKit provider.
 - Compile path may still use `execFile` for `swiftc`/`strip`; one-shot event dump uses spawn runner.
-- Tests: `tests/main/swift/swift-helper-process.test.ts` (real Node fixture), `tests/main/swift/event-parser.test.ts`, `swift-binary-manager.test.ts`, `swift-guards.test.ts`, `calendar-watch-sidecar.test.ts` (mocked exec/spawn as appropriate).
+- Tests:
+  - `tests/main/swift/swift-helper-process.test.ts` (real Node fixture)
+  - `tests/main/swift/event-parser.test.ts`
+  - `tests/main/swift-binary-manager.test.ts`
+  - `tests/main/swift-guards.test.ts`
+  - `tests/main/calendar-watch-sidecar.test.ts` (mocked exec/spawn as appropriate)

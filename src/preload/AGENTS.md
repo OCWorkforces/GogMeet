@@ -63,6 +63,12 @@ Subscriptions return `() => void`:
 
 Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
 
+## Transport notes
+
+- **Invoke** (`ipcRenderer.invoke`): calendar + app + settings get/set.
+- **Send** (`ipcRenderer.send`, fire-and-forget): `WINDOW_SET_HEIGHT`, `ALERT_DISMISSED`.
+- **On** (push listeners with unsubscribe): `CALENDAR_RESULT_UPDATED`, `SETTINGS_CHANGED`, `ALERT_SHOW`.
+
 ## Imports
 
 There is no models barrel. Import concrete files:
@@ -70,7 +76,7 @@ There is no models barrel. Import concrete files:
 - `../shared/ipc-channels.js` — channels and `IpcRequest` / `IpcResponse` types
 - `../shared/alert.js` — `AlertPayload`
 - `../domain/entities/settings.js` — `AppSettings`
-- `../domain/entities/meeting-event.js` — `MeetingEvent`
+- `../domain/entities/calendar-publication.js` — `CalendarPublication` (push typing)
 - `../domain/entities/brand.js` — `asMeetUrl`, `asEventId`, `clampWindowHeight`
 - `../domain/entities/result.js` — `Result`, `err`
 - `../domain/policies/meet-url-allowlist.js` — `isAllowedMeetHostname`

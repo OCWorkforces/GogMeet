@@ -6,7 +6,7 @@ Driven adapters implementing application ports. Calendar backends (Google OAuth,
 
 | Path | Implements |
 | --- | --- |
-| `settings/json-settings-store.ts` | `SettingsStorePort` — JSON under `userData`, schema **v3** migrate/rewrite (incl. `showCompletedTodayMeetings`) |
+| `settings/json-settings-store.ts` | Implements `SettingsStorePort` (load/get/update) **plus** adapter-only `save`; JSON under `userData/settings.json`, schema **v3** migrate/rewrite (incl. `showCompletedTodayMeetings`) |
 | `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` — allowlisted `shell.openExternal` via domain `validateMeetUrl` |
 
 Calendar providers satisfy `CalendarPort` methods via the facade adapter (not a separate infra class).

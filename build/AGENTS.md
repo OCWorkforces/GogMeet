@@ -25,6 +25,7 @@ Electron Builder resources and packaging hooks. Operational packaging code, not 
 ## Packaging rules
 
 - `afterPack` / `afterSign` wired from root `electron-builder.yml`.
+- Mac: DMG+ZIP for arm64 + x64; `minimumSystemVersion` **11.0.0**; built-in `notarize: false` (custom `afterSign` / `notarize.cjs` owns notarize + staple).
 - Official Windows artifacts: separate `--x64` and `--arm64` invocations (not dual-arch single NSIS).
 - Swift source must stay `asarUnpack` for mac packaged builds.
 - Do not hand-edit generated `icon.icns` / `icon.ico` / tray PNGs.

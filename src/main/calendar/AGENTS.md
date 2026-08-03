@@ -8,7 +8,7 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 
 | File | Role |
 | --- | --- |
-| `provider.ts` | `CalendarProvider` + id union; **`getEvents(signal: AbortSignal)`** |
+| `provider.ts` | `CalendarProvider` + id union (`darwin-eventkit` \| `google-calendar` \| reserved `microsoft-graph` \| `fixture` \| `stub-unsupported`); **`getEvents(signal: AbortSignal)`** |
 | `factory.ts` | `getActiveCalendarProvider()`, `resetCalendarProvider()` — selection order below |
 | `refresh-coordinator.ts` | Single-flight calendar refresh: one in-flight fetch, at most one queued follow-up, monotonic `publicationGeneration`, lifecycle cancel |
 | `google-http.ts` | Bounded Google transport: 15s deadline, 8 MiB body, poll budget 60s, typed redacted errors |
@@ -24,12 +24,15 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 
 ## Refresh coordinator
 
-- Bound from `facades/calendar.ts` via `bindCalendarRefreshFetcher` → get-meetings use case.
-- Public facade surface: `refreshCalendarPublication()` / `getLastPublication()`; scheduler `poll.ts` and graph `calendar.getEvents` share it.
-- Waiters on an in-flight chain all resolve to the final publication of that chain.
-- `cancelCalendarRefresh()` on scheduler stop/restart rejects waiters once and aborts the active provider call.
-- Envelope type: domain `CalendarPublication` (`publicationGeneration` + `CalendarResult`).
-- Tests: `tests/main/calendar-refresh-coordinator.test.ts`.
+Bound from `facades/calendar.ts` via `bindCalendarRefreshFetcher` → get-meetings use case. Scheduler `poll.ts` and graph `calendar.getEvents` share it. Waiters on an in-flight chain all resolve to the final publication of that chain. Envelope: domain `CalendarPublication` (`publicationGeneration` + `CalendarResult`).
+
+| Layer | API |
+| --- | --- |
+| Coordinator | `requestCalendarRefresh()`, `getLastCalendarPublication()`, `cancelCalendarRefresh()`, `bindCalendarRefreshFetcher` |
+| Facade aliases | `refreshCalendarPublication()` → request; `getLastPublication()`; `cancelActiveCalendarRefresh()` → cancel; also `getCalendarEventsResult()`, `getCalendarPort()`, permission/UI/warmup/disconnect/report helpers |
+| Cancel path | `stopScheduler` / `restartScheduler` always call `cancelCalendarRefresh()`; waiters reject once (`CalendarRefreshCancelledError`); aborts active provider call |
+
+Tests: `tests/main/calendar-refresh-coordinator.test.ts`.
 
 ## Factory selection order
 

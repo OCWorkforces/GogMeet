@@ -92,10 +92,10 @@ describe("forcePoll() deferred coalesce", () => {
       stateModule.state.pollTimeout = null;
     }
 
-    // Subsequent calls within coalesce window should be deferred (not dropped)
+    // Subsequent auto/watch calls within coalesce window should be deferred (not dropped)
     await forcePoll(); // schedules deferred
-    await forcePoll(); // already scheduled — no-op
-    await forcePoll(); // already scheduled — no-op
+    await forcePoll({ reason: "watch" }); // already scheduled — no-op
+    await forcePoll({ reason: "auto" }); // already scheduled — no-op
 
     // No additional poll yet
     expect(refreshCalendarPublication).toHaveBeenCalledTimes(1);
@@ -105,6 +105,50 @@ describe("forcePoll() deferred coalesce", () => {
 
     // Exactly one deferred poll should have fired
     expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
+  });
+
+  it("user reason bypasses coalesce and re-fetches immediately", async () => {
+    await forcePoll({ reason: "auto" });
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(1);
+
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
+
+    // Within coalesce window — auto would defer, user must fetch now
+    await forcePoll({ reason: "user" });
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
+
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
+  });
+
+  it("user forcePoll clears a pending deferred auto timer", async () => {
+    await forcePoll({ reason: "auto" });
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(1);
+
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
+
+    await forcePoll({ reason: "auto" }); // schedules deferred
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(1);
+
+    await forcePoll({ reason: "user" }); // immediate; cancels deferred
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(FORCE_POLL_COALESCE_MS * 2);
+    // Deferred must not fire a third poll
+    expect(refreshCalendarPublication).toHaveBeenCalledTimes(2);
+
+    if (stateModule.state.pollTimeout !== null) {
+      clearTimeout(stateModule.state.pollTimeout);
+      stateModule.state.pollTimeout = null;
+    }
   });
 
   it("stopScheduler clears any pending deferred forcePoll timer", async () => {

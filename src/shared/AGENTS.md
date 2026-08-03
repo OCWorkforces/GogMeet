@@ -8,7 +8,7 @@ IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Enti
 | --- | --- |
 | `ipc-channels.ts` | `IPC_CHANNELS`, `IpcChannelMap`, `PushChannelMap` — invoke + push maps; imports domain entity types |
 | `alert.ts` | Narrow `AlertPayload` for full-screen alert (`id`, title, times, `hasMeetUrl`, optional `autoOpenAt`) — **no `meetUrl`** |
-| `app-state.ts` | Renderer list UI state union |
+| `app-state.ts` | Popover list UI state: `loading` \| `no-permission` \| `no-events` \| `has-events` \| `error` (distinct from tray/settings `CalendarUiPhase`) |
 | `utils/escape-html.ts` | XSS escaping for HTML string renderers |
 | `utils/as.ts` | `.As<T>()` / free-function `As<T>(value)` for unchecked casts (replaces `as unknown as T`); listed in package `sideEffects` |
 
@@ -30,5 +30,6 @@ Cast helper notes:
 
 - Prefer importing domain types for contracts; **do not re-export** domain symbols from shared.
 - `IPC_CHANNELS` is the single source of channel names; keep it `as const`.
+- Invoke map (`IpcChannelMap`) and push map (`PushChannelMap`) are separate — e.g. `SETTINGS_CHANGED` is push-only (not in the invoke map).
 - Add a channel by updating shared channel maps first, then main handler, preload API, renderer caller, and tests.
 - Keep this package tiny — if logic is pure and process-neutral, put it in `src/domain/`.

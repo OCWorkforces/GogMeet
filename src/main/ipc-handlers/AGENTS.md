@@ -10,7 +10,7 @@ Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-fo
 
 | File | Exports | Role |
 | --- | --- | --- |
-| `shared.ts` | `typedHandle`, `typedSend`, sender validators, window-height bounds | Type-safe IPC wrapper + origin validation |
+| `shared.ts` | `typedHandle`, `typedSend`, sender validators, window-height bounds (`MIN_WINDOW_HEIGHT` **220** / `MAX_WINDOW_HEIGHT` **480**) | Type-safe IPC wrapper + origin validation (dev: localhost:5173; packaged: `file://` under `lib/renderer/{index,settings,alert}.html`) |
 | `app.ts` | `registerAppHandlers(graph)` | `APP_OPEN_EXTERNAL` → `graph.opener.open`; `APP_JOIN_MEETING` → `graph.join.byId`; `APP_GET_VERSION` |
 | `calendar.ts` | `registerCalendarHandlers(graph)` | get events / permission / disconnect / UI state; forcePoll on granted |
 | `settings.ts` | `registerSettingsHandlers(win, graph)` | get/set settings; invalid sender → fresh defaults without persistence |
