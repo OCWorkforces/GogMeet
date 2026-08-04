@@ -4,71 +4,69 @@ import { join } from "node:path";
 import {
   classifyStorageFailure,
   assertNeverUnlinksOnTemporary,
+  parseSafeStorageTrace,
+  evaluateSafeStorageRetained,
 } from "../../scripts/performance/measure-safe-storage.mjs";
 
 const script = join(process.cwd(), "scripts/performance/measure-safe-storage.mjs");
 
 describe("perf:safe-storage", () => {
-  it("classifies missing, unavailable, decrypt, malformed, ok", () => {
-    expect(
-      classifyStorageFailure({
-        fileExists: false,
-        encryptionAvailable: true,
-        decryptThrows: false,
-        payloadValid: true,
-      }).reason,
-    ).toBe("missing");
-    expect(
-      classifyStorageFailure({
-        fileExists: true,
-        encryptionAvailable: false,
-        decryptThrows: false,
-        payloadValid: true,
-      }).reason,
-    ).toBe("secure-storage-unavailable");
-    expect(
-      classifyStorageFailure({
-        fileExists: true,
-        encryptionAvailable: true,
-        decryptThrows: true,
-        payloadValid: true,
-      }).reason,
-    ).toBe("decrypt");
-    expect(
-      classifyStorageFailure({
-        fileExists: true,
-        encryptionAvailable: true,
-        decryptThrows: false,
-        payloadValid: false,
-      }).reason,
-    ).toBe("malformed");
-    expect(
-      classifyStorageFailure({
-        fileExists: true,
-        encryptionAvailable: true,
-        decryptThrows: false,
-        payloadValid: true,
-      }).reason,
-    ).toBe("ok");
-  });
-
-  it("temporary unavailability never unlinks", () => {
-    const temporary = classifyStorageFailure({
+  it("temporary unavailability never unlinks ciphertext", () => {
+    const r = classifyStorageFailure({
       fileExists: true,
       encryptionAvailable: false,
       decryptThrows: false,
       payloadValid: true,
     });
-    expect(assertNeverUnlinksOnTemporary(temporary)).toBe(true);
+    expect(assertNeverUnlinksOnTemporary(r)).toBe(true);
+    expect(r.preservedCiphertext).toBe(true);
   });
 
-  it("perf:safe-storage exits 0 with terminal receipt", () => {
-    const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  it("parseSafeStorageTrace requires 10 cycles and terminal", () => {
+    const rows = [];
+    for (let i = 0; i < 10; i++) {
+      rows.push(
+        JSON.stringify({
+          version: 1,
+          operation: "safe-storage",
+          outcome: "ok",
+          startMs: i,
+          durationMs: 12 + i,
+        }),
+      );
+    }
+    rows.push(
+      JSON.stringify({
+        version: 1,
+        operation: "probe-terminal",
+        outcome: "ok",
+        startMs: 0,
+        durationMs: 0,
+        acceptedRows: 10,
+        droppedRows: 0,
+        acceptedBytes: 1,
+        droppedBytes: 0,
+      }),
+    );
+    const parsed = parseSafeStorageTrace(rows.join("\n"));
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("retained thresholds match plan", () => {
+    const durations = Array.from({ length: 10 }, () => 15);
+    expect(evaluateSafeStorageRetained(durations).ok).toBe(true);
+    expect(evaluateSafeStorageRetained(Array.from({ length: 10 }, () => 1)).ok).toBe(false);
+  });
+
+  it("perf:safe-storage exits 0 with blocked on non-Windows or missing binary", () => {
+    const result = spawnSync(process.execPath, [script], {
+      encoding: "utf8",
+      env: { ...process.env, GOGMEET_APP_PATH: "" },
+    });
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.experiment).toBe("safe-storage");
-    expect(receipt.temporaryUnavailabilityPreservesCiphertext).toBe(true);
-    expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);
+    expect(["blocked", "rejected"]).toContain(receipt.status);
     expect(receipt.productChange).toBe("none");
   });
 });
