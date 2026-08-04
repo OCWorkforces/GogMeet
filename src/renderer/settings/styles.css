@@ -103,6 +103,26 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* ---- Brand icon + aurora (fixed under title bar; glow may paint outside) ---- */
+.settings-brand {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Room for soft aurora bloom without clipping into the title bar */
+  padding: 6px 0 14px;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  -webkit-app-region: drag;
+  pointer-events: none;
+}
+
+.app-icon-aurora--settings {
+  /* Slight optical lift so glow sits under the icon, not the title */
+  margin-top: 2px;
+}
+
 /* ---- Scrollable content ---- */
 .settings-content {
   flex: 1;
