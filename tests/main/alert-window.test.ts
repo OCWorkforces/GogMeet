@@ -607,6 +607,51 @@ describe("alert-window", () => {
       expect(BrowserWindow).toHaveBeenCalledTimes(1);
     });
 
+    it("reschedule during reserved immediate does not clear isAlertShowing or drop queue", async () => {
+      const startA = "2026-05-11T10:00:00Z";
+      const startA2 = "2026-05-11T11:00:00Z";
+      showAlert(makeEvent({ id: "race-a", startDate: startA }));
+      const win = getWindow(1);
+      win.__alertStartMs = new Date(startA).getTime();
+      win.__alertUid = "race-a";
+      const mockSend = vi.fn();
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+
+      showAlert(makeEvent({ id: "race-b", startDate: "2026-05-11T12:00:00Z" }));
+      // Dismiss A → reserve immediate for B.
+      fireEvent(win, "close");
+      // Concurrent same-uid reschedule while B is reserved (bumps generation).
+      showAlert(makeEvent({ id: "race-a", startDate: startA2 }));
+      await vi.runAllTimersAsync();
+
+      // Reschedule presentation must still be considered showing (no false free slot).
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      // B remains queued; dismiss rescheduled A to drain B.
+      mockSend.mockClear();
+      fireEvent(win, "close");
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "race-b" }),
+      );
+    });
+
+    it("preserves autoOpenAt for queued alerts", async () => {
+      const { asTestIsoUtc } = await import("../helpers/test-utils.js");
+      const autoOpenAt = asTestIsoUtc("2026-05-11T10:05:00.000Z");
+      showAlert(makeEvent({ id: "first" }));
+      showAlert(makeEvent({ id: "second" }), autoOpenAt);
+      const win = getWindow(1);
+      const mockSend = vi.fn();
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+      fireEvent(win, "close");
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "second", autoOpenAt }),
+      );
+    });
+
     it("ignores stale close/closed after a newer window is current", async () => {
       showAlert(makeEvent({ id: "close-a" }));
       const winA = getWindow(1);

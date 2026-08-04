@@ -34,7 +34,8 @@ function toAlertPayload(event: MeetingEvent, autoOpenAt?: IsoUtc): AlertPayload 
 
 let alertWindow: BrowserWindow | null = null;
 let isAlertShowing = false;
-const pendingAlerts: MeetingEvent[] = [];
+/** FIFO queue preserves optional autoOpenAt for stacked presentations. */
+const pendingAlerts: Array<{ event: MeetingEvent; autoOpenAt?: IsoUtc }> = [];
 /** Prefer hide/show reuse when the prior window is still alive (same security prefs). */
 let reuseGeneration = 0;
 /** At most one reserved dequeue → present handoff (module-owned). */
@@ -54,8 +55,12 @@ function processNextAlert(): void {
   queuedImmediate = setImmediate(() => {
     queuedImmediate = null;
     if (reservedGeneration !== reuseGeneration) {
-      // destroyAlertWindow (or equivalent) invalidated this reservation.
-      isAlertShowing = false;
+      // Generation advanced via destroy or in-place reschedule while we waited.
+      // Do NOT clear isAlertShowing: a live reschedule already owns the slot, and
+      // destroy already cleared flags/queue. Only re-drive if nobody is presenting.
+      if (!isAlertShowing && pendingAlerts.length > 0) {
+        processNextAlert();
+      }
       return;
     }
     const next = pendingAlerts.shift();
@@ -63,7 +68,7 @@ function processNextAlert(): void {
       isAlertShowing = false;
       return;
     }
-    showAlertInternal(next);
+    showAlertInternal(next.event, next.autoOpenAt);
   });
 }
 
@@ -89,19 +94,27 @@ export function showAlert(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
     showAlertInternal(event, autoOpenAt);
     return;
   }
-  const queuedIndex = pendingAlerts.findIndex((e) => e.id === event.id);
+  const queuedIndex = pendingAlerts.findIndex((entry) => entry.event.id === event.id);
   if (queuedIndex !== -1) {
     const existing = pendingAlerts[queuedIndex];
-    if (existing && new Date(existing.startDate).getTime() === startMs) {
+    if (existing && new Date(existing.event.startDate).getTime() === startMs) {
+      // Same uid+start: refresh optional autoOpenAt only.
+      if (autoOpenAt !== undefined) {
+        existing.autoOpenAt = autoOpenAt;
+      }
       return;
     }
-    // Replace queued entry in-place to preserve order.
-    pendingAlerts[queuedIndex] = event;
+    // Replace queued entry in-place to preserve order (keep autoOpenAt).
+    const next: { event: MeetingEvent; autoOpenAt?: IsoUtc } = { event };
+    if (autoOpenAt !== undefined) next.autoOpenAt = autoOpenAt;
+    pendingAlerts[queuedIndex] = next;
     return;
   }
 
   if (isAlertShowing) {
-    pendingAlerts.push(event);
+    const entry: { event: MeetingEvent; autoOpenAt?: IsoUtc } = { event };
+    if (autoOpenAt !== undefined) entry.autoOpenAt = autoOpenAt;
+    pendingAlerts.push(entry);
     return;
   }
 

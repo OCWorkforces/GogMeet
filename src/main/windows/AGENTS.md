@@ -23,7 +23,7 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 | Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` / `__alertGeneration` |
 | Hide/reuse vs recreate | `alert-window.ts` → prefer alive hidden window; `close` prevents default + `hide()`; `__forceDestroy` for real destroy |
 | Reschedule in place | same uid, different startMs → `showAlertInternal` without canceling pending open |
-| Generation-safe handoff | Module-owned `queuedImmediate`; reserve slot before schedule; shift only inside callback; `typedSend` / `setSize` / `show` / close-state require `alertWindow === win` + generation match |
+| Generation-safe handoff | Module-owned `queuedImmediate`; reserve slot before schedule; shift only inside callback; gen-mismatch must **not** clear `isAlertShowing` while a live presentation owns the slot; queue entries preserve `autoOpenAt` |
 | Destroy / teardown | `destroyAlertWindow` clears immediate, bumps generation, clears queue; **never** `cancelPendingBrowserOpen` (user dismiss only) |
 | Defer next alert after hide | `processNextAlert()` uses `setImmediate` |
 | Project MeetingEvent → AlertPayload | `toAlertPayload()` (drops `meetUrl`; sets `hasMeetUrl`) |
