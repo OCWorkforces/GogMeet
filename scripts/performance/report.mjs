@@ -14,10 +14,35 @@ const OPERATIONS = new Set([
   "scheduler-plan",
   "tray-rebuild",
   "startup-phase",
+  "probe-terminal",
   "alert-lifecycle",
   "safe-storage",
   "build-package",
   "synthetic",
+]);
+
+const STARTUP_PHASES = new Set([
+  "process-start",
+  "electron-ready",
+  "window-create-load",
+  "app-graph",
+  "warmup-dispatch",
+  "ipc-register",
+  "settings-permission",
+  "tray",
+  "scheduler",
+  "watcher",
+  "first-poll",
+  "updater",
+  "helper-spawn",
+  "helper-query",
+  "helper-parse",
+  "power-events",
+  "global-shortcuts",
+  "notification-permission",
+  "auto-launch",
+  "oauth",
+  "shell-egress",
 ]);
 
 const FORBIDDEN = /token|authorization|email|password|secret|title|description|meet\.google|pkce|verifier/i;
@@ -32,9 +57,20 @@ function validateRow(row) {
   if (row === null || typeof row !== "object") return "not-object";
   if (row.version !== 1) return "bad-version";
   if (!OPERATIONS.has(row.operation)) return "unknown-operation";
-  if (row.outcome !== "ok" && row.outcome !== "error") return "bad-outcome";
+  const outcomes = new Set(["ok", "error", "not-exercised", "dropped"]);
+  if (!outcomes.has(row.outcome)) return "bad-outcome";
   if (!Number.isFinite(row.startMs) || !Number.isFinite(row.durationMs)) return "non-finite";
   if (row.durationMs < 0) return "negative-duration";
+  if (row.operation === "startup-phase") {
+    if (typeof row.phase !== "string" || !STARTUP_PHASES.has(row.phase)) {
+      return "bad-startup-phase";
+    }
+  }
+  if (row.operation === "probe-terminal") {
+    for (const k of ["acceptedRows", "droppedRows", "acceptedBytes", "droppedBytes"]) {
+      if (!Number.isFinite(row[k]) || row[k] < 0) return "bad-terminal-meta";
+    }
+  }
   const text = JSON.stringify(row);
   if (FORBIDDEN.test(text)) return "forbidden-value";
   for (const key of Object.keys(row)) {
