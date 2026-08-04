@@ -121,23 +121,33 @@ export function finalizeStartupProbe(userDataPath: string): void {
 
 /**
  * Non-startup modes branch before full product init and exercise only their surface.
- * Placeholder terminal protocol for tray/alert/safe-storage until Todos 8–10 expand them.
  */
 export async function runNamedProbeSurface(
   mode: Exclude<PerfProbeMode, "startup">,
   userDataPath: string,
 ): Promise<ProbeRunResult> {
   try {
-    perfTrace({
-      operation: mode === "tray" ? "tray-rebuild" : mode === "alert" ? "alert-lifecycle" : "safe-storage",
-      outcome: "ok",
-      startMs: 0,
-      durationMs: 0,
-      count: 0,
-    });
+    registerPerfTraceBeforeQuitFlush(app);
+    if (mode === "tray") {
+      const { runTrayProbe } = await import("./performance-probes/tray-probe.js");
+      await runTrayProbe(userDataPath);
+    } else if (mode === "alert") {
+      const { runAlertProbe } = await import("./performance-probes/alert-probe.js");
+      await runAlertProbe(userDataPath);
+    } else {
+      // safe-storage: Windows-native only for meaningful safeStorage; still runs adapters.
+      const { runSafeStorageProbe } = await import("./performance-probes/safe-storage-probe.js");
+      await runSafeStorageProbe(userDataPath);
+    }
+    // Ensure terminal is published even if driver already flushed.
     flushPerfTraceToUserData(userDataPath);
     return { status: "ok", mode };
   } catch (err) {
+    try {
+      flushPerfTraceToUserData(userDataPath);
+    } catch {
+      // ignore
+    }
     return {
       status: "fatal",
       reason: err instanceof Error ? err.message : "probe-surface-failed",
