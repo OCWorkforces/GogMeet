@@ -17,7 +17,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Path | Role |
 | --- | --- |
 | `domain/` | Pure entities, policies, services. See `domain/AGENTS.md`. |
-| `shared/` | IPC maps + thin DTOs + `utils/as.ts` + `escape-html`. See `shared/AGENTS.md`. |
+| `shared/` | IPC maps + thin DTOs + `utils/as.ts` + `escape-html` + `app-icon-aurora`. See `shared/AGENTS.md`. |
 | `main/composition/` | `createAppGraph`, `bindComposition`, `createTestAppGraph`. |
 | `main/application/` | Ports + use cases (no Electron). |
 | `main/infrastructure/` | Driven adapters: JsonSettingsStore, ShellMeetingOpener. |
@@ -29,13 +29,13 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
 | `main/index.ts` | Single-instance bootstrap; popover BrowserWindow **360×480**. |
 | `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
-| `main/windows/` | About, alert, settings BrowserWindows. |
+| `main/windows/` | About (320×380, aurora icon), alert, settings (Dock + hide-cache) BrowserWindows. |
 | `main/utils/` | CSP/window helpers, join hub, meet-url, **performance-trace**, logging. |
 | `main/platform/` | OS predicates (`isDarwin` / `isWin32`). |
 | `main/swift/` | EventKit helper compile/run/JSON Lines + **swift-helper-process** (Darwin leaf). |
 | `preload/` | `window.api` bridge. |
 | `renderer/` | popover, settings, alert UIs. |
-| `assets/` | tray icons (mac 18/36 + win 16/32); load via `nativeImage.createFromPath()`. |
+| `assets/` | tray icons (mac 18/36 + win 16/32) via `nativeImage.createFromPath()`; `about-icon.svg` for About data: URI + Settings brand (bundled). |
 
 ## Where to change things
 
@@ -63,7 +63,8 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Opt-in perf marks | `main/utils/performance-trace.ts` |
 | OS branching | `main/platform/os.ts` |
 | Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs), `main/windows/*` (about / settings / alert hide-reuse) |
-| Settings renderer | `renderer/settings/*` | schema v3 full UI; grouped lists; canvas `#0d1117` |
+| Brand-icon aurora | `shared/utils/app-icon-aurora.ts` | pure CSS+HTML; About inline styles; Settings inject once |
+| Settings renderer | `renderer/settings/*` | schema v3 full UI; grouped lists; canvas `#0d1117`; brand aurora under title bar |
 | Auto-update | `main/system/auto-updater.ts` (portable skipped) |
 
 ## src-local rules

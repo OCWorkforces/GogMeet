@@ -19,7 +19,7 @@ Primary meeting list UX for users is the **native tray menu**; the main BrowserW
 ```text
 src/renderer/
 ├── index.ts / index.html     # List UI entry (popover)
-├── env.d.ts / css.d.ts       # ambient Api + CSS module typings
+├── env.d.ts / css.d.ts       # ambient Api + CSS/SVG module typings
 ├── tsconfig.json
 ├── events/                   # data-action event delegation
 ├── lib/apply-events-push.ts  # tomorrow filter + content/display signature gate for pushes
@@ -53,6 +53,7 @@ src/renderer/
 ## SETTINGS WINDOW (schema v3)
 
 - Visual system: System Settings–inspired **grouped inset lists** on fixed product canvas **`#0d1117`** (groups `#161b22`); dark `color-scheme`; prefers-contrast / reduced-motion.
+- Brand mark: 72px app icon with aurora under the title bar (`.settings-brand`); imports `about-icon.svg` + injects `APP_ICON_AURORA_CSS` once (`#app-icon-aurora-styles`). Same helper powers About (96px).
 - Sections: **Calendar** · **Joining Meetings** · **Tray Menu** · **General** (`settings/index.ts` + `settings/styles.css`).
 - Calendar: `getUiState` / `requestPermission` / `disconnect`; `escapeHtml` for email + lastError + save errors; status dot + Connect/Disconnect/Reconnect.
 - Prefs auto-save: toggle / select / time → `window.api.settings.set()` → "Saved" (concurrent saves coalesced).

@@ -14,7 +14,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
 | `calendar/` | factory, providers, **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
-| `windows/` | about, alert, settings | BrowserWindow singletons; Settings/About canvas `#0d1117`; alert hide/reuse |
+| `windows/` | about (320×380, aurora), alert, settings (520×760, Dock) | BrowserWindow singletons; Settings/About canvas `#0d1117`; hide-cache; alert hide/reuse |
 | `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
 | `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
 | `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
