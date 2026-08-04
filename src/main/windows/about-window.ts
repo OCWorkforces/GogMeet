@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
 import { bindWindowsThemeBackground, platformWindowChrome } from "../utils/window-chrome.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
+import { APP_ICON_AURORA_CSS, appIconWithAuroraHtml } from "../../shared/utils/app-icon-aurora.js";
 import { acquireDockVisibility, releaseDockVisibility } from "./dock-visibility.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -132,7 +133,6 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     --control-fill-hover: rgba(255, 255, 255, 0.14);
     --control-border: rgba(255, 255, 255, 0.14);
     --accent: #0a84ff;
-    --icon-shadow: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35);
     --edge: rgba(255, 255, 255, 0.08);
     --traffic-safe: 40px;
   }
@@ -156,7 +156,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     user-select: none;
     -webkit-user-select: none;
     -webkit-font-smoothing: antialiased;
-    padding: var(--traffic-safe) 28px 28px;
+    padding: var(--traffic-safe) 28px 16px;
     position: relative;
   }
   body::before {
@@ -182,14 +182,9 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   @media (prefers-reduced-motion: reduce) {
     .stage { animation: none; }
   }
-  .app-icon {
-    display: block;
-    width: 96px;
-    height: 96px;
-    border-radius: 22%;
-    box-shadow: var(--icon-shadow);
+  ${APP_ICON_AURORA_CSS}
+  .app-icon-aurora--about {
     margin-bottom: 18px;
-    pointer-events: none;
   }
   h1 {
     font-size: 22px;
@@ -233,7 +228,6 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     gap: 10px;
     -webkit-app-region: no-drag;
     width: 100%;
-    margin-top: auto;
   }
   .repo-link {
     font-size: 12px;
@@ -280,7 +274,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 </head>
 <body>
   <div class="stage">
-    <img class="app-icon" src="${ABOUT_ICON_DATA_URI}" width="96" height="96" alt="" />
+    ${appIconWithAuroraHtml(ABOUT_ICON_DATA_URI, { size: 96, className: "app-icon-aurora--about" })}
     <h1>${appName}</h1>
     <p class="version">Version ${version}</p>
     <p class="copyright">Copyright © ${year} ${author}</p>
@@ -296,7 +290,8 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   const chrome = platformWindowChrome("about");
   const win = new BrowserWindow({
     width: 320,
-    height: 420,
+    // Compact stack + 16px bottom pad under Close (no middle void).
+    height: 380,
     resizable: false,
     minimizable: false,
     maximizable: false,

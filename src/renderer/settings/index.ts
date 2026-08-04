@@ -14,6 +14,17 @@ import {
 } from "../../domain/entities/settings.js";
 import { queryRequiredElement } from "../utils/dom.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
+import { APP_ICON_AURORA_CSS, appIconWithAuroraHtml } from "../../shared/utils/app-icon-aurora.js";
+import appIconUrl from "../../assets/about-icon.svg";
+
+/** Inject shared aurora CSS once (About embeds the same string in data: HTML). */
+function ensureAppIconAuroraStyles(): void {
+  if (document.getElementById("app-icon-aurora-styles")) return;
+  const style = document.createElement("style");
+  style.id = "app-icon-aurora-styles";
+  style.textContent = APP_ICON_AURORA_CSS;
+  document.head.appendChild(style);
+}
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let calendarUi: CalendarUiState = defaultCalendarUiState();
@@ -211,6 +222,8 @@ function render(errorMessage?: string): void {
   const app = document.getElementById("app");
   if (!app) return;
 
+  ensureAppIconAuroraStyles();
+
   const autoOpen = settings.autoOpenEnabled;
   const windowAlert = settings.windowAlert;
   const quietOn = settings.quietHoursEnabled;
@@ -219,6 +232,9 @@ function render(errorMessage?: string): void {
     <header class="settings-titlebar">
       <h1 class="settings-title">Settings</h1>
     </header>
+    <div class="settings-brand">
+      ${appIconWithAuroraHtml(appIconUrl, { size: 72, className: "app-icon-aurora--settings" })}
+    </div>
     <main class="settings-content" id="settings-main">
       ${calendarAccountSectionHtml()}
 

@@ -10,6 +10,7 @@ IPC maps and thin cross-process DTOs used by main, preload, and renderer. **Enti
 | `alert.ts` | Narrow `AlertPayload` for full-screen alert (`id`, title, times, `hasMeetUrl`, optional `autoOpenAt`) — **no `meetUrl`** |
 | `app-state.ts` | Popover list UI state: `loading` \| `no-permission` \| `no-events` \| `has-events` \| `error` (distinct from tray/settings `CalendarUiPhase`) |
 | `utils/escape-html.ts` | XSS escaping for HTML string renderers |
+| `utils/app-icon-aurora.ts` | Pure CSS + HTML strings for brand-icon aurora glow (`APP_ICON_AURORA_CSS`, `appIconWithAuroraHtml`); palette tracks `about-icon.svg` blue `#4285F4`; reduced-motion / reduced-transparency / contrast aware; no DOM |
 | `utils/as.ts` | `.As<T>()` / free-function `As<T>(value)` for unchecked casts (replaces `as unknown as T`); listed in package `sideEffects` |
 
 Cast helper notes:
@@ -33,3 +34,4 @@ Cast helper notes:
 - Invoke map (`IpcChannelMap`) and push map (`PushChannelMap`) are separate — e.g. `SETTINGS_CHANGED` is push-only (not in the invoke map).
 - Add a channel by updating shared channel maps first, then main handler, preload API, renderer caller, and tests.
 - Keep this package tiny — if logic is pure and process-neutral, put it in `src/domain/`.
+- UI string helpers (`escape-html`, `app-icon-aurora`) stay free of Electron/DOM so main (data: HTML) and renderer can share them.

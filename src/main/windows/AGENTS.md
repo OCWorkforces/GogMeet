@@ -9,7 +9,7 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 | File | Role | Key Exports |
 |------|------|-------------|
 | `dock-visibility.ts` | Ref-counted macOS Dock show/hide for dialog holders | `acquireDockVisibility`, `releaseDockVisibility` |
-| `about-window.ts` | About box: data: HTML, 320×420, **hide-cache**, CSP `script-src 'none'`, https-only repo | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
+| `about-window.ts` | About box: data: HTML, 320×380, **hide-cache**, CSP `script-src 'none'`, https-only repo | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
 | `alert-window.ts` | Meeting alert overlay: queue, uid coalesce, **hide/show reuse** | `showAlert(event)`, `destroyAlertWindow()` |
 | `settings-window.ts` | Prefs 520×760; **hide-cache** + soft-refresh; Dock claim | `createSettingsWindow`, `destroySettingsWindow`, `getSettingsWindow` |
 
@@ -32,8 +32,8 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 ## NOTES
 
 - Settings loads via `loadWindowContent` (preload + session CSP). About is **data: HTML** (no preload / no `loadWindowContent`); embedded CSP meta + main navigation intercept for close sentinel. Package metadata is HTML-escaped.
-- About: **not** `alwaysOnTop`; traffic-light safe top padding; decorative icon (non-link) + single GitHub text link; Escape + Close hide-cache the window.
-- Settings: `alwaysOnTop: true`; first open loads renderer once; subsequent opens only `show`/`focus` (state preserved).
+- About: **not** `alwaysOnTop`; traffic-light safe top padding; compact content stack (no middle void); **16px** bottom pad under Close; decorative 96px app icon with brand-blue aurora (`shared/utils/app-icon-aurora.ts` + `about-icon.svg` data: URI, non-link) + single GitHub text link; Escape + Close hide-cache the window.
+- Settings: `alwaysOnTop: true`; first open loads renderer once; subsequent opens only `show`/`focus` (state preserved). Brand aurora lives in the settings renderer (not this module).
 - Alert payload omits `meetUrl` by design; renderer joins via `app.joinMeeting(id)`.
 - Alert always-on-top uses `applyAlertAlwaysOnTop` (screen-saver level + all workspaces on Darwin; plain always-on-top on Windows).
 - Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows.

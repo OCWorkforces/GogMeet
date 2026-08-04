@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-03  
-**App version:** 1.17.7  
+**Updated:** 2026-08-04  
+**App version:** 1.17.8  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -30,7 +30,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 GogMeet/
 ├── src/
 │   ├── domain/           # pure: entities, policies, services (no Electron)
-│   ├── shared/           # IPC maps + thin DTOs + cast helper (imports domain types)
+│   ├── shared/           # IPC maps + thin DTOs + cast/escape/aurora helpers (imports domain types)
 │   ├── main/
 │   │   ├── composition/  # createAppGraph, bindComposition, createTestAppGraph
 │   │   ├── application/  # ports + use cases
@@ -43,7 +43,7 @@ GogMeet/
 │   │   ├── tray.ts, events.ts, index.ts, googlemeet-events.swift
 │   ├── preload/          # contextBridge → window.api
 │   ├── renderer/         # popover, settings, alert (vanilla TS)
-│   └── assets/           # tray icons (mac 18/36 + win 16/32) + about SVG
+│   └── assets/           # tray icons (mac 18/36 + win 16/32) + about-icon.svg (About + Settings brand)
 ├── tests/                # domain, application, main, renderer, shared, scripts, helpers, bench
 ├── scripts/              # dev, icons, release verifiers, performance lab, latest.yml merge, guardrails
 ├── build/                # electron-builder hooks, entitlements, icons
@@ -85,8 +85,9 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Swift one-shot runner | `swift/swift-helper-process.ts` | bounded spawn; integrity-only recompile in binary-manager |
 | Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
 | Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph |
-| Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; full schema v3 prefs; auto-save |
-| About UI | `windows/about-window.ts` | 320×420 data: HTML; canvas `#0d1117`; CSP meta; https-only repo |
+| Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save |
+| About UI | `windows/about-window.ts` | 320×380 data: HTML; canvas `#0d1117`; brand aurora icon; CSP meta; https-only repo |
+| App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML strings; About embeds; Settings injects `<style>` once |
 | Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; popover vibrancy; dialogs solid |
 | Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
 | Opt-in perf trace | `main/utils/performance-trace.ts` | `GOGMEET_PERF_TRACE=1` |
@@ -189,7 +190,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches.
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - Alert window: prefer hide/show reuse of a single BrowserWindow (`destroyAlertWindow` for shutdown/tests); payload omits `meetUrl` (join via id).
-- Settings / About canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off. About 320×420 data: HTML is not always-on-top; Settings is.
+- Settings / About canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off; brand mark under title bar uses `about-icon.svg` + shared aurora. About 320×380 data: HTML is not always-on-top (Settings is); compact content stack, **16px** bottom pad under Close; decorative aurora icon (brand blue `#4285F4`) via `appIconWithAuroraHtml` / `APP_ICON_AURORA_CSS`.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
 - Settings schema **v3**: includes `showCompletedTodayMeetings` (default `false`, display-only tray rebuild) plus full timing/automation fields surfaced in Settings UI. IPC still restarts scheduler only for TIMING_KEYS; completed-history toggle does not poll/restart.
 - Completed-today history (when enabled): same-local-day timed events with `end ≤ now`, newest-ended first; muted non-joinable rows in **tray menu** and **popover**. All-day excluded from tray history. Presentation timer in renderer (next end or local midnight); tray uses display-horizon + signature that includes the toggle.

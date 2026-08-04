@@ -132,7 +132,7 @@ describe("about-window", () => {
       resizable?: boolean;
     };
     expect(options.width).toBe(320);
-    expect(options.height).toBe(420);
+    expect(options.height).toBe(380);
     expect(options.resizable).toBe(false);
     expect(options.alwaysOnTop).toBe(false);
   });
@@ -175,6 +175,9 @@ describe("about-window", () => {
     const repo = "https://github.com/OCWorkforces/GogMeet";
     expect(html.match(new RegExp(`href="${repo}"`, "g"))?.length).toBe(1);
     expect(html).toContain('class="repo-link"');
+    expect(html).toContain("app-icon-aurora");
+    expect(html).toContain("app-icon-aurora__blob--core");
+    expect(html).toContain("#4285F4");
   });
 
   it("wires Close via executeJavaScript after load using a sentinel URL", async () => {

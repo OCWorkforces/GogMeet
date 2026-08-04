@@ -38,6 +38,7 @@
 | URL extract / clean description | `domain/services/url-extract.ts`, `clean-description.ts` |
 | Shell opener factory | `infrastructure/electron/shell-meeting-opener.ts` |
 | Unchecked casts | `shared/utils/as.ts` |
+| Brand-icon aurora (About/Settings) | `shared/utils/app-icon-aurora.ts` |
 
 ## RULES
 
