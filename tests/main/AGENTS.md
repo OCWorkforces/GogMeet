@@ -67,7 +67,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 ## WINDOWS / SYSTEM / UTILS
 
 - Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature, user Refresh await+rebuild), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts` (incl. reschedule start/end signature).
-- Windows: `alert-window` (queue + hide/reuse + destroy), `settings-window` (520×760), `about-window` (320×420, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`).
+- Windows: `alert-window` (queue + hide/reuse + destroy), `settings-window` (520×760), `about-window` (320×380, aurora CSS/HTML, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate).
 

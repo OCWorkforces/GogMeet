@@ -31,7 +31,7 @@ tests/renderer/
 - Branded fixtures from `tests/helpers/test-utils.ts`; calendar `getEvents` mocks return publications with exhaustive provenance (`source` / `completeness` / timestamps) or `okCalendarResult` inside `result`.
 - Cast helper installed via `setup.as.ts` — prefer `.As<T>()`.
 - Meeting list: `parts.push()` + `.join('')`, never `html += ...`.
-- Settings: assert control **ids** (not hybrid switch ARIA); cover connect→disconnect round-trip; open-before options 0–10; dependent disable when auto-open off; alert-lead / late-join saves.
+- Settings: assert control **ids** (not hybrid switch ARIA); cover connect→disconnect round-trip; open-before options 0–10; dependent disable when auto-open off; alert-lead / late-join saves. Brand aurora is pure shared CSS/HTML (unit-tested under `tests/shared/`); settings suite focuses on form wiring.
 
 ## ANTI-PATTERNS
 

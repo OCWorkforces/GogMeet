@@ -10,7 +10,7 @@ Vitest workspace (`vitest.workspace.ts`) with six projects. `main` runs in Node 
 | `application` | Node | `setup.as.ts` | Ports/use-case unit tests | 80 / 80 / 80 / 70 |
 | `main` | Node | `setup.main.ts` (imports as) | Electron main, scheduler, providers, Swift, IPC, tray | 90 / 90 / 90 / 80 |
 | `renderer` | jsdom | `setup.as.ts` | Browser-only UI | soft 70 / 70 / 70 / 50 |
-| `shared` | Node | `setup.as.ts` | IPC contracts, cast helper | 90 / 90 / 80 / 80 |
+| `shared` | Node | `setup.as.ts` | IPC contracts, cast helper, app-icon aurora | 90 / 90 / 80 / 80 |
 | `scripts` | Node | `setup.as.ts` | Repository automation under `scripts/` | none |
 
 Global coverage include: `src/**/*.{ts,tsx}` with floors **90 / 90 / 90 / 80**. Platform-edge excludes: `swift/calendar-watch-sidecar.ts`, `calendar/providers/darwin-eventkit.ts`.
@@ -28,10 +28,10 @@ tests/
 ├── helpers/               # test-utils, ipc-sender, app-graph
 ├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
-├── main/                  # Node + Electron mock suites (~82 *.test.ts, flat layout)
+├── main/                  # Node + Electron mock suites (~81 top-level *.test.ts + swift/)
 │   └── swift/             # swift-helper-process, event-parser only
 ├── renderer/              # jsdom suites (+ rendering/, utils/)
-├── shared/                # as.test, contracts
+├── shared/                # as.test, contracts, app-icon-aurora
 ├── scripts/               # validate-node, release verifiers, guardrails, performance lab, latest.yml
 └── bench/                 # calendar-parser, tray-menu, scheduler-poll, alert, ipc-handler, renderer-body
 ```
@@ -52,7 +52,7 @@ tests/
 | `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
 | `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy |
-| `about-window.test.ts` | 320×420, CSP meta, https-only openExternal, close sentinel |
+| `about-window.test.ts` | 320×380, CSP meta, aurora markup, https-only openExternal, close sentinel |
 | `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
 
 ## Main-project mocks
@@ -106,3 +106,4 @@ bun run perf:workspace-fingerprint
 - Meeting titles: domain `truncateMiddle` (max 25) in tray menu + popover.
 - Google incremental sync tokens (schema v1) + provider merge/410 behavior.
 - Alert window hide/reuse across presentations (`destroyAlertWindow` for hard teardown).
+- Settings/About brand aurora (`shared/utils/app-icon-aurora.ts`); About size 320×380 + aurora HTML assertions.
