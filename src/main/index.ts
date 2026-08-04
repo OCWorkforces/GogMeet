@@ -132,13 +132,11 @@ if (gotSingleInstanceLock) {
     // Private packaged measurement mode (GOGMEET_PERF_PROBE). Absent → normal product boot.
     const probeEnv = process.env["GOGMEET_PERF_PROBE"];
     if (typeof probeEnv === "string" && probeEnv.length > 0) {
-      const { preflightOrBlock, finalizeStartupProbe, runNamedProbeSurface } = await import(
-        "./app/performance-probe.js"
-      );
+      const { preflightOrBlock, finalizeStartupProbe, runNamedProbeSurface } =
+        await import("./app/performance-probe.js");
       const gate = preflightOrBlock();
       if (!gate.ok) {
-        const blockedReason =
-          gate.result.status === "ok" ? "unknown" : gate.result.reason;
+        const blockedReason = gate.result.status === "ok" ? "unknown" : gate.result.reason;
         mainLog.error("[perf-probe] blocked:", blockedReason);
         app.exit(gate.result.status === "blocked" ? 2 : 1);
         return;

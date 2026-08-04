@@ -5,10 +5,7 @@
 
 import { app } from "electron";
 
-import {
-  type PerfProbeMode,
-  preflightPerformanceProbe,
-} from "./performance-probe-contract.js";
+import { type PerfProbeMode, preflightPerformanceProbe } from "./performance-probe-contract.js";
 import { isPerfTraceEnabled, perfTrace } from "../utils/performance-trace.js";
 import {
   flushPerfTraceToUserData,
@@ -24,9 +21,8 @@ export type ProbeRunResult =
  * Validate env + packaged + userData before any probe surface runs.
  */
 export function preflightOrBlock():
-  | { ok: true; mode: PerfProbeMode; userDataPath: string }
-  | { ok: false; result: ProbeRunResult } {
-  let userData = "";
+  { ok: true; mode: PerfProbeMode; userDataPath: string } | { ok: false; result: ProbeRunResult } {
+  let userData: string;
   try {
     userData = app.getPath("userData");
   } catch (err) {
@@ -126,19 +122,32 @@ export async function runNamedProbeSurface(
   mode: Exclude<PerfProbeMode, "startup">,
   userDataPath: string,
 ): Promise<ProbeRunResult> {
+  const SURFACE_BUDGET_MS = 75_000;
   try {
     registerPerfTraceBeforeQuitFlush(app);
-    if (mode === "tray") {
-      const { runTrayProbe } = await import("./performance-probes/tray-probe.js");
-      await runTrayProbe(userDataPath);
-    } else if (mode === "alert") {
-      const { runAlertProbe } = await import("./performance-probes/alert-probe.js");
-      await runAlertProbe(userDataPath);
-    } else {
-      // safe-storage: Windows-native only for meaningful safeStorage; still runs adapters.
-      const { runSafeStorageProbe } = await import("./performance-probes/safe-storage-probe.js");
-      await runSafeStorageProbe(userDataPath);
-    }
+    const run = async (): Promise<void> => {
+      if (mode === "tray") {
+        const { runTrayProbe } = await import("./performance-probes/tray-probe.js");
+        await runTrayProbe(userDataPath);
+      } else if (mode === "alert") {
+        const { runAlertProbe } = await import("./performance-probes/alert-probe.js");
+        await runAlertProbe(userDataPath);
+      } else {
+        // safe-storage: Windows-native only for meaningful safeStorage; still runs adapters.
+        const { runSafeStorageProbe } = await import("./performance-probes/safe-storage-probe.js");
+        await runSafeStorageProbe(userDataPath);
+      }
+    };
+    await Promise.race([
+      run(),
+      new Promise<never>((_resolve, reject) => {
+        const t = setTimeout(
+          () => reject(new Error(`probe-surface-timeout:${mode}`)),
+          SURFACE_BUDGET_MS,
+        );
+        t.unref?.();
+      }),
+    ]);
     // Ensure terminal is published even if driver already flushed.
     flushPerfTraceToUserData(userDataPath);
     return { status: "ok", mode };

@@ -41,14 +41,16 @@ export function parsePerfProbeMode(raw: string | undefined | null): PerfProbeMod
 /**
  * Validate isolated probe userData: real directory, basename prefix, under tmpdir.
  */
-export function validateProbeUserDataDir(userDataPath: string): {
-  ok: true;
-  resolved: string;
-} | {
-  ok: false;
-  reason: ProbePreflightFailure;
-  detail?: string;
-} {
+export function validateProbeUserDataDir(userDataPath: string):
+  | {
+      ok: true;
+      resolved: string;
+    }
+  | {
+      ok: false;
+      reason: ProbePreflightFailure;
+      detail?: string;
+    } {
   if (typeof userDataPath !== "string" || userDataPath.trim().length === 0) {
     return { ok: false, reason: "user-data-missing" };
   }
@@ -83,7 +85,12 @@ export function validateProbeUserDataDir(userDataPath: string): {
 
   const tmpRoot = realpathSync(tmpdir());
   const underTmp =
-    real === tmpRoot || real.startsWith(tmpRoot.endsWith("/") || tmpRoot.endsWith("\\") ? tmpRoot : tmpRoot + (process.platform === "win32" ? "\\" : "/"));
+    real === tmpRoot ||
+    real.startsWith(
+      tmpRoot.endsWith("/") || tmpRoot.endsWith("\\")
+        ? tmpRoot
+        : tmpRoot + (process.platform === "win32" ? "\\" : "/"),
+    );
   if (!underTmp) {
     return { ok: false, reason: "user-data-not-under-tmpdir", detail: real };
   }
@@ -124,7 +131,11 @@ export function preflightPerformanceProbe(options: {
   }
   const ud = validateProbeUserDataDir(options.userDataPath);
   if (!ud.ok) {
-    return { ok: false, reason: ud.reason, ...(ud.detail !== undefined ? { detail: ud.detail } : {}) };
+    return {
+      ok: false,
+      reason: ud.reason,
+      ...(ud.detail !== undefined ? { detail: ud.detail } : {}),
+    };
   }
   return { ok: true, mode, userDataPath: ud.resolved };
 }

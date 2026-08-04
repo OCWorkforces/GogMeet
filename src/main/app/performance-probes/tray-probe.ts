@@ -11,10 +11,7 @@ import type { CalendarUiState } from "../../../domain/entities/calendar-ui-state
 import { createAppGraph } from "../../composition/app-graph.js";
 import { mainBus } from "../../events.js";
 import { destroyTray, setupTray, requestTrayRebuild } from "../../tray.js";
-import {
-  SECURE_WEB_PREFERENCES,
-  getPreloadPath,
-} from "../../utils/browser-window.js";
+import { SECURE_WEB_PREFERENCES, getPreloadPath } from "../../utils/browser-window.js";
 import { flushPerfTraceToUserData } from "../../utils/performance-trace-file.js";
 import { perfTrace } from "../../utils/performance-trace.js";
 
@@ -74,19 +71,22 @@ export async function runTrayProbe(userDataPath: string): Promise<void> {
     for (const n of sizes) {
       const events = syntheticEvents(n, now);
       const ui = syntheticUi(events);
-      // Warm + 10 source bursts (dual signals coalesce).
+      // 10 source bursts (dual signals → coalesce path).
       for (let b = 0; b < 10; b++) {
         mainBus.emit("meeting-list-updated", events);
         mainBus.emit("calendar-status-updated", ui);
-        await Promise.resolve();
-        await Promise.resolve();
       }
-      // 30 measured force rebuilds
+      // Drain coalesced microtasks once per burst batch.
+      await new Promise<void>((resolve) => {
+        queueMicrotask(() => resolve());
+      });
+      // 30 measured force rebuilds (production setContextMenu path).
       for (let i = 0; i < 30; i++) {
         const t0 = performance.now();
         requestTrayRebuild(win, { force: true });
-        await Promise.resolve();
-        await Promise.resolve();
+        await new Promise<void>((resolve) => {
+          queueMicrotask(() => resolve());
+        });
         perfTrace({
           operation: "tray-rebuild",
           outcome: "ok",

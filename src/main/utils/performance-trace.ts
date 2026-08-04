@@ -262,8 +262,7 @@ function appendPerfTrace(input: PerfTraceInput): void {
 
   // Narrowed: not probe-terminal after early return above.
   const dataInput = input;
-  const maybeErrorClass =
-    "errorClass" in dataInput ? dataInput.errorClass : undefined;
+  const maybeErrorClass = "errorClass" in dataInput ? dataInput.errorClass : undefined;
   if (maybeErrorClass !== undefined && !isErrorClass(maybeErrorClass)) return;
 
   const count = "count" in dataInput ? dataInput.count : undefined;

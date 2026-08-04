@@ -69,7 +69,8 @@ export function flushPerfTraceToUserData(userDataPath: string): {
     // Include terminal exactly once.
     const body = perfTraceToJsonl({ includeTerminal: true });
     // Ensure trailing newline for JSONL tools.
-    const payload = body.length > 0 ? `${body}\n` : `${JSON.stringify(buildProbeTerminalRecord())}\n`;
+    const payload =
+      body.length > 0 ? `${body}\n` : `${JSON.stringify(buildProbeTerminalRecord())}\n`;
 
     try {
       writeFileSync(tempPath, payload, { encoding: "utf8", flag: "w" });
@@ -114,12 +115,10 @@ export function flushPerfTraceToUserData(userDataPath: string): {
  * Register a before-quit fallback flush using Electron `app`.
  * No-ops when tracing disabled. Safe to call multiple times.
  */
-export function registerPerfTraceBeforeQuitFlush(
-  appLike: {
-    getPath: (name: "userData") => string;
-    once: (event: "before-quit", listener: () => void) => void;
-  },
-): void {
+export function registerPerfTraceBeforeQuitFlush(appLike: {
+  getPath: (name: "userData") => string;
+  once: (event: "before-quit", listener: () => void) => void;
+}): void {
   if (!isPerfTraceEnabled()) return;
   if (beforeQuitRegistered) return;
   beforeQuitRegistered = true;

@@ -112,6 +112,12 @@ describe("performance-probe-calendar", () => {
       expect(isCalendarAutomationEligible(result)).toBe(true);
     }
     expect(await provider.getPermissionStatus()).toBe("granted");
+    expect(await provider.requestPermission()).toBe("granted");
+    await provider.disconnect?.();
+    expect(await provider.getAccountLabel?.()).toBe("perf-probe@local");
+    expect(provider.isOAuthConfigured?.()).toBe(true);
+    expect(provider.isOAuthInFlight?.()).toBe(false);
+    await provider.warmup?.();
     expect(provider.startWatch).toBeUndefined();
     expect(provider.stopWatch).toBeUndefined();
   });

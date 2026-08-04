@@ -171,9 +171,7 @@ function handleStderrChunk(chunk: Buffer): void {
   const remaining = WATCH_SIDECAR_STDERR_LIMIT_BYTES - stderrBytes;
   if (remaining <= 0) {
     stderrSuppressed = true;
-    console.warn(
-      "[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)",
-    );
+    console.warn("[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)");
     return;
   }
 
@@ -186,9 +184,7 @@ function handleStderrChunk(chunk: Buffer): void {
       console.warn("[calendar-watch-sidecar] stderr:", text);
     }
     stderrSuppressed = true;
-    console.warn(
-      "[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)",
-    );
+    console.warn("[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)");
     return;
   }
 

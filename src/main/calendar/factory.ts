@@ -30,7 +30,7 @@ export async function getActiveCalendarProvider(): Promise<CalendarProvider> {
   if (typeof probeMode === "string" && probeMode.length > 0) {
     const { preflightPerformanceProbe } = await import("../app/performance-probe-contract.js");
     const { isPerfTraceEnabled } = await import("../utils/performance-trace.js");
-    let userData = "";
+    let userData: string;
     try {
       userData = app.getPath("userData");
     } catch {
@@ -43,9 +43,8 @@ export async function getActiveCalendarProvider(): Promise<CalendarProvider> {
       userDataPath: userData,
     });
     if (preflight.ok) {
-      const { createPerformanceProbeCalendarProvider } = await import(
-        "./providers/performance-probe-calendar.js"
-      );
+      const { createPerformanceProbeCalendarProvider } =
+        await import("./providers/performance-probe-calendar.js");
       cached = createPerformanceProbeCalendarProvider();
       console.log(`[calendar:factory] Using performance-probe provider (mode=${preflight.mode})`);
       return cached;

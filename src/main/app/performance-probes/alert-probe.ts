@@ -21,9 +21,7 @@ function syntheticMeeting(seed: number): MeetingEvent {
   }
   // Long / CJK synthetic titles for layout stress (not logged to traces).
   const title =
-    seed % 3 === 0
-      ? `会議 ${seed} ` + "漢".repeat(40)
-      : `syn-alert-${seed}-` + "x".repeat(80);
+    seed % 3 === 0 ? `会議 ${seed} ` + "漢".repeat(40) : `syn-alert-${seed}-` + "x".repeat(80);
   return {
     id: id.value,
     title,
