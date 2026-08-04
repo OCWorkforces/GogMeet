@@ -103,15 +103,7 @@ export function finalizeStartupProbe(userDataPath: string): void {
     recordNotExercised(phase);
   }
   registerPerfTraceBeforeQuitFlush(app);
-  flushPerfTraceToUserData(userDataPath);
-  perfTrace({
-    operation: "synthetic",
-    outcome: "ok",
-    startMs: 0,
-    durationMs: 0,
-    count: 1,
-  });
-  // Re-flush so terminal reflects final counters.
+  // Single flush after all rows (flush is idempotent; do not write then append).
   flushPerfTraceToUserData(userDataPath);
 }
 

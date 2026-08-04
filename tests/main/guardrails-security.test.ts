@@ -168,3 +168,13 @@ describe("guardrails: packaged probe privacy (G12)", () => {
     expect(PERF_PROBE_USER_DATA_PREFIX).toBe("gogmeet-perf-probe-");
   });
 });
+
+describe("guardrails: Google page cap freeze", () => {
+  it("freezes MAX_PAGES at 50 in google-calendar source", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/main/calendar/providers/google-calendar.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/const MAX_PAGES\s*=\s*50\b/);
+  });
+});

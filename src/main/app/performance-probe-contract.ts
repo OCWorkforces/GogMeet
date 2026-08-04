@@ -97,11 +97,9 @@ export function validateProbeUserDataDir(userDataPath: string):
 
   // Symlink escape: resolved real path basename must still carry the prefix
   // when the leaf was a symlink outside the allowed tree.
-  if (!basename(real).startsWith(PERF_PROBE_USER_DATA_PREFIX) && real !== resolved) {
-    // Allow realpath of a prefix-named dir (real may differ only by normalization).
-    if (!real.includes(PERF_PROBE_USER_DATA_PREFIX)) {
-      return { ok: false, reason: "user-data-symlink-escape", detail: real };
-    }
+  // Strict: resolved leaf basename must keep the probe prefix (no includes-based escape).
+  if (!basename(real).startsWith(PERF_PROBE_USER_DATA_PREFIX)) {
+    return { ok: false, reason: "user-data-symlink-escape", detail: real };
   }
 
   return { ok: true, resolved: real };

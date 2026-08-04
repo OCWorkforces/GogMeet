@@ -13,7 +13,8 @@ import type { CalendarProvider } from "../provider.js";
 
 export function createPerformanceProbeCalendarProvider(): CalendarProvider {
   return {
-    id: "fixture", // reuse reserved id space without claiming Google/EventKit
+    // Distinct from unpackaged fixture selection; union reuses "fixture" slot until provider id expands.
+    id: "fixture",
     async getEvents(_signal: AbortSignal): Promise<CalendarResult> {
       return calendarLiveOk([], "complete", Date.now());
     },
