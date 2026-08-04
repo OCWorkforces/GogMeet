@@ -37,15 +37,38 @@ let isAlertShowing = false;
 const pendingAlerts: MeetingEvent[] = [];
 /** Prefer hide/show reuse when the prior window is still alive (same security prefs). */
 let reuseGeneration = 0;
+/** At most one reserved dequeue → present handoff (module-owned). */
+let queuedImmediate: ReturnType<typeof setImmediate> | null = null;
 
+/**
+ * Reserve the presentation slot, then shift+present on the next tick.
+ * Destroy clears `queuedImmediate` and bumps generation so stale callbacks no-op.
+ */
 function processNextAlert(): void {
-  const next = pendingAlerts.shift();
-  if (!next) return;
-  // Defer to next tick so the just-dismissed window finishes hide/teardown cleanly
-  setImmediate(() => {
-    isAlertShowing = true;
+  if (queuedImmediate !== null) return;
+  if (isAlertShowing || pendingAlerts.length === 0) return;
+
+  // Reserve before scheduling so concurrent showAlert queues behind this owner.
+  isAlertShowing = true;
+  const reservedGeneration = reuseGeneration;
+  queuedImmediate = setImmediate(() => {
+    queuedImmediate = null;
+    if (reservedGeneration !== reuseGeneration) {
+      // destroyAlertWindow (or equivalent) invalidated this reservation.
+      isAlertShowing = false;
+      return;
+    }
+    const next = pendingAlerts.shift();
+    if (!next) {
+      isAlertShowing = false;
+      return;
+    }
     showAlertInternal(next);
   });
+}
+
+function isCurrentPresentation(win: BrowserWindow, generation: number): boolean {
+  return !win.isDestroyed() && alertWindow === win && generation === reuseGeneration;
 }
 
 export function showAlert(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
@@ -86,8 +109,13 @@ export function showAlert(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
   showAlertInternal(event, autoOpenAt);
 }
 
-function presentAlertPayload(win: BrowserWindow, event: MeetingEvent, autoOpenAt?: IsoUtc): void {
-  if (win.isDestroyed()) return;
+function presentAlertPayload(
+  win: BrowserWindow,
+  event: MeetingEvent,
+  generation: number,
+  autoOpenAt?: IsoUtc,
+): void {
+  if (!isCurrentPresentation(win, generation)) return;
   typedSend(win.webContents, IPC_CHANNELS.ALERT_SHOW, toAlertPayload(event, autoOpenAt));
   win.webContents
     .executeJavaScript(
@@ -102,7 +130,7 @@ function presentAlertPayload(win: BrowserWindow, event: MeetingEvent, autoOpenAt
         })()`,
     )
     .then((contentHeight: number) => {
-      if (win.isDestroyed()) return;
+      if (!isCurrentPresentation(win, generation)) return;
       if (typeof contentHeight === "number" && contentHeight > 0) {
         const MIN_HEIGHT = 280;
         const MAX_HEIGHT = 480;
@@ -112,7 +140,8 @@ function presentAlertPayload(win: BrowserWindow, event: MeetingEvent, autoOpenAt
       win.show();
     })
     .catch(() => {
-      if (!win.isDestroyed()) win.show();
+      if (!isCurrentPresentation(win, generation)) return;
+      win.show();
     });
 }
 
@@ -127,6 +156,7 @@ function showAlertInternal(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
     win.__replacing = false;
     win.__alertUid = event.id;
     win.__alertStartMs = startMs;
+    win.__alertGeneration = generation;
     applyAlertAlwaysOnTop(win);
     if (win.isVisible()) {
       win.hide();
@@ -138,8 +168,8 @@ function showAlertInternal(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
       )
       .catch(() => undefined)
       .then(() => {
-        if (win.isDestroyed() || generation !== reuseGeneration) return;
-        presentAlertPayload(win, event, autoOpenAt);
+        if (!isCurrentPresentation(win, generation)) return;
+        presentAlertPayload(win, event, generation, autoOpenAt);
       });
     return;
   }
@@ -163,19 +193,22 @@ function showAlertInternal(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
   alertWindow = win;
   win.__alertUid = event.id;
   win.__alertStartMs = startMs;
+  win.__alertGeneration = generation;
   applyAlertAlwaysOnTop(win);
 
   loadWindowContent(win, "alert");
 
   win.once("ready-to-show", () => {
-    if (win.isDestroyed() || generation !== reuseGeneration) return;
-    presentAlertPayload(win, event, autoOpenAt);
+    if (!isCurrentPresentation(win, generation)) return;
+    presentAlertPayload(win, event, generation, autoOpenAt);
   });
 
   // Prefer hide over destroy so the next alert can reuse this window (same webPreferences).
-  win.on("close", (event) => {
+  win.on("close", (closeEvent) => {
     if (win.__forceDestroy) return;
-    event.preventDefault();
+    closeEvent.preventDefault();
+    // Identity + generation: ignore stale close after replacement/teardown.
+    if (!isCurrentPresentation(win, win.__alertGeneration ?? -1)) return;
     if (!win.__replacing && win.__alertUid !== undefined) {
       cancelPendingBrowserOpen(win.__alertUid);
     }
@@ -186,15 +219,24 @@ function showAlertInternal(event: MeetingEvent, autoOpenAt?: IsoUtc): void {
   });
 
   win.on("closed", () => {
-    if (alertWindow === win) {
+    // Only the current window ref may clear shared module state.
+    if (alertWindow !== win) return;
+    if ((win.__alertGeneration ?? -1) !== reuseGeneration) {
       alertWindow = null;
+      return;
     }
+    alertWindow = null;
     isAlertShowing = false;
   });
 }
 
-/** Force-destroy any alert window (shutdown / tests). */
+/** Force-destroy any alert window (shutdown / tests). Does not cancel pending browser-open. */
 export function destroyAlertWindow(): void {
+  if (queuedImmediate !== null) {
+    clearImmediate(queuedImmediate);
+    queuedImmediate = null;
+  }
+  reuseGeneration += 1;
   if (alertWindow && !alertWindow.isDestroyed()) {
     alertWindow.__forceDestroy = true;
     alertWindow.destroy();
@@ -208,6 +250,7 @@ declare module "electron" {
   interface BrowserWindow {
     __alertUid?: EventId;
     __alertStartMs?: number;
+    __alertGeneration?: number;
     __replacing?: boolean;
     __forceDestroy?: boolean;
   }
