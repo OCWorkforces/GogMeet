@@ -10,8 +10,10 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 
 | File | Exports | Role |
 | --- | --- | --- |
-| `lifecycle.ts` | `initializeApp`, `shutdownApp`, `getActiveAppGraph` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Creates `AppGraph` first; settings before scheduler; auto-updater last. |
+| `lifecycle.ts` | `initializeApp`, `shutdownApp`, `getActiveAppGraph`, `InitializeAppOptions` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Creates `AppGraph` first; settings before scheduler; auto-updater last. `probeSafe` skips power/shortcuts/notification/auto-launch/updater. |
 | `ipc.ts` | `registerIpcHandlers(win, graph)` | Registers handlers from `ipc-handlers/` with the graph. |
+| `performance-probe-contract.ts` | Finite `PERF_PROBE_MODES`, preflight, userData prefix validation | Private packaged measurement contracts only |
+| `performance-probe.ts` | `preflightOrBlock`, `finalizeStartupProbe`, `runNamedProbeSurface` | Probe dispatcher after preflight |
 
 ## WHERE TO LOOK
 
@@ -34,3 +36,5 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 - `shutdownApp`: power cleanup → clear display horizon → force-destroy hide-cached alert/settings/about windows → graph stop (or free-function scheduler/watcher fallback if no graph) → unregister shortcuts → clear `activeGraph`.
 - Both files are for `index.ts` only (plus tests).
 - `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged` or portable.
+- **Packaged probe mode** (`GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage`): requires `app.isPackaged`, `GOGMEET_PERF_TRACE=1`, and Electron `--user-data-dir` under `os.tmpdir()` with basename prefix `gogmeet-perf-probe-`. `index.ts` owns mode selection; lifecycle `probeSafe` gates external mutators for startup probes. Invalid preflight must not touch real calendar/token adapters.
+- When `GOGMEET_PERF_TRACE=1`, lifecycle/index emit finite `startup-phase` rows (`process-start` … `first-poll`); probe-safe startup records external phases as `not-exercised`.

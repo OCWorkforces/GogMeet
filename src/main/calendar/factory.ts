@@ -25,6 +25,35 @@ export async function getActiveCalendarProvider(): Promise<CalendarProvider> {
     return cached;
   }
 
+  // Private packaged measurement probe — only after full preflight (packaged + trace + isolated userData).
+  const probeMode = process.env["GOGMEET_PERF_PROBE"];
+  if (typeof probeMode === "string" && probeMode.length > 0) {
+    const { preflightPerformanceProbe } = await import("../app/performance-probe-contract.js");
+    const { isPerfTraceEnabled } = await import("../utils/performance-trace.js");
+    let userData = "";
+    try {
+      userData = app.getPath("userData");
+    } catch {
+      userData = "";
+    }
+    const preflight = preflightPerformanceProbe({
+      envMode: probeMode,
+      isPackaged: app.isPackaged,
+      perfTraceEnabled: isPerfTraceEnabled(),
+      userDataPath: userData,
+    });
+    if (preflight.ok) {
+      const { createPerformanceProbeCalendarProvider } = await import(
+        "./providers/performance-probe-calendar.js"
+      );
+      cached = createPerformanceProbeCalendarProvider();
+      console.log(`[calendar:factory] Using performance-probe provider (mode=${preflight.mode})`);
+      return cached;
+    }
+    // Invalid probe env must not fall through to real calendars/adapters.
+    throw new Error(`[calendar:factory] Probe preflight failed: ${preflight.reason}`);
+  }
+
   // K23: fixture only when unpackaged AND env path set — never in packaged builds
   const fixturePath = process.env["GOGMEET_CALENDAR_FIXTURE"];
   if (!app.isPackaged && typeof fixturePath === "string" && fixturePath.trim().length > 0) {

@@ -77,4 +77,5 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - Swift source `asarUnpack` for packaged mac builds.
 - Windows Google requires `GOOGLE_OAUTH_CLIENT_ID` at runtime/package.
 - Fixture: unpackaged + `GOGMEET_CALENDAR_FIXTURE` path only.
+- Packaged probe: `GOGMEET_PERF_PROBE` + trace + isolated userData → private empty calendar provider; `initializeApp({ probeSafe: true })` for startup probes.
 - `index.ts` configures `electron-log` via `utils/log.ts` and suppresses Chromium DNS sorter warnings with `log-level=3`.

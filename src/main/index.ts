@@ -9,6 +9,18 @@ import {
 } from "./utils/browser-window.js";
 import { platformWindowChrome } from "./utils/window-chrome.js";
 import { configureMainLogging, mainLog } from "./utils/log.js";
+import { isPerfTraceEnabled, perfTrace } from "./utils/performance-trace.js";
+
+const processStartMs = performance.now();
+if (isPerfTraceEnabled()) {
+  perfTrace({
+    operation: "startup-phase",
+    phase: "process-start",
+    outcome: "ok",
+    startMs: 0,
+    durationMs: 0,
+  });
+}
 
 // Suppress Chromium DNS address sorter warnings on macOS (Chromium bug 40445828).
 // These fire on interfaces with missing netmask (VPNs, virtual interfaces) and are harmless.
@@ -104,11 +116,70 @@ function createWindow(): BrowserWindow {
 // Only boot when we own the single-instance lock (quit path may still load this
 // module briefly before exit completes).
 if (gotSingleInstanceLock) {
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    if (isPerfTraceEnabled()) {
+      perfTrace({
+        operation: "startup-phase",
+        phase: "electron-ready",
+        outcome: "ok",
+        startMs: processStartMs,
+        durationMs: Math.max(0, performance.now() - processStartMs),
+      });
+    }
     // Hide from Dock immediately (no-op on platforms without a dock)
     app.dock?.hide();
 
+    // Private packaged measurement mode (GOGMEET_PERF_PROBE). Absent → normal product boot.
+    const probeEnv = process.env["GOGMEET_PERF_PROBE"];
+    if (typeof probeEnv === "string" && probeEnv.length > 0) {
+      const { preflightOrBlock, finalizeStartupProbe, runNamedProbeSurface } = await import(
+        "./app/performance-probe.js"
+      );
+      const gate = preflightOrBlock();
+      if (!gate.ok) {
+        mainLog.error("[perf-probe] blocked:", gate.result.reason);
+        app.exit(gate.result.status === "blocked" ? 2 : 1);
+        return;
+      }
+      if (gate.mode === "startup") {
+        const tWin = performance.now();
+        mainWindow = createWindow();
+        if (isPerfTraceEnabled()) {
+          perfTrace({
+            operation: "startup-phase",
+            phase: "window-create-load",
+            outcome: "ok",
+            startMs: tWin,
+            durationMs: Math.max(0, performance.now() - tWin),
+          });
+        }
+        try {
+          await initializeApp(mainWindow, { probeSafe: true });
+          finalizeStartupProbe(gate.userDataPath);
+          app.exit(0);
+        } catch (error: unknown) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          mainLog.error("[perf-probe] startup failed:", err);
+          app.exit(1);
+        }
+        return;
+      }
+      const surface = await runNamedProbeSurface(gate.mode, gate.userDataPath);
+      app.exit(surface.status === "ok" ? 0 : 1);
+      return;
+    }
+
+    const tWin = performance.now();
     mainWindow = createWindow();
+    if (isPerfTraceEnabled()) {
+      perfTrace({
+        operation: "startup-phase",
+        phase: "window-create-load",
+        outcome: "ok",
+        startMs: tWin,
+        durationMs: Math.max(0, performance.now() - tWin),
+      });
+    }
     initializeApp(mainWindow).catch((error: unknown) => {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error("[main] initializeApp failed:", err);
