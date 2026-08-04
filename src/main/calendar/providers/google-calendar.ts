@@ -46,6 +46,9 @@ const MAX_PAGES = 50;
 /** Process-local event index for incremental merge (not a durable event DB). */
 const workingEventsByCalendar = new Map<string, Map<string, MeetingEvent>>();
 
+/** Internal page-chain outcome: complete vs hit MAX_PAGES with more pages remaining. */
+type TraversalStatus = "complete" | "pagination-limit";
+
 class AuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -57,6 +60,22 @@ class NetworkError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "NetworkError";
+  }
+}
+
+/** Thrown when a bounded Google page chain still has a nextPageToken after MAX_PAGES. */
+class PaginationLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaginationLimitError";
+  }
+}
+
+/** HTTP 429 — distinct from generic NetworkError so incremental paths skip full-window retry. */
+class RateLimitError extends Error {
+  constructor(message: string = "Google API rate limited (429)") {
+    super(message);
+    this.name = "RateLimitError";
   }
 }
 
@@ -93,6 +112,9 @@ async function googleFetch(
       if (err.errorClass === "auth") {
         throw new AuthError(err.message);
       }
+      if (err.errorClass === "rate-limit") {
+        throw new RateLimitError(err.message);
+      }
       throw new NetworkError(err.message);
     }
     throw err;
@@ -102,9 +124,10 @@ async function googleFetch(
 async function listSelectedCalendarIds(
   accessToken: string,
   signal?: AbortSignal,
-): Promise<string[]> {
+): Promise<{ status: TraversalStatus; calendarIds: string[] }> {
   const ids: string[] = [];
   let pageToken: string | undefined;
+  let status: TraversalStatus = "complete";
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL("https://www.googleapis.com/calendar/v3/users/me/calendarList");
@@ -114,9 +137,13 @@ async function listSelectedCalendarIds(
     const result = await googleFetch(url.toString(), accessToken, signal);
     if (!result.ok) {
       if (result.status === 401) throw new AuthError(result.body);
+      if (result.status === 429) throw new RateLimitError(`calendarList rate limited (429)`);
       throw new NetworkError(`calendarList failed (${result.status})`);
     }
-    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) break;
+    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) {
+      status = "complete";
+      break;
+    }
 
     for (const item of result.json["items"]) {
       if (!isObjectRecord(item)) continue;
@@ -128,14 +155,21 @@ async function listSelectedCalendarIds(
     }
 
     const next = result.json["nextPageToken"];
-    if (typeof next !== "string" || next.length === 0) break;
+    if (typeof next !== "string" || next.length === 0) {
+      status = "complete";
+      break;
+    }
     pageToken = next;
+    // Last allowed page still advertises more → incomplete traversal.
+    if (page === MAX_PAGES - 1) {
+      status = "pagination-limit";
+    }
   }
 
   if (ids.length === 0) {
     ids.push("primary");
   }
-  return [...new Set(ids)];
+  return { status, calendarIds: [...new Set(ids)] };
 }
 
 function mapGoogleEvent(
@@ -234,7 +268,10 @@ async function fetchEventsFullWindow(
   timeMin: string,
   timeMax: string,
   signal?: AbortSignal,
-): Promise<{ events: MeetingEvent[]; nextSyncToken: string | undefined }> {
+): Promise<
+  | { status: "complete"; events: MeetingEvent[]; nextSyncToken: string | undefined }
+  | { status: "pagination-limit" }
+> {
   const events: MeetingEvent[] = [];
   let pageToken: string | undefined;
   let nextSyncToken: string | undefined;
@@ -254,14 +291,17 @@ async function fetchEventsFullWindow(
     const result = await googleFetch(url.toString(), accessToken, signal);
     if (!result.ok) {
       if (result.status === 401) throw new AuthError(result.body);
+      if (result.status === 429) throw new RateLimitError(`events.list rate limited (429)`);
       if (result.status === 403 || result.status === 404) {
         console.warn(`[calendar:google] Skipping calendar ${calendarId}: HTTP ${result.status}`);
-        return { events, nextSyncToken: undefined };
+        return { status: "complete", events, nextSyncToken: undefined };
       }
       throw new NetworkError(`events.list failed (${result.status})`);
     }
 
-    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) break;
+    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) {
+      return { status: "complete", events, nextSyncToken };
+    }
 
     for (const item of result.json["items"]) {
       const mapped = mapGoogleEvent(item, calendarId, calendarName, userEmail);
@@ -271,14 +311,18 @@ async function fetchEventsFullWindow(
     const next = result.json["nextPageToken"];
     if (typeof next === "string" && next.length > 0) {
       pageToken = next;
+      if (page === MAX_PAGES - 1) {
+        // Discard incomplete batch — do not authorize events or nextSyncToken.
+        return { status: "pagination-limit" };
+      }
       continue;
     }
     const sync = result.json["nextSyncToken"];
     if (typeof sync === "string" && sync.length > 0) nextSyncToken = sync;
-    break;
+    return { status: "complete", events, nextSyncToken };
   }
 
-  return { events, nextSyncToken };
+  return { status: "pagination-limit" };
 }
 
 /**
@@ -292,7 +336,15 @@ async function fetchEventsIncremental(
   userEmail: string | undefined,
   syncToken: string,
   signal?: AbortSignal,
-): Promise<{ upserts: MeetingEvent[]; deletedIds: string[]; nextSyncToken: string | undefined }> {
+): Promise<
+  | {
+      status: "complete";
+      upserts: MeetingEvent[];
+      deletedIds: string[];
+      nextSyncToken: string | undefined;
+    }
+  | { status: "pagination-limit" }
+> {
   const upserts: MeetingEvent[] = [];
   const deletedIds: string[] = [];
   let pageToken: string | undefined;
@@ -313,9 +365,15 @@ async function fetchEventsIncremental(
     if (!result.ok) {
       if (result.status === 410) throw new GoneError();
       if (result.status === 401) throw new AuthError(result.body);
+      if (result.status === 429) {
+        // Preserve sync token + index; callers must not full-window retry this poll.
+        throw new RateLimitError(`events.list incremental rate limited (429)`);
+      }
       throw new NetworkError(`events.list incremental failed (${result.status})`);
     }
-    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) break;
+    if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) {
+      return { status: "complete", upserts, deletedIds, nextSyncToken };
+    }
 
     for (const item of result.json["items"]) {
       if (!isObjectRecord(item)) continue;
@@ -335,14 +393,18 @@ async function fetchEventsIncremental(
     if (typeof next === "string" && next.length > 0) {
       pageToken = next;
       tokenParam = undefined;
+      if (page === MAX_PAGES - 1) {
+        // Discard incomplete upserts/deletes — prior index/token stay authoritative.
+        return { status: "pagination-limit" };
+      }
       continue;
     }
     const sync = result.json["nextSyncToken"];
     if (typeof sync === "string" && sync.length > 0) nextSyncToken = sync;
-    break;
+    return { status: "complete", upserts, deletedIds, nextSyncToken };
   }
 
-  return { upserts, deletedIds, nextSyncToken };
+  return { status: "pagination-limit" };
 }
 
 function filterEventsInWindow(
@@ -385,6 +447,12 @@ async function fetchEventsForCalendar(
         stored,
         signal,
       );
+      if (inc.status === "pagination-limit") {
+        // Preserve index + stored nextSyncToken; do not apply incomplete upserts/deletes.
+        throw new PaginationLimitError(
+          `events.list incremental pagination limit for ${calendarId}`,
+        );
+      }
       for (const id of inc.deletedIds) index.delete(id);
       for (const ev of inc.upserts) index.set(ev.id, ev);
       if (inc.nextSyncToken) {
@@ -394,6 +462,13 @@ async function fetchEventsForCalendar(
       }
       return filterEventsInWindow([...index.values()], timeMin, timeMax);
     } catch (err) {
+      if (err instanceof PaginationLimitError) {
+        throw err;
+      }
+      if (err instanceof RateLimitError) {
+        // 429 must not amplify into a same-poll full-window request.
+        throw err;
+      }
       if (err instanceof GoneError) {
         await clearGoogleSyncToken(calendarId);
         index.clear();
@@ -401,7 +476,7 @@ async function fetchEventsForCalendar(
       } else if (err instanceof AuthError) {
         throw err;
       } else {
-        // Incremental transport failure: fall back to full window for this poll.
+        // Incremental transport/5xx failure: fall back to full window for this poll.
         console.warn("[calendar:google] Incremental sync failed — full window fetch");
       }
     }
@@ -416,6 +491,10 @@ async function fetchEventsForCalendar(
     timeMax,
     signal,
   );
+  if (full.status === "pagination-limit") {
+    // Preserve prior index/token; discard incomplete full-window batch.
+    throw new PaginationLimitError(`events.list full pagination limit for ${calendarId}`);
+  }
   index.clear();
   for (const ev of full.events) index.set(ev.id, ev);
   if (full.nextSyncToken) {
@@ -432,7 +511,9 @@ async function fetchAllEvents(
   signal?: AbortSignal,
 ): Promise<{ events: MeetingEvent[]; completeness: "complete" | "partial" }> {
   const { timeMin, timeMax } = dayBoundsLocal();
-  const calendarIds = await listSelectedCalendarIds(accessToken, signal);
+  const list = await listSelectedCalendarIds(accessToken, signal);
+  const calendarIds = list.calendarIds;
+  const listIncomplete = list.status === "pagination-limit";
   const merged: MeetingEvent[] = [];
   let successCount = 0;
   let failedCount = 0;
@@ -464,10 +545,12 @@ async function fetchAllEvents(
   }
 
   merged.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-  // All selected calendars fully traversed → complete (even with zero events).
-  // At least one complete + any failed → partial.
+  // All selected calendars fully traversed and calendar-list complete → complete.
+  // Incomplete calendar-list, or any failed/pagination-limited calendar → partial.
   const completeness: "complete" | "partial" =
-    failedCount === 0 && successCount === calendarIds.length ? "complete" : "partial";
+    !listIncomplete && failedCount === 0 && successCount === calendarIds.length
+      ? "complete"
+      : "partial";
   return { events: merged, completeness };
 }
 
