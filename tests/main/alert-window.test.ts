@@ -488,6 +488,189 @@ describe("alert-window", () => {
         expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
         expect(win1.close).not.toHaveBeenCalled();
       });
+
+      it("does NOT cancel browser-open on force destroy", () => {
+        showAlert(makeEvent({ id: "force-no-cancel" }));
+        destroyAlertWindow();
+        expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("generation-safe queue handoff", () => {
+    it("does not create a window when destroy runs before the queued immediate", async () => {
+      showAlert(makeEvent({ id: "gen-a" }));
+      showAlert(makeEvent({ id: "gen-b" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+      const winA = getWindow(1);
+      fireEvent(winA, "close");
+      // Slot reserved for B; destroy before setImmediate runs.
+      destroyAlertWindow();
+      await vi.runAllTimersAsync();
+
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      // Starting fresh after destroy is allowed.
+      showAlert(makeEvent({ id: "gen-c-after" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps exactly one reserved queued owner when C arrives while B is pending", async () => {
+      showAlert(makeEvent({ id: "own-a" }));
+      const win = getWindow(1);
+      const mockSend = vi.fn();
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+
+      showAlert(makeEvent({ id: "own-b" }));
+      fireEvent(win, "close");
+      // B reserved via immediate; C queues behind without creating a window.
+      showAlert(makeEvent({ id: "own-c" }));
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+      await vi.runAllTimersAsync();
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "own-b" }),
+      );
+
+      // Dismiss B → C
+      mockSend.mockClear();
+      fireEvent(win, "close");
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "own-c" }),
+      );
+    });
+
+    it("ignores stale height resolution after a newer generation owns the window", async () => {
+      let resolveHeightA: (v: number) => void = () => undefined;
+      const heightA = new Promise<number>((resolve) => {
+        resolveHeightA = resolve;
+      });
+
+      const startA = "2026-05-11T10:00:00Z";
+      showAlert(makeEvent({ id: "stale-gen", startDate: startA }));
+      const win = getWindow(1);
+      win.__alertStartMs = new Date(startA).getTime();
+      const mockShow = vi.fn();
+      const mockSetSize = vi.fn();
+      const mockSend = vi.fn();
+      win.show = mockShow;
+      win.setSize = mockSetSize;
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+
+      let call = 0;
+      (
+        win.webContents as { executeJavaScript: ReturnType<typeof vi.fn> }
+      ).executeJavaScript = vi.fn(() => {
+        call += 1;
+        // First present (A): deferred height. Clear-DOM / B height resolve immediately.
+        if (call === 1) return heightA;
+        return Promise.resolve(320);
+      });
+
+      fireEvent(win, "ready-to-show");
+      // A is measuring; same-uid reschedule replaces in-place (new generation).
+      showAlert(makeEvent({ id: "stale-gen", startDate: "2026-05-11T14:00:00Z" }));
+      await vi.runAllTimersAsync();
+
+      mockShow.mockClear();
+      mockSetSize.mockClear();
+      // Stale A height must not resize/show after B owns the generation.
+      resolveHeightA(350);
+      await vi.runAllTimersAsync();
+      expect(mockSetSize).not.toHaveBeenCalledWith(500, 350, false);
+    });
+
+    it("ignores stale rejection fallback after generation advances", async () => {
+      let rejectHeight: (e: Error) => void = () => undefined;
+      const heightP = new Promise<number>((_resolve, reject) => {
+        rejectHeight = reject;
+      });
+
+      showAlert(makeEvent({ id: "rej-a" }));
+      const win = getWindow(1);
+      const mockShow = vi.fn();
+      win.show = mockShow;
+      (
+        win.webContents as { executeJavaScript: ReturnType<typeof vi.fn> }
+      ).executeJavaScript = vi.fn(() => heightP);
+
+      fireEvent(win, "ready-to-show");
+      destroyAlertWindow();
+      rejectHeight(new Error("stale"));
+      await vi.runAllTimersAsync();
+
+      expect(mockShow).not.toHaveBeenCalled();
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+    });
+
+    it("reschedule during reserved immediate does not clear isAlertShowing or drop queue", async () => {
+      const startA = "2026-05-11T10:00:00Z";
+      const startA2 = "2026-05-11T11:00:00Z";
+      showAlert(makeEvent({ id: "race-a", startDate: startA }));
+      const win = getWindow(1);
+      win.__alertStartMs = new Date(startA).getTime();
+      win.__alertUid = "race-a";
+      const mockSend = vi.fn();
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+
+      showAlert(makeEvent({ id: "race-b", startDate: "2026-05-11T12:00:00Z" }));
+      // Dismiss A → reserve immediate for B.
+      fireEvent(win, "close");
+      // Concurrent same-uid reschedule while B is reserved (bumps generation).
+      showAlert(makeEvent({ id: "race-a", startDate: startA2 }));
+      await vi.runAllTimersAsync();
+
+      // Reschedule presentation must still be considered showing (no false free slot).
+      expect(BrowserWindow).toHaveBeenCalledTimes(1);
+      // B remains queued; dismiss rescheduled A to drain B.
+      mockSend.mockClear();
+      fireEvent(win, "close");
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "race-b" }),
+      );
+    });
+
+    it("preserves autoOpenAt for queued alerts", async () => {
+      const { asTestIsoUtc } = await import("../helpers/test-utils.js");
+      const autoOpenAt = asTestIsoUtc("2026-05-11T10:05:00.000Z");
+      showAlert(makeEvent({ id: "first" }));
+      showAlert(makeEvent({ id: "second" }), autoOpenAt);
+      const win = getWindow(1);
+      const mockSend = vi.fn();
+      (win.webContents as { send: ReturnType<typeof vi.fn> }).send = mockSend;
+      fireEvent(win, "close");
+      await vi.runAllTimersAsync();
+      expect(mockSend).toHaveBeenCalledWith(
+        "alert:show",
+        expect.objectContaining({ id: "second", autoOpenAt }),
+      );
+    });
+
+    it("ignores stale close/closed after a newer window is current", async () => {
+      showAlert(makeEvent({ id: "close-a" }));
+      const winA = getWindow(1);
+      // True destroy path leaves A without being the current ref.
+      fireEvent(winA, "closed");
+      mockCancelPendingBrowserOpen.mockClear();
+
+      showAlert(makeEvent({ id: "close-b" }));
+      const winB = getWindow(2);
+      expect(BrowserWindow).toHaveBeenCalledTimes(2);
+
+      // Stale A close must not cancel browser-open for B.
+      fireEvent(winA, "close");
+      expect(mockCancelPendingBrowserOpen).not.toHaveBeenCalled();
+
+      // Current B dismiss still cancels once.
+      fireEvent(winB, "close");
+      expect(mockCancelPendingBrowserOpen).toHaveBeenCalledTimes(1);
+      expect(mockCancelPendingBrowserOpen).toHaveBeenCalledWith("close-b");
     });
   });
 });

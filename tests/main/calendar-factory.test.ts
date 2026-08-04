@@ -21,6 +21,24 @@ describe("calendar factory", () => {
     resetCalendarProvider();
     platformState.darwin = true;
     delete process.env["GOGMEET_CALENDAR_FIXTURE"];
+    delete process.env["GOGMEET_PERF_PROBE"];
+    delete process.env["GOGMEET_PERF_TRACE"];
+  });
+
+  it("probe env with failed preflight throws and never falls through to platform calendars", async () => {
+    process.env["GOGMEET_PERF_PROBE"] = "startup";
+    process.env["GOGMEET_PERF_TRACE"] = "1";
+    // Unpackaged default app mock → preflight fails not-packaged.
+    const { getActiveCalendarProvider } = await import("../../src/main/calendar/factory.js");
+    await expect(getActiveCalendarProvider()).rejects.toThrow(/Probe preflight failed/);
+  });
+
+  it("absent probe env leaves normal platform selection", async () => {
+    delete process.env["GOGMEET_PERF_PROBE"];
+    platformState.darwin = false;
+    const { getActiveCalendarProvider } = await import("../../src/main/calendar/factory.js");
+    const provider = await getActiveCalendarProvider();
+    expect(provider.id).toBe("google-calendar");
   });
 
   it("selects darwin-eventkit on Darwin", async () => {

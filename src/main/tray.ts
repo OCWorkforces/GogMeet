@@ -23,6 +23,7 @@ import { buildCalendarTrayMenuTemplate } from "./menu/meeting-menu.js";
 import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
 import { isDarwin } from "./platform/os.js";
+import { isPerfTraceEnabled, perfTrace } from "./utils/performance-trace.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -224,14 +225,33 @@ function refreshContextMenu(mainWindow: BrowserWindow, options?: { force?: boole
     showCompletedToday,
   );
   if (options?.force !== true && signature === lastMenuSignature && lastContextMenu !== null) {
+    if (isPerfTraceEnabled()) {
+      perfTrace({
+        operation: "tray-rebuild",
+        outcome: "ok",
+        startMs: 0,
+        durationMs: 0,
+        count: 0, // signature skip
+      });
+    }
     return;
   }
   lastMenuSignature = signature;
+  const t0 = performance.now();
   const template = buildContextMenuTemplate(mainWindow);
   const menu = Menu.buildFromTemplate(template);
   lastContextMenu = menu;
   // Install so right-click / status-item activation works before first click (macOS + Windows).
   tray?.setContextMenu(menu);
+  if (isPerfTraceEnabled()) {
+    perfTrace({
+      operation: "tray-rebuild",
+      outcome: "ok",
+      startMs: t0,
+      durationMs: Math.max(0, performance.now() - t0),
+      count: events.length,
+    });
+  }
 }
 
 /**

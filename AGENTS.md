@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
 **Updated:** 2026-08-04  
-**App version:** 1.17.8  
+**App version:** 1.18.0  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -21,8 +21,8 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 | Package build | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64` |
 | Updates/logging | `electron-updater` (packaged non-portable only), `electron-log` |
 | Lint edges | `eslint-plugin-boundaries` (`boundaries/dependencies: error`); `.sentrux/` is secondary (not CI-wired) |
-| Measurement | Opt-in `GOGMEET_PERF_TRACE=1`; `perf:*` / `bench:*` scripts; lab docs `docs/performance/measurement-lab.md`; weekly `measurement.yml` |
-| Guardrails | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` (+ `guardrails:self-test` / `guardrails:tests`) |
+| Measurement | Opt-in `GOGMEET_PERF_TRACE=1` (1024 rows / 1 MiB, fixed atomic JSONL); private packaged probes via `GOGMEET_PERF_PROBE` (lab only); `perf:*` / `bench:*`; lab docs `docs/performance/measurement-lab.md`; weekly non-PR `measurement.yml` |
+| Guardrails | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` (+ `guardrails:self-test` / `guardrails:tests`); freezes include Swift/watch bounds, trace caps, probe prefix, `MAX_PAGES=50` |
 
 ## STRUCTURE
 
@@ -90,8 +90,9 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML strings; About embeds; Settings injects `<style>` once |
 | Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; popover vibrancy; dialogs solid |
 | Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
-| Opt-in perf trace | `main/utils/performance-trace.ts` | `GOGMEET_PERF_TRACE=1` |
-| Perf scripts | `scripts/performance/*` | `perf:report`, `perf:workspace-fingerprint` |
+| Opt-in perf trace | `main/utils/performance-trace.ts` + `performance-trace-file.ts` | `GOGMEET_PERF_TRACE=1`; 1024 rows / 1 MiB; fixed atomic `gogmeet-perf-trace-v1.jsonl` under userData |
+| Packaged probes | `app/performance-probe*.ts`, `app/performance-probes/*`, `calendar/providers/performance-probe-calendar.ts` | Lab only; never default product env |
+| Perf scripts | `scripts/performance/*` | `perf:report`, `perf:workspace-fingerprint`, `perf:startup`/`tray`/`alert`/`safe-storage` (exit 1 on crash/timeout) |
 | Parser bench | `tests/bench/`, `vitest.bench.config.ts` | `bench:calendar-parser` |
 | OS vs meeting host | `platform/os.ts` vs `domain/services/platform.ts` | |
 | Packaging / CI | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | |
@@ -180,16 +181,16 @@ bun run clean
 
 ## SECURITY GUARDRAILS
 
-Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, unbounded buffers, secret traces) are registered in **`docs/security/permanent-guardrails.md`** and enforced by **`bun run guardrails`** (+ freeze tests) on every PR. Follow-on product tracks: `docs/plans/gogmeet-out-of-scope-follow-on.md`.
+Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, unbounded buffers, secret traces) are registered in **`docs/security/permanent-guardrails.md`** and enforced by **`bun run guardrails`** (+ freeze tests) on every PR. Active stability/measurement plan: `docs/plans/gogmeet-performance-stability-hardening.md`. Broader feature backlog: `docs/enhancement-development-plan.md`.
 
 ## NOTES
 
 - macOS: EventKit permission / AppleScript probes; lifecycle may auto-request when not-determined. Windows: never auto-OAuth.
-- Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`. One-shot: spawn stream 8 MiB/256 KiB/15 s; recompile only after integrity failure.
-- Google: bounded HTTP (15 s request, 8 MiB body, 60 s poll budget); 401 → force refresh once; credentials preserved on transient failures.
-- Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches.
+- Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`. One-shot: spawn stream 8 MiB/256 KiB/15 s; recompile only after integrity failure. Watch sidecar: same 8 MiB/256 KiB stream ceilings; stdout overflow terminates child (restart budget, never recompile); stderr past ceiling is suppressed once without restart; **one** `scheduleRestart` per child (error+exit de-duped).
+- Google: bounded HTTP (15 s request, 8 MiB body, 60 s poll budget); 401 → force refresh once; credentials preserved on transient failures. Incremental **429** preserves token/index and does **not** same-poll full-window retry (5xx still may).
+- Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches. Page chains capped at **50**; remaining `nextPageToken` or mid-chain malformed pages → `pagination-limit` (live partial when any calendar completes; no incomplete token/index/cache commit).
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
-- Alert window: prefer hide/show reuse of a single BrowserWindow (`destroyAlertWindow` for shutdown/tests); payload omits `meetUrl` (join via id).
+- Alert window: prefer hide/show reuse of a single BrowserWindow (`destroyAlertWindow` for shutdown/tests); generation-safe queue handoff (module-owned immediate; gen-mismatch must not clear `isAlertShowing` under concurrent reschedule; FIFO preserves `autoOpenAt`); payload omits `meetUrl` (join via id); force-destroy never cancels browser-open.
 - Settings / About canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off; brand mark under title bar uses `about-icon.svg` + shared aurora. About 320×380 data: HTML is not always-on-top (Settings is); compact content stack, **16px** bottom pad under Close; decorative aurora icon (brand blue `#4285F4`) via `appIconWithAuroraHtml` / `APP_ICON_AURORA_CSS`.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
 - Settings schema **v3**: includes `showCompletedTodayMeetings` (default `false`, display-only tray rebuild) plus full timing/automation fields surfaced in Settings UI. IPC still restarts scheduler only for TIMING_KEYS; completed-history toggle does not poll/restart.
@@ -197,7 +198,8 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
-- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then force menu rebuild. See `docs/plans/fix-tray-refresh-reschedule.md`.
+- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then force menu rebuild.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
-- Performance plan: `docs/plans/gogmeet-performance-enhancement.md` — refresh coordinator shipped; remaining work is measurement experiments / deferred optimizations. Weekly lab: `measurement.yml`.
+- Performance / stability plan: `docs/plans/gogmeet-performance-stability-hardening.md` — product hardenings + measurement lab shipped; **no product optimization** from `retained` receipts (separate plan required). Weekly non-PR lab: `measurement.yml` (synthetic + optional native package jobs).
+- Packaged measurement probe: `GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage` is **lab/CI only** (never production user env). Requires packaged + `GOGMEET_PERF_TRACE=1` + isolated `--user-data-dir` (`gogmeet-perf-probe-` under tmpdir); private empty calendar; factory fail-closed on bad preflight. Measure scripts: exit **0** blocked/threshold, exit **1** timeout/crash/missing-trace.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

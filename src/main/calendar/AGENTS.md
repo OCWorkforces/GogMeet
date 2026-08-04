@@ -18,8 +18,9 @@ Platform calendar backends behind the stable calendar facade (`facades/calendar.
 | `auth/google-sync-tokens.ts` | Encrypted `userData/calendar-auth/google-sync.enc` — schema v1 `{version,tokens}` map of calendarId → opaque `nextSyncToken` (no event bodies) |
 | `auth/google-oauth.ts` | PKCE loopback; `refreshGoogleAccessToken("if-needed"\|"force")`; clear only on definitive invalidation |
 | `providers/darwin-eventkit.ts` | Swift EventKit + AppleScript (static `swift/*` OK here only); partial when parse diagnostics |
-| `providers/google-calendar.ts` | Google API; live complete/partial; **incremental sync** + process-local index; cache write **complete only**; offline ok on network fail |
-| `providers/fixture-calendar.ts` | Dev JSON fixture (live complete) |
+| `providers/google-calendar.ts` | Google API; live complete/partial; **incremental sync** + process-local index; **pagination-limit** outcomes (MAX_PAGES=50) discard incomplete chains without mutating index/token; cache write **complete only**; offline ok on network fail |
+| `providers/fixture-calendar.ts` | Dev JSON fixture (live complete); **unpackaged only** |
+| `providers/performance-probe-calendar.ts` | Private packaged probe: live complete empty, granted, no watch/I/O; factory only after probe preflight |
 | `providers/stub-unsupported.ts` | Placeholder (factory no longer selects it for normal Windows) |
 
 ## Refresh coordinator
@@ -36,25 +37,39 @@ Tests: `tests/main/calendar-refresh-coordinator.test.ts`.
 
 ## Factory selection order
 
-1. Unpackaged **and** `GOGMEET_CALENDAR_FIXTURE` set → fixture  
-2. Darwin → EventKit (always; ignores cloud provider settings for MVP)  
-3. Else → Google Calendar  
+1. Non-empty `GOGMEET_PERF_PROBE` → **preflight** (packaged + `GOGMEET_PERF_TRACE=1` + isolated `gogmeet-perf-probe-` userData under tmpdir). Pass → `performance-probe-calendar`. **Fail → throw** (never fall through to EventKit/Google/fixture).  
+2. Unpackaged **and** `GOGMEET_CALENDAR_FIXTURE` set → fixture  
+3. Darwin → EventKit (always; ignores cloud provider settings for MVP)  
+4. Else → Google Calendar  
 
 ## Result provenance (producers)
 
 | Provider | Live complete | Live partial | Offline |
 | --- | --- | --- | --- |
 | Darwin | clean parse | any parse diagnostic | n/a |
-| Google | all selected calendars traversed | ≥1 success + any fail | encrypted cache on network/transient |
+| Google | all selected calendars **and** calendar-list fully traversed (no page-cap remainder; no mid-chain malformed pages) | ≥1 complete calendar + any fail **or** calendar-list/event `pagination-limit` (incl. multi-cal) | encrypted cache on network/transient / zero complete calendars |
 | Fixture | always | — | — |
+| Performance probe | empty live complete | — | — |
 
 Use domain helpers: `calendarLiveOk`, `calendarOfflineOk`, `calendarErr`.
+
+## Google pagination bounds (`MAX_PAGES = 50`)
+
+Internal traversal outcomes are `complete` \| `pagination-limit` (not part of public `CalendarResult`):
+
+| Loop | On `pagination-limit` |
+| --- | --- |
+| `calendarList` | Return IDs discovered so far + incomplete marker; still fetch every known calendar; aggregate **partial** when ≥1 calendar completes; zero completes → existing error/offline path. Malformed mid-chain (`items` not array after IDs already collected) is incomplete, not complete. |
+| Full `events.list` | Discard that calendar's partial batch; **do not** replace process-local index or persist `nextSyncToken`. Malformed mid-chain with partial events → incomplete. |
+| Incremental `events.list` | Apply **no** upserts/deletes; preserve existing index + stored token |
+
+Individually complete calendars may still commit their own `nextSyncToken` when the calendar-list traversal is partial (or when a sibling calendar hits pagination-limit). Aggregate offline cache remains **live complete only**.
 
 ## OAuth / credentials
 
 - Refresh modes: **`if-needed`** (skip network if fresh) vs **`force`** (always network; used after API 401).
 - Clear tokens only for `invalid_grant` / `invalid_token` or second API 401 after a real force refresh.
-- Transient failures (timeout, network, 429, 5xx, storage, config) **preserve** encrypted credentials.
+- Transient failures (timeout, network, 429, 5xx, storage, config) **preserve** encrypted credentials. Incremental **429** is not mapped to auth and does not full-retry the same poll.
 - Token load never unlinks ciphertext for decrypt/malformed/schema/client/secure-storage failures.
 
 ## Offline cache
@@ -75,6 +90,9 @@ Use domain helpers: `calendarLiveOk`, `calendarOfflineOk`, `calendarErr`.
 | Index | Process-local `workingEventsByCalendar` — **not** a durable event DB; cold process always full-window fetches |
 | Happy path | After successful full window list, persist token when present; later polls may `events.list?syncToken=` and merge upserts/deletes |
 | 410 Gone | Clear that calendar's token + index entry, then full-window fetch |
+| Pagination limit | Incomplete page chains never commit token/index mutations; do not clear a valid prior token/index |
+| HTTP **429** | Distinct `RateLimitError` — **no** same-poll full-window fallback after incremental 429; preserve token/index/credentials; no forced OAuth refresh |
+| HTTP **5xx** / transport | Incremental may still full-window fallback same poll (unchanged) |
 | Disconnect | `clearAllGoogleSyncTokens` + clear process index |
 | Unchanged | Offline cache still **live complete only**; automation eligibility still live complete only; no push/webhooks |
 

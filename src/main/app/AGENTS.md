@@ -10,8 +10,11 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 
 | File | Exports | Role |
 | --- | --- | --- |
-| `lifecycle.ts` | `initializeApp`, `shutdownApp`, `getActiveAppGraph` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Creates `AppGraph` first; settings before scheduler; auto-updater last. |
+| `lifecycle.ts` | `initializeApp`, `shutdownApp`, `getActiveAppGraph`, `InitializeAppOptions` | Subsystem orchestrator (`tryRun` / `tryRunCritical`). Creates `AppGraph` first; settings before scheduler; auto-updater last. `probeSafe` skips power/shortcuts/notification/auto-launch/updater. |
 | `ipc.ts` | `registerIpcHandlers(win, graph)` | Registers handlers from `ipc-handlers/` with the graph. |
+| `performance-probe-contract.ts` | Finite `PERF_PROBE_MODES`, preflight, userData prefix validation | Private packaged measurement contracts only |
+| `performance-probe.ts` | `preflightOrBlock`, `finalizeStartupProbe`, `runNamedProbeSurface` | Probe dispatcher after preflight |
+| `performance-probes/*` | `tray-probe`, `alert-probe`, `safe-storage-probe` | Named surface drivers (synthetic data only) |
 
 ## WHERE TO LOOK
 
@@ -34,3 +37,6 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 - `shutdownApp`: power cleanup → clear display horizon → force-destroy hide-cached alert/settings/about windows → graph stop (or free-function scheduler/watcher fallback if no graph) → unregister shortcuts → clear `activeGraph`.
 - Both files are for `index.ts` only (plus tests).
 - `initAutoUpdater()` runs last among non-critical init steps; the module no-ops when `!app.isPackaged` or portable.
+- **Packaged probe mode** (`GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage`): lab/CI only — **never** set for normal product installs. Requires `app.isPackaged`, `GOGMEET_PERF_TRACE=1`, and Electron `--user-data-dir` under `os.tmpdir()` with basename prefix `gogmeet-perf-probe-` (realpath leaf must keep the prefix). `index.ts` owns mode selection; lifecycle `probeSafe` gates external mutators for startup probes. Invalid preflight → exit 2 / factory throw (never EventKit/Google).
+- Named surfaces (`tray`/`alert`/`safe-storage`) run under a surface budget (~75s) then flush fixed JSONL; startup probe flushes **once** after not-exercised phases (`finalizeStartupProbe`).
+- When `GOGMEET_PERF_TRACE=1`, lifecycle/index emit finite `startup-phase` rows (`process-start` … `first-poll`); probe-safe startup records external phases as `not-exercised`.

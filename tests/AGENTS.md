@@ -43,15 +43,18 @@ tests/
 | `google-http.test.ts` | bounds, timeout, abort, error classes |
 | `google-oauth.test.ts` / `google-token-store.test.ts` | force/if-needed, preserve ciphertext |
 | `google-sync-tokens.test.ts` | encrypted nextSyncToken map load/save/clear |
-| `google-calendar.test.ts` | 401 force refresh, offline, provenance, incremental path |
+| `google-calendar.test.ts` | 401, offline, provenance, incremental, **pagination-limit**, **429**, multi-cal partial |
+| `calendar-factory.test.ts` | platform selection + **probe fail-closed** |
 | `calendar-refresh-coordinator.test.ts` | single-flight, follow-up, cancel, generation |
 | `swift/swift-helper-process.test.ts` | real spawn bounds + kill paths |
 | `swift-binary-manager.test.ts` | integrity-only recompile |
-| `performance-trace.test.ts` | opt-in redacted traces |
+| `calendar-watch-sidecar.test.ts` | stream ceilings, overflow, restart budget |
+| `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers |
+| `guardrails-security.test.ts` | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix |
 | `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off, automation eligibility |
 | `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
-| `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy |
+| `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy, generation-safe handoff |
 | `about-window.test.ts` | 320×380, CSP meta, aurora markup, https-only openExternal, close sentinel |
 | `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
 
@@ -94,7 +97,7 @@ bun run perf:workspace-fingerprint
 
 - No integration tests spanning main + preload + renderer.
 - No real EventKit/Swift/Google network execution in CI (mock fetch/exec).
-- No packaged Electron app smoke test.
+- Packaged probe measurement is exercised via scripts + optional native `measurement.yml` jobs (not PR gates); unit tests mock heavy probe drivers.
 - Auto-updater download/install/relaunch lifecycle is mocked only.
 - Some scheduler title-countdown tests depend on ordering because `resetState()` swaps singleton bindings.
 
@@ -105,5 +108,6 @@ bun run perf:workspace-fingerprint
 - Completed-today history: domain `meeting-time` filters + tray/menu + popover body rendering.
 - Meeting titles: domain `truncateMiddle` (max 25) in tray menu + popover.
 - Google incremental sync tokens (schema v1) + provider merge/410 behavior.
-- Alert window hide/reuse across presentations (`destroyAlertWindow` for hard teardown).
+- Alert window hide/reuse + generation-safe queue (`autoOpenAt` preserved; destroy never cancels browser-open).
 - Settings/About brand aurora (`shared/utils/app-icon-aurora.ts`); About size 320×380 + aurora HTML assertions.
+- Performance stability: Google pagination/429, watch stream bounds, bounded traces, packaged probe preflight (lab only).
