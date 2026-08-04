@@ -30,7 +30,7 @@ Repository automation scripts for local development and asset generation. Invoke
 | `merge-windows-latest-yml.test.ts` | Dual-arch latest.yml merge |
 | `verify-macos-release.test.ts` / `macos-release-verifier-native.test.ts` | Official mac verifier pure helpers + natives |
 | `verify-windows-release.test.ts` | Windows artifact inventory |
-| `performance-*.test.ts` | report, tray, google, safe-storage, startup, alert, build-package, google-shadow |
+| `performance-*.test.ts` | report, tray, google, safe-storage, startup, alert, build-package, google-shadow, **packaged-probe** |
 | `calendar-parser-bench-fixtures.test.ts` | Bench fixture integrity |
 
 ## Performance tooling

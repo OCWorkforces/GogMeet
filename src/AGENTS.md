@@ -22,10 +22,10 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/application/` | Ports + use cases (no Electron). |
 | `main/infrastructure/` | Driven adapters: JsonSettingsStore, ShellMeetingOpener. |
 | `main/facades/` | Calendar, watcher, status, settings free-function surface + default binds. |
-| `main/calendar/` | Provider factory, Darwin/Google/fixture, **google-http**, auth (OAuth + tokens + **sync tokens**), offline cache, **refresh-coordinator**. |
+| `main/calendar/` | Provider factory (probe preflight first), Darwin/Google/fixture/**performance-probe**, **google-http**, auth (OAuth + tokens + **sync tokens**), offline cache, **refresh-coordinator**. |
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
-| `main/app/` | Lifecycle + IPC registrar. |
+| `main/app/` | Lifecycle + IPC registrar + packaged **performance-probe** contract/dispatcher/drivers. |
 | `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
 | `main/index.ts` | Single-instance bootstrap; popover BrowserWindow **360×480**. |
 | `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
@@ -60,7 +60,8 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Display horizon | `main/system/display-horizon.ts` (wall-clock re-filter; no automation) |
 | Swift EventKit wire | `main/swift/*` (incl. `swift-helper-process.ts`), `main/googlemeet-events.swift` |
 | Unchecked casts | `shared/utils/as.ts` (`.As<T>()` / free `As`) |
-| Opt-in perf marks | `main/utils/performance-trace.ts` |
+| Opt-in perf marks | `main/utils/performance-trace.ts` + `performance-trace-file.ts` |
+| Packaged probes (lab) | `main/app/performance-probe*.ts`, `performance-probes/*` | never set `GOGMEET_PERF_PROBE` for product installs |
 | OS branching | `main/platform/os.ts` |
 | Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs), `main/windows/*` (about / settings / alert hide-reuse) |
 | Brand-icon aurora | `shared/utils/app-icon-aurora.ts` | pure CSS+HTML; About inline styles; Settings inject once |

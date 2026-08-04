@@ -7,12 +7,12 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | Area | Files | Responsibility |
 | --- | --- | --- |
 | Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | bootstrap (single-instance), tray, bus, Swift **source** (Darwin) |
-| `app/` | `lifecycle.ts`, `ipc.ts` | init order, shutdown, IPC registration |
+| `app/` | `lifecycle.ts`, `ipc.ts`, **performance-probe*** | init order, shutdown, IPC registration; lab packaged probes |
 | `composition/` | `app-graph.ts`, `bind-composition.ts`, `create-test-app-graph.ts` | `createAppGraph` + use-case default rebind |
 | `application/` | `ports/`, `use-cases/` | ports + pure-ish use-case factories |
 | `infrastructure/` | `settings/`, `electron/` | JsonSettingsStore, ShellMeetingOpener |
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
-| `calendar/` | factory, providers, **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync |
+| `calendar/` | factory, providers (incl. **performance-probe**), **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync + lab probe |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
 | `windows/` | about (320×380, aurora), alert, settings (520×760, Dock) | BrowserWindow singletons; Settings/About canvas `#0d1117`; hide-cache; alert hide/reuse |
 | `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
@@ -77,5 +77,5 @@ Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `s
 - Swift source `asarUnpack` for packaged mac builds.
 - Windows Google requires `GOOGLE_OAUTH_CLIENT_ID` at runtime/package.
 - Fixture: unpackaged + `GOGMEET_CALENDAR_FIXTURE` path only.
-- Packaged probe: `GOGMEET_PERF_PROBE` + trace + isolated userData → private empty calendar provider; `initializeApp({ probeSafe: true })` for startup probes.
+- Packaged probe (lab only): `GOGMEET_PERF_PROBE` + trace + isolated userData → private empty calendar; factory **throws** on bad preflight; `initializeApp({ probeSafe: true })` for startup probes.
 - `index.ts` configures `electron-log` via `utils/log.ts` and suppresses Chromium DNS sorter warnings with `log-level=3`.

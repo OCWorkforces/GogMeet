@@ -60,6 +60,7 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 - Stream ceilings (exported; byte-identical to one-shot helper): `WATCH_SIDECAR_STDOUT_LIMIT_BYTES` = **8 MiB**, `WATCH_SIDECAR_STDERR_LIMIT_BYTES` = **256 KiB**. Per-child counters reset on spawn/stop.
 - **Stdout overflow:** stop retaining, one redacted overflow diagnostic, SIGTERM + 5 s SIGKILL escalation; recovery uses the normal exit/restart budget — **never** recompile-on-overflow.
 - **Stderr ceiling:** log only through the cap, one suppression notice, discard later stderr **without** restarting the child.
+- **Restart budget:** at most one `scheduleRestart` per child lifetime (`error` and `exit` both fire on many spawn failures — do not double-count `MAX_RETRIES`).
 
 ## Parsing rules
 
