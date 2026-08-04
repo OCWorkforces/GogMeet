@@ -1,16 +1,30 @@
 # Measurement lab (read-only evidence)
 
 How to run the measurement harnesses that gate future optimization work.  
-**No product code changes** come from these scripts. Receipts use `status`: `retained|rejected|blocked|skipped`.
+**No product optimizations** ship from these scripts. Receipts use `status`: `retained|rejected|blocked|skipped` and must carry `productChange: "none"`.
+
+Active plan: `docs/plans/gogmeet-performance-stability-hardening.md`.
 
 ## Safety
 
 | Rule | Detail |
 | --- | --- |
 | Credentials | Optional `GOGMEET_GOOGLE_BENCH_TOKEN` — short-lived access token only. **Never** commit or log it. |
-| Cache / tokens | Harnesses **must not** write `userData` token or offline cache stores. |
-| Traces | Keep `GOGMEET_PERF_TRACE` off unless collecting redacted phase marks. |
-| User content | Receipts use counts/markers only — no titles, emails, meet URLs. |
+| Probe userData | Packaged probes write **only** under disposable dirs: `os.tmpdir()/gogmeet-perf-probe-*` via Electron `--user-data-dir`. Parent scripts delete the root in `finally`. |
+| Product userData | Harnesses must not write the default app userData token/cache stores. |
+| Traces | `GOGMEET_PERF_TRACE=1` only for probes; fixed file `gogmeet-perf-trace-v1.jsonl`; caps 1024 rows / 1 MiB; no secret/user-content fields. |
+| Paths | No caller/env-controlled product trace path — fixed basename under isolated userData only. Evidence copies go to script-level `--output-dir`. |
+| Architecture | Native success requires host platform/arch matching artifact arch. Cross-built arm64 on x64 is `blocked/native-runner-unavailable`. |
+| Retained | A `retained` receipt authorizes **only** a separate user-approved optimization plan. It never flips product code in this lab. |
+
+## Status semantics
+
+| Status | Meaning |
+| --- | --- |
+| `blocked` | Prerequisite missing (no package, wrong OS/arch, secret absent). Truthful non-failure for native claims. |
+| `rejected` | Probe ran but thresholds/variance/partition failed. |
+| `retained` | Thresholds met; still `productChange: "none"`. Follow-up plan required for any optimization. |
+| crash/timeout | Parent exits nonzero — **not** blocked success. |
 
 ## Commands
 
@@ -23,32 +37,37 @@ bun run perf:startup
 bun run perf:alert
 bun run perf:build-package
 
-# Optional live / native (local or CI secrets)
+# Packaged native (host-matching directory package required)
+bun run package:mac:dir   # or package:win:dir on Windows
+export GOGMEET_APP_PATH="/path/to/GogMeet.app/Contents/MacOS/GogMeet"  # or .exe
+bun run perf:startup -- --output-dir .omo/evidence/local/startup
+bun run perf:tray -- --output-dir .omo/evidence/local/tray
+bun run perf:alert -- --output-dir .omo/evidence/local/alert
+# Windows x64 only for meaningful safeStorage native timing:
+bun run perf:safe-storage -- --output-dir .omo/evidence/local/safe-storage
+
+# Optional live Google (local/CI secret)
 export GOGMEET_GOOGLE_BENCH_TOKEN='ya29.…'   # never echo
 bun run perf:google
-
-GOGMEET_ELECTRON_TRAY_BENCH=1 bun run perf:tray
-GOGMEET_ELECTRON_ALERT_BENCH=1 bun run perf:alert
-GOGMEET_SAFE_STORAGE_TIMING=1 bun run perf:safe-storage
-GOGMEET_APP_PATH="/path/to/GogMeet.app/Contents/MacOS/GogMeet" bun run perf:startup
-GOGMEET_PERF_RUN_BUILD=1 bun run perf:build-package
 ```
 
-Receipts write under `.omo/evidence/gogmeet-performance/` (gitignored).
+Receipts write under `.omo/evidence/` (gitignored). Never commit `.omo/evidence/`.
 
 ## CI
 
 Workflow `.github/workflows/measurement.yml` (manual / weekly):
 
-- Runs synthetic harnesses on macOS + Windows
-- Uploads receipt JSON as artifacts
-- Does **not** fail the build on `blocked` / baseline `rejected`
-- Live Google / Electron native timing only when secrets or flags are set
+- **Synthetic** job on macOS + Windows: script unit tests + harnesses without package (`blocked` OK)
+- **Native macOS** job: `package:mac:dir` then startup/tray/alert with `GOGMEET_APP_PATH`
+- **Native Windows x64** job: `package:win:dir` then startup/tray/alert/safeStorage; arm64 artifact explicitly blocked
+- Uploads receipts with `if: always()`
+- Does **not** gate PRs; release/beta workflows unchanged
+- Launched probe crash/timeout fails the native job (not silent success)
 
 ## Product follow-ups
 
 Optimization product PRs require:
 
-1. A terminal receipt of `retained` (or a superseding design doc)
-2. Separate implementation plan (see `docs/plans/gogmeet-out-of-scope-follow-on.md`)
+1. A terminal receipt of `retained` with `productChange: "none"`
+2. A **separate** user-approved implementation plan
 3. Permanent guardrails still green: `bun run guardrails`

@@ -14,6 +14,7 @@ App-level orchestration: composition root, subsystem init/shutdown, and IPC hand
 | `ipc.ts` | `registerIpcHandlers(win, graph)` | Registers handlers from `ipc-handlers/` with the graph. |
 | `performance-probe-contract.ts` | Finite `PERF_PROBE_MODES`, preflight, userData prefix validation | Private packaged measurement contracts only |
 | `performance-probe.ts` | `preflightOrBlock`, `finalizeStartupProbe`, `runNamedProbeSurface` | Probe dispatcher after preflight |
+| `performance-probes/*` | `tray-probe`, `alert-probe`, `safe-storage-probe` | Named surface drivers (synthetic data only) |
 
 ## WHERE TO LOOK
 

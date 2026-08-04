@@ -137,7 +137,9 @@ if (gotSingleInstanceLock) {
       );
       const gate = preflightOrBlock();
       if (!gate.ok) {
-        mainLog.error("[perf-probe] blocked:", gate.result.reason);
+        const blockedReason =
+          gate.result.status === "ok" ? "unknown" : gate.result.reason;
+        mainLog.error("[perf-probe] blocked:", blockedReason);
         app.exit(gate.result.status === "blocked" ? 2 : 1);
         return;
       }

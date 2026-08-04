@@ -15,6 +15,10 @@ import {
   SWIFT_HELPER_TIMEOUT_MS,
 } from "../../src/main/swift/swift-helper-process.js";
 import {
+  WATCH_SIDECAR_STDOUT_LIMIT_BYTES,
+  WATCH_SIDECAR_STDERR_LIMIT_BYTES,
+} from "../../src/main/swift/calendar-watch-sidecar.js";
+import {
   GOOGLE_HTTP_BODY_LIMIT_BYTES,
   GOOGLE_HTTP_REQUEST_TIMEOUT_MS,
   GOOGLE_POLL_BUDGET_MS,
@@ -22,7 +26,14 @@ import {
 import {
   isPerfTraceEnabled,
   _resetPerfTraceForTests,
+  MAX_PERF_TRACE_ROWS,
+  MAX_PERF_TRACE_SERIALIZED_BYTES,
 } from "../../src/main/utils/performance-trace.js";
+import { PERF_TRACE_FILENAME } from "../../src/main/utils/performance-trace-file.js";
+import {
+  PERF_PROBE_USER_DATA_PREFIX,
+  PERF_PROBE_MODES,
+} from "../../src/main/app/performance-probe-contract.js";
 
 vi.mock("electron", () => ({
   app: { isPackaged: false, getPath: () => "/tmp", getAppPath: () => "/tmp" },
@@ -108,7 +119,7 @@ describe("guardrails: IPC cutover (G6)", () => {
   });
 });
 
-describe("guardrails: resource bounds (G2 / A4)", () => {
+describe("guardrails: resource bounds (G2 / A4 / G11)", () => {
   it("exports Swift and Google safety ceilings", () => {
     expect(SWIFT_HELPER_STDOUT_LIMIT_BYTES).toBe(8 * 1024 * 1024);
     expect(SWIFT_HELPER_STDERR_LIMIT_BYTES).toBe(256 * 1024);
@@ -116,6 +127,13 @@ describe("guardrails: resource bounds (G2 / A4)", () => {
     expect(GOOGLE_HTTP_REQUEST_TIMEOUT_MS).toBe(15_000);
     expect(GOOGLE_HTTP_BODY_LIMIT_BYTES).toBe(8 * 1024 * 1024);
     expect(GOOGLE_POLL_BUDGET_MS).toBe(60_000);
+  });
+
+  it("watch-sidecar ceilings stay byte-identical to one-shot helper", () => {
+    expect(WATCH_SIDECAR_STDOUT_LIMIT_BYTES).toBe(SWIFT_HELPER_STDOUT_LIMIT_BYTES);
+    expect(WATCH_SIDECAR_STDERR_LIMIT_BYTES).toBe(SWIFT_HELPER_STDERR_LIMIT_BYTES);
+    expect(WATCH_SIDECAR_STDOUT_LIMIT_BYTES).toBe(8 * 1024 * 1024);
+    expect(WATCH_SIDECAR_STDERR_LIMIT_BYTES).toBe(256 * 1024);
   });
 });
 
@@ -135,5 +153,18 @@ describe("guardrails: perf trace opt-in (G8 / G9)", () => {
 
   it("is disabled by default", () => {
     expect(isPerfTraceEnabled()).toBe(false);
+  });
+
+  it("freezes row/byte caps and fixed JSONL filename", () => {
+    expect(MAX_PERF_TRACE_ROWS).toBe(1024);
+    expect(MAX_PERF_TRACE_SERIALIZED_BYTES).toBe(1 * 1024 * 1024);
+    expect(PERF_TRACE_FILENAME).toBe("gogmeet-perf-trace-v1.jsonl");
+  });
+});
+
+describe("guardrails: packaged probe privacy (G12)", () => {
+  it("freezes finite modes and userData prefix", () => {
+    expect([...PERF_PROBE_MODES]).toEqual(["startup", "tray", "alert", "safe-storage"]);
+    expect(PERF_PROBE_USER_DATA_PREFIX).toBe("gogmeet-perf-probe-");
   });
 });

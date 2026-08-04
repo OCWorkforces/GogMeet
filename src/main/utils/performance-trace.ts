@@ -9,7 +9,7 @@ export const PERF_TRACE_VERSION = 1 as const;
 /** Max data rows retained in memory (terminal row reserved separately). */
 export const MAX_PERF_TRACE_ROWS = 1024 as const;
 /** Max serialized JSONL bytes for the published buffer (incl. terminal). */
-export const MAX_PERF_TRACE_SERIALIZED_BYTES = 1 * 1024 * 1024;
+export const MAX_PERF_TRACE_SERIALIZED_BYTES: number = 1 * 1024 * 1024;
 
 /** Finite operation enum — extend only with explicit product-path marks. */
 export const PERF_TRACE_OPERATIONS = [
@@ -242,7 +242,8 @@ export function perfTrace(input: PerfTraceInput): void {
 function appendPerfTrace(input: PerfTraceInput): void {
   if (!isOperation(input.operation)) return;
   if (!isOutcome(input.outcome)) return;
-  if (input.errorClass !== undefined && !isErrorClass(input.errorClass)) return;
+  // Terminal rows are synthesized at flush time; reject caller inserts.
+  if (input.operation === "probe-terminal") return;
   if (!Number.isFinite(input.startMs) || !Number.isFinite(input.durationMs)) return;
   if (input.durationMs < 0) return;
 
@@ -259,35 +260,35 @@ function appendPerfTrace(input: PerfTraceInput): void {
     return;
   }
 
-  if (input.operation === "probe-terminal") {
-    // Terminal rows are synthesized at flush time; reject caller-supplied terminal inserts
-    // into the data buffer (callers use flush helpers).
-    return;
-  }
+  // Narrowed: not probe-terminal after early return above.
+  const dataInput = input;
+  const maybeErrorClass =
+    "errorClass" in dataInput ? dataInput.errorClass : undefined;
+  if (maybeErrorClass !== undefined && !isErrorClass(maybeErrorClass)) return;
 
-  const count = "count" in input ? input.count : undefined;
-  const bytes = "bytes" in input ? input.bytes : undefined;
+  const count = "count" in dataInput ? dataInput.count : undefined;
+  const bytes = "bytes" in dataInput ? dataInput.bytes : undefined;
   if (count !== undefined && (!Number.isFinite(count) || count < 0)) return;
   if (bytes !== undefined && (!Number.isFinite(bytes) || bytes < 0)) return;
 
   const powerMode =
-    input.powerMode !== undefined && isPowerMode(input.powerMode) ? input.powerMode : "unknown";
+    dataInput.powerMode !== undefined && isPowerMode(dataInput.powerMode)
+      ? dataInput.powerMode
+      : "unknown";
 
   const record: PerfTraceRecord = {
     version: PERF_TRACE_VERSION,
-    operation: input.operation,
-    outcome: input.outcome,
-    ...("errorClass" in input && input.errorClass !== undefined
-      ? { errorClass: input.errorClass }
-      : {}),
-    startMs: input.startMs,
-    durationMs: input.durationMs,
+    operation: dataInput.operation,
+    outcome: dataInput.outcome,
+    ...(maybeErrorClass !== undefined ? { errorClass: maybeErrorClass } : {}),
+    startMs: dataInput.startMs,
+    durationMs: dataInput.durationMs,
     ...(count !== undefined ? { count } : {}),
     ...(bytes !== undefined ? { bytes } : {}),
     platform: process.platform,
     arch: process.arch,
     powerMode,
-    ...(input.operation === "startup-phase" ? { phase: input.phase } : {}),
+    ...(dataInput.operation === "startup-phase" ? { phase: dataInput.phase } : {}),
   };
 
   const rowBytes = estimateSerializedBytes(record);

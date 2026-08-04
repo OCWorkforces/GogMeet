@@ -44,7 +44,9 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 ## Measurement lab
 
 - Scheduled evidence collection for the stability/measurement plan (`docs/plans/gogmeet-performance-stability-hardening.md`, `docs/performance/measurement-lab.md`). Does **not** ship product optimizations or gate PRs.
-- Optional native probes may fail non-fatally; keep this workflow out of PR gates.
+- **Synthetic** matrix (macOS + Windows): script unit tests + harnesses without package (`blocked` OK).
+- **Native** jobs (separate, non-PR): host-matching `package:*:dir` then startup/tray/alert (macOS) or +safeStorage (Windows x64); arm64 cross-build is explicitly blocked; upload with `if: always()`.
+- Launched probe crash/timeout fails the native job (not silent success). Keep this workflow out of PR gates.
 - Uses the same Bun install + LF-on-Windows patterns as other workflows where applicable.
 
 ## Anti-Patterns
