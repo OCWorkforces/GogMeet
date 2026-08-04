@@ -141,7 +141,9 @@ async function listSelectedCalendarIds(
       throw new NetworkError(`calendarList failed (${result.status})`);
     }
     if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) {
-      status = "complete";
+      // First empty/malformed page → empty complete (primary default below).
+      // Malformed after we already have IDs or pages → incomplete, never live complete.
+      status = ids.length > 0 || page > 0 ? "pagination-limit" : "complete";
       break;
     }
 
@@ -300,6 +302,10 @@ async function fetchEventsFullWindow(
     }
 
     if (!isObjectRecord(result.json) || !Array.isArray(result.json["items"])) {
+      // Mid-chain malformed: discard partial batch (do not commit incomplete state).
+      if (page > 0 || events.length > 0) {
+        return { status: "pagination-limit" };
+      }
       return { status: "complete", events, nextSyncToken };
     }
 

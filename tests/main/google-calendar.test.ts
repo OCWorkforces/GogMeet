@@ -987,6 +987,73 @@ describe("createGoogleCalendarProvider", () => {
     }
   });
 
+  it("multi-cal full pagination-limit yields live partial from complete siblings only", async () => {
+    ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
+    const start = new Date();
+    start.setHours(15, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    let fullPagesB = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("calendarList")) {
+        return jsonResponse({
+          items: [
+            { id: "a", selected: true },
+            { id: "b", selected: true },
+          ],
+        });
+      }
+      if (url.includes("/calendars/a/") || url.includes("/calendars/a%2F") || url.includes("calendars/a/")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "ea",
+              summary: "FromA",
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextSyncToken: "tok-a",
+        });
+      }
+      if (url.includes("/events")) {
+        // calendar b exhausts
+        fullPagesB++;
+        return jsonResponse({
+          items: [
+            {
+              id: `eb-${fullPagesB}`,
+              summary: `PartialB${fullPagesB}`,
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+            },
+          ],
+          nextPageToken: `b-page-${fullPagesB + 1}`,
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const provider = createGoogleCalendarProvider();
+    await provider.disconnect?.();
+    clearGoogleTokens.mockClear();
+    clearOfflineCache.mockClear();
+    saveOfflineCache.mockClear();
+    saveGoogleSyncTokens.mockClear();
+
+    const result = await provider.getEvents(new AbortController().signal);
+    expect(fullPagesB).toBe(50);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.source).toBe("live");
+      expect(result.completeness).toBe("partial");
+      expect(result.events.some((e) => e.title === "FromA")).toBe(true);
+      expect(result.events.some((e) => e.title.startsWith("PartialB"))).toBe(false);
+      expect(isCalendarAutomationEligible(result)).toBe(false);
+    }
+    expect(saveOfflineCache).not.toHaveBeenCalled();
+    expect(saveGoogleSyncTokens).toHaveBeenCalledWith(expect.objectContaining({ a: "tok-a" }));
+  });
+
   it("calendarList pagination exhaustion yields live partial and skips aggregate cache write", async () => {
     ensureFreshGoogleAccessToken.mockResolvedValue(tokens);
     const start = new Date();
