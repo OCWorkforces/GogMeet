@@ -43,14 +43,14 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `google-http.test.ts` — bounded transport (timeout, body limits, abort).
 - `google-oauth.test.ts` / `google-token-store.test.ts` — force/if-needed refresh, preserve ciphertext.
 - `google-sync-tokens.test.ts` — encrypted nextSyncToken map (schema v1).
-- `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial, incremental path.
+- `google-calendar.test.ts` — 401 force refresh, offline ok, complete/partial, incremental path, **pagination-limit** (calendarList / full / incremental at MAX_PAGES with remaining `nextPageToken`), **incremental 429** (no full fallback, preserve state).
 - `offline-cache.test.ts` — encrypt round-trip (schema v1 metadata + ended filter).
 - `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
 - `swift-binary-manager.test.ts` — integrity-only recompile (top-level).
-- `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch (top-level; mocked exec).
-- `performance-trace.test.ts` — opt-in redacted trace primitive.
+- `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch (top-level; mocked exec); sidecar **stdout/stderr byte ceilings** + overflow SIGTERM/SIGKILL.
+- `performance-trace.test.ts` / `performance-trace-file.test.ts` — bounded redacted buffer (row/byte caps, phases) + fixed atomic userData flush.
 - `shell-meeting-opener.test.ts` / `guardrails-security.test.ts` / `after-pack.test.ts` — egress, permanent guardrails, packaging hook.
 
 Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<T>()` for Electron mock shapes.
@@ -67,7 +67,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 ## WINDOWS / SYSTEM / UTILS
 
 - Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature, user Refresh await+rebuild), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts` (incl. reschedule start/end signature).
-- Windows: `alert-window` (queue + hide/reuse + destroy), `settings-window` (520×760), `about-window` (320×380, aurora CSS/HTML, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
+- Windows: `alert-window` (queue + hide/reuse + destroy + **generation-safe** immediate/height/close), `settings-window` (520×760), `about-window` (320×380, aurora CSS/HTML, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate).
 

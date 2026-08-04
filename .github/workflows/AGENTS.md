@@ -43,7 +43,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 
 ## Measurement lab
 
-- Scheduled evidence collection for deferred optimization tracks (`docs/plans/gogmeet-performance-enhancement.md`, `docs/performance/measurement-lab.md`).
+- Scheduled evidence collection for the stability/measurement plan (`docs/plans/gogmeet-performance-stability-hardening.md`, `docs/performance/measurement-lab.md`). Does **not** ship product optimizations or gate PRs.
 - Optional native probes may fail non-fatally; keep this workflow out of PR gates.
 - Uses the same Bun install + LF-on-Windows patterns as other workflows where applicable.
 
