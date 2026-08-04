@@ -122,22 +122,31 @@ jobs:
         if: steps.app.outputs.native_available == 'true'
         env:
           GOGMEET_APP_PATH: ${{ steps.app.outputs.bin }}
+          GOGMEET_ARTIFACT_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
         run: |
           set -euo pipefail
           OUT=.omo/evidence/measurement-ci/native-macos
           mkdir -p "$OUT"
-          # Probe crash/timeout/protocol failures fail the step (not blocked).
+          # timeout/crash → nonzero exit from measure scripts (blocked stays 0).
           bun run perf:startup -- --output-dir "$OUT/startup"
           bun run perf:tray -- --output-dir "$OUT/tray"
           bun run perf:alert -- --output-dir "$OUT/alert"
-          # Assert no native success claimed without nativeExecuted
           node -e '
             const fs=require("fs");const path=require("path");
+            const out=process.env.OUT||".omo/evidence/measurement-ci/native-macos";
             for (const name of ["startup","tray","alert"]) {
-              const p=path.join(process.env.OUT||".", name, "receipt.json");
-              // receipts may be array or object
+              const p=path.join(out, name, "receipt.json");
+              if (!fs.existsSync(p)) { console.error("missing", p); process.exit(1); }
+              const r=JSON.parse(fs.readFileSync(p,"utf8"));
+              const arr=Array.isArray(r)?r:[r];
+              for (const x of arr) {
+                if (x.productChange !== "none") { console.error("productChange", p, x); process.exit(1); }
+                if (x.nativeExecuted && (x.reason==="timeout"||x.reason==="crash")) {
+                  console.error("fatal reason should have failed script", p, x); process.exit(1);
+                }
+              }
             }
-          ' || true
+          '
         continue-on-error: false
 
       - name: Upload native macOS receipts

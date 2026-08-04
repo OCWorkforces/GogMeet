@@ -37,7 +37,8 @@ Repository automation scripts for local development and asset generation. Invoke
 
 - **Not** PR quality gates. Weekly/manual collection: `.github/workflows/measurement.yml` + `docs/performance/measurement-lab.md`.
 - Opt-in product traces use `GOGMEET_PERF_TRACE=1` + `src/main/utils/performance-trace.ts` (+ atomic file sink).
-- Packaged probes: `helpers/packaged-probe.mjs` — finite modes, `gogmeet-perf-probe-` userData under tmpdir, 90s timeout TERM→KILL, copy only fixed JSONL to script `--output-dir`, recursive cleanup.
+- Packaged probes: `helpers/packaged-probe.mjs` — finite modes, `gogmeet-perf-probe-` userData under tmpdir (separator-safe cleanup), 90s timeout TERM→KILL, copy only fixed JSONL to script `--output-dir`, recursive cleanup.
+- Measure scripts exit **0** for `blocked` / threshold `rejected` / `retained`; exit **1** for launched `timeout` / `crash` / missing-trace. Tray retention uses **observed** skip rates only (no floor).
 - Fingerprint exclusions are fixed (cannot be chosen by reviewers): `.omo/evidence/**`, `lib/**`, `dist/**`, `coverage/**`, `node_modules/**`, `.eslintcache`, `*.tsbuildinfo`.
 - Tests: `tests/scripts/performance-*.test.ts`, `tests/scripts/guardrails-scan.test.ts`.
 - Parser microbench is separate: `bun run bench:calendar-parser` → `vitest.bench.config.ts` (outside workspace).

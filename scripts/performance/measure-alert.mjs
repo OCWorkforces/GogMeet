@@ -11,6 +11,8 @@ import {
   percentile,
   coefficientOfVariation,
   writeReceiptJson,
+  exitCodeFromProbeResult,
+  exitCodeForNativeOutcome,
 } from "./helpers/stats.mjs";
 import {
   createProbeUserDataDir,
@@ -125,7 +127,7 @@ async function main() {
       artifactArch: hostArch,
       nativeExecuted: false,
     });
-    return;
+    return 0;
   }
 
   const userDataDir = createProbeUserDataDir();
@@ -138,9 +140,10 @@ async function main() {
       timeoutMs: 120_000,
     });
     if (result.status !== "ok" || !result.tracePath) {
+      const status = result.status === "blocked" ? "blocked" : "rejected";
       writeReceiptJson(outputDir, {
         experiment: "alert-lifecycle",
-        status: result.status === "blocked" ? "blocked" : "rejected",
+        status,
         reason: result.status,
         productChange: "none",
         hostPlatform,
@@ -148,7 +151,7 @@ async function main() {
         artifactArch: hostArch,
         nativeExecuted: result.status !== "blocked",
       });
-      return;
+      return exitCodeFromProbeResult(result, status, result.status);
     }
     const parsed = parseAlertTrace(readFileSync(result.tracePath, "utf8"));
     if (!parsed.ok) {
@@ -162,7 +165,7 @@ async function main() {
         hostArch,
         artifactArch: hostArch,
       });
-      return;
+      return exitCodeForNativeOutcome(parsed.reason);
     }
     const reuseStats = stats(parsed.reuse);
     const destroyStats = stats(parsed.destroyBetween);
@@ -179,14 +182,17 @@ async function main() {
       hideReuse: reuseStats,
       destroyBetween: destroyStats,
     });
+    return 0;
   } finally {
     cleanupProbeUserDataDir(userDataDir);
   }
 }
 
 if (process.argv[1]?.endsWith("measure-alert.mjs")) {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(typeof code === "number" ? code : 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

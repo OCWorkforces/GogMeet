@@ -53,7 +53,7 @@ describe("perf:tray", () => {
     if (parsed.ok) expect(parsed.installs).toBe(1);
   });
 
-  it("retained evaluator enforces plan thresholds", () => {
+  it("retained evaluator enforces plan thresholds without inventing coalesce rate", () => {
     expect(
       evaluateTrayRetained({
         duplicatePairRate: 0.6,
@@ -62,6 +62,15 @@ describe("perf:tray", () => {
         cv: 0.05,
       }).ok,
     ).toBe(true);
+    // Observed skip rate 0 must not pass (no Math.max floor).
+    expect(
+      evaluateTrayRetained({
+        duplicatePairRate: 0,
+        projectedReduction: 0,
+        p95SavingMs: 2,
+        cv: 0.05,
+      }).ok,
+    ).toBe(false);
     expect(
       evaluateTrayRetained({
         duplicatePairRate: 0.1,

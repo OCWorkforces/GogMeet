@@ -12,6 +12,8 @@ import {
   percentile,
   coefficientOfVariation,
   writeReceiptJson,
+  exitCodeFromProbeResult,
+  exitCodeForNativeOutcome,
 } from "./helpers/stats.mjs";
 import {
   createProbeUserDataDir,
@@ -129,7 +131,7 @@ async function main() {
         sizes: TRAY_SIZES,
       },
     });
-    return;
+    return 0;
   }
 
   const userDataDir = createProbeUserDataDir();
@@ -142,9 +144,10 @@ async function main() {
       timeoutMs: 90_000,
     });
     if (result.status !== "ok" || !result.tracePath) {
+      const status = result.status === "blocked" ? "blocked" : "rejected";
       writeReceiptJson(outputDir, {
         experiment: "tray-menu-rebuild",
-        status: result.status === "blocked" ? "blocked" : "rejected",
+        status,
         reason: result.status,
         productChange: "none",
         hostPlatform,
@@ -152,7 +155,7 @@ async function main() {
         artifactArch: hostArch,
         nativeExecuted: result.status !== "blocked",
       });
-      return;
+      return exitCodeFromProbeResult(result, status, result.status);
     }
     const parsed = parseTrayTrace(readFileSync(result.tracePath, "utf8"));
     if (!parsed.ok) {
@@ -166,17 +169,18 @@ async function main() {
         artifactArch: hostArch,
         nativeExecuted: true,
       });
-      return;
+      return exitCodeForNativeOutcome(parsed.reason);
     }
     const allDurations = [...parsed.bySize.values()].flat();
     const sorted = [...allDurations].sort((a, b) => a - b);
     const p95 = percentile(sorted, 95);
     const cv = coefficientOfVariation(allDurations);
-    // Observed coalescing: skips vs installs from production counters.
+    // Observed coalescing only — never floor the rate to invent retention.
     const attempted = parsed.installs + parsed.skips;
     const duplicatePairRate = attempted > 0 ? parsed.skips / attempted : 0;
+    // Projected reduction from observed skips; p95Saving uses install p95 as lower bound.
     const retained = evaluateTrayRetained({
-      duplicatePairRate: Math.max(duplicatePairRate, 0.5), // warm bursts produce coalescing
+      duplicatePairRate,
       projectedReduction: duplicatePairRate,
       p95SavingMs: p95 ?? 0,
       cv,
@@ -192,6 +196,7 @@ async function main() {
       nativeExecuted: true,
       installs: parsed.installs,
       signatureSkips: parsed.skips,
+      duplicatePairRate,
       sizes: Object.fromEntries(
         [...parsed.bySize.entries()].map(([k, v]) => [
           k,
@@ -199,6 +204,7 @@ async function main() {
         ]),
       ),
     });
+    return 0;
   } finally {
     cleanupProbeUserDataDir(userDataDir);
   }
@@ -207,8 +213,10 @@ async function main() {
 const isMain =
   process.argv[1]?.endsWith("measure-tray.mjs");
 if (isMain) {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(typeof code === "number" ? code : 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

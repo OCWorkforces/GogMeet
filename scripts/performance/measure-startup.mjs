@@ -278,6 +278,25 @@ async function main() {
 
   // writeReceiptJson writes receipt.json under evidenceDir and prints JSON once.
   writeReceiptJson(outputDir, receipts);
+
+  // Exit 1 if any launched native sample timed out / crashed / missing-trace.
+  // Threshold rejected (e.g. cv-too-high) and blocked stay 0.
+  let code = 0;
+  for (const r of receipts) {
+    if (r.nativeExecuted && (r.reason === "timeout" || r.reason === "crash" || r.reason === "missing-trace")) {
+      code = 1;
+      break;
+    }
+    if (r.nativeExecuted && typeof r.reason === "string" && r.reason.startsWith("missing-executed")) {
+      code = 1;
+      break;
+    }
+    if (r.nativeExecuted && r.reason === "malformed-jsonl") {
+      code = 1;
+      break;
+    }
+  }
+  return code;
 }
 
 const isMain =
@@ -285,8 +304,10 @@ const isMain =
   process.argv[1]?.endsWith("measure-startup.mjs");
 
 if (isMain) {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(typeof code === "number" ? code : 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

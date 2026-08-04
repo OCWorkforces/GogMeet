@@ -11,6 +11,8 @@ import {
   percentile,
   coefficientOfVariation,
   writeReceiptJson,
+  exitCodeFromProbeResult,
+  exitCodeForNativeOutcome,
 } from "./helpers/stats.mjs";
 import {
   createProbeUserDataDir,
@@ -116,7 +118,7 @@ async function main() {
         productChange: "none",
         nativeExecuted: false,
       });
-      return;
+      return 0;
     }
   }
 
@@ -132,7 +134,7 @@ async function main() {
       nativeExecuted: false,
       detail: "Windows-only native probe",
     });
-    return;
+    return 0;
   }
 
   // Cross-built arm64 on x64 host is blocked.
@@ -149,7 +151,7 @@ async function main() {
       nativeExecuted: false,
       detail: "host/artifact arch mismatch",
     });
-    return;
+    return 0;
   }
 
   if (!appPath || !existsSync(appPath)) {
@@ -163,7 +165,7 @@ async function main() {
       artifactArch,
       nativeExecuted: false,
     });
-    return;
+    return 0;
   }
 
   const userDataDir = createProbeUserDataDir();
@@ -176,9 +178,10 @@ async function main() {
       timeoutMs: 90_000,
     });
     if (result.status !== "ok" || !result.tracePath) {
+      const status = result.status === "blocked" ? "blocked" : "rejected";
       writeReceiptJson(outputDir, {
         experiment: "safe-storage",
-        status: result.status === "blocked" ? "blocked" : "rejected",
+        status,
         reason: result.status,
         productChange: "none",
         hostPlatform,
@@ -186,7 +189,7 @@ async function main() {
         artifactArch,
         nativeExecuted: result.status !== "blocked",
       });
-      return;
+      return exitCodeFromProbeResult(result, status, result.status);
     }
     const parsed = parseSafeStorageTrace(readFileSync(result.tracePath, "utf8"));
     if (!parsed.ok) {
@@ -200,7 +203,7 @@ async function main() {
         hostArch,
         artifactArch,
       });
-      return;
+      return exitCodeForNativeOutcome(parsed.reason);
     }
     const retained = evaluateSafeStorageRetained(parsed.durations);
     writeReceiptJson(outputDir, {
@@ -216,14 +219,17 @@ async function main() {
       p95: retained.p95 ?? percentile([...parsed.durations].sort((a, b) => a - b), 95),
       cv: retained.cv ?? coefficientOfVariation(parsed.durations),
     });
+    return 0;
   } finally {
     cleanupProbeUserDataDir(userDataDir);
   }
 }
 
 if (process.argv[1]?.endsWith("measure-safe-storage.mjs")) {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(typeof code === "number" ? code : 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

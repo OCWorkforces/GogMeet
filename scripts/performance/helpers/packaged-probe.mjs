@@ -48,7 +48,10 @@ export function cleanupProbeUserDataDir(root) {
   if (!basename(resolved).startsWith(PERF_PROBE_USER_DATA_PREFIX)) {
     throw new Error(`Refusing to delete non-probe path: ${resolved}`);
   }
-  if (!resolved.startsWith(tmp)) {
+  // Separator-safe containment (avoid /tmp matching /tmp-evil).
+  const sep = resolved.includes("\\") && !resolved.includes("/") ? "\\" : "/";
+  const tmpPrefix = tmp.endsWith(sep) ? tmp : tmp + sep;
+  if (resolved !== tmp && !resolved.startsWith(tmpPrefix)) {
     throw new Error(`Refusing to delete path outside tmpdir: ${resolved}`);
   }
   rmSync(resolved, { recursive: true, force: true });
@@ -190,11 +193,13 @@ export async function launchPackagedProbe(opts) {
         });
         return;
       }
+      // Exit 0 without a valid trace is a protocol failure, not success.
       resolvePromise({
-        status: code === 0 ? "ok" : "crash",
+        status: code === 0 ? "crash" : "crash",
         exitCode: code,
         tracePath,
         userDataDir,
+        reason: code === 0 ? "missing-trace" : undefined,
       });
     });
   });
