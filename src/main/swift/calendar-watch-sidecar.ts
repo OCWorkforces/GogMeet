@@ -230,6 +230,15 @@ function spawnChild(): void {
     handleStderrChunk(chunk);
   });
 
+  // At most one scheduleRestart per child lifetime (error and exit both fire on
+  // many spawn failures — double-counting would exhaust MAX_RETRIES prematurely).
+  let restartScheduledForChild = false;
+  const scheduleRestartOnce = (): void => {
+    if (restartScheduledForChild || stopped) return;
+    restartScheduledForChild = true;
+    scheduleRestart();
+  };
+
   proc.on("error", (err: Error) => {
     console.error("[calendar-watch-sidecar] Process error:", err.message);
     if (child === proc) child = null;
@@ -239,7 +248,7 @@ function spawnChild(): void {
       clearTimeout(stableTimer);
       stableTimer = null;
     }
-    scheduleRestart();
+    scheduleRestartOnce();
   });
 
   proc.on("exit", (code, signal) => {
@@ -258,7 +267,7 @@ function spawnChild(): void {
     } else {
       console.error(`[calendar-watch-sidecar] Process exited with code=${code} signal=${signal}`);
     }
-    scheduleRestart();
+    scheduleRestartOnce();
   });
 
   console.log("[calendar-watch-sidecar] Spawned Swift --watch process");
