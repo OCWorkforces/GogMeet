@@ -452,4 +452,150 @@ describe("calendar-watch-sidecar", () => {
       err.mockRestore();
     });
   });
+
+  describe("stream byte ceilings", () => {
+    it("exports stdout/stderr limits matching one-shot Swift helper values", async () => {
+      const mod = await loadModule();
+      const helper = await import("../../src/main/swift/swift-helper-process.js");
+      expect(mod.WATCH_SIDECAR_STDOUT_LIMIT_BYTES).toBe(8 * 1024 * 1024);
+      expect(mod.WATCH_SIDECAR_STDERR_LIMIT_BYTES).toBe(256 * 1024);
+      expect(mod.WATCH_SIDECAR_STDOUT_LIMIT_BYTES).toBe(
+        helper.SWIFT_HELPER_STDOUT_LIMIT_BYTES,
+      );
+      expect(mod.WATCH_SIDECAR_STDERR_LIMIT_BYTES).toBe(
+        helper.SWIFT_HELPER_STDERR_LIMIT_BYTES,
+      );
+    });
+
+    it("parses split CHANGED lines below the stdout cap and debounces once", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValue(child);
+      const onChange = vi.fn();
+      mod.startWatchSidecar(onChange);
+      await vi.advanceTimersByTimeAsync(0);
+
+      child.stdout.emit("data", Buffer.from("CHA"));
+      child.stdout.emit("data", Buffer.from("NGED\n"));
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(child.kill).not.toHaveBeenCalled();
+
+      mod.stopWatchSidecar();
+    });
+
+    it("stdout at limit is retained; limit+1 terminates once with SIGTERM then SIGKILL", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValueOnce(child);
+      // Restart child after overflow exit (normal retry budget).
+      const child2 = makeChild();
+      spawnMock.mockReturnValueOnce(child2);
+
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      const limit = mod.WATCH_SIDECAR_STDOUT_LIMIT_BYTES;
+      // Fill to exact limit without overflow.
+      child.stdout.emit("data", Buffer.alloc(limit - 1, 0x41));
+      child.stdout.emit("data", Buffer.from("A")); // exactly at limit
+      expect(child.kill).not.toHaveBeenCalled();
+
+      // One more byte → overflow.
+      child.stdout.emit("data", Buffer.from("X"));
+      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+      const overflowLogs = err.mock.calls.filter((c) =>
+        String(c[0]).includes("stdout overflow"),
+      );
+      expect(overflowLogs.length).toBe(1);
+
+      // Further stdout ignored; no repeated overflow log.
+      child.stdout.emit("data", Buffer.alloc(1024, 0x42));
+      expect(
+        err.mock.calls.filter((c) => String(c[0]).includes("stdout overflow")).length,
+      ).toBe(1);
+
+      // SIGKILL escalation if still alive after grace.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+
+      // Exit drives normal restart (ensureBinary not re-invoked for overflow alone —
+      // restart path may re-run ensureBinary which is fine; must not recompile-for-overflow).
+      const ensureCallsBeforeExit = ensureBinaryMock.mock.calls.length;
+      child.emit("exit", null, "SIGTERM");
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(spawnMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // ensureBinary may run again on restart — not a recompile-on-overflow product path.
+      expect(ensureBinaryMock.mock.calls.length).toBeGreaterThanOrEqual(ensureCallsBeforeExit);
+
+      mod.stopWatchSidecar();
+      err.mockRestore();
+      warn.mockRestore();
+    });
+
+    it("stderr logs through the ceiling once then suppresses without restarting", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValue(child);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      const limit = mod.WATCH_SIDECAR_STDERR_LIMIT_BYTES;
+      child.stderr.emit("data", Buffer.alloc(limit - 1, 0x65));
+      child.stderr.emit("data", Buffer.from("e")); // at limit
+      const warnsAtLimit = warn.mock.calls.length;
+
+      // Excess → one suppression notice; no kill/restart.
+      child.stderr.emit("data", Buffer.from("EXTRA"));
+      const suppression = warn.mock.calls.filter((c) =>
+        String(c[0]).includes("stderr suppressed"),
+      );
+      expect(suppression.length).toBe(1);
+      expect(child.kill).not.toHaveBeenCalled();
+
+      child.stderr.emit("data", Buffer.alloc(4096, 0x66));
+      expect(
+        warn.mock.calls.filter((c) => String(c[0]).includes("stderr suppressed")).length,
+      ).toBe(1);
+      expect(warn.mock.calls.length).toBe(warnsAtLimit + 1); // only the suppression line
+
+      // Still single child — no restart from stderr.
+      expect(spawnMock).toHaveBeenCalledTimes(1);
+
+      mod.stopWatchSidecar();
+      warn.mockRestore();
+    });
+
+    it("stop during stdout overflow remains idempotent and clears timers", async () => {
+      const mod = await loadModule();
+      ensureBinaryMock.mockResolvedValue(undefined);
+      const child = makeChild();
+      spawnMock.mockReturnValue(child);
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      mod.startWatchSidecar(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      child.stdout.emit(
+        "data",
+        Buffer.alloc(mod.WATCH_SIDECAR_STDOUT_LIMIT_BYTES + 1, 0x41),
+      );
+      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+
+      mod.stopWatchSidecar();
+      mod.stopWatchSidecar();
+      // Grace kill timer cleared by stop — no SIGKILL after grace.
+      child.kill.mockClear();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(child.kill).not.toHaveBeenCalledWith("SIGKILL");
+
+      err.mockRestore();
+    });
+  });
 });

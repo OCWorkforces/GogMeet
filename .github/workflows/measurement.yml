@@ -1,7 +1,8 @@
 name: Measurement lab
 
-# Unblocks evidence collection for deferred optimization tracks.
-# Does not ship product changes. Failures of optional native probes stay non-fatal.
+# Evidence collection for stability/measurement plan.
+# Does not ship product optimizations. Synthetic jobs always run.
+# Native packaged probe jobs are non-PR, host-matching only; blocked when package missing.
 
 on:
   workflow_dispatch:
@@ -52,12 +53,13 @@ jobs:
             tests/scripts/performance-safe-storage.test.ts \
             tests/scripts/performance-startup.test.ts \
             tests/scripts/performance-alert.test.ts \
+            tests/scripts/performance-packaged-probe.test.ts \
             tests/scripts/performance-build-package.test.ts
 
-      - name: Run synthetic measurement scripts
+      - name: Run measurement scripts (blocked without package is OK)
         env:
-          # No live Google token in default matrix (blocked is conforming).
           GOGMEET_GOOGLE_BENCH_TOKEN: ${{ secrets.GOGMEET_GOOGLE_BENCH_TOKEN }}
+          GOGMEET_APP_PATH: ""
         run: |
           mkdir -p .omo/evidence/measurement-ci
           bun run perf:google | tee .omo/evidence/measurement-ci/google.json
@@ -67,11 +69,158 @@ jobs:
           bun run perf:alert | tee .omo/evidence/measurement-ci/alert.json
           bun run perf:build-package | tee .omo/evidence/measurement-ci/build-package.json
 
-      - name: Upload receipts
+      - name: Upload synthetic receipts
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: measurement-receipts-${{ matrix.os }}
+          name: measurement-receipts-synthetic-${{ matrix.os }}
           path: |
             .omo/evidence/gogmeet-performance/**/receipt.json
+            .omo/evidence/gogmeet-performance-stability-hardening/**/receipt.json
             .omo/evidence/measurement-ci/**
+          if-no-files-found: warn
+
+  native-macos:
+    name: Native packaged probes (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Package directory app (unsigned dogfood)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: bun run package:mac:dir
+
+      - name: Resolve app binary
+        id: app
+        run: |
+          set -euo pipefail
+          BIN=$(find dist -type f -path '*/MacOS/GogMeet' 2>/dev/null | head -1 || true)
+          if [[ -z "${BIN}" || ! -x "${BIN}" ]]; then
+            echo "native_available=false" >> "$GITHUB_OUTPUT"
+            echo "Packaged binary not found — native probes will block truthfully"
+          else
+            echo "native_available=true" >> "$GITHUB_OUTPUT"
+            echo "bin=${BIN}" >> "$GITHUB_OUTPUT"
+            echo "Using ${BIN}"
+          fi
+
+      - name: Native startup/tray/alert probes
+        if: steps.app.outputs.native_available == 'true'
+        env:
+          GOGMEET_APP_PATH: ${{ steps.app.outputs.bin }}
+          GOGMEET_ARTIFACT_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+        run: |
+          set -euo pipefail
+          OUT=.omo/evidence/measurement-ci/native-macos
+          mkdir -p "$OUT"
+          # timeout/crash → nonzero exit from measure scripts (blocked stays 0).
+          bun run perf:startup -- --output-dir "$OUT/startup"
+          bun run perf:tray -- --output-dir "$OUT/tray"
+          bun run perf:alert -- --output-dir "$OUT/alert"
+          node -e '
+            const fs=require("fs");const path=require("path");
+            const out=process.env.OUT||".omo/evidence/measurement-ci/native-macos";
+            for (const name of ["startup","tray","alert"]) {
+              const p=path.join(out, name, "receipt.json");
+              if (!fs.existsSync(p)) { console.error("missing", p); process.exit(1); }
+              const r=JSON.parse(fs.readFileSync(p,"utf8"));
+              const arr=Array.isArray(r)?r:[r];
+              for (const x of arr) {
+                if (x.productChange !== "none") { console.error("productChange", p, x); process.exit(1); }
+                if (x.nativeExecuted && (x.reason==="timeout"||x.reason==="crash")) {
+                  console.error("fatal reason should have failed script", p, x); process.exit(1);
+                }
+              }
+            }
+          '
+        continue-on-error: false
+
+      - name: Upload native macOS receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: measurement-receipts-native-macos
+          path: |
+            .omo/evidence/measurement-ci/native-macos/**
+            .omo/evidence/gogmeet-performance-stability-hardening/**
+          if-no-files-found: warn
+
+  native-windows:
+    name: Native packaged probes (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prefer LF on Windows
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Package Windows x64 directory
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: bun run package:win:dir
+
+      - name: Resolve Windows binary
+        id: app
+        run: |
+          set -euo pipefail
+          BIN=$(find dist -type f \( -name 'GogMeet.exe' -o -name 'gogmeet.exe' \) 2>/dev/null | head -1 || true)
+          if [[ -z "${BIN}" ]]; then
+            echo "native_available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "native_available=true" >> "$GITHUB_OUTPUT"
+            echo "bin=${BIN}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Native probes (x64 only; arm64 blocked)
+        if: steps.app.outputs.native_available == 'true'
+        env:
+          GOGMEET_APP_PATH: ${{ steps.app.outputs.bin }}
+          GOGMEET_ARTIFACT_ARCH: x64
+        run: |
+          set -euo pipefail
+          OUT=.omo/evidence/measurement-ci/native-windows
+          mkdir -p "$OUT"
+          bun run perf:startup -- --output-dir "$OUT/startup"
+          bun run perf:tray -- --output-dir "$OUT/tray"
+          bun run perf:alert -- --output-dir "$OUT/alert"
+          bun run perf:safe-storage -- --output-dir "$OUT/safe-storage"
+          # Explicit arm64 blocked receipt (cross-build never native on x64)
+          GOGMEET_ARTIFACT_ARCH=arm64 bun run perf:safe-storage -- --output-dir "$OUT/safe-storage-arm64-blocked"
+
+      - name: Upload native Windows receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: measurement-receipts-native-windows
+          path: |
+            .omo/evidence/measurement-ci/native-windows/**
           if-no-files-found: warn

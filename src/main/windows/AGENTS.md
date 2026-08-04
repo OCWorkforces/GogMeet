@@ -10,7 +10,7 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 |------|------|-------------|
 | `dock-visibility.ts` | Ref-counted macOS Dock show/hide for dialog holders | `acquireDockVisibility`, `releaseDockVisibility` |
 | `about-window.ts` | About box: data: HTML, 320×380, **hide-cache**, CSP `script-src 'none'`, https-only repo | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
-| `alert-window.ts` | Meeting alert overlay: queue, uid coalesce, **hide/show reuse** | `showAlert(event)`, `destroyAlertWindow()` |
+| `alert-window.ts` | Meeting alert overlay: queue, uid coalesce, **hide/show reuse**, generation-safe handoff | `showAlert(event)`, `destroyAlertWindow()` |
 | `settings-window.ts` | Prefs 520×760; **hide-cache** + soft-refresh; Dock claim | `createSettingsWindow`, `destroySettingsWindow`, `getSettingsWindow` |
 
 ## WHERE TO LOOK
@@ -20,9 +20,11 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 | Reuse vs reopen About | `showAbout` re-presents cached window (no reload) when still alive |
 | About close (CSP-safe) | sentinel hide-cache; `destroyAboutWindow` on quit |
 | About openExternal | exact package `repository` **and** `https:` via `isSafeAboutRepositoryUrl` |
-| Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` |
+| Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` / `__alertGeneration` |
 | Hide/reuse vs recreate | `alert-window.ts` → prefer alive hidden window; `close` prevents default + `hide()`; `__forceDestroy` for real destroy |
 | Reschedule in place | same uid, different startMs → `showAlertInternal` without canceling pending open |
+| Generation-safe handoff | Module-owned `queuedImmediate`; reserve slot before schedule; shift only inside callback; gen-mismatch must **not** clear `isAlertShowing` while a live presentation owns the slot; queue entries preserve `autoOpenAt` |
+| Destroy / teardown | `destroyAlertWindow` clears immediate, bumps generation, clears queue; **never** `cancelPendingBrowserOpen` (user dismiss only) |
 | Defer next alert after hide | `processNextAlert()` uses `setImmediate` |
 | Project MeetingEvent → AlertPayload | `toAlertPayload()` (drops `meetUrl`; sets `hasMeetUrl`) |
 | Dock show/hide | Shared refcount via `dock-visibility.ts` (Settings + About holders) |
@@ -38,4 +40,4 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 - Alert always-on-top uses `applyAlertAlwaysOnTop` (screen-saver level + all workspaces on Darwin; plain always-on-top on Windows).
 - Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows.
 - Scheduler restart / display-only tray rebuild on settings save is owned by IPC handlers, not these files.
-- About / settings / alert all **hide-cache** between presentations (`close` + `preventDefault` unless `__forceDestroy`). Real destroy on `shutdownApp` / test teardown. Alert generation counter guards stale ready-to-show / DOM clear races.
+- About / settings / alert all **hide-cache** between presentations (`close` + `preventDefault` unless `__forceDestroy`). Real destroy on `shutdownApp` / test teardown. Alert `reuseGeneration` + `queuedImmediate` guard stale ready-to-show / DOM clear / height / close races after replacement or force-destroy.

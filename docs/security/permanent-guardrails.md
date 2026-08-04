@@ -1,11 +1,11 @@
 # Permanent security & correctness guardrails
 
 **Status:** Active  
-**Plan:** `docs/plans/gogmeet-out-of-scope-follow-on.md`  
-**Updated:** 2026-07-30  
+**Plan:** `docs/plans/gogmeet-performance-stability-hardening.md` (measurement/stability; no product optimization)  
+**Updated:** 2026-08-04  
 **Enforcement:** `bun run guardrails` → `scripts/guardrails-scan.mjs` + freeze tests in CI
 
-These invariants were **out of scope** for the performance program as *permanent non-goals* (P-NEVER). They must not ship in product code. Future product tracks (Google sync, prebuilt Swift helper, tray/alert optimizations) live in the follow-on plan and must not weaken anything here.
+These invariants are permanent non-goals (P-NEVER). They must not ship in product code. Measurement `retained` receipts never authorize in-tree product optimization without a separate user-approved plan.
 
 ## Registry
 
@@ -20,8 +20,11 @@ These invariants were **out of scope** for the performance program as *permanent
 | G5 | Explicit join retained on degraded data | join hub + shortcuts | `join-meeting`, `shortcuts` tests | Calendar owner |
 | G6 | Single-flight coordinator; no force-poll IPC shim | `refresh-coordinator.ts`, IPC maps | coordinator tests + scan for deleted channels | Main owner |
 | G7 | Typed IPC + sender validation; no raw handle/send | `ipc-handlers/*` | scan + existing IPC tests | Main owner |
-| G8 | No secrets/user content in perf traces | `performance-trace.ts`, report scripts | `performance-trace` + `performance-report` tests | Privacy |
-| G9 | Trace opt-in only; bench outside default CI | `GOGMEET_PERF_TRACE`, `vitest.bench.config.ts` | scan + workspace config | Perf owner |
+| G8 | No secrets/user content in perf traces; no arbitrary trace path/metadata | `performance-trace.ts`, `performance-trace-file.ts`, report scripts | `performance-trace` + `performance-trace-file` + `performance-report` tests | Privacy |
+| G9 | Trace opt-in only; bench outside default CI; caps 1024 rows / 1 MiB; fixed JSONL sink | `GOGMEET_PERF_TRACE`, `MAX_PERF_TRACE_*`, `vitest.bench.config.ts` | constant freeze tests + workspace config | Perf owner |
+| G11 | Watch-sidecar stream ceilings match one-shot helper (8 MiB / 256 KiB); no recompile-on-overflow | `calendar-watch-sidecar.ts` | `calendar-watch-sidecar` tests + constant freeze | Calendar owner |
+| G12 | Packaged probes: isolated tmpdir userData prefix only; private empty calendar; no default-userData evidence | `performance-probe-contract.ts`, factory, packaged-probe helper | probe unit tests | Perf owner |
+| G13 | Measurement receipts keep `productChange: "none"`; retained ≠ product change | `scripts/performance/measure-*.mjs` | script receipt tests | Perf owner |
 | G1 | No push/watch webhooks; syncToken only in google-calendar + google-sync-tokens (ADR 0002) | Google provider / auth | scan allowlist scope | Product + design ADR |
 | G10 / O4 | Prebuilt helper only via optional Resources path + integrity recompile fallback; no unsigned release claim | `swift/binary-manager`, `binary-cache` | unit tests + compile-on-device fallback | Release owner |
 | O5 | Tray coalesce + alert hide-reuse may ship; packaging/builder product changes still need B6/B3 receipts | tray, alert-window, builder | process + packaging-startup-notes | Perf owner |
@@ -64,9 +67,14 @@ Updating supported join hosts requires **all** of:
 | Swift stdout | `SWIFT_HELPER_STDOUT_LIMIT_BYTES` | 8 MiB |
 | Swift stderr | `SWIFT_HELPER_STDERR_LIMIT_BYTES` | 256 KiB |
 | Swift timeout | `SWIFT_HELPER_TIMEOUT_MS` | 15 s |
+| Watch sidecar stdout | `WATCH_SIDECAR_STDOUT_LIMIT_BYTES` | 8 MiB (byte-identical to one-shot) |
+| Watch sidecar stderr | `WATCH_SIDECAR_STDERR_LIMIT_BYTES` | 256 KiB (byte-identical to one-shot) |
+| Perf trace rows | `MAX_PERF_TRACE_ROWS` | 1024 |
+| Perf trace bytes | `MAX_PERF_TRACE_SERIALIZED_BYTES` | 1 MiB |
 | Google request | `GOOGLE_HTTP_REQUEST_TIMEOUT_MS` | 15 s |
 | Google body | `GOOGLE_HTTP_BODY_LIMIT_BYTES` | 8 MiB |
 | Google poll budget | `GOOGLE_POLL_BUDGET_MS` | 60 s |
+| Google page cap | `MAX_PAGES` (google-calendar) | 50 |
 
 Changing a bound requires: design note in the PR, updated limit±1 tests, and review. Silent inflation is forbidden.
 

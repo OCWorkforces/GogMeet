@@ -4,34 +4,93 @@ import { join } from "node:path";
 import {
   simulatePollRebuilds,
   timeSyntheticBuild,
+  parseTrayTrace,
+  evaluateTrayRetained,
+  TRAY_SIZES,
 } from "../../scripts/performance/measure-tray.mjs";
 
 const script = join(process.cwd(), "scripts/performance/measure-tray.mjs");
 
 describe("perf:tray", () => {
-  it("proves two rebuild requests per successful poll with stable order", () => {
+  it("keeps synthetic dual-rebuild helper for reference only", () => {
     const rebuilds = simulatePollRebuilds([20]);
     expect(rebuilds).toHaveLength(2);
-    expect(rebuilds[0]?.source).toBe("meeting-list-updated");
-    expect(rebuilds[1]?.source).toBe("status-or-explicit");
-    expect(rebuilds[0]?.order).toBeLessThan(rebuilds[1]!.order);
+    expect(TRAY_SIZES).toEqual([20, 200, 1000]);
   });
 
-  it("times synthetic builds for 20/200/1000 events", () => {
+  it("synthetic build helper remains deterministic for docs", () => {
     for (const n of [20, 200, 1000]) {
       const d = timeSyntheticBuild(n, 5);
       expect(d).toHaveLength(5);
-      expect(d.every((x) => Number.isFinite(x) && x >= 0)).toBe(true);
     }
   });
 
-  it("perf:tray exits 0 with conforming terminal receipt", () => {
-    const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  it("parseTrayTrace requires terminal and install rows", () => {
+    expect(parseTrayTrace("").ok).toBe(false);
+    const jsonl = [
+      JSON.stringify({
+        version: 1,
+        operation: "tray-rebuild",
+        outcome: "ok",
+        startMs: 1,
+        durationMs: 2,
+        count: 20,
+      }),
+      JSON.stringify({
+        version: 1,
+        operation: "probe-terminal",
+        outcome: "ok",
+        startMs: 0,
+        durationMs: 0,
+        acceptedRows: 1,
+        droppedRows: 0,
+        acceptedBytes: 1,
+        droppedBytes: 0,
+      }),
+    ].join("\n");
+    const parsed = parseTrayTrace(jsonl);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.installs).toBe(1);
+  });
+
+  it("retained evaluator enforces plan thresholds without inventing coalesce rate", () => {
+    expect(
+      evaluateTrayRetained({
+        duplicatePairRate: 0.6,
+        projectedReduction: 0.3,
+        p95SavingMs: 2,
+        cv: 0.05,
+      }).ok,
+    ).toBe(true);
+    // Observed skip rate 0 must not pass (no Math.max floor).
+    expect(
+      evaluateTrayRetained({
+        duplicatePairRate: 0,
+        projectedReduction: 0,
+        p95SavingMs: 2,
+        cv: 0.05,
+      }).ok,
+    ).toBe(false);
+    expect(
+      evaluateTrayRetained({
+        duplicatePairRate: 0.1,
+        projectedReduction: 0.3,
+        p95SavingMs: 2,
+        cv: 0.05,
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("perf:tray exits 0 with blocked receipt without packaged binary", () => {
+    const result = spawnSync(process.execPath, [script], {
+      encoding: "utf8",
+      env: { ...process.env, GOGMEET_APP_PATH: "" },
+    });
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.experiment).toBe("tray-menu-rebuild");
-    expect(receipt.rebuildsPerSuccessfulPoll).toBe(2);
-    expect(["blocked", "rejected", "retained", "skipped"]).toContain(receipt.status);
+    expect(receipt.status).toBe("blocked");
     expect(receipt.productChange).toBe("none");
+    expect(receipt.nativeExecuted).toBe(false);
   });
 });

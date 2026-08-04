@@ -13,7 +13,8 @@
 | `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo`, `clearPackageInfoCache`, `isPackageInfoLoaded` |
 | `log.ts` | electron-log bootstrap + scopes | `configureMainLogging()`, `mainLog`, `schedulerLog`, `calendarLog` |
 | `system-settings.ts` | Open OS settings (non-meeting egress) | `openSystemSettings()` |
-| `performance-trace.ts` | Opt-in redacted measurement records | `perfTrace`, `isPerfTraceEnabled`, `GOGMEET_PERF_TRACE=1` |
+| `performance-trace.ts` | Opt-in redacted bounded buffer (rows/bytes caps, startup-phase enum, terminal reserve) | `perfTrace`, `MAX_PERF_TRACE_ROWS` (1024), `MAX_PERF_TRACE_SERIALIZED_BYTES` (1 MiB), `PERF_TRACE_STARTUP_PHASES` |
+| `performance-trace-file.ts` | Fixed atomic JSONL sink under Electron `userData` | `flushPerfTraceToUserData`, `PERF_TRACE_FILENAME`, `registerPerfTraceBeforeQuitFlush` |
 
 ## Window chrome notes
 
@@ -26,7 +27,10 @@
 
 - Enabled **only** when `GOGMEET_PERF_TRACE=1`.
 - Finite allowlist: operation enum, outcome, errorClass, numeric fields, coarse platform/arch/powerMode.
-- No arbitrary string bags; no secrets (tokens, titles, URLs, bodies).
+- `startup-phase` requires `PERF_TRACE_STARTUP_PHASES` value; `probe-terminal` is flush-synthesized (not caller-inserted into the data buffer).
+- Caps: **1024** data rows and **1 MiB** serialized bytes (terminal capacity reserved); drop-new with numeric drop counters.
+- File sink: fixed `gogmeet-perf-trace-v1.jsonl` under `app.getPath("userData")` only — same-dir temp → fsync → rename; before-quit fallback; disabled creates no file; never throws into product paths.
+- No caller/env path, no arbitrary string bags, no secrets (tokens, titles, URLs, bodies).
 - Aggregate offline with `bun run perf:report`.
 
 ## CANONICAL HOMES (not in this package)

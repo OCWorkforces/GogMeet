@@ -19,7 +19,7 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 - Uses pinned `actions/checkout` and `oven-sh/setup-bun` SHAs; keep pins intentional when upgrading.
 - The `check` checkout uses `fetch-depth: 0` so a PR can compare with `github.event.pull_request.base.sha` and a push can compare with `github.event.before`. For an initial push with GitHub's all-zero `before` SHA, it resolves `HEAD^` and reuses that resolved base for changed-source coverage.
 - `check` runs `bun install --frozen-lockfile`, `bun run lint`, `bun run format:check`, `bun run typecheck`, **`bun run guardrails`**, **`bun run guardrails:tests`**, `bun run build`, and one `bun run test:coverage`.
-- It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`; there are no coverage percentage thresholds.
+- It lists added, copied, modified, and renamed `src/**/*.ts` files. When the list is nonempty, it runs related tests and a separate text coverage report with Vitest `--coverage.changed`. That report step **disables percentage floors** (`--coverage.thresholds.*=0`); global floors remain only on the full `test:coverage` step.
 - `validate-node` remains **macos-latest only** (iconutil / icns). Sets up Bun plus Node from `.nvmrc` (currently 26), runs `bun run validate:node`, then `git diff --exit-code` for icon drift including `build/icon.ico` and Windows tray PNGs.
 
 ## Beta Release (`develop`)
@@ -43,8 +43,11 @@ CI/release automation for the Electron app (macOS + Windows). Keep workflow beha
 
 ## Measurement lab
 
-- Scheduled evidence collection for deferred optimization tracks (`docs/plans/gogmeet-performance-enhancement.md`, `docs/performance/measurement-lab.md`).
-- Optional native probes may fail non-fatally; keep this workflow out of PR gates.
+- Scheduled evidence collection for the stability/measurement plan (`docs/plans/gogmeet-performance-stability-hardening.md`, `docs/performance/measurement-lab.md`). Does **not** ship product optimizations or gate PRs.
+- **Synthetic** matrix (macOS + Windows): script unit tests + harnesses without package (`blocked` OK).
+- **Native** jobs (separate, non-PR): host-matching `package:*:dir` then startup/tray/alert (macOS) or +safeStorage (Windows x64); arm64 cross-build is explicitly blocked; upload with `if: always()`.
+- Launched probe crash/timeout → measure scripts exit **1** (blocked stays 0); native job fails. Keep this workflow out of PR gates.
+- Receipts always `productChange: "none"`; synthetic never claims `nativeExecuted: true`.
 - Uses the same Bun install + LF-on-Windows patterns as other workflows where applicable.
 
 ## Anti-Patterns
