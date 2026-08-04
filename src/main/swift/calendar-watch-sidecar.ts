@@ -16,6 +16,17 @@ const GIVE_UP_COOLDOWN_MS = 5 * 60_000;
 // still bound at MAX_RETRIES.
 const STABLE_RUNTIME_MS = 60_000;
 
+/**
+ * stdout retention ceiling for the long-running `--watch` sidecar.
+ * Matches one-shot Swift helper byte value (frozen bound — do not raise).
+ */
+export const WATCH_SIDECAR_STDOUT_LIMIT_BYTES: number = 8 * 1024 * 1024;
+/**
+ * stderr log ceiling for the watch sidecar.
+ * Matches one-shot Swift helper byte value (frozen bound — do not raise).
+ */
+export const WATCH_SIDECAR_STDERR_LIMIT_BYTES: number = 256 * 1024;
+
 let child: ChildProcess | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,6 +37,12 @@ let stdoutBuffer = "";
 let retryCount = 0;
 let stopped = false;
 let onChangeCallback: (() => void) | null = null;
+/** Bytes retained from the current child's stdout (reset on each spawn/stop). */
+let stdoutBytes = 0;
+/** Bytes logged from the current child's stderr (reset on each spawn/stop). */
+let stderrBytes = 0;
+let stdoutOverflowed = false;
+let stderrSuppressed = false;
 
 function scheduleRestart(): void {
   if (stopped) return;
@@ -58,8 +75,77 @@ function scheduleRestart(): void {
   restartTimer.unref?.();
 }
 
+function resetStreamCounters(): void {
+  stdoutBuffer = "";
+  stdoutBytes = 0;
+  stderrBytes = 0;
+  stdoutOverflowed = false;
+  stderrSuppressed = false;
+}
+
+/**
+ * SIGTERM the current child and arm the existing 5s SIGKILL grace.
+ * Used for stdout overflow — recovery is the normal exit/restart budget
+ * (never recompile-on-overflow).
+ */
+function terminateCurrentChild(reason: string): void {
+  const proc = child;
+  if (proc === null) return;
+  console.error(`[calendar-watch-sidecar] ${reason}`);
+  try {
+    proc.kill("SIGTERM");
+  } catch (err) {
+    console.warn("[calendar-watch-sidecar] SIGTERM failed:", err);
+  }
+  if (killTimer !== null) clearTimeout(killTimer);
+  killTimer = setTimeout(() => {
+    killTimer = null;
+    if (proc.exitCode === null && proc.signalCode === null) {
+      try {
+        proc.kill("SIGKILL");
+      } catch (err) {
+        console.warn("[calendar-watch-sidecar] SIGKILL failed:", err);
+      }
+    }
+  }, KILL_GRACE_MS);
+  killTimer.unref?.();
+}
+
 function handleStdoutChunk(chunk: Buffer): void {
-  stdoutBuffer += chunk.toString("utf-8");
+  if (stdoutOverflowed) return;
+
+  const remaining = WATCH_SIDECAR_STDOUT_LIMIT_BYTES - stdoutBytes;
+  if (remaining <= 0) {
+    stdoutOverflowed = true;
+    stdoutBuffer = "";
+    terminateCurrentChild(
+      "stdout overflow — stopped retaining stream; terminating child (no recompile)",
+    );
+    return;
+  }
+
+  let data = chunk;
+  if (chunk.byteLength > remaining) {
+    // Accept up to the ceiling, then overflow on the excess byte.
+    data = chunk.subarray(0, remaining);
+    stdoutBytes += data.byteLength;
+    stdoutBuffer += data.toString("utf-8");
+    // Parse any complete lines already retained at the ceiling.
+    parseStdoutLines();
+    stdoutOverflowed = true;
+    stdoutBuffer = "";
+    terminateCurrentChild(
+      "stdout overflow — stopped retaining stream; terminating child (no recompile)",
+    );
+    return;
+  }
+
+  stdoutBytes += data.byteLength;
+  stdoutBuffer += data.toString("utf-8");
+  parseStdoutLines();
+}
+
+function parseStdoutLines(): void {
   let newlineIdx = stdoutBuffer.indexOf("\n");
   while (newlineIdx !== -1) {
     const line = stdoutBuffer.slice(0, newlineIdx);
@@ -79,6 +165,40 @@ function handleStdoutChunk(chunk: Buffer): void {
   }
 }
 
+function handleStderrChunk(chunk: Buffer): void {
+  if (stderrSuppressed) return;
+
+  const remaining = WATCH_SIDECAR_STDERR_LIMIT_BYTES - stderrBytes;
+  if (remaining <= 0) {
+    stderrSuppressed = true;
+    console.warn(
+      "[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)",
+    );
+    return;
+  }
+
+  let data = chunk;
+  if (chunk.byteLength > remaining) {
+    data = chunk.subarray(0, remaining);
+    stderrBytes += data.byteLength;
+    const text = data.toString("utf-8").trim();
+    if (text.length > 0) {
+      console.warn("[calendar-watch-sidecar] stderr:", text);
+    }
+    stderrSuppressed = true;
+    console.warn(
+      "[calendar-watch-sidecar] stderr suppressed after byte ceiling (no restart)",
+    );
+    return;
+  }
+
+  stderrBytes += data.byteLength;
+  const text = data.toString("utf-8").trim();
+  if (text.length > 0) {
+    console.warn("[calendar-watch-sidecar] stderr:", text);
+  }
+}
+
 function spawnChild(): void {
   if (stopped) return;
   if (child !== null) return;
@@ -95,7 +215,7 @@ function spawnChild(): void {
   }
 
   child = proc;
-  stdoutBuffer = "";
+  resetStreamCounters();
 
   // Arm the stability timer: if the child stays alive for STABLE_RUNTIME_MS,
   // reset retryCount so a later isolated crash gets a fresh retry budget.
@@ -111,7 +231,7 @@ function spawnChild(): void {
   });
 
   proc.stderr?.on("data", (chunk: Buffer) => {
-    console.warn("[calendar-watch-sidecar] stderr:", chunk.toString("utf-8").trim());
+    handleStderrChunk(chunk);
   });
 
   proc.on("error", (err: Error) => {
@@ -258,6 +378,6 @@ export function stopWatchSidecar(): void {
     killTimer.unref?.();
   }
 
-  stdoutBuffer = "";
+  resetStreamCounters();
   retryCount = 0;
 }

@@ -10,7 +10,7 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 | `binary-manager.ts` | Locate source, coordinate cache/compile, `runSwiftHelper(signal?)`. Integrity-only recompile |
 | `binary-cache.ts` | Hash Swift source and manage `{tmpdir}/googlemeet/` binary/cache paths |
 | `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior |
-| `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES** |
+| `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES**; **stdout 8 MiB / stderr 256 KiB** stream ceilings |
 | `event-parser.ts` | Parse 9-field JSON Lines into `MeetingEvent[]` with branded fields + diagnostics |
 | `event-field-parser.ts` | Parse individual JSON record fields (description cleaning → domain `clean-description`) |
 | `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `calendar-*` AppError kinds |
@@ -57,6 +57,9 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 - After give-up: **cooldown** `GIVE_UP_COOLDOWN_MS` = **5 minutes**, then reset retries and spawn again.
 - `reviveWatchSidecar()` / facade `reviveCalendarWatcher()` / `graph.watcher.revive()` on power resume.
 - SIGTERM → SIGKILL after grace; stable runtime resets retry budget.
+- Stream ceilings (exported; byte-identical to one-shot helper): `WATCH_SIDECAR_STDOUT_LIMIT_BYTES` = **8 MiB**, `WATCH_SIDECAR_STDERR_LIMIT_BYTES` = **256 KiB**. Per-child counters reset on spawn/stop.
+- **Stdout overflow:** stop retaining, one redacted overflow diagnostic, SIGTERM + 5 s SIGKILL escalation; recovery uses the normal exit/restart budget — **never** recompile-on-overflow.
+- **Stderr ceiling:** log only through the cap, one suppression notice, discard later stderr **without** restarting the child.
 
 ## Parsing rules
 
