@@ -163,14 +163,18 @@ export function _setAutoUpdaterTestHooks(hooks: {
   }
 }
 
-function setUiState(next: UpdaterUiState): void {
-  if (uiState === next) return;
-  uiState = next;
+function notifyUiListener(): void {
   try {
     uiStateListener?.();
   } catch (err: unknown) {
     log.error("[auto-updater] uiStateListener failed:", err);
   }
+}
+
+function setUiState(next: UpdaterUiState): void {
+  if (uiState === next) return;
+  uiState = next;
+  notifyUiListener();
 }
 
 /**
@@ -227,7 +231,7 @@ async function showInfoDialog(
 ): Promise<number> {
   dialogOpen = true;
   try {
-    uiStateListener?.();
+    notifyUiListener();
     const result = await showMessageBoxImpl({
       type: "info",
       buttons,
@@ -240,7 +244,7 @@ async function showInfoDialog(
     return result.response;
   } finally {
     dialogOpen = false;
-    uiStateListener?.();
+    notifyUiListener();
   }
 }
 
@@ -563,7 +567,7 @@ export async function checkForUpdatesManual(): Promise<void> {
     return;
   }
   manualGate = true;
-  uiStateListener?.();
+  notifyUiListener();
 
   try {
     const availability = getUpdaterAvailability();
@@ -705,7 +709,7 @@ export async function checkForUpdatesManual(): Promise<void> {
     }
   } finally {
     manualGate = false;
-    uiStateListener?.();
+    notifyUiListener();
   }
 }
 

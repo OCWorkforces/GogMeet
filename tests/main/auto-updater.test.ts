@@ -95,11 +95,13 @@ import {
   parseMacDeveloperIdFromCodesignDvv,
   releasesUrl,
   CANONICAL_RELEASES_URL,
+  getUpdateInstallPolicy,
   _resetAutoUpdaterForTests,
   _setAutoUpdaterTestHooks,
   setUpdaterUiStateListener,
 } from "../../src/main/system/auto-updater.js";
 import { isDarwin, isWin32 } from "../../src/main/platform/os.js";
+import { getPackageInfo } from "../../src/main/utils/packageInfo.js";
 
 describe("isPortableInstall", () => {
   const keys = [
@@ -573,5 +575,196 @@ describe("checkForUpdatesManual", () => {
     setUpdaterUiStateListener(listener);
     await checkForUpdatesManual(); // up to date
     expect(listener).toHaveBeenCalled();
+  });
+
+  it("downloadPromise reject shows download error dialog", async () => {
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: "2.0.0" },
+      downloadPromise: Promise.reject(new Error("disk full")),
+    });
+
+    await checkForUpdatesManual();
+
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Couldn’t download"),
+      }),
+    );
+  });
+
+  it("null checkForUpdates result shows unavailable dialog", async () => {
+    mockAutoUpdater.checkForUpdates.mockResolvedValue(null);
+
+    await checkForUpdatesManual();
+
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("not available"),
+      }),
+    );
+  });
+
+  it("full mode without downloadPromise falls back to Open Releases", async () => {
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: "3.0.0" },
+      downloadPromise: null,
+    });
+    mockShowMessageBox.mockResolvedValue({ response: 0 });
+
+    await checkForUpdatesManual();
+
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("3.0.0"),
+        detail: expect.stringContaining("GitHub Releases"),
+      }),
+    );
+    expect(mockOpenExternal).toHaveBeenCalled();
+  });
+
+  it("quitAndInstall throw shows install-failed dialog", async () => {
+    let resolveDownload!: () => void;
+    const downloadPromise = new Promise<string[]>((resolve) => {
+      resolveDownload = () => resolve(["/tmp/update.exe"]);
+    });
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: "2.1.0" },
+      downloadPromise,
+    });
+    mockAutoUpdater.quitAndInstall.mockImplementation(() => {
+      throw new Error("install boom");
+    });
+    mockShowMessageBox.mockResolvedValue({ response: 0 }); // Restart Now, then Open Releases
+
+    const manual = checkForUpdatesManual();
+    await vi.waitFor(() => {
+      expect(getUpdaterUiState()).toBe("downloading");
+    });
+    mockAutoUpdater._emit("update-downloaded", { version: "2.1.0" });
+    resolveDownload();
+    await manual;
+
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("quitAndInstall failed"),
+      expect.any(Error),
+    );
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Couldn’t install"),
+      }),
+    );
+  });
+
+  it("feed-only up-to-date path", async () => {
+    vi.mocked(isDarwin).mockReturnValue(true);
+    vi.mocked(isWin32).mockReturnValue(false);
+    _setAutoUpdaterTestHooks({
+      showMessageBox: mockShowMessageBox,
+      openExternal: mockOpenExternal,
+      isMacInstallEligible: async () => false,
+    });
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: false,
+      updateInfo: { version: "1.0.0" },
+      downloadPromise: null,
+    });
+
+    await checkForUpdatesManual();
+
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("up to date"),
+      }),
+    );
+  });
+
+  it("feed-only check error path", async () => {
+    vi.mocked(isDarwin).mockReturnValue(true);
+    vi.mocked(isWin32).mockReturnValue(false);
+    _setAutoUpdaterTestHooks({
+      showMessageBox: mockShowMessageBox,
+      openExternal: mockOpenExternal,
+      isMacInstallEligible: async () => false,
+    });
+    mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error("feed down"));
+
+    await checkForUpdatesManual();
+
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Couldn’t check"),
+      }),
+    );
+  });
+
+  it("background update-downloaded arms ready without dialog", async () => {
+    initAutoUpdater();
+    await vi.advanceTimersByTimeAsync(5000);
+    mockAutoUpdater._emit("update-downloaded", { version: "9.9.9" });
+    expect(getUpdaterUiState()).toBe("ready-to-install");
+    // No user dialog from quiet background
+    expect(mockShowMessageBox).not.toHaveBeenCalled();
+  });
+
+  it("getUpdateInstallPolicy returns portable when env set", async () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\\p";
+    await expect(getUpdateInstallPolicy()).resolves.toEqual({ kind: "disabled-portable" });
+    delete process.env["PORTABLE_EXECUTABLE_DIR"];
+  });
+
+  it("getUpdateInstallPolicy returns unpackaged when not packaged", async () => {
+    const electron = await import("electron");
+    Object.defineProperty(electron.app, "isPackaged", { value: false, writable: true });
+    await expect(getUpdateInstallPolicy()).resolves.toEqual({ kind: "disabled-unpackaged" });
+    Object.defineProperty(electron.app, "isPackaged", { value: true, writable: true });
+  });
+
+  it("releasesUrl falls back when repository is not iWorkforces", () => {
+    vi.mocked(getPackageInfo).mockReturnValueOnce({
+      name: "gogmeet",
+      productName: "GogMeet",
+      version: "1.0.0",
+      description: "test",
+      repository: "https://github.com/other-org/GogMeet",
+      homepage: "https://github.com/other-org/GogMeet",
+      author: "test",
+    });
+    expect(releasesUrl()).toBe(CANONICAL_RELEASES_URL);
+  });
+
+  it("ignores feed-only update-downloaded for install arming", async () => {
+    vi.mocked(isDarwin).mockReturnValue(true);
+    vi.mocked(isWin32).mockReturnValue(false);
+    _setAutoUpdaterTestHooks({
+      showMessageBox: mockShowMessageBox,
+      openExternal: mockOpenExternal,
+      isMacInstallEligible: async () => false,
+    });
+    // Configure via a no-update manual check
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: false,
+      updateInfo: { version: "1.0.0" },
+      downloadPromise: null,
+    });
+    await checkForUpdatesManual();
+    expect(getInstallModeForTests()).toBe("feed-only");
+
+    mockAutoUpdater._emit("update-downloaded", { version: "2.0.0" });
+    // Should not switch to ready-to-install under feed-only
+    expect(getUpdaterUiState()).not.toBe("ready-to-install");
+  });
+
+  it("ui listener errors are swallowed", async () => {
+    setUpdaterUiStateListener(() => {
+      throw new Error("listener boom");
+    });
+    await checkForUpdatesManual();
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("uiStateListener"),
+      expect.any(Error),
+    );
   });
 });
