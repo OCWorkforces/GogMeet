@@ -47,6 +47,7 @@ Only these main-process files may call `shell.openExternal` (scan-enforced):
 | `src/main/calendar/auth/google-oauth.ts` | System browser OAuth authorize URL |
 | `src/main/utils/system-settings.ts` | macOS System Settings deep links |
 | `src/main/system/notification.ts` | Notification click → settings/privacy panes |
+| `src/main/system/auto-updater.ts` | GitHub Releases page only (`https://github.com/iWorkforces/GogMeet/releases`) for update fallback |
 | `src/main/windows/about-window.ts` | About dialog homepage / license links |
 
 New call sites require a registry update + security review.

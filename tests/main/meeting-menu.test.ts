@@ -69,6 +69,7 @@ const baseCallbacks = {
   onOpenSettings: () => {},
   onJoinMeeting,
   onForcePoll,
+  onCheckForUpdates: () => {},
 };
 
 describe("buildMeetingMenuTemplate", () => {
@@ -116,19 +117,29 @@ describe("buildMeetingMenuTemplate", () => {
       });
     });
 
-    it("includes Refresh, Join Next, Settings, About, Quit after no-meetings label", () => {
+    it("includes Refresh, Join Next, Settings, Check for Updates, About, Quit after no-meetings label", () => {
+      const onCheckForUpdates = vi.fn();
       const items = buildMeetingMenuTemplate([], true, {
         ...baseCallbacks,
         onAbout,
         onOpenSettings,
+        onCheckForUpdates,
       });
 
       expect(items[0]?.label).toBe("No upcoming meetings");
       expect(findItem(items, "Join Next Meeting")).toBeDefined();
       expect(findItem(items, "Refresh")).toBeDefined();
       expect(findItem(items, "Settings...")).toBeDefined();
+      // Match "Check for Updates…" (unicode ellipsis) or ASCII "..."
+      const checkItem = items.find(
+        (i) => typeof i.label === "string" && i.label.startsWith("Check for Updates"),
+      );
+      expect(checkItem?.label).toMatch(/^Check for Updates/);
       expect(findItem(items, "About GogMeet")).toBeDefined();
       expect(findItem(items, "Quit")).toBeDefined();
+
+      checkItem?.click?.({} as Electron.MenuItem, undefined, {} as Electron.KeyboardEvent);
+      expect(onCheckForUpdates).toHaveBeenCalledOnce();
     });
 
     it("shows no-meetings when all events are all-day", () => {

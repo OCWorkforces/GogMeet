@@ -56,7 +56,7 @@ describe("assertCodesignDisplay", () => {
     const display = [
       "Identifier=com.ocworkforces.gogmeet",
       "CodeDirectory v=20500 flags=0x10000(runtime) hashes=123",
-      "Authority=Developer ID Application: OCWorkforces (ABCDE12345)",
+      "Authority=Developer ID Application: iWorkforces (ABCDE12345)",
       "Authority=Developer ID Certification Authority",
       "Authority=Apple Root CA",
     ].join("\n");
@@ -70,7 +70,7 @@ describe("assertCodesignDisplay", () => {
     const display = [
       "Identifier=com.ocworkforces.gogmeet",
       "CodeDirectory v=20500 flags=0x0(none) hashes=123",
-      "Authority=Developer ID Application: OCWorkforces (ABCDE12345)",
+      "Authority=Developer ID Application: iWorkforces (ABCDE12345)",
     ].join("\n");
 
     // When / Then
