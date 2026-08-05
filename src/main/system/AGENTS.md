@@ -9,7 +9,7 @@ Leaf modules wrapping Electron/OS platform APIs. Mostly one OS surface per file.
 | `power.ts` | Battery-aware `getPollInterval()` (`BASE_POLL_INTERVAL_MS` 2min AC / 4min battery), ref-counted sleep prevention, `initPowerEvents` / `isOnBattery`, `powerMonitor` events |
 | `display-horizon.ts` | Single wall-clock timer: `setDisplayHorizonEvents` / `clearDisplayHorizon` / `onDisplayHorizonTick`; lifecycle wires ticks to free-function `republishUiForDisplayTick` + tray force rebuild (no automation) |
 | `auto-launch.ts` | Login items: `getAutoLaunchStatus` / `setAutoLaunch` / `syncAutoLaunch` via `app.setLoginItemSettings()` |
-| `auto-updater.ts` | `initAutoUpdater()` + `isPortableInstall()`; no-op when unpackaged or portable |
+| `auto-updater.ts` | `initAutoUpdater()` + `isPortableInstall()`; no-op when unpackaged or portable; delayed `checkForUpdates` (~5s); auto-download + install on quit; portable via `PORTABLE_EXECUTABLE_DIR`/`FILE` or `GOGMEET_PORTABLE=1` |
 | `notification.ts` | `checkNotificationPermission` probe + `getNotificationSettingsDeepLink` (`x-apple…` / `ms-settings:…`) |
 | `shortcuts.ts` | `registerShortcuts(graph)` — CmdOrCtrl+Shift+M joins next meeting via `pickJoinTarget` + `graph.join.byId` |
 

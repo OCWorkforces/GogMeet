@@ -28,7 +28,7 @@ tests/
 ├── helpers/               # test-utils, ipc-sender, app-graph
 ├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
-├── main/                  # Node + Electron mock suites (~81 top-level *.test.ts + swift/)
+├── main/                  # Node + Electron mock suites (~84 top-level *.test.ts + swift/)
 │   └── swift/             # swift-helper-process, event-parser only
 ├── renderer/              # jsdom suites (+ rendering/, utils/)
 ├── shared/                # as.test, contracts, app-icon-aurora
@@ -52,7 +52,7 @@ tests/
 | `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers |
 | `guardrails-security.test.ts` | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix |
 | `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off, automation eligibility |
-| `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature |
+| `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature + microtask rebuild coalesce |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
 | `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy, generation-safe handoff |
 | `about-window.test.ts` | 320×380, CSP meta, aurora markup, https-only openExternal, close sentinel |

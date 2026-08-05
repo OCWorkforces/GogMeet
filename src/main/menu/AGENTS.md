@@ -43,7 +43,16 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder â
 
 ## CONSUMERS
 
-`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`, refreshes on `meeting-list-updated`, `calendar-status-updated`, display-horizon ticks, and `forceTrayMenuRefresh()` (e.g. completed-history toggle). Menu signature includes **upcoming** membership and the history toggle so ended meetings / preference flips invalidate the cached menu without calendar content changes. Installs with `setContextMenu()`; on Windows left-click rebuilds from cache then `popUpContextMenu`.
+`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`.
+
+| Trigger | Tray API | Notes |
+| --- | --- | --- |
+| `meeting-list-updated` / `calendar-status-updated` / theme | `requestTrayRebuild(win)` | Microtask-coalesces bursty signals into one rebuild |
+| User Refresh / Retry / Connect-granted | `forcePoll({ reason: "user" })` then `requestTrayRebuild(win, { force: true })` | Immediate re-fetch (no 10s poll coalesce); force clears menu signature |
+| Display-horizon ticks / completed-history toggle | `forceTrayMenuRefresh()` | **Sync** force rebuild (wall-clock membership must update before next paint/popup) |
+| Windows left-click | sync `refreshContextMenu` + `popUpContextMenu` | Soft `forcePoll({ reason: "auto" })` in parallel |
+
+Menu signature (`trayMenuSignature`) includes wall-clock **upcoming** membership and `showCompletedTodayMeetings` so ended meetings / preference flips invalidate the cached menu without calendar content changes. Installs with `setContextMenu()` before first activation.
 
 ## ANTI-PATTERNS
 

@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-04  
-**App version:** 1.18.0  
+**Updated:** 2026-08-05  
+**App version:** 1.18.1  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -10,7 +10,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 
 | Layer | Tech |
 | --- | --- |
-| Runtime | Electron `^43.2.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
+| Runtime | Electron `^43.3.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
 | Language | Typecheck via `@typescript/native` (TypeScript `^7.0.2`); package `typescript` `^6` for ESLint tooling; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
 | Build | Rslib for main/preload CJS; Rsbuild for three renderer entries |
 | Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` (`.nvmrc`) |
@@ -84,7 +84,7 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Display horizon | `system/display-horizon.ts` | wall-clock re-filter timer; no automation |
 | Swift one-shot runner | `swift/swift-helper-process.ts` | bounded spawn; integrity-only recompile in binary-manager |
 | Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
-| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph |
+| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph; `requestTrayRebuild` microtask-coalesces bus bursts; `forceTrayMenuRefresh` sync force (horizon/settings) |
 | Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save |
 | About UI | `windows/about-window.ts` | 320×380 data: HTML; canvas `#0d1117`; brand aurora icon; CSP meta; https-only repo |
 | App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML strings; About embeds; Settings injects `<style>` once |
@@ -198,7 +198,8 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
-- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then force menu rebuild.
+- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then `requestTrayRebuild({ force: true })`. Bus-driven list/status updates use microtask-coalesced `requestTrayRebuild`; display-horizon and completed-history toggle use sync `forceTrayMenuRefresh`.
+- Auto-updater: packaged non-portable only (`initAutoUpdater` last in lifecycle); portable skipped via `PORTABLE_EXECUTABLE_*` / `GOGMEET_PORTABLE=1`; delayed `checkForUpdates` (~5s); auto-download + install on quit; log-only errors (no user spam).
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
 - Performance / stability plan: `docs/plans/gogmeet-performance-stability-hardening.md` — product hardenings + measurement lab shipped; **no product optimization** from `retained` receipts (separate plan required). Weekly non-PR lab: `measurement.yml` (synthetic + optional native package jobs).
 - Packaged measurement probe: `GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage` is **lab/CI only** (never production user env). Requires packaged + `GOGMEET_PERF_TRACE=1` + isolated `--user-data-dir` (`gogmeet-perf-probe-` under tmpdir); private empty calendar; factory fail-closed on bad preflight. Measure scripts: exit **0** blocked/threshold, exit **1** timeout/crash/missing-trace.
