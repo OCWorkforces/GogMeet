@@ -239,7 +239,7 @@ sequenceDiagram
 # electron-builder.yml (or package.json build.publish)
 publish:
   provider: github
-  owner: OCWorkforces
+  owner: iWorkforces
   repo: GogMeet
 ```
 

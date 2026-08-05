@@ -18,6 +18,7 @@ const OPEN_EXTERNAL_ALLOW = new Set([
   "src/main/calendar/auth/google-oauth.ts",
   "src/main/utils/system-settings.ts",
   "src/main/system/notification.ts",
+  "src/main/system/auto-updater.ts",
   "src/main/windows/about-window.ts",
 ]);
 

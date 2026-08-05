@@ -33,6 +33,13 @@ export interface MenuCallbacks {
   onJoinMeeting: (id: EventId) => void;
   /** Force calendar poll (typically graph.scheduler.forcePoll). */
   onForcePoll: () => void;
+  /** Manual update check (typically checkForUpdatesManual). */
+  onCheckForUpdates: () => void;
+  /**
+   * Tray supplies live updater label/enabled (keeps this module free of system/auto-updater).
+   * Defaults to idle “Check for Updates…” when omitted (tests).
+   */
+  getUpdaterPresentation?: () => { label: string; enabled: boolean };
 }
 
 function statusRows(status: CalendarStatus): MenuItemConstructorOptions[] {
@@ -185,6 +192,10 @@ function footerItems(
 ): MenuItemConstructorOptions[] {
   const now = new Date();
   const next = pickJoinTarget(events, now.getTime());
+  const updater = callbacks.getUpdaterPresentation?.() ?? {
+    label: "Check for Updates…",
+    enabled: true,
+  };
   return [
     { type: "separator" },
     {
@@ -203,6 +214,13 @@ function footerItems(
     },
     { type: "separator" },
     { label: "Settings...", click: () => callbacks.onOpenSettings() },
+    {
+      label: updater.label,
+      enabled: updater.enabled,
+      click: () => {
+        callbacks.onCheckForUpdates();
+      },
+    },
     { label: "About GogMeet", click: () => callbacks.onAbout() },
     {
       label: "Quit",

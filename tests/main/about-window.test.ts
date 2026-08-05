@@ -68,9 +68,9 @@ vi.mock("../../src/main/utils/packageInfo.js", () => ({
     productName: "GogMeet",
     version: "1.16.3",
     description: "Calendar meeting reminders",
-    repository: "https://github.com/OCWorkforces/GogMeet",
-    homepage: "https://github.com/OCWorkforces/GogMeet",
-    author: "OCWorkforces Engineers",
+    repository: "https://github.com/iWorkforces/GogMeet",
+    homepage: "https://github.com/iWorkforces/GogMeet",
+    author: "iWorkforces Engineers",
   }),
 }));
 
@@ -139,8 +139,8 @@ describe("about-window", () => {
 
   it("exports isSafeAboutRepositoryUrl for https-only repos", async () => {
     const { isSafeAboutRepositoryUrl } = await getModule();
-    expect(isSafeAboutRepositoryUrl("https://github.com/OCWorkforces/GogMeet")).toBe(true);
-    expect(isSafeAboutRepositoryUrl("http://github.com/OCWorkforces/GogMeet")).toBe(false);
+    expect(isSafeAboutRepositoryUrl("https://github.com/iWorkforces/GogMeet")).toBe(true);
+    expect(isSafeAboutRepositoryUrl("http://github.com/iWorkforces/GogMeet")).toBe(false);
     expect(isSafeAboutRepositoryUrl("javascript:alert(1)")).toBe(false);
     expect(isSafeAboutRepositoryUrl("not a url")).toBe(false);
   });
@@ -171,8 +171,8 @@ describe("about-window", () => {
     expect(html).toContain("GogMeet");
     expect(html).toContain("Calendar meeting reminders");
     expect(html).toContain("Copyright");
-    expect(html).toContain("OCWorkforces Engineers");
-    const repo = "https://github.com/OCWorkforces/GogMeet";
+    expect(html).toContain("iWorkforces Engineers");
+    const repo = "https://github.com/iWorkforces/GogMeet";
     expect(html.match(new RegExp(`href="${repo}"`, "g"))?.length).toBe(1);
     expect(html).toContain('class="repo-link"');
     expect(html).toContain("app-icon-aurora");
@@ -294,9 +294,9 @@ describe("about-window", () => {
       | ((details: { url: string }) => { action: string })
       | undefined;
     expect(handler).toBeTypeOf("function");
-    const result = handler?.({ url: "https://github.com/OCWorkforces/GogMeet" });
+    const result = handler?.({ url: "https://github.com/iWorkforces/GogMeet" });
     expect(result).toEqual({ action: "deny" });
-    expect(shell.openExternal).toHaveBeenCalledWith("https://github.com/OCWorkforces/GogMeet");
+    expect(shell.openExternal).toHaveBeenCalledWith("https://github.com/iWorkforces/GogMeet");
   });
 
   it("denies non-repository openExternal targets", async () => {
@@ -424,7 +424,7 @@ describe("about-window", () => {
     const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0] as
       | ((details: { url: string }) => { action: string })
       | undefined;
-    expect(handler?.({ url: "https://github.com/OCWorkforces/GogMeet" })).toEqual({
+    expect(handler?.({ url: "https://github.com/iWorkforces/GogMeet" })).toEqual({
       action: "deny",
     });
     await Promise.resolve();
@@ -472,7 +472,7 @@ describe("about-window", () => {
         description: "Calendar meeting reminders",
         repository: "http://insecure.example/repo",
         homepage: "https://example.com",
-        author: "OCWorkforces Engineers",
+        author: "iWorkforces Engineers",
       }),
     }));
     vi.resetModules();

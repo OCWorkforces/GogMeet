@@ -56,7 +56,7 @@ mac:
 # electron-updater + electron-builder GitHub Releases feed
 publish:
   provider: github
-  owner: OCWorkforces
+  owner: iWorkforces
   repo: GogMeet
   releaseType: release
 
@@ -80,6 +80,11 @@ win:
     - portable
   # Path relative to buildResources (`build/`)
   icon: icon.ico
+  # When Authenticode signing is enabled, set publisherName to the certificate
+  # subject CN (or DN list) so electron-updater verifies update EXEs. Absent
+  # publisherName → verify skipped (unsigned dogfood; sha512 still enforced).
+  # publisherName:
+  #   - "Your Company Name"
   # electron-builder 26+: hash algorithms live under signtoolOptions (top-level
   # signingHashAlgorithms is rejected by the WindowsConfiguration schema).
   signtoolOptions:

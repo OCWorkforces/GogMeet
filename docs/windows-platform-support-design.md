@@ -716,7 +716,7 @@ portable:
 
 publish:
   provider: github
-  owner: OCWorkforces
+  owner: iWorkforces
   repo: GogMeet
   releaseType: release
 ```
@@ -1379,7 +1379,7 @@ portable:
 
 publish:
   provider: github
-  owner: OCWorkforces
+  owner: iWorkforces
   repo: GogMeet
   releaseType: release
 ```

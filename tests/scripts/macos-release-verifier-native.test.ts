@@ -33,7 +33,7 @@ const ARTIFACTS: readonly ReleaseArtifact[] = [
 const SIGNING_DISPLAY = [
   "Identifier=com.ocworkforces.gogmeet",
   "CodeDirectory v=20500 flags=0x10000(runtime) hashes=123",
-  "Authority=Developer ID Application: OCWorkforces (ABCDE12345)",
+  "Authority=Developer ID Application: iWorkforces (ABCDE12345)",
 ].join("\n");
 const ENTITLEMENTS = "<plist><dict><key>com.apple.security.cs.allow-jit</key><true/></dict></plist>";
 

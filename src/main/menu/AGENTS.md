@@ -18,6 +18,8 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 | `onOpenSettings` | yes | Settings window |
 | `onJoinMeeting(id)` | yes | `graph.join.byId` |
 | `onForcePoll()` | yes | tray: `forcePoll({ reason: "user" })` then force menu rebuild |
+| `onCheckForUpdates()` | yes | tray: `checkForUpdatesManual()` |
+| `getUpdaterPresentation?()` | optional | tray supplies live label/enabled; default idle “Check for Updates…” |
 | `onConnectGoogle` | optional | `graph.calendar.requestPermission` then user forcePoll + rebuild |
 | `onDisconnectGoogle` | optional | `graph.calendar.disconnect` |
 | `onRetryPoll` | optional | same as `onForcePoll` (user-intent) |
@@ -29,7 +31,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 - Meetings with URLs use a **submenu**: Join (`onJoinMeeting`) + Copy Link (`clipboard` + `buildMeetUrl`).
 - Meeting **labels** use domain `truncateMiddle` / `MEETING_TITLE_DISPLAY_MAX_CHARS` (**25**, middle `…`); full title stays on `MeetingEvent` (join/copy still use full event).
 - Optional **Completed today** section when `showCompletedTodayMeetings` is true: domain `filterCompletedTodayMeetings`, exclude all-day, newest-ended first, non-interactive labels only (no Join/Copy); same title truncate. Toggle is display-only (no scheduler restart).
-- Footer: Join Next Meeting (`pickJoinTarget` + `onJoinMeeting`), Refresh (`onForcePoll`), Settings…, About, Quit.
+- Footer: Join Next Meeting (`pickJoinTarget` + `onJoinMeeting`), Refresh (`onForcePoll`), Settings…, **Check for Updates…** (`onCheckForUpdates`; label/enabled from updater UI state), About, Quit.
 - `status: CalendarStatus` — optional last poll status from `facades/calendar-status.ts`.
 
 ### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks, status?, showCompletedToday?)`
@@ -43,7 +45,16 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 ## CONSUMERS
 
-`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`, refreshes on `meeting-list-updated`, `calendar-status-updated`, display-horizon ticks, and `forceTrayMenuRefresh()` (e.g. completed-history toggle). Menu signature includes **upcoming** membership and the history toggle so ended meetings / preference flips invalidate the cached menu without calendar content changes. Installs with `setContextMenu()`; on Windows left-click rebuilds from cache then `popUpContextMenu`.
+`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`.
+
+| Trigger | Tray API | Notes |
+| --- | --- | --- |
+| `meeting-list-updated` / `calendar-status-updated` / theme | `requestTrayRebuild(win)` | Microtask-coalesces bursty signals into one rebuild |
+| User Refresh / Retry / Connect-granted | `forcePoll({ reason: "user" })` then `requestTrayRebuild(win, { force: true })` | Immediate re-fetch (no 10s poll coalesce); force clears menu signature |
+| Display-horizon ticks / completed-history toggle | `forceTrayMenuRefresh()` | **Sync** force rebuild (wall-clock membership must update before next paint/popup) |
+| Windows left-click | sync `refreshContextMenu` + `popUpContextMenu` | Soft `forcePoll({ reason: "auto" })` in parallel |
+
+Menu signature (`trayMenuSignature`) includes wall-clock **upcoming** membership and `showCompletedTodayMeetings` so ended meetings / preference flips invalidate the cached menu without calendar content changes. Installs with `setContextMenu()` before first activation.
 
 ## ANTI-PATTERNS
 

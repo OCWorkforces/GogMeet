@@ -24,6 +24,11 @@ import { mainBus } from "./events.js";
 import { showAbout } from "./windows/about-window.js";
 import { isDarwin } from "./platform/os.js";
 import { isPerfTraceEnabled, perfTrace } from "./utils/performance-trace.js";
+import {
+  checkForUpdatesManual,
+  getUpdaterMenuPresentation,
+  setUpdaterUiStateListener,
+} from "./system/auto-updater.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,6 +101,10 @@ function menuCallbacks(mainWindow: BrowserWindow, graph: AppGraph) {
     onForcePoll: () => {
       userForcePollAndRebuild(mainWindow, graph);
     },
+    onCheckForUpdates: () => {
+      void checkForUpdatesManual();
+    },
+    getUpdaterPresentation: () => getUpdaterMenuPresentation(),
   };
 }
 
@@ -400,6 +409,11 @@ export function setupTray(mainWindow: BrowserWindow, graph: AppGraph): void {
     mainBus.on("calendar-status-updated", statusListener);
   }
 
+  // Rebuild menu when updater label changes (Checking… / Restart to Update…).
+  setUpdaterUiStateListener(() => {
+    forceTrayMenuRefresh();
+  });
+
   requestTrayRebuild(mainWindow, { force: true });
 
   tray.on("click", () => {
@@ -434,6 +448,7 @@ export function forceTrayMenuRefresh(): void {
  * Safe to call multiple times.
  */
 export function destroyTray(): void {
+  setUpdaterUiStateListener(null);
   trayGraph = null;
   lastRebuildWindow = null;
   if (meetingsListener) {

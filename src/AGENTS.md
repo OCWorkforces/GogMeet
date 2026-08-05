@@ -26,7 +26,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/scheduler/` | Facade + pure `planSchedule` + interpret adapters. |
 | `main/ipc-handlers/` | Typed IPC; handlers receive `AppGraph`. |
 | `main/app/` | Lifecycle + IPC registrar + packaged **performance-probe** contract/dispatcher/drivers. |
-| `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
+| `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history; microtask-coalesced `requestTrayRebuild` + sync `forceTrayMenuRefresh`); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
 | `main/index.ts` | Single-instance bootstrap; popover BrowserWindow **360×480**. |
 | `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
 | `main/windows/` | About (320×380, aurora icon), alert, settings (Dock + hide-cache) BrowserWindows. |
@@ -66,7 +66,7 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs), `main/windows/*` (about / settings / alert hide-reuse) |
 | Brand-icon aurora | `shared/utils/app-icon-aurora.ts` | pure CSS+HTML; About inline styles; Settings inject once |
 | Settings renderer | `renderer/settings/*` | schema v3 full UI; grouped lists; canvas `#0d1117`; brand aurora under title bar |
-| Auto-update | `main/system/auto-updater.ts` (portable skipped) |
+| Auto-update | `main/system/auto-updater.ts` (packaged non-portable only; portable skipped; ~5s delayed check) |
 
 ## src-local rules
 
