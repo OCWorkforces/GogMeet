@@ -21,7 +21,7 @@ Outlook / Microsoft 365 on Windows is planned for a later Graph-based release. S
 - Countdown text beside the tray icon on macOS; length-capped tooltip countdown on Windows.
 - Login item / launch-at-login support.
 - Join the next meeting with a URL via `Cmd+Shift+M` (macOS) or `Ctrl+Shift+M` (Windows).
-- Packaged installs check GitHub Releases for updates (`electron-updater`); **portable Windows builds do not auto-update**.
+- Packaged installs check GitHub Releases for updates (`electron-updater`). Use tray **Check for Updates…** for a manual check (Restart Now / Later when ready). **Portable Windows builds do not auto-update**; unsigned macOS builds may open the Releases page instead of installing in-app.
 
 ## Screenshots
 
@@ -31,7 +31,7 @@ _Settings for auto-open timing, launch at login, tomorrow's meetings, alert, not
 
 ## Download
 
-- **Official (Latest):** [GitHub Releases](https://github.com/OCWorkforces/GogMeet/releases) — signed and notarized builds from `main` / version tags.
+- **Official (Latest):** [GitHub Releases](https://github.com/iWorkforces/GogMeet/releases) — signed and notarized builds from `main` / version tags.
 - **Beta (pre-release):** same page, filter **Pre-release** — auto-built from `develop` as `vX.Y.Z-beta-N` (for example `v1.16.0-beta-1`). Prefer the DMG for your architecture (`arm64` Apple Silicon, `x64` Intel).
 
 Unsigned or ad-hoc beta builds may be blocked by Gatekeeper; see [Troubleshooting](#troubleshooting).
