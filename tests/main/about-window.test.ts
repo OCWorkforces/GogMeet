@@ -59,6 +59,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("node:fs", () => ({
+  existsSync: vi.fn().mockReturnValue(true),
   readFileSync: vi.fn().mockReturnValue("<svg></svg>"),
 }));
 

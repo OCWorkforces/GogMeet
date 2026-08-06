@@ -2,7 +2,7 @@ import { BrowserWindow, app, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPackageInfo } from "../utils/packageInfo.js";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
 import { bindWindowsThemeBackground, platformWindowChrome } from "../utils/window-chrome.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
@@ -25,11 +25,31 @@ let aboutDockHeld = false;
  */
 const ABOUT_CLOSE_URL = "https://gogmeet.local/__about_close__";
 
-const aboutIconSvg = readFileSync(
-  path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
-  "utf-8",
-);
-const ABOUT_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
+/**
+ * Built main: lib/main → ../../src/assets; Vitest source: src/main/windows → ../../../assets.
+ */
+function resolveAboutIconSvgPath(): string {
+  const candidates = [
+    path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
+    path.join(__dirname, "..", "..", "..", "assets", "about-icon.svg"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0]!;
+}
+
+let aboutIconDataUriCache: string | null = null;
+function getAboutIconDataUri(): string {
+  if (aboutIconDataUriCache !== null) {
+    return aboutIconDataUriCache;
+  }
+  const aboutIconSvg = readFileSync(resolveAboutIconSvgPath(), "utf-8");
+  aboutIconDataUriCache = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
+  return aboutIconDataUriCache;
+}
 
 declare module "electron" {
   interface BrowserWindow {
@@ -255,7 +275,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 </head>
 <body>
   <div class="stage">
-    ${appIconWithAuroraHtml(ABOUT_ICON_DATA_URI, { size: 96, className: "app-icon-aurora--about" })}
+    ${appIconWithAuroraHtml(getAboutIconDataUri(), { size: 96, className: "app-icon-aurora--about" })}
     <h1>${appName}</h1>
     <p class="version">Version ${version}</p>
     <p class="copyright">Copyright © ${year} ${author}</p>

@@ -10,7 +10,7 @@
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { SECURE_WEB_PREFERENCES } from "../utils/browser-window.js";
 import { bindWindowsThemeBackground, platformWindowChrome } from "../utils/window-chrome.js";
 import { escapeHtml } from "../../shared/utils/escape-html.js";
@@ -41,11 +41,34 @@ export type UpdateDialogResult = { response: number };
 const ACTION_PREFIX = "https://gogmeet.local/__update_action__/";
 const CLOSE_URL = "https://gogmeet.local/__update_close__";
 
-const aboutIconSvg = readFileSync(
-  path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
-  "utf-8",
-);
-const ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
+/**
+ * Resolve about-icon.svg for both runtime layouts:
+ * - Built main (`lib/main`): ../../src/assets (see tray.ts)
+ * - Source / Vitest (`src/main/windows`): ../../../assets
+ */
+function resolveAboutIconSvgPath(): string {
+  const candidates = [
+    path.join(__dirname, "..", "..", "src", "assets", "about-icon.svg"),
+    path.join(__dirname, "..", "..", "..", "assets", "about-icon.svg"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0]!;
+}
+
+/** Lazy load so importing this module (via auto-updater → tray) does not fail path probes in tests. */
+let iconDataUriCache: string | null = null;
+function getIconDataUri(): string {
+  if (iconDataUriCache !== null) {
+    return iconDataUriCache;
+  }
+  const aboutIconSvg = readFileSync(resolveAboutIconSvgPath(), "utf-8");
+  iconDataUriCache = `data:image/svg+xml,${encodeURIComponent(aboutIconSvg)}`;
+  return iconDataUriCache;
+}
 
 let updateWindow: BrowserWindow | null = null;
 let unbindTheme: (() => void) | null = null;
@@ -405,7 +428,7 @@ function buildHtml(options: UpdateDialogOptions): string {
   data-kind="${kind}"
 >
   <div class="stage">
-    ${appIconWithAuroraHtml(ICON_DATA_URI, { size: 88, className: "app-icon-aurora--update app-icon-aurora--about" })}
+    ${appIconWithAuroraHtml(getIconDataUri(), { size: 88, className: "app-icon-aurora--update app-icon-aurora--about" })}
     ${
       statusLabel.length > 0
         ? `<p class="eyebrow" id="update-eyebrow">${escapeHtml(statusLabel)}</p>`
