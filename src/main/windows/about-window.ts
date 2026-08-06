@@ -79,11 +79,8 @@ function presentAboutWindow(win: BrowserWindow): void {
   }
   // Always claim Dock while this dialog is presented (idempotent).
   holdAboutDock();
+  // Window focus only — do not steal keyboard focus into the GitHub link.
   win.focus();
-  // Re-focus Close for keyboard users without reloading the document.
-  void win.webContents
-    .executeJavaScript(`document.getElementById("about-close")?.focus();`)
-    .catch(() => undefined);
 }
 
 /**
@@ -173,10 +170,11 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     align-items: center;
     width: 100%;
     margin-top: 8px;
-    animation: about-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+    /* Strong ease-out; content settles under the aurora bloom */
+    animation: about-in 0.28s cubic-bezier(0.23, 1, 0.32, 1) both;
   }
   @keyframes about-in {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -219,7 +217,7 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     text-align: center;
     line-height: 1.4;
     max-width: 260px;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
   .actions {
     display: flex;
@@ -241,34 +239,17 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   }
   .repo-link:hover { opacity: 0.85; }
   .repo-link:active { transform: scale(0.97); opacity: 0.75; }
+  .repo-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .repo-link[aria-disabled="true"] {
     opacity: 0.4;
     pointer-events: none;
   }
-  button {
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    padding: 5px 22px;
-    min-width: 72px;
-    border-radius: 6px;
-    border: 0.5px solid var(--control-border);
-    background: var(--control-fill);
-    color: var(--text-primary);
-    cursor: pointer;
-    -webkit-app-region: no-drag;
-    transition: background-color 0.12s ease-out, transform 0.1s ease-out;
-  }
-  button:hover { background: var(--control-fill-hover); }
-  button:active { transform: scale(0.97); }
-  button:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
   @media (prefers-reduced-motion: reduce) {
-    .repo-link, button { transition: none; }
-    .repo-link:active, button:active { transform: none; }
+    .repo-link { transition: none; }
+    .repo-link:active { transform: none; }
   }
 </style>
 </head>
@@ -281,7 +262,6 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     <p class="blurb">${description}</p>
     <div class="actions">
       <a class="repo-link" ${repoHref} aria-label="View GogMeet on GitHub (opens in browser)">GitHub</a>
-      <button type="button" id="about-close">Close</button>
     </div>
   </div>
 </body>
@@ -290,8 +270,8 @@ export function showAbout(_mainWindow: BrowserWindow): void {
   const chrome = platformWindowChrome("about");
   const win = new BrowserWindow({
     width: 320,
-    // Compact stack + 16px bottom pad under Close (no middle void).
-    height: 380,
+    // Compact stack without Close button (Esc / traffic lights dismiss).
+    height: 360,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -341,15 +321,8 @@ export function showAbout(_mainWindow: BrowserWindow): void {
 
   win
     .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-    .then(() => {
-      if (win.isDestroyed() || win.webContents.isDestroyed()) return;
-      // Wire Close from main (page CSP has script-src 'none'). Sentinel nav is intercepted.
-      return win.webContents.executeJavaScript(
-        `document.getElementById("about-close")?.addEventListener("click",()=>{location.href=${JSON.stringify(ABOUT_CLOSE_URL)};});document.getElementById("about-close")?.focus();`,
-      );
-    })
     .catch((err: unknown) => {
-      console.error("[About] Failed to load or wire about window:", err);
+      console.error("[About] Failed to load about window:", err);
     });
 
   win.once("ready-to-show", () => {
