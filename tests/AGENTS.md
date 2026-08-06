@@ -55,7 +55,8 @@ tests/
 | `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature + microtask rebuild coalesce |
 | `display-horizon.test.ts` | wall-clock re-filter arm/fire |
 | `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy, generation-safe handoff |
-| `about-window.test.ts` | 320×380, CSP meta, aurora markup, https-only openExternal, close sentinel |
+| `about-window.test.ts` | 320×360, CSP meta, aurora markup, no Close, https-only openExternal, Esc/traffic-light dismiss |
+| `update-window.test.ts` | 340×340–400, aurora, checking/result phases, Esc dismiss, action sentinels, generation races |
 | `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
 
 ## Main-project mocks
@@ -109,5 +110,5 @@ bun run perf:workspace-fingerprint
 - Meeting titles: domain `truncateMiddle` (max 25) in tray menu + popover.
 - Google incremental sync tokens (schema v1) + provider merge/410 behavior.
 - Alert window hide/reuse + generation-safe queue (`autoOpenAt` preserved; destroy never cancels browser-open).
-- Settings/About brand aurora (`shared/utils/app-icon-aurora.ts`); About size 320×380 + aurora HTML assertions.
+- Settings/About/Update brand aurora (`shared/utils/app-icon-aurora.ts`); About 320×360 (no Close); Update native dialog + auto-updater session dismiss / cancelId tests.
 - Performance stability: Google pagination/429, watch stream bounds, bounded traces, packaged probe preflight (lab only).
