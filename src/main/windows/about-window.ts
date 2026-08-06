@@ -319,11 +319,9 @@ export function showAbout(_mainWindow: BrowserWindow): void {
     hideAboutWindow(win);
   });
 
-  win
-    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-    .catch((err: unknown) => {
-      console.error("[About] Failed to load about window:", err);
-    });
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch((err: unknown) => {
+    console.error("[About] Failed to load about window:", err);
+  });
 
   win.once("ready-to-show", () => {
     if (win.isDestroyed()) return;

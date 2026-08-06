@@ -431,9 +431,7 @@ function wireActionHandlers(win: BrowserWindow, buttonCount: number, defaultId: 
     );
   }
   if (buttonCount > 0) {
-    parts.push(
-      `document.getElementById(${JSON.stringify(`update-btn-${defaultId}`)})?.focus();`,
-    );
+    parts.push(`document.getElementById(${JSON.stringify(`update-btn-${defaultId}`)})?.focus();`);
   }
   void win.webContents.executeJavaScript(parts.join("")).catch(() => undefined);
 }
@@ -548,15 +546,12 @@ export async function presentUpdateDialog(
   const buttons = options.buttons ?? [];
   // Dismiss-only (no buttons): Escape/close → 0. With buttons: default cancel is last.
   // Callers may pass cancelId beyond the last index (e.g. single "Open Releases" + Escape dismiss).
-  const cancelId =
-    options.cancelId ?? (buttons.length > 0 ? buttons.length - 1 : 0);
+  const cancelId = options.cancelId ?? (buttons.length > 0 ? buttons.length - 1 : 0);
   const defaultId = options.defaultId ?? 0;
   activeCancelId = cancelId;
   activeButtonCount = buttons.length;
   activePhase = phase;
-  activeWindowHeight = updateWindowHeightForButtonCount(
-    phase === "checking" ? 0 : buttons.length,
-  );
+  activeWindowHeight = updateWindowHeightForButtonCount(phase === "checking" ? 0 : buttons.length);
   // Checking phase owns sessionDismissed clear only when beginUpdateDialogSession
   // was not already called; still safe to clear here for isolated checking presents.
   if (phase === "checking") {

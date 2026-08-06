@@ -231,8 +231,7 @@ async function showInfoDialog(
    */
   cancelId?: number,
 ): Promise<number> {
-  const resolvedCancel =
-    cancelId ?? (buttons.length > 0 ? buttons.length - 1 : 0);
+  const resolvedCancel = cancelId ?? (buttons.length > 0 ? buttons.length - 1 : 0);
   // User already closed the checking window — skip terminal dialogs.
   if (isUpdateSessionDismissed()) {
     return resolvedCancel;
