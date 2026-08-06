@@ -14,7 +14,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 | `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
 | `calendar/` | factory, providers (incl. **performance-probe**), **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync + lab probe |
 | `platform/` | `os.ts` | `isDarwin` / `isWin32` |
-| `windows/` | about (320×380, aurora), alert, settings (520×760, Dock) | BrowserWindow singletons; Settings/About canvas `#0d1117`; hide-cache; alert hide/reuse |
+| `windows/` | about (320×360, aurora), update (340×340–400, aurora), alert, settings (520×760, Dock) | BrowserWindow singletons; Settings/About/Update canvas `#0d1117`; hide-cache; alert hide/reuse |
 | `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
 | `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
 | `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
@@ -37,7 +37,7 @@ Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC ha
 9. Power events, shortcuts (`registerShortcuts(graph)`), notifications, auto-launch sync.
 10. `initAutoUpdater()` — packaged non-portable only.
 
-`shutdownApp()`: power cleanup → unsubscribe/clear display horizon → **`destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow`** → `graph.scheduler.stop()` + `graph.watcher.stop()` (or free-fn fallback) → unregister shortcuts → clear `activeGraph`.
+`shutdownApp()`: power cleanup → unsubscribe/clear display horizon → **`destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` / `destroyUpdateWindow`** → `graph.scheduler.stop()` + `graph.watcher.stop()` (or free-fn fallback) → unregister shortcuts → clear `activeGraph`.
 
 Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
 

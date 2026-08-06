@@ -11,7 +11,7 @@ import { nativeTheme } from "electron";
 import { isDarwin } from "../platform/os.js";
 
 /** Surfaces that need platform chrome defaults. */
-export type WindowChromeKind = "popover" | "settings" | "alert" | "about";
+export type WindowChromeKind = "popover" | "settings" | "alert" | "about" | "update";
 
 /**
  * Subset of BrowserWindow options that differ by OS.
@@ -37,6 +37,7 @@ export function windowsSolidBackgroundColor(kind: WindowChromeKind): string {
       return "#1c1c1e";
     case "settings":
     case "about":
+    case "update":
       return DIALOG_BACKGROUND_COLOR;
     case "alert":
       return "#1c1c1e";
@@ -58,6 +59,7 @@ export function platformWindowChrome(kind: WindowChromeKind): PlatformWindowChro
         };
       case "settings":
       case "about":
+      case "update":
       case "alert":
         return {
           backgroundColor: windowsSolidBackgroundColor(kind),
@@ -76,6 +78,7 @@ export function platformWindowChrome(kind: WindowChromeKind): PlatformWindowChro
       };
     case "settings":
     case "about":
+    case "update":
       // Solid product canvas (#0d1117) — skip vibrancy so the hex reads true.
       return {
         titleBarStyle: "hiddenInset",

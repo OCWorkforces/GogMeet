@@ -19,9 +19,9 @@
 ## Window chrome notes
 
 - **Popover:** Darwin vibrancy; Windows opaque `#1c1c1e`.
-- **Settings / About:** solid **`DIALOG_BACKGROUND_COLOR` (`#0d1117`)** on Darwin and Windows (no vibrancy — hex must read true). Matches renderer settings CSS and About inline styles.
+- **Settings / About / Update:** solid **`DIALOG_BACKGROUND_COLOR` (`#0d1117`)** on Darwin and Windows (no vibrancy — hex must read true). Matches renderer settings CSS and About/Update inline styles. Chrome kind union includes `"update"`.
 - **Alert:** Darwin `titleBarStyle: hiddenInset` only; always-on-top via `applyAlertAlwaysOnTop`.
-- `bindWindowsThemeBackground` keeps Windows solid fills updated; for settings/about the fill is fixed `#0d1117`.
+- `bindWindowsThemeBackground` keeps Windows solid fills updated; for settings/about/update the fill is fixed `#0d1117`.
 
 ## Performance trace
 
@@ -42,7 +42,7 @@
 | URL extract / clean description | `domain/services/url-extract.ts`, `clean-description.ts` |
 | Shell opener factory | `infrastructure/electron/shell-meeting-opener.ts` |
 | Unchecked casts | `shared/utils/as.ts` |
-| Brand-icon aurora (About/Settings) | `shared/utils/app-icon-aurora.ts` |
+| Brand-icon aurora (About/Settings/Update) | `shared/utils/app-icon-aurora.ts` |
 
 ## RULES
 

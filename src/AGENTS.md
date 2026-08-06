@@ -29,13 +29,13 @@ Application source is split by Electron process and Clean Architecture layers. K
 | `main/menu/`, `tray.ts`, `events.ts` | Tray menu builders + tray lifecycle (optional completed-today history; microtask-coalesced `requestTrayRebuild` + sync `forceTrayMenuRefresh`); bus events `meeting-list-updated` / `calendar-status-updated` / `power-state-changed`. |
 | `main/index.ts` | Single-instance bootstrap; popover BrowserWindow **360×480**. |
 | `main/system/` | Power, display-horizon, shortcuts, auto-launch, auto-updater, notifications. |
-| `main/windows/` | About (320×380, aurora icon), alert, settings (Dock + hide-cache) BrowserWindows. |
+| `main/windows/` | About (320×360, aurora, no Close), Update (340×340–400, aurora), alert, settings (Dock + hide-cache) BrowserWindows. |
 | `main/utils/` | CSP/window helpers, join hub, meet-url, **performance-trace**, logging. |
 | `main/platform/` | OS predicates (`isDarwin` / `isWin32`). |
 | `main/swift/` | EventKit helper compile/run/JSON Lines + **swift-helper-process** (Darwin leaf). |
 | `preload/` | `window.api` bridge. |
 | `renderer/` | popover, settings, alert UIs. |
-| `assets/` | tray icons (mac 18/36 + win 16/32) via `nativeImage.createFromPath()`; `about-icon.svg` for About data: URI + Settings brand (bundled). |
+| `assets/` | tray icons (mac 18/36 + win 16/32) via `nativeImage.createFromPath()`; `about-icon.svg` for About/Update data: URI + Settings brand (bundled). |
 
 ## Where to change things
 
@@ -63,10 +63,10 @@ Application source is split by Electron process and Clean Architecture layers. K
 | Opt-in perf marks | `main/utils/performance-trace.ts` + `performance-trace-file.ts` |
 | Packaged probes (lab) | `main/app/performance-probe*.ts`, `performance-probes/*` | never set `GOGMEET_PERF_PROBE` for product installs |
 | OS branching | `main/platform/os.ts` |
-| Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs), `main/windows/*` (about / settings / alert hide-reuse) |
-| Brand-icon aurora | `shared/utils/app-icon-aurora.ts` | pure CSS+HTML; About inline styles; Settings inject once |
+| Window chrome | `main/utils/window-chrome.ts` (`#0d1117` dialogs; kinds include `update`), `main/windows/*` (about / update / settings / alert hide-reuse) |
+| Brand-icon aurora | `shared/utils/app-icon-aurora.ts` | pure CSS+HTML; calm Settings base; fancy About/Update tier; a11y media queries |
 | Settings renderer | `renderer/settings/*` | schema v3 full UI; grouped lists; canvas `#0d1117`; brand aurora under title bar |
-| Auto-update | `main/system/auto-updater.ts` (packaged non-portable only; portable skipped; ~5s delayed check) |
+| Auto-update | `main/system/auto-updater.ts` + `main/windows/update-window.ts` (packaged non-portable; portable/unpackaged explain; native dialog) |
 
 ## src-local rules
 

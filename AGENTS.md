@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-05  
-**App version:** 1.18.2  
+**Updated:** 2026-08-06  
+**App version:** 1.18.3  
 **Branch:** develop
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
@@ -86,9 +86,10 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
 | Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph; `requestTrayRebuild` microtask-coalesces bus bursts; `forceTrayMenuRefresh` sync force (horizon/settings) |
 | Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save |
-| About UI | `windows/about-window.ts` | 320×380 data: HTML; canvas `#0d1117`; brand aurora icon; CSP meta; https-only repo |
-| App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML strings; About embeds; Settings injects `<style>` once |
-| Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; popover vibrancy; dialogs solid |
+| About UI | `windows/about-window.ts` | 320×360 data: HTML; canvas `#0d1117`; brand aurora; no Close (Esc / traffic lights); CSP; https-only repo |
+| Updates UI | `windows/update-window.ts` | 340×340–400 data: HTML; About-tier aurora; checking/result phases; dismiss-only Esc or multi-action buttons |
+| App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML; calm Settings base; fancy About/Update tier; a11y media queries |
+| Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; kinds `popover`/`settings`/`about`/`update`/`alert` |
 | Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
 | Opt-in perf trace | `main/utils/performance-trace.ts` + `performance-trace-file.ts` | `GOGMEET_PERF_TRACE=1`; 1024 rows / 1 MiB; fixed atomic `gogmeet-perf-trace-v1.jsonl` under userData |
 | Packaged probes | `app/performance-probe*.ts`, `app/performance-probes/*`, `calendar/providers/performance-probe-calendar.ts` | Lab only; never default product env |
@@ -191,7 +192,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches. Page chains capped at **50**; remaining `nextPageToken` or mid-chain malformed pages → `pagination-limit` (live partial when any calendar completes; no incomplete token/index/cache commit).
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.
 - Alert window: prefer hide/show reuse of a single BrowserWindow (`destroyAlertWindow` for shutdown/tests); generation-safe queue handoff (module-owned immediate; gen-mismatch must not clear `isAlertShowing` under concurrent reschedule; FIFO preserves `autoOpenAt`); payload omits `meetUrl` (join via id); force-destroy never cancels browser-open.
-- Settings / About canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off; brand mark under title bar uses `about-icon.svg` + shared aurora. About 320×380 data: HTML is not always-on-top (Settings is); compact content stack, **16px** bottom pad under Close; decorative aurora icon (brand blue `#4285F4`) via `appIconWithAuroraHtml` / `APP_ICON_AURORA_CSS`.
+- Settings / About / Update canvas is fixed product fill **`#0d1117`** (`DIALOG_BACKGROUND_COLOR` + renderer CSS). Settings 520×760 exposes full schema v3 timing UI (alert lead, late-join, quiet hours times); dependents disable when parent toggles are off; brand mark under title bar uses `about-icon.svg` + shared aurora (calmer **base** tier). About **320×360** data: HTML is not always-on-top (Settings is); compact stack, **no Close** (Esc / traffic lights; GitHub link not auto-focused); decorative **About-tier** aurora (brand blue `#4285F4`) via `appIconWithAuroraHtml` / `APP_ICON_AURORA_CSS`.
 - UI phases: `ready` / `empty` / `limited` (partial) / `offline-cached` (with `cacheAgeMs`) / `error` / …
 - Settings schema **v3**: includes `showCompletedTodayMeetings` (default `false`, display-only tray rebuild) plus full timing/automation fields surfaced in Settings UI. IPC still restarts scheduler only for TIMING_KEYS; completed-history toggle does not poll/restart.
 - Completed-today history (when enabled): same-local-day timed events with `end ≤ now`, newest-ended first; muted non-joinable rows in **tray menu** and **popover**. All-day excluded from tray history. Presentation timer in renderer (next end or local midnight); tray uses display-horizon + signature that includes the toggle.
@@ -199,7 +200,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
 - Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then `requestTrayRebuild({ force: true })`. Bus-driven list/status updates use microtask-coalesced `requestTrayRebuild`; display-horizon and completed-history toggle use sync `forceTrayMenuRefresh`.
-- Auto-updater: packaged non-portable only; install policy `full` (mac **Developer ID** / Windows NSIS) vs `feed-only` (ad-hoc/unsigned mac — Open Releases only). Quiet background check (~5s) + single-flight with tray **Check for Updates…** dialogs. Portable/unpackaged explain-only. Releases URL pinned to `iWorkforces/GogMeet`.
+- Auto-updater: packaged non-portable only; install policy `full` (mac **Developer ID** / Windows NSIS) vs `feed-only` (ad-hoc/unsigned mac — Open Releases only). Quiet background check (~5s) + single-flight with tray **Check for Updates…**. Manual path presents native **`windows/update-window.ts`** (aurora; checking → result; dismiss-only Esc or action buttons; session dismiss tracking). Portable/unpackaged explain-only. Releases URL pinned to `iWorkforces/GogMeet`.
 - Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
 - Performance / stability plan: `docs/plans/gogmeet-performance-stability-hardening.md` — product hardenings + measurement lab shipped; **no product optimization** from `retained` receipts (separate plan required). Weekly non-PR lab: `measurement.yml` (synthetic + optional native package jobs).
 - Packaged measurement probe: `GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage` is **lab/CI only** (never production user env). Requires packaged + `GOGMEET_PERF_TRACE=1` + isolated `--user-data-dir` (`gogmeet-perf-probe-` under tmpdir); private empty calendar; factory fail-closed on bad preflight. Measure scripts: exit **0** blocked/threshold, exit **1** timeout/crash/missing-trace.
