@@ -83,6 +83,14 @@ vi.mock("../../src/main/utils/packageInfo.js", () => ({
   })),
 }));
 
+vi.mock("../../src/main/windows/update-window.js", () => ({
+  presentUpdateDialog: vi.fn().mockResolvedValue({ response: 0 }),
+  beginUpdateDialogSession: vi.fn(),
+  isUpdateSessionDismissed: vi.fn(() => false),
+  destroyUpdateWindow: vi.fn(),
+  isUpdateDialogOpen: vi.fn(() => false),
+}));
+
 import {
   initAutoUpdater,
   isPortableInstall,
@@ -102,6 +110,10 @@ import {
 } from "../../src/main/system/auto-updater.js";
 import { isDarwin, isWin32 } from "../../src/main/platform/os.js";
 import { getPackageInfo } from "../../src/main/utils/packageInfo.js";
+import {
+  beginUpdateDialogSession,
+  isUpdateSessionDismissed,
+} from "../../src/main/windows/update-window.js";
 
 describe("isPortableInstall", () => {
   const keys = [
@@ -469,9 +481,11 @@ describe("checkForUpdatesManual", () => {
     );
 
     const first = checkForUpdatesManual();
+    // Wait until the in-flight check has actually started (after checking dialog).
     await vi.waitFor(() => {
-      expect(getUpdaterMenuPresentation().enabled).toBe(false);
+      expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
     });
+    expect(getUpdaterMenuPresentation().enabled).toBe(false);
 
     await checkForUpdatesManual(); // should no-op
     expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
@@ -766,5 +780,128 @@ describe("checkForUpdatesManual", () => {
       expect.stringContaining("uiStateListener"),
       expect.any(Error),
     );
+  });
+
+  it("begins a fresh dialog session on every manual check", async () => {
+    await checkForUpdatesManual();
+    expect(beginUpdateDialogSession).toHaveBeenCalled();
+  });
+
+  it("up-to-date path is dismiss-only (no OK) after a checking phase", async () => {
+    await checkForUpdatesManual();
+    const calls = mockShowMessageBox.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(calls.some((o) => o["phase"] === "checking")).toBe(true);
+    const result = calls.find((o) => String(o["message"] ?? "").includes("up to date"));
+    expect(result).toBeDefined();
+    expect(result?.["buttons"]).toEqual([]);
+    expect(result?.["phase"]).toBe("result");
+  });
+
+  it("skips terminal dialog when session dismissed mid-check", async () => {
+    vi.mocked(isUpdateSessionDismissed).mockReturnValue(true);
+    mockShowMessageBox.mockClear();
+    // beginUpdateDialogSession still runs, then showCheckingDialog, then early-outs
+    mockAutoUpdater.checkForUpdates.mockClear();
+    await checkForUpdatesManual();
+    // Checking presentation may still run; result "up to date" must not.
+    const resultDialogs = mockShowMessageBox.mock.calls.filter((c) =>
+      String((c[0] as { message?: string }).message ?? "").includes("up to date"),
+    );
+    expect(resultDialogs.length).toBe(0);
+    expect(getUpdaterUiState()).toBe("idle");
+    expect(getUpdaterMenuPresentation().enabled).toBe(true);
+    vi.mocked(isUpdateSessionDismissed).mockReturnValue(false);
+  });
+
+  it("portable dismiss (cancelId beyond button) does not open Releases", async () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\\portable";
+    mockShowMessageBox.mockImplementation(async (opts: { cancelId?: number; buttons?: string[] }) => {
+      expect(opts.buttons).toEqual(["Open Releases"]);
+      expect(opts.cancelId).toBe(1);
+      return { response: 1 }; // Escape / dismiss
+    });
+    mockOpenExternal.mockClear();
+    await checkForUpdatesManual();
+    expect(mockOpenExternal).not.toHaveBeenCalled();
+    delete process.env["PORTABLE_EXECUTABLE_DIR"];
+  });
+
+  it("ready-to-install re-offer still shows after a prior dismissed session", async () => {
+    // Arm ready state via download path first
+    let resolveDownload!: () => void;
+    const downloadPromise = new Promise<string[]>((resolve) => {
+      resolveDownload = () => resolve(["/tmp/update.exe"]);
+    });
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: "2.0.0" },
+      downloadPromise,
+    });
+    mockShowMessageBox.mockResolvedValue({ response: 1 }); // Later
+
+    const first = checkForUpdatesManual();
+    await vi.waitFor(() => {
+      expect(getUpdaterUiState()).toBe("downloading");
+    });
+    mockAutoUpdater._emit("update-downloaded", { version: "2.0.0" });
+    resolveDownload();
+    await first;
+    expect(getUpdaterUiState()).toBe("ready-to-install");
+
+    // Simulate sticky dismiss from a previous bug, then re-offer must still dialog
+    vi.mocked(isUpdateSessionDismissed).mockReturnValue(true);
+    mockShowMessageBox.mockClear();
+    mockShowMessageBox.mockResolvedValue({ response: 1 });
+    // beginUpdateDialogSession is called at entry — mock it to clear dismiss flag
+    vi.mocked(beginUpdateDialogSession).mockImplementation(() => {
+      vi.mocked(isUpdateSessionDismissed).mockReturnValue(false);
+    });
+    mockAutoUpdater.checkForUpdates.mockClear();
+    await checkForUpdatesManual();
+    expect(mockAutoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(mockShowMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buttons: expect.arrayContaining(["Restart Now", "Later"]),
+      }),
+    );
+    vi.mocked(isUpdateSessionDismissed).mockReturnValue(false);
+    vi.mocked(beginUpdateDialogSession).mockImplementation(() => undefined);
+  });
+
+  it("dismiss during download arms ready without result dialog and clears session", async () => {
+    let resolveDownload!: () => void;
+    const downloadPromise = new Promise<string[]>((resolve) => {
+      resolveDownload = () => resolve(["/tmp/update.exe"]);
+    });
+    mockAutoUpdater.checkForUpdates.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: "2.5.0" },
+      downloadPromise,
+    });
+
+    let dismissed = false;
+    vi.mocked(isUpdateSessionDismissed).mockImplementation(() => dismissed);
+    mockShowMessageBox.mockImplementation(async (opts: { phase?: string; message?: string }) => {
+      if (opts.phase === "checking" && String(opts.message ?? "").includes("Downloading")) {
+        dismissed = true; // user closes during download UI
+      }
+      return { response: -1 };
+    });
+
+    const manual = checkForUpdatesManual();
+    await vi.waitFor(() => {
+      expect(getUpdaterUiState()).toBe("downloading");
+    });
+    mockAutoUpdater._emit("update-downloaded", { version: "2.5.0" });
+    resolveDownload();
+    await manual;
+
+    const restartDialogs = mockShowMessageBox.mock.calls.filter((c) =>
+      String((c[0] as { message?: string }).message ?? "").includes("ready to install"),
+    );
+    expect(restartDialogs.length).toBe(0);
+    expect(getUpdaterUiState()).toBe("ready-to-install");
+    expect(getUpdaterMenuPresentation().enabled).toBe(true);
+    vi.mocked(isUpdateSessionDismissed).mockReturnValue(false);
   });
 });

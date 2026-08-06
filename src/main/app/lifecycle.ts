@@ -20,6 +20,7 @@ import { stopCalendarWatcher } from "../facades/calendar-watcher.js";
 import { destroyAlertWindow } from "../windows/alert-window.js";
 import { destroySettingsWindow } from "../windows/settings-window.js";
 import { destroyAboutWindow } from "../windows/about-window.js";
+import { destroyUpdateWindow } from "../windows/update-window.js";
 import { isPerfTraceEnabled, perfTrace } from "../utils/performance-trace.js";
 import type { PerfTraceStartupPhase } from "../utils/performance-trace.js";
 
@@ -229,6 +230,7 @@ export function shutdownApp(): void {
   destroyAlertWindow();
   destroySettingsWindow();
   destroyAboutWindow();
+  destroyUpdateWindow();
   const graph = activeGraph;
   if (graph) {
     graph.scheduler.stop();

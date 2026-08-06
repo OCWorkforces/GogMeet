@@ -70,7 +70,7 @@ describe("platformWindowChrome", () => {
     });
   });
 
-  it("uses solid #0d1117 for settings/about on Windows", async () => {
+  it("uses solid #0d1117 for settings/about/update on Windows", async () => {
     platformState.darwin = false;
     const { platformWindowChrome, DIALOG_BACKGROUND_COLOR } = await import(
       "../../src/main/utils/window-chrome.js"
@@ -82,9 +82,12 @@ describe("platformWindowChrome", () => {
     expect(platformWindowChrome("about")).toEqual({
       backgroundColor: "#0d1117",
     });
+    expect(platformWindowChrome("update")).toEqual({
+      backgroundColor: "#0d1117",
+    });
   });
 
-  it("matches settings chrome for about on Darwin with solid dialog fill", async () => {
+  it("matches settings chrome for about/update on Darwin with solid dialog fill", async () => {
     platformState.darwin = true;
     const { platformWindowChrome } = await import("../../src/main/utils/window-chrome.js");
     expect(platformWindowChrome("settings")).toEqual({
@@ -92,6 +95,7 @@ describe("platformWindowChrome", () => {
       backgroundColor: "#0d1117",
     });
     expect(platformWindowChrome("about")).toEqual(platformWindowChrome("settings"));
+    expect(platformWindowChrome("update")).toEqual(platformWindowChrome("settings"));
   });
 
   it("returns alert chrome on Windows and Darwin", async () => {
