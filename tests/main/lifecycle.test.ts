@@ -131,10 +131,12 @@ const {
   mockDestroyAlertWindow,
   mockDestroySettingsWindow,
   mockDestroyAboutWindow,
+  mockDestroyUpdateWindow,
 } = vi.hoisted(() => ({
   mockDestroyAlertWindow: vi.fn(),
   mockDestroySettingsWindow: vi.fn(),
   mockDestroyAboutWindow: vi.fn(),
+  mockDestroyUpdateWindow: vi.fn(),
 }));
 
 vi.mock("../../src/main/windows/alert-window.js", () => ({
@@ -148,6 +150,10 @@ vi.mock("../../src/main/windows/settings-window.js", () => ({
 
 vi.mock("../../src/main/windows/about-window.js", () => ({
   destroyAboutWindow: (...args: unknown[]) => mockDestroyAboutWindow(...args),
+}));
+
+vi.mock("../../src/main/windows/update-window.js", () => ({
+  destroyUpdateWindow: (...args: unknown[]) => mockDestroyUpdateWindow(...args),
 }));
 
 vi.mock("../../src/main/composition/app-graph.js", async (importOriginal) => {
@@ -335,6 +341,7 @@ describe("lifecycle", () => {
       expect(mockDestroyAlertWindow).toHaveBeenCalledOnce();
       expect(mockDestroySettingsWindow).toHaveBeenCalledOnce();
       expect(mockDestroyAboutWindow).toHaveBeenCalledOnce();
+      expect(mockDestroyUpdateWindow).toHaveBeenCalledOnce();
     });
 
     it("destroys dialogs after power cleanup and before scheduler stop", () => {
@@ -343,6 +350,7 @@ describe("lifecycle", () => {
       mockDestroyAlertWindow.mockImplementation(() => callOrder.push("destroy-alert"));
       mockDestroySettingsWindow.mockImplementation(() => callOrder.push("destroy-settings"));
       mockDestroyAboutWindow.mockImplementation(() => callOrder.push("destroy-about"));
+      mockDestroyUpdateWindow.mockImplementation(() => callOrder.push("destroy-update"));
       mockStopScheduler.mockImplementation(() => callOrder.push("stop"));
 
       shutdownApp();
@@ -352,6 +360,7 @@ describe("lifecycle", () => {
         "destroy-alert",
         "destroy-settings",
         "destroy-about",
+        "destroy-update",
         "stop",
       ]);
     });

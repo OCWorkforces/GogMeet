@@ -53,7 +53,7 @@ src/renderer/
 ## SETTINGS WINDOW (schema v3)
 
 - Visual system: System Settings–inspired **grouped inset lists** on fixed product canvas **`#0d1117`** (groups `#161b22`); dark `color-scheme`; prefers-contrast / reduced-motion.
-- Brand mark: 72px app icon with aurora under the title bar (`.settings-brand`); imports `about-icon.svg` + injects `APP_ICON_AURORA_CSS` once (`#app-icon-aurora-styles`). Same helper powers About (96px).
+- Brand mark: 72px app icon with aurora under the title bar (`.settings-brand`); imports `about-icon.svg` + injects `APP_ICON_AURORA_CSS` once (`#app-icon-aurora-styles`). Uses shared **base** aurora tier (calmer than About/Update fancy). Same helper powers About (96px) and Update (88px) with `.app-icon-aurora--about`.
 - Sections: **Calendar** · **Joining Meetings** · **Tray Menu** · **General** (`settings/index.ts` + `settings/styles.css`).
 - Calendar: `getUiState` / `requestPermission` / `disconnect`; `escapeHtml` for email + lastError + save errors; status dot + Connect/Disconnect/Reconnect.
 - Prefs auto-save: toggle / select / time → `window.api.settings.set()` → "Saved" (concurrent saves coalesced).

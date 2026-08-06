@@ -9,7 +9,7 @@ Leaf modules wrapping Electron/OS platform APIs. Mostly one OS surface per file.
 | `power.ts` | Battery-aware `getPollInterval()` (`BASE_POLL_INTERVAL_MS` 2min AC / 4min battery), ref-counted sleep prevention, `initPowerEvents` / `isOnBattery`, `powerMonitor` events |
 | `display-horizon.ts` | Single wall-clock timer: `setDisplayHorizonEvents` / `clearDisplayHorizon` / `onDisplayHorizonTick`; lifecycle wires ticks to free-function `republishUiForDisplayTick` + tray force rebuild (no automation) |
 | `auto-launch.ts` | Login items: `getAutoLaunchStatus` / `setAutoLaunch` / `syncAutoLaunch` via `app.setLoginItemSettings()` |
-| `auto-updater.ts` | `initAutoUpdater()` (quiet background ~5s) + `checkForUpdatesManual()` (tray dialogs) + `getUpdaterMenuPresentation()`; install policy `full` \| `feed-only` \| portable/unpackaged; mac full only with **Developer ID**; single-flight check; portable via `PORTABLE_EXECUTABLE_*` / `GOGMEET_PORTABLE=1` |
+| `auto-updater.ts` | `initAutoUpdater()` (quiet background ~5s) + `checkForUpdatesManual()` (native update window + tray labels) + `getUpdaterMenuPresentation()`; install policy `full` \| `feed-only` \| portable/unpackaged; mac full only with **Developer ID**; single-flight check; portable via `PORTABLE_EXECUTABLE_*` / `GOGMEET_PORTABLE=1`; **`beginUpdateDialogSession` each manual entry**; dialogs via `windows/update-window.ts` (`presentUpdateDialog` default; injectable `showMessageBox` for tests) |
 | `notification.ts` | `checkNotificationPermission` probe + `getNotificationSettingsDeepLink` (`x-apple…` / `ms-settings:…`) |
 | `shortcuts.ts` | `registerShortcuts(graph)` — CmdOrCtrl+Shift+M joins next meeting via `pickJoinTarget` + `graph.join.byId` |
 
@@ -26,7 +26,7 @@ Leaf modules wrapping Electron/OS platform APIs. Mostly one OS surface per file.
 - Never call `allowSleep()` without a matching prior `preventSleep()`.
 - Never request notification permission here; `notification.ts` is probe-only.
 - Never **download/install** outside `getUpdateInstallPolicy().kind === "full"` (feed-only/portable/unpackaged may still show explain dialogs).
-- Manual check surfaces dialogs; background startup check stays log-only (no Restart spam) and joins single-flight with manual.
+- Manual check surfaces the native **update window** (aurora; checking → downloading → result; session dismiss tracking; sticky-dismiss cleared per tray entry). Background startup check stays log-only (no Restart spam) and joins single-flight with manual.
 - macOS **full** only when `codesign` reports Developer ID Application (not ad-hoc). Otherwise **feed-only**: no autoDownload / autoInstallOnAppQuit; Open Releases.
 - Windows: `publisherName` absent skips Authenticode (sha512 still enforced); `GOGMEET_UNSIGNED=1` forces skip only when packaged (dogfood).
 - Releases open: allowlisted `shell.openExternal` to pinned `github.com/iWorkforces/GogMeet/releases` only.

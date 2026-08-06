@@ -68,7 +68,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 ## WINDOWS / SYSTEM / UTILS
 
 - Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature, user Refresh await+rebuild), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts` (microtask coalesce + reschedule start/end signature + force path).
-- Windows: `alert-window` (queue + hide/reuse + destroy + **generation-safe** immediate/height/close + `autoOpenAt` on queued entries), `settings-window` (520×760), `about-window` (320×380, aurora CSS/HTML, CSP, https-only repo, `isSafeAboutRepositoryUrl`), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
+- Windows: `alert-window` (queue + hide/reuse + destroy + **generation-safe** immediate/height/close + `autoOpenAt` on queued entries), `settings-window` (520×760), `about-window` (320×360, aurora CSS/HTML, CSP, https-only repo, no Close — Esc/traffic lights, `isSafeAboutRepositoryUrl`), `update-window` (340×340–400, aurora, Esc dismiss or action buttons, checking/result phases), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip + unpackaged no-op).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate), `log.test.ts`, `safe-storage-performance.test.ts`.
 

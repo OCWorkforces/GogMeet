@@ -1,6 +1,6 @@
 import { autoUpdater } from "electron-updater";
 import type { UpdateCheckResult } from "electron-updater";
-import { app, dialog, shell } from "electron";
+import { app, shell } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -8,6 +8,13 @@ import log from "electron-log";
 
 import { isDarwin, isWin32 } from "../platform/os.js";
 import { getPackageInfo } from "../utils/packageInfo.js";
+import {
+  beginUpdateDialogSession,
+  isUpdateSessionDismissed,
+  presentUpdateDialog,
+  type UpdateDialogOptions,
+  type UpdateDialogResult,
+} from "../windows/update-window.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -86,21 +93,9 @@ let macInstallEligibleCache: boolean | null = null;
 /** Optional listener so tray can rebuild “Checking…” labels. */
 let uiStateListener: (() => void) | null = null;
 
-type MessageBoxParams = {
-  type?: "none" | "info" | "error" | "question" | "warning";
-  buttons?: string[];
-  defaultId?: number;
-  cancelId?: number;
-  title?: string;
-  message: string;
-  detail?: string;
-};
-
-type MessageBoxResult = { response: number };
-
-/** Injected dialog host for tests. */
-let showMessageBoxImpl: (options: MessageBoxParams) => Promise<MessageBoxResult> = (options) =>
-  dialog.showMessageBox(options);
+/** Injected dialog host for tests (native update window in production). */
+let showMessageBoxImpl: (options: UpdateDialogOptions) => Promise<UpdateDialogResult> = (options) =>
+  presentUpdateDialog(options);
 /** Injected open-external for tests. */
 let openExternalImpl: (url: string) => Promise<void> = (url) => shell.openExternal(url);
 /** Injected mac install-eligibility probe for tests. */
@@ -147,7 +142,7 @@ export function setUpdaterUiStateListener(listener: (() => void) | null): void {
 
 /** Test-only: swap dialog / openExternal / codesign probe. */
 export function _setAutoUpdaterTestHooks(hooks: {
-  showMessageBox?: (options: MessageBoxParams) => Promise<MessageBoxResult>;
+  showMessageBox?: (options: UpdateDialogOptions) => Promise<UpdateDialogResult>;
   openExternal?: (url: string) => Promise<void>;
   /** When set, overrides Developer ID eligibility probe (true = full install). */
   isMacInstallEligible?: () => Promise<boolean>;
@@ -227,25 +222,64 @@ async function openReleasesPage(): Promise<void> {
 async function showInfoDialog(
   message: string,
   detail?: string,
-  buttons: string[] = ["OK"],
+  buttons: string[] = [],
+  type: UpdateDialogOptions["type"] = "info",
+  /**
+   * Escape / window close response. Defaults to last button index, or 0 when
+   * there are no buttons (dismiss-only). Pass `buttons.length` when a single
+   * action button should not fire on dismiss (e.g. Open Releases only).
+   */
+  cancelId?: number,
 ): Promise<number> {
+  const resolvedCancel = cancelId ?? (buttons.length > 0 ? buttons.length - 1 : 0);
+  // User already closed the checking window — skip terminal dialogs.
+  if (isUpdateSessionDismissed()) {
+    return resolvedCancel;
+  }
   dialogOpen = true;
   try {
     notifyUiListener();
     const result = await showMessageBoxImpl({
-      type: "info",
+      type,
       buttons,
       defaultId: 0,
-      cancelId: buttons.length - 1,
+      cancelId: resolvedCancel,
       title: "GogMeet Updates",
       message,
+      phase: "result",
       ...(detail !== undefined ? { detail } : {}),
     });
+    // Checking stub returns -1; treat as dismiss.
+    if (result.response < 0) {
+      return resolvedCancel;
+    }
     return result.response;
   } finally {
     dialogOpen = false;
     notifyUiListener();
   }
+}
+
+/** Open the aurora update window in checking phase (non-blocking for the poll). */
+async function showCheckingDialog(): Promise<void> {
+  dialogOpen = true;
+  notifyUiListener();
+  try {
+    await showMessageBoxImpl({
+      type: "info",
+      title: "GogMeet Updates",
+      message: "Checking for Updates…",
+      detail: "Looking for a newer version of GogMeet.",
+      buttons: [],
+      phase: "checking",
+    });
+  } catch (err: unknown) {
+    log.error("[auto-updater] checking dialog failed:", err);
+    dialogOpen = false;
+    notifyUiListener();
+  }
+  // Keep dialogOpen true while the check runs so the tray item stays disabled.
+  // Terminal showInfoDialog / dismiss clears it.
 }
 
 /**
@@ -364,7 +398,7 @@ async function showUserErrorDialog(message: string, detail: string): Promise<voi
   if (!userSessionActive || userErrorDialogShown) return;
   userErrorDialogShown = true;
   setUiState("error");
-  await showInfoDialog(message, detail);
+  await showInfoDialog(message, detail, [], "error");
   userSessionActive = false;
   setUiState(readyVersion && installMode === "full" ? "ready-to-install" : "idle");
 }
@@ -505,7 +539,9 @@ async function presentReadyToInstallDialog(version: string): Promise<void> {
       const r = await showInfoDialog(
         "Couldn’t install the update",
         "Try quitting GogMeet and reopening it, or download the latest release from GitHub.",
-        ["Open Releases", "OK"],
+        ["Open Releases"],
+        "error",
+        1, // Escape / close dismisses without opening Releases
       );
       if (r === 0) await openReleasesPage();
       setUiState("ready-to-install");
@@ -570,6 +606,10 @@ export async function checkForUpdatesManual(): Promise<void> {
   notifyUiListener();
 
   try {
+    // Fresh session for every tray entry (unpackaged / portable / ready re-offer / check).
+    // Prevents sticky sessionDismissed from a prior Escape from blocking Restart UI.
+    beginUpdateDialogSession();
+
     const availability = getUpdaterAvailability();
 
     if (availability.kind === "unpackaged") {
@@ -584,7 +624,9 @@ export async function checkForUpdatesManual(): Promise<void> {
       const response = await showInfoDialog(
         "Portable builds can’t auto-update",
         "Download the latest installer from GitHub Releases and replace this portable copy.",
-        ["Open Releases", "OK"],
+        ["Open Releases"],
+        "info",
+        1, // Escape / close dismisses without opening Releases
       );
       if (response === 0) {
         await openReleasesPage();
@@ -612,11 +654,22 @@ export async function checkForUpdatesManual(): Promise<void> {
     userSessionActive = true;
     userErrorDialogShown = false;
     setUiState("checking");
+    await showCheckingDialog();
 
     // feed-only (unsigned / ad-hoc mac): compare feed, never download/install.
     if (installMode === "feed-only") {
       try {
+        if (isUpdateSessionDismissed()) {
+          dialogOpen = false;
+          setUiState("idle");
+          return;
+        }
         const result = await runCheckForUpdates();
+        if (isUpdateSessionDismissed()) {
+          dialogOpen = false;
+          setUiState("idle");
+          return;
+        }
         if (!result || !result.isUpdateAvailable) {
           await showInfoDialog(`GogMeet is up to date (v${app.getVersion()})`);
           setUiState("idle");
@@ -646,27 +699,48 @@ export async function checkForUpdatesManual(): Promise<void> {
 
     // full install mode
     try {
+      if (isUpdateSessionDismissed()) {
+        dialogOpen = false;
+        setUiState("idle");
+        return;
+      }
       const result = await runCheckForUpdates();
+      if (isUpdateSessionDismissed()) {
+        dialogOpen = false;
+        setUiState("idle");
+        return;
+      }
       if (!result) {
         await showInfoDialog("Updates are not available for this install.");
-        userSessionActive = false;
         setUiState("idle");
         return;
       }
 
       if (!result.isUpdateAvailable) {
         await showInfoDialog(`GogMeet is up to date (v${app.getVersion()})`);
-        userSessionActive = false;
         setUiState("idle");
         return;
       }
 
       if (result.downloadPromise) {
         setUiState("downloading");
+        // Refresh the open dialog so the aurora keeps playing while we download.
+        if (!isUpdateSessionDismissed()) {
+          await showMessageBoxImpl({
+            type: "info",
+            title: "GogMeet Updates",
+            message: `Downloading v${result.updateInfo.version}…`,
+            detail: "GogMeet will notify you when the update is ready to install.",
+            buttons: [],
+            phase: "checking",
+          });
+          dialogOpen = true;
+          notifyUiListener();
+        }
         try {
           await result.downloadPromise;
           // Terminal guarantee: present dialog if download finished and we still own the session.
-          if (userSessionActive && !dialogOpen) {
+          if (!isUpdateSessionDismissed()) {
             if (readyVersion) {
               setUiState("ready-to-install");
               await presentReadyToInstallDialog(readyVersion);
@@ -677,6 +751,17 @@ export async function checkForUpdatesManual(): Promise<void> {
               setUiState("ready-to-install");
               await presentReadyToInstallDialog(version);
             }
+          } else {
+            // User dismissed progress UI; keep ready-to-install for tray re-offer when download finished.
+            if (readyVersion || result.updateInfo.version) {
+              if (!readyVersion) {
+                readyVersion = result.updateInfo.version;
+              }
+              setUiState("ready-to-install");
+            } else {
+              setUiState("idle");
+            }
+            dialogOpen = false;
           }
         } catch (err: unknown) {
           log.error("[auto-updater] download failed:", err);
@@ -684,6 +769,9 @@ export async function checkForUpdatesManual(): Promise<void> {
             "Couldn’t download the update",
             "Check your network connection and try again. Details are in the log.",
           );
+        } finally {
+          // Always clear user session ownership when leaving the download branch.
+          userSessionActive = false;
         }
         return;
       }
@@ -698,7 +786,6 @@ export async function checkForUpdatesManual(): Promise<void> {
       if (response === 0) {
         await openReleasesPage();
       }
-      userSessionActive = false;
       setUiState("idle");
     } catch (err: unknown) {
       log.error("[auto-updater] manual checkForUpdates failed:", err);
@@ -706,9 +793,16 @@ export async function checkForUpdatesManual(): Promise<void> {
         "Couldn’t check for updates",
         "Check your network connection and try again. Details are in the log.",
       );
+    } finally {
+      userSessionActive = false;
     }
   } finally {
     manualGate = false;
+    userSessionActive = false;
+    // Dismiss during checking leaves dialogOpen true — clear so the tray recovers.
+    if (isUpdateSessionDismissed()) {
+      dialogOpen = false;
+    }
     notifyUiListener();
   }
 }
@@ -727,7 +821,7 @@ export function _resetAutoUpdaterForTests(): void {
   checkInFlight = null;
   macInstallEligibleCache = null;
   uiStateListener = null;
-  showMessageBoxImpl = (options) => dialog.showMessageBox(options);
+  showMessageBoxImpl = (options) => presentUpdateDialog(options);
   openExternalImpl = (url) => shell.openExternal(url);
   macInstallEligibleProbe = null;
 }

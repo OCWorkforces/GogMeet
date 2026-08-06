@@ -59,6 +59,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("node:fs", () => ({
+  existsSync: vi.fn().mockReturnValue(true),
   readFileSync: vi.fn().mockReturnValue("<svg></svg>"),
 }));
 
@@ -132,7 +133,7 @@ describe("about-window", () => {
       resizable?: boolean;
     };
     expect(options.width).toBe(320);
-    expect(options.height).toBe(380);
+    expect(options.height).toBe(360);
     expect(options.resizable).toBe(false);
     expect(options.alwaysOnTop).toBe(false);
   });
@@ -163,7 +164,8 @@ describe("about-window", () => {
     const url = String(win?.loadURL.mock.calls[0]?.[0] ?? "");
     expect(url.startsWith("data:text/html")).toBe(true);
     const html = decodeURIComponent(url.replace(/^data:text\/html;charset=utf-8,/, ""));
-    expect(html).toContain('id="about-close"');
+    expect(html).not.toContain('id="about-close"');
+    expect(html).not.toContain(">Close<");
     expect(html).not.toContain("onclick=");
     expect(html).not.toContain("window.close()");
     expect(html).toContain("Content-Security-Policy");
@@ -176,25 +178,27 @@ describe("about-window", () => {
     expect(html.match(new RegExp(`href="${repo}"`, "g"))?.length).toBe(1);
     expect(html).toContain('class="repo-link"');
     expect(html).toContain("app-icon-aurora");
+    expect(html).toContain("app-icon-aurora--about");
     expect(html).toContain("app-icon-aurora__blob--core");
+    expect(html).toContain("app-icon-aurora__sheen");
+    expect(html).toContain("app-icon-aurora__flare");
+    expect(html).toContain("app-icon-aurora-bloom-in");
     expect(html).toContain("#4285F4");
   });
 
-  it("wires Close via executeJavaScript after load using a sentinel URL", async () => {
+  it("does not auto-focus GitHub or Close on present", async () => {
     const { showAbout } = await getModule();
     showAbout({} as never);
     const win = windowInstances[0];
     expect(win).toBeDefined();
 
-    // Allow the loadURL().then(...) microtask to run
+    // ready-to-show mock fires presentAboutWindow
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(win?.webContents.executeJavaScript).toHaveBeenCalled();
     const scripts = win?.webContents.executeJavaScript.mock.calls.map((c) => String(c[0] ?? "")) ?? [];
-    expect(scripts.some((s) => s.includes("about-close") && s.includes("https://gogmeet.local/__about_close__"))).toBe(
-      true,
-    );
+    expect(scripts.every((s) => !s.includes("repo-link") && !s.includes("about-close"))).toBe(true);
+    expect(win?.focus).toHaveBeenCalled();
   });
 
   it("hides (caches) the window when will-navigate hits the close sentinel", async () => {

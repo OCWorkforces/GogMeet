@@ -2,14 +2,15 @@
 
 **Parent:** `src/main/AGENTS.md`
 
-Auxiliary BrowserWindow factories beyond the main list window (often hidden; tray menu is primary list UI). Platform chrome from `utils/window-chrome.ts` (`popover` / `settings` / `alert` / `about`). Settings and About use solid product canvas **`#0d1117`** (`DIALOG_BACKGROUND_COLOR`).
+Auxiliary BrowserWindow factories beyond the main list window (often hidden; tray menu is primary list UI). Platform chrome from `utils/window-chrome.ts` (`popover` / `settings` / `alert` / `about` / `update`). Settings, About, and Update use solid product canvas **`#0d1117`** (`DIALOG_BACKGROUND_COLOR`).
 
 ## FILES
 
 | File | Role | Key Exports |
 |------|------|-------------|
 | `dock-visibility.ts` | Ref-counted macOS Dock show/hide for dialog holders | `acquireDockVisibility`, `releaseDockVisibility` |
-| `about-window.ts` | About box: data: HTML, 320×380, **hide-cache**, CSP `script-src 'none'`, https-only repo | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
+| `about-window.ts` | About box: data: HTML, 320×360, **hide-cache**, CSP `script-src 'none'`, https-only repo; no Close (Esc / traffic lights) | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
+| `update-window.ts` | Check for Updates dialog: data: HTML, 340×340–400 (dynamic), brand aurora, **hide-cache**, CSP `script-src 'none'`; dismiss-only Esc/traffic-light (no Close), or multi-action buttons | `presentUpdateDialog`, `destroyUpdateWindow`, `beginUpdateDialogSession`, `isUpdateSessionDismissed`, `updateWindowHeightForButtonCount` |
 | `alert-window.ts` | Meeting alert overlay: queue, uid coalesce, **hide/show reuse**, generation-safe handoff | `showAlert(event)`, `destroyAlertWindow()` |
 | `settings-window.ts` | Prefs 520×760; **hide-cache** + soft-refresh; Dock claim | `createSettingsWindow`, `destroySettingsWindow`, `getSettingsWindow` |
 
@@ -18,7 +19,7 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 | Task | Location |
 |------|----------|
 | Reuse vs reopen About | `showAbout` re-presents cached window (no reload) when still alive |
-| About close (CSP-safe) | sentinel hide-cache; `destroyAboutWindow` on quit |
+| About dismiss | Esc + traffic lights hide-cache (no Close button; no auto-focus on GitHub); `destroyAboutWindow` on quit |
 | About openExternal | exact package `repository` **and** `https:` via `isSafeAboutRepositoryUrl` |
 | Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` / `__alertGeneration` |
 | Hide/reuse vs recreate | `alert-window.ts` → prefer alive hidden window; `close` prevents default + `hide()`; `__forceDestroy` for real destroy |
@@ -27,17 +28,20 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 | Destroy / teardown | `destroyAlertWindow` clears immediate, bumps generation, clears queue; **never** `cancelPendingBrowserOpen` (user dismiss only) |
 | Defer next alert after hide | `processNextAlert()` uses `setImmediate` |
 | Project MeetingEvent → AlertPayload | `toAlertPayload()` (drops `meetUrl`; sets `hasMeetUrl`) |
-| Dock show/hide | Shared refcount via `dock-visibility.ts` (Settings + About holders) |
-| Theme solid fill (Windows) | `bindWindowsThemeBackground(win, "settings"\|"about")` |
-| Force teardown (quit/tests) | `destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` (lifecycle) |
+| Dock show/hide | Shared refcount via `dock-visibility.ts` (Settings + About + Update holders) |
+| Theme solid fill (Windows) | `bindWindowsThemeBackground(win, "settings"\|"about"\|"update")` |
+| Force teardown (quit/tests) | `destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` / `destroyUpdateWindow` (lifecycle) |
+| Update dialog phases | `presentUpdateDialog({ phase: "checking" \| "result", ... })`; checking returns immediately (`response: -1`); result waits for action sentinel / Escape |
+| Update action sentinels | `https://gogmeet.local/__update_action__/{n}` + `__update_close__` (will-navigate intercept) |
 
 ## NOTES
 
-- Settings loads via `loadWindowContent` (preload + session CSP). About is **data: HTML** (no preload / no `loadWindowContent`); embedded CSP meta + main navigation intercept for close sentinel. Package metadata is HTML-escaped.
-- About: **not** `alwaysOnTop`; traffic-light safe top padding; compact content stack (no middle void); **16px** bottom pad under Close; decorative 96px app icon with brand-blue aurora (`shared/utils/app-icon-aurora.ts` + `about-icon.svg` data: URI, non-link) + single GitHub text link; Escape + Close hide-cache the window.
+- Settings loads via `loadWindowContent` (preload + session CSP). About and Updates are **data: HTML** (no preload / no `loadWindowContent`); embedded CSP meta + main navigation intercept for close/action sentinels. Package metadata is HTML-escaped.
+- About: **not** `alwaysOnTop`; traffic-light safe top padding; compact content stack (no Close button); decorative 96px app icon with brand-blue aurora (`shared/utils/app-icon-aurora.ts` + `about-icon.svg` data: URI, non-link) + single GitHub text link; Escape + traffic lights hide-cache the window.
+- Updates: **not** `alwaysOnTop`; height **340** (checking / dismiss-only) / **380** (1 action) / **400** (2+ actions); same product canvas + **About-tier aurora** (`.app-icon-aurora--about`); info results are **buttonless** — “Press Esc to close” + traffic lights (no OK/Close); multi-choice outcomes keep action buttons (Restart Now / Later, Open Releases); `role="dialog"`; checking / downloading / result phases reuse one hide-cached window; auto-updater calls `presentUpdateDialog` instead of system `dialog.showMessageBox`.
 - Settings: `alwaysOnTop: true`; first open loads renderer once; subsequent opens only `show`/`focus` (state preserved). Brand aurora lives in the settings renderer (not this module).
 - Alert payload omits `meetUrl` by design; renderer joins via `app.joinMeeting(id)`.
 - Alert always-on-top uses `applyAlertAlwaysOnTop` (screen-saver level + all workspaces on Darwin; plain always-on-top on Windows).
 - Settings toggles Dock only when `app.dock` exists (macOS). App remains tray-only on Windows.
 - Scheduler restart / display-only tray rebuild on settings save is owned by IPC handlers, not these files.
-- About / settings / alert all **hide-cache** between presentations (`close` + `preventDefault` unless `__forceDestroy`). Real destroy on `shutdownApp` / test teardown. Alert `reuseGeneration` + `queuedImmediate` guard stale ready-to-show / DOM clear / height / close races after replacement or force-destroy.
+- About / settings / update / alert all **hide-cache** between presentations (`close` + `preventDefault` unless `__forceDestroy`). Real destroy on `shutdownApp` / test teardown (`destroyUpdateWindow` included). Alert `reuseGeneration` + `queuedImmediate` guard stale ready-to-show / DOM clear / height / close races after replacement or force-destroy.
