@@ -4,11 +4,11 @@
 
 Shared factories used across Vitest projects.
 
-| File | Role |
-| --- | --- |
-| `test-utils.ts` | Brand validators + meeting/settings fixtures (no `vi` / `expect`) |
-| `ipc-sender.ts` | Platform-correct authorized `file://` sender fixtures for IPC tests |
-| `app-graph.ts` | `testAppGraph(overrides)` → `createTestAppGraph` for handler/lifecycle suites |
+| File            | Role                                                                          |
+| --------------- | ----------------------------------------------------------------------------- |
+| `test-utils.ts` | Brand validators + meeting/settings fixtures (no `vi` / `expect`)             |
+| `ipc-sender.ts` | Platform-correct authorized `file://` sender fixtures for IPC tests           |
+| `app-graph.ts`  | `testAppGraph(overrides)` → `createTestAppGraph` for handler/lifecycle suites |
 
 Import path convention (note `.js` extension):
 
@@ -20,16 +20,16 @@ import { testAppGraph } from "../helpers/app-graph.js";
 
 ## EXPORTED HELPERS
 
-| Helper | Purpose |
-| --- | --- |
-| `createMockEvent` | Fully-formed `MeetingEvent` with sensible defaults |
-| `createMockSettings` | `AppSettings` from `DEFAULT_SETTINGS` (schema **v3**, incl. `showCompletedTodayMeetings`) + shallow overrides |
+| Helper                                                            | Purpose                                                                                                                           |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `createMockEvent`                                                 | Fully-formed `MeetingEvent` with sensible defaults                                                                                |
+| `createMockSettings`                                              | `AppSettings` from `DEFAULT_SETTINGS` (schema **v3**, incl. `showCompletedTodayMeetings`) + shallow overrides                     |
 | `authorizedInvokeEvent` / `authorizedOnEvent` / `rendererFileUrl` | Packaged renderer `file://` senders via `pathToFileURL(app.getAppPath()...)`; `RendererPage` = `"index" \| "settings" \| "alert"` |
-| `createMockIpcEvent` | Minimal invoke event; prefer authorized helpers for `validateSender` |
-| `isoFromNow` | ISO-8601 UTC offset from now |
-| `asTestEventId` / `asTestIsoUtc` / `asTestMeetUrl` | Throw-on-invalid wrappers around domain brand validators |
-| `okCalendarResult` | Live-complete `CalendarResult` fixture (exhaustive provenance fields) |
-| `testAppGraph` | Minimal production-shaped `AppGraph` with optional surface overrides (`skipBind`, calendar/settings/join/scheduler/watcher) |
+| `createMockIpcEvent`                                              | Minimal invoke event; prefer authorized helpers for `validateSender`                                                              |
+| `isoFromNow`                                                      | ISO-8601 UTC offset from now                                                                                                      |
+| `asTestEventId` / `asTestIsoUtc` / `asTestMeetUrl`                | Throw-on-invalid wrappers around domain brand validators                                                                          |
+| `okCalendarResult`                                                | Live-complete `CalendarResult` fixture (exhaustive provenance fields)                                                             |
+| `testAppGraph`                                                    | Minimal production-shaped `AppGraph` with optional surface overrides (`skipBind`, calendar/settings/join/scheduler/watcher)       |
 
 ## CONTRACTS
 
@@ -41,9 +41,9 @@ import { testAppGraph } from "../helpers/app-graph.js";
 
 ## LEGACY FACTORIES
 
-| Per-file factory | Where | Notes |
-| --- | --- | --- |
-| `makeEvent` | scheduler-* tests | Prefer `createMockEvent` for new tests |
-| `makeSwiftLine` | `swift/event-parser.test.ts` | Nine-string JSON Lines fixture; no shared replacement yet |
+| Per-file factory | Where                        | Notes                                                     |
+| ---------------- | ---------------------------- | --------------------------------------------------------- |
+| `makeEvent`      | scheduler-* tests            | Prefer `createMockEvent` for new tests                    |
+| `makeSwiftLine`  | `swift/event-parser.test.ts` | Nine-string JSON Lines fixture; no shared replacement yet |
 
 When extending an existing suite, match the surrounding style; when starting a new test file, use the helpers above.

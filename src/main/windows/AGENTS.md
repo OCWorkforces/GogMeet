@@ -6,33 +6,33 @@ Auxiliary BrowserWindow factories beyond the main list window (often hidden; tra
 
 ## FILES
 
-| File | Role | Key Exports |
-|------|------|-------------|
-| `dock-visibility.ts` | Ref-counted macOS Dock show/hide for dialog holders | `acquireDockVisibility`, `releaseDockVisibility` |
-| `about-window.ts` | About box: data: HTML, 320×360, **hide-cache**, CSP `script-src 'none'`, https-only repo; no Close (Esc / traffic lights) | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl` |
-| `update-window.ts` | Check for Updates dialog: data: HTML, 340×340–400 (dynamic), brand aurora, **hide-cache**, CSP `script-src 'none'`; dismiss-only Esc/traffic-light (no Close), or multi-action buttons | `presentUpdateDialog`, `destroyUpdateWindow`, `beginUpdateDialogSession`, `isUpdateSessionDismissed`, `updateWindowHeightForButtonCount` |
-| `alert-window.ts` | Meeting alert overlay: queue, uid coalesce, **hide/show reuse**, generation-safe handoff | `showAlert(event)`, `destroyAlertWindow()` |
-| `settings-window.ts` | Prefs 520×760; **hide-cache** + soft-refresh; Dock claim | `createSettingsWindow`, `destroySettingsWindow`, `getSettingsWindow` |
+| File                 | Role                                                                                                                                                                                   | Key Exports                                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `dock-visibility.ts` | Ref-counted macOS Dock show/hide for dialog holders                                                                                                                                    | `acquireDockVisibility`, `releaseDockVisibility`                                                                                         |
+| `about-window.ts`    | About box: data: HTML, 320×360, **hide-cache**, CSP `script-src 'none'`, https-only repo; no Close (Esc / traffic lights)                                                              | `showAbout`, `destroyAboutWindow`, `isSafeAboutRepositoryUrl`                                                                            |
+| `update-window.ts`   | Check for Updates dialog: data: HTML, 340×340–400 (dynamic), brand aurora, **hide-cache**, CSP `script-src 'none'`; dismiss-only Esc/traffic-light (no Close), or multi-action buttons | `presentUpdateDialog`, `destroyUpdateWindow`, `beginUpdateDialogSession`, `isUpdateSessionDismissed`, `updateWindowHeightForButtonCount` |
+| `alert-window.ts`    | Meeting alert overlay: queue, uid coalesce, **hide/show reuse**, generation-safe handoff                                                                                               | `showAlert(event)`, `destroyAlertWindow()`                                                                                               |
+| `settings-window.ts` | Prefs 520×760; **hide-cache** + soft-refresh; Dock claim                                                                                                                               | `createSettingsWindow`, `destroySettingsWindow`, `getSettingsWindow`                                                                     |
 
 ## WHERE TO LOOK
 
-| Task | Location |
-|------|----------|
-| Reuse vs reopen About | `showAbout` re-presents cached window (no reload) when still alive |
-| About dismiss | Esc + traffic lights hide-cache (no Close button; no auto-focus on GitHub); `destroyAboutWindow` on quit |
-| About openExternal | exact package `repository` **and** `https:` via `isSafeAboutRepositoryUrl` |
-| Alert queue + coalesce | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` / `__alertGeneration` |
-| Hide/reuse vs recreate | `alert-window.ts` → prefer alive hidden window; `close` prevents default + `hide()`; `__forceDestroy` for real destroy |
-| Reschedule in place | same uid, different startMs → `showAlertInternal` without canceling pending open |
-| Generation-safe handoff | Module-owned `queuedImmediate`; reserve slot before schedule; shift only inside callback; gen-mismatch must **not** clear `isAlertShowing` while a live presentation owns the slot; queue entries preserve `autoOpenAt` |
-| Destroy / teardown | `destroyAlertWindow` clears immediate, bumps generation, clears queue; **never** `cancelPendingBrowserOpen` (user dismiss only) |
-| Defer next alert after hide | `processNextAlert()` uses `setImmediate` |
-| Project MeetingEvent → AlertPayload | `toAlertPayload()` (drops `meetUrl`; sets `hasMeetUrl`) |
-| Dock show/hide | Shared refcount via `dock-visibility.ts` (Settings + About + Update holders) |
-| Theme solid fill (Windows) | `bindWindowsThemeBackground(win, "settings"\|"about"\|"update")` |
-| Force teardown (quit/tests) | `destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` / `destroyUpdateWindow` (lifecycle) |
-| Update dialog phases | `presentUpdateDialog({ phase: "checking" \| "result", ... })`; checking returns immediately (`response: -1`); result waits for action sentinel / Escape |
-| Update action sentinels | `https://gogmeet.local/__update_action__/{n}` + `__update_close__` (will-navigate intercept) |
+| Task                                | Location                                                                                                                                                                                                                |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reuse vs reopen About               | `showAbout` re-presents cached window (no reload) when still alive                                                                                                                                                      |
+| About dismiss                       | Esc + traffic lights hide-cache (no Close button; no auto-focus on GitHub); `destroyAboutWindow` on quit                                                                                                                |
+| About openExternal                  | exact package `repository` **and** `https:` via `isSafeAboutRepositoryUrl`                                                                                                                                              |
+| Alert queue + coalesce              | `alert-window.ts` → `pendingAlerts`, `isAlertShowing`, `__alertUid` / `__alertStartMs` / `__alertGeneration`                                                                                                            |
+| Hide/reuse vs recreate              | `alert-window.ts` → prefer alive hidden window; `close` prevents default + `hide()`; `__forceDestroy` for real destroy                                                                                                  |
+| Reschedule in place                 | same uid, different startMs → `showAlertInternal` without canceling pending open                                                                                                                                        |
+| Generation-safe handoff             | Module-owned `queuedImmediate`; reserve slot before schedule; shift only inside callback; gen-mismatch must **not** clear `isAlertShowing` while a live presentation owns the slot; queue entries preserve `autoOpenAt` |
+| Destroy / teardown                  | `destroyAlertWindow` clears immediate, bumps generation, clears queue; **never** `cancelPendingBrowserOpen` (user dismiss only)                                                                                         |
+| Defer next alert after hide         | `processNextAlert()` uses `setImmediate`                                                                                                                                                                                |
+| Project MeetingEvent → AlertPayload | `toAlertPayload()` (drops `meetUrl`; sets `hasMeetUrl`)                                                                                                                                                                 |
+| Dock show/hide                      | Shared refcount via `dock-visibility.ts` (Settings + About + Update holders)                                                                                                                                            |
+| Theme solid fill (Windows)          | `bindWindowsThemeBackground(win, "settings"\|"about"\|"update")`                                                                                                                                                        |
+| Force teardown (quit/tests)         | `destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` / `destroyUpdateWindow` (lifecycle)                                                                                                               |
+| Update dialog phases                | `presentUpdateDialog({ phase: "checking" \| "result", ... })`; checking returns immediately (`response: -1`); result waits for action sentinel / Escape                                                                 |
+| Update action sentinels             | `https://gogmeet.local/__update_action__/{n}` + `__update_close__` (will-navigate intercept)                                                                                                                            |
 
 ## NOTES
 

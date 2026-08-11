@@ -24,6 +24,7 @@ export function createRequestCalendarAccess(
         phase: "connecting",
         lastError: null,
         oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
+        darwinPartialRefreshDiagnostics: null,
       };
       deps.setUiState(connecting);
       deps.publisher.publishCalendarStatus(deps.getUiState());
@@ -39,6 +40,7 @@ export function createRequestCalendarAccess(
           lastError: null,
           accountEmail: email,
           oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
+          darwinPartialRefreshDiagnostics: null,
         };
         deps.setUiState(next);
         deps.publisher.publishCalendarStatus(deps.getUiState());
@@ -48,6 +50,7 @@ export function createRequestCalendarAccess(
           phase: status === "denied" ? "error" : "disconnected",
           lastError: status === "denied" ? "Google Calendar was not connected." : null,
           oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
+          darwinPartialRefreshDiagnostics: null,
         };
         deps.setUiState(next);
         deps.publisher.publishCalendarStatus(deps.getUiState());

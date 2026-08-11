@@ -11,6 +11,7 @@ type MockTrayInstance = {
   getBounds: ReturnType<typeof vi.fn>;
   popUpContextMenu: ReturnType<typeof vi.fn>;
   setContextMenu: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
 };
 
 vi.mock("electron", () => ({
@@ -58,6 +59,8 @@ vi.mock("../../src/main/facades/calendar.js", () => ({
     events: null,
     offline: false,
     oauthConfigured: false,
+    darwinPartialRefreshDiagnostics: null,
+    cacheAgeMs: null,
   }),
   requestCalendarPermission: vi.fn().mockResolvedValue("granted"),
   disconnectCalendar: vi.fn().mockResolvedValue(undefined),
@@ -340,7 +343,7 @@ describe("tray module exports", () => {
 
   it("updateTrayTitle sets Darwin title and Windows tooltip", async () => {
     platformState.darwin = true;
-    const { setupTray, updateTrayTitle, destroyTray } = await import("../../src/main/tray.js");
+    const { setupTray, updateTrayTitle } = await import("../../src/main/tray.js");
     const { Tray } = await import("electron");
     const mockWindow = {} as Parameters<typeof setupTray>[0];
     setupTray(mockWindow, testAppGraph());
@@ -416,10 +419,80 @@ describe("tray module exports", () => {
       events: [createMockEvent()],
       offline: true,
       oauthConfigured: true,
+      darwinPartialRefreshDiagnostics: null,
       cacheAgeMs: null,
     });
     await flushTrayRebuild();
     expect(trayInstance.setContextMenu).toHaveBeenCalled();
+  });
+
+  it("installs one rebuilt native menu when only Darwin diagnostic counts change", async () => {
+    const { setupTray } = await import("../../src/main/tray.js");
+    const { mainBus } = await import("../../src/main/events.js");
+    const { BrowserWindow, Menu, Tray } = await import("electron");
+    const event = createMockEvent();
+    const state = {
+      permission: "granted" as const,
+      phase: "limited" as const,
+      lastError: "Some calendars could not be refreshed",
+      accountEmail: null,
+      events: [event],
+      offline: false,
+      oauthConfigured: true,
+      cacheAgeMs: null,
+    };
+
+    setupTray(new BrowserWindow(), testAppGraph());
+    await flushTrayRebuild();
+    const trayInstance = getLatestTrayInstance(Tray);
+    mainBus.emit("calendar-status-updated", {
+      ...state,
+      darwinPartialRefreshDiagnostics: {
+        total: 1,
+        malformedRecord: 1,
+        malformedFieldCount: 0,
+        invalidIso: 0,
+        invalidId: 0,
+        duplicateUid: 0,
+      },
+    });
+    await flushTrayRebuild();
+    vi.mocked(Menu.buildFromTemplate).mockClear();
+    vi.mocked(trayInstance.setContextMenu).mockClear();
+
+    mainBus.emit("calendar-status-updated", {
+      ...state,
+      darwinPartialRefreshDiagnostics: {
+        total: 1,
+        malformedRecord: 0,
+        malformedFieldCount: 0,
+        invalidIso: 0,
+        invalidId: 1,
+        duplicateUid: 0,
+      },
+    });
+    await flushTrayRebuild();
+
+    expect(Menu.buildFromTemplate).toHaveBeenCalledOnce();
+    expect(trayInstance.setContextMenu).toHaveBeenCalledOnce();
+
+    vi.mocked(Menu.buildFromTemplate).mockClear();
+    vi.mocked(trayInstance.setContextMenu).mockClear();
+    mainBus.emit("calendar-status-updated", {
+      ...state,
+      darwinPartialRefreshDiagnostics: {
+        total: 1,
+        malformedRecord: 0,
+        malformedFieldCount: 0,
+        invalidIso: 0,
+        invalidId: 1,
+        duplicateUid: 0,
+      },
+    });
+    await flushTrayRebuild();
+
+    expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
+    expect(trayInstance.setContextMenu).not.toHaveBeenCalled();
   });
 
   it("theme update swaps tray image", async () => {
@@ -479,6 +552,8 @@ describe("tray module exports", () => {
           events: [event],
           offline: false,
           oauthConfigured: true,
+          darwinPartialRefreshDiagnostics: null,
+          cacheAgeMs: null,
         }),
         warmup: vi.fn(),
         invalidatePermissionCache: vi.fn(),
@@ -542,6 +617,8 @@ describe("tray module exports", () => {
           events: null,
           offline: false,
           oauthConfigured: true,
+          darwinPartialRefreshDiagnostics: null,
+          cacheAgeMs: null,
         }),
         warmup: vi.fn(),
         invalidatePermissionCache: vi.fn(),
@@ -591,6 +668,8 @@ describe("tray module exports", () => {
           events: null,
           offline: false,
           oauthConfigured: true,
+          darwinPartialRefreshDiagnostics: null,
+          cacheAgeMs: null,
         }),
         warmup: vi.fn(),
         invalidatePermissionCache: vi.fn(),
@@ -663,6 +742,8 @@ describe("tray module exports", () => {
           events: [event],
           offline: false,
           oauthConfigured: false,
+          darwinPartialRefreshDiagnostics: null,
+          cacheAgeMs: null,
         }),
         warmup: vi.fn(),
         invalidatePermissionCache: vi.fn(),

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import { CALENDAR_LIMITED_COPY } from "../../src/domain/entities/calendar-ui-state.js";
 import { truncateMiddle } from "../../src/domain/services/truncate-middle.js";
 import { createMockEvent, asTestIsoUtc } from "../helpers/test-utils.js";
 
@@ -1017,5 +1018,128 @@ describe("status rows and calendar tray extras", () => {
       baseCallbacks,
     );
     expect(items.some((i) => i.label === "Loading…")).toBe(true);
+  });
+
+  it("shows ordered disabled redacted details after the unchanged limited warning for Darwin", () => {
+    const event = makeEvent({
+      title: "Retained partial meeting",
+      startDate: asTestIsoUtc(todayAt(15).toISOString()),
+      endDate: asTestIsoUtc(todayAt(16).toISOString()),
+    });
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "limited",
+        lastError: CALENDAR_LIMITED_COPY,
+        accountEmail: null,
+        events: [event],
+        offline: false,
+        oauthConfigured: true,
+        darwinPartialRefreshDiagnostics: {
+          total: 15,
+          malformedRecord: 2,
+          malformedFieldCount: 3,
+          invalidIso: 4,
+          invalidId: 5,
+          duplicateUid: 1,
+        },
+        cacheAgeMs: null,
+      },
+      true,
+      baseCallbacks,
+    );
+
+    const labels = items
+      .map((item) => item.label)
+      .filter((label): label is string => typeof label === "string");
+    const warningIndex = labels.indexOf(CALENDAR_LIMITED_COPY);
+    const diagnostics = labels.slice(warningIndex, warningIndex + 7);
+    const warningItemIndex = items.findIndex((item) => item.label === CALENDAR_LIMITED_COPY);
+
+    expect(warningItemIndex).toBeGreaterThanOrEqual(0);
+    expect(items[warningItemIndex + 1]).toEqual({
+      label: "EventKit skipped 15 event records",
+      enabled: false,
+    });
+    expect(diagnostics).toEqual([
+      CALENDAR_LIMITED_COPY,
+      "EventKit skipped 15 event records",
+      "Malformed records: 2",
+      "Unexpected field count: 3",
+      "Invalid dates: 4",
+      "Missing event IDs: 5",
+      "Duplicate event IDs: 1",
+    ]);
+    for (const label of diagnostics) {
+      expect(findItem(items, label)).toMatchObject({ enabled: false });
+      expect(findItem(items, label)?.click).toBeUndefined();
+    }
+    expect(findItemContaining(items, "Retained partial meeting")?.submenu).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: "Join" })]),
+    );
+  });
+
+  it("suppresses zero-count rows while retaining the singular total detail for Darwin", () => {
+    const items = buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "limited",
+        lastError: CALENDAR_LIMITED_COPY,
+        accountEmail: null,
+        events: [],
+        offline: false,
+        oauthConfigured: true,
+        darwinPartialRefreshDiagnostics: {
+          total: 1,
+          malformedRecord: 0,
+          malformedFieldCount: 0,
+          invalidIso: 0,
+          invalidId: 1,
+          duplicateUid: 0,
+        },
+        cacheAgeMs: null,
+      },
+      true,
+      baseCallbacks,
+    );
+
+    expect(findItem(items, "EventKit skipped 1 event record")).toMatchObject({ enabled: false });
+    expect(findItem(items, "Missing event IDs: 1")).toMatchObject({ enabled: false });
+    expect(findItem(items, "Malformed records: 0")).toBeUndefined();
+    expect(findItem(items, "Unexpected field count: 0")).toBeUndefined();
+    expect(findItem(items, "Invalid dates: 0")).toBeUndefined();
+    expect(findItem(items, "Duplicate event IDs: 0")).toBeUndefined();
+  });
+
+  it("keeps Windows and Google limited output generic even when a summary is supplied", async () => {
+    platformState.darwin = false;
+    vi.resetModules();
+    const mod = await import("../../src/main/menu/meeting-menu.js");
+    const items = mod.buildCalendarTrayMenuTemplate(
+      {
+        permission: "granted",
+        phase: "limited",
+        lastError: CALENDAR_LIMITED_COPY,
+        accountEmail: "calendar@example.com",
+        events: [makeEvent()],
+        offline: false,
+        oauthConfigured: true,
+        darwinPartialRefreshDiagnostics: {
+          total: 1,
+          malformedRecord: 1,
+          malformedFieldCount: 0,
+          invalidIso: 0,
+          invalidId: 0,
+          duplicateUid: 0,
+        },
+        cacheAgeMs: null,
+      },
+      true,
+      baseCallbacks,
+    );
+
+    expect(findItem(items, CALENDAR_LIMITED_COPY)).toMatchObject({ enabled: false });
+    expect(items.some((item) => String(item.label).startsWith("EventKit skipped"))).toBe(false);
+    expect(items.some((item) => String(item.label).startsWith("Malformed records:"))).toBe(false);
   });
 });

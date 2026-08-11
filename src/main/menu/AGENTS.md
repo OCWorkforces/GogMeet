@@ -4,25 +4,25 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 ## FILES
 
-| File | Role |
-| --- | --- |
+| File              | Role                                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
 | `meeting-menu.ts` | `buildMeetingMenuTemplate`, `buildCalendarTrayMenuTemplate`, `MenuCallbacks` |
 
 ## CONTRACT
 
 ### `MenuCallbacks`
 
-| Callback | Required | Typical wiring |
-| --- | --- | --- |
-| `onAbout` | yes | About window |
-| `onOpenSettings` | yes | Settings window |
-| `onJoinMeeting(id)` | yes | `graph.join.byId` |
-| `onForcePoll()` | yes | tray: `forcePoll({ reason: "user" })` then force menu rebuild |
-| `onCheckForUpdates()` | yes | tray: `checkForUpdatesManual()` |
+| Callback                    | Required | Typical wiring                                                      |
+| --------------------------- | -------- | ------------------------------------------------------------------- |
+| `onAbout`                   | yes      | About window                                                        |
+| `onOpenSettings`            | yes      | Settings window                                                     |
+| `onJoinMeeting(id)`         | yes      | `graph.join.byId`                                                   |
+| `onForcePoll()`             | yes      | tray: `forcePoll({ reason: "user" })` then force menu rebuild       |
+| `onCheckForUpdates()`       | yes      | tray: `checkForUpdatesManual()`                                     |
 | `getUpdaterPresentation?()` | optional | tray supplies live label/enabled; default idle “Check for Updates…” |
-| `onConnectGoogle` | optional | `graph.calendar.requestPermission` then user forcePoll + rebuild |
-| `onDisconnectGoogle` | optional | `graph.calendar.disconnect` |
-| `onRetryPoll` | optional | same as `onForcePoll` (user-intent) |
+| `onConnectGoogle`           | optional | `graph.calendar.requestPermission` then user forcePoll + rebuild    |
+| `onDisconnectGoogle`        | optional | `graph.calendar.disconnect`                                         |
+| `onRetryPoll`               | optional | same as `onForcePoll` (user-intent)                                 |
 
 ### `buildMeetingMenuTemplate(events, showTomorrow, callbacks, status?, showCompletedToday?)`
 
@@ -39,22 +39,26 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 - Input: `CalendarUiState` (permission, phase, errors, events, offline, oauthConfigured, `cacheAgeMs`).
 - **Windows / non-Darwin:** Connect / Reconnect / Disconnect Google, error + Retry, offline hint.
 - **Darwin:** meeting list when granted; uses same meeting rows + footer.
-- **`phase === "limited"`:** show limited copy under meeting rows (partial live refresh).
+- **`phase === "limited"`:** show the existing generic limited warning under meeting rows. On Darwin only, follow it with disabled positive-count rows in this fixed order: skipped records, malformed records, unexpected field count, invalid dates, missing event IDs, duplicate event IDs. Google partials remain generic.
 - **`offline`:** “Offline — showing last synced meetings” when events present.
 - Same completed-today history rules as `buildMeetingMenuTemplate` when the preference is on.
 
 ## CONSUMERS
 
-`tray.ts` takes `AppGraph` in `setupTray(win, graph)`, builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`.
+`meeting-menu.ts` owns menu templates. `tray.ts` takes `AppGraph` in `setupTray(win, graph)` and owns menu signatures, rebuild coalescing, installation, and popup lifecycle. It builds menus from UI state + cached meetings + `settings.showCompletedTodayMeetings`; the renderer is not involved.
 
-| Trigger | Tray API | Notes |
-| --- | --- | --- |
-| `meeting-list-updated` / `calendar-status-updated` / theme | `requestTrayRebuild(win)` | Microtask-coalesces bursty signals into one rebuild |
-| User Refresh / Retry / Connect-granted | `forcePoll({ reason: "user" })` then `requestTrayRebuild(win, { force: true })` | Immediate re-fetch (no 10s poll coalesce); force clears menu signature |
-| Display-horizon ticks / completed-history toggle | `forceTrayMenuRefresh()` | **Sync** force rebuild (wall-clock membership must update before next paint/popup) |
-| Windows left-click | sync `refreshContextMenu` + `popUpContextMenu` | Soft `forcePoll({ reason: "auto" })` in parallel |
+| Trigger                                                    | Tray API                                                                        | Notes                                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `meeting-list-updated` / `calendar-status-updated` / theme | `requestTrayRebuild(win)`                                                       | Microtask-coalesces bursty signals into one rebuild                                |
+| User Refresh / Retry / Connect-granted                     | `forcePoll({ reason: "user" })` then `requestTrayRebuild(win, { force: true })` | Immediate re-fetch (no 10s poll coalesce); force clears menu signature             |
+| Display-horizon ticks / completed-history toggle           | `forceTrayMenuRefresh()`                                                        | **Sync** force rebuild (wall-clock membership must update before next paint/popup) |
+| Windows left-click                                         | sync `refreshContextMenu` + `popUpContextMenu`                                  | Soft `forcePoll({ reason: "auto" })` in parallel                                   |
 
-Menu signature (`trayMenuSignature`) includes wall-clock **upcoming** membership and `showCompletedTodayMeetings` so ended meetings / preference flips invalidate the cached menu without calendar content changes. Installs with `setContextMenu()` before first activation.
+Menu signature (`trayMenuSignature`) includes wall-clock **upcoming** membership, `showCompletedTodayMeetings`, and all six Darwin aggregate counts. A changed count rebuilds the native menu; an equal aggregate summary skips a non-forced rebuild. Tray installs with `setContextMenu()` before first activation.
+
+## Verification boundary
+
+Tests prove Electron menu-template and menu-install behavior. Synthetic-state visual rendering in SystemUIServer was not controllable, so there is no claim of actual SystemUIServer visual automation.
 
 ## ANTI-PATTERNS
 

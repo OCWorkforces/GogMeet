@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseEvents } from "../../src/main/swift/event-parser.js";
 import { cleanDescription } from "../../src/domain/services/clean-description.js";
 import {
-  getCalendarEventsResult,
   requestCalendarPermission,
   getCalendarPermissionStatus,
+  getCalendarEventsResult,
+  getCalendarUiState,
+  reportCalendarPollError,
   invalidateCalendarPermissionCache,
 } from "../../src/main/facades/calendar.js";
 import { resetCalendarProvider } from "../../src/main/calendar/factory.js";
-import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import { createDarwinEventKitProvider } from "../../src/main/calendar/providers/darwin-eventkit.js";
 
-const { execFileAsyncMock, runSwiftHelperMock } = vi.hoisted(() => ({
+const { ensureBinaryMock, execFileAsyncMock, runSwiftHelperMock } = vi.hoisted(() => ({
+  ensureBinaryMock: vi.fn().mockResolvedValue(undefined),
   execFileAsyncMock: vi.fn(),
   runSwiftHelperMock: vi.fn(),
 }));
@@ -23,7 +26,7 @@ vi.mock("node:child_process", async () => {
 });
 vi.mock("../../src/main/swift/binary-manager.js", () => ({
   runSwiftHelper: runSwiftHelperMock,
-  ensureBinary: vi.fn().mockResolvedValue(undefined),
+  ensureBinary: ensureBinaryMock,
 }));
 // Domain calendar uses the factory; force Darwin EventKit path in these tests.
 vi.mock("../../src/main/platform/os.js", () => ({
@@ -483,6 +486,7 @@ describe("parseEvents", () => {
 
 describe("getCalendarEventsResult diagnostics", () => {
   beforeEach(() => {
+    ensureBinaryMock.mockClear();
     runSwiftHelperMock.mockReset();
     resetCalendarProvider();
     invalidateCalendarPermissionCache();
@@ -493,33 +497,154 @@ describe("getCalendarEventsResult diagnostics", () => {
     resetCalendarProvider();
   });
 
-  it("logs only safe diagnostic metadata for malformed calendar records", async () => {
+  it("returns a live partial with one count-only aggregate warning for mixed EventKit output", async () => {
     const sentinels = {
       title: "SENTINEL_TITLE",
       email: "SENTINEL_EMAIL",
       url: "SENTINEL_URL",
       notes: "SENTINEL_NOTE",
     };
-    runSwiftHelperMock.mockResolvedValueOnce(
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    const validLine = makeSwiftLine(
+      "evt-valid",
+      "Valid Event",
+      start,
+      end,
+      "https://meet.google.com/valid-event",
+      "Work",
+      "false",
+    );
+    const malformedOutput = [
+      validLine,
       `not-json ${sentinels.title} ${sentinels.email} ${sentinels.url} ${sentinels.notes}`,
+      JSON.stringify([sentinels.title, sentinels.email, sentinels.url]),
+      makeSwiftLine(
+        "evt-invalid-iso",
+        sentinels.title,
+        "not-a-date",
+        "also-not-a-date",
+        sentinels.url,
+        "Work",
+        "false",
+        sentinels.email,
+        sentinels.notes,
+      ),
+      makeSwiftLine(
+        "   ",
+        sentinels.title,
+        start,
+        end,
+        sentinels.url,
+        "Work",
+        "false",
+        sentinels.email,
+        sentinels.notes,
+      ),
+      makeSwiftLine(
+        "evt-valid",
+        sentinels.title,
+        start,
+        end,
+        sentinels.url,
+        "Work",
+        "false",
+        sentinels.email,
+        sentinels.notes,
+      ),
+    ].join("\n");
+    runSwiftHelperMock.mockResolvedValueOnce(malformedOutput);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await createDarwinEventKitProvider().getEvents(new AbortController().signal);
+
+    const aggregate = {
+      total: 5,
+      malformedRecord: 1,
+      malformedFieldCount: 1,
+      invalidIso: 1,
+      invalidId: 1,
+      duplicateUid: 1,
+    };
+    expect(result).toMatchObject({
+      kind: "ok",
+      source: "live",
+      completeness: "partial",
+      events: [
+        {
+          id: "evt-valid",
+          title: "Valid Event",
+          startDate: start,
+          endDate: end,
+        },
+      ],
+      darwinPartialRefreshDiagnostics: aggregate,
+    });
+    expect(warn.mock.calls).toEqual([[aggregate]]);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(sentinels.title);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(sentinels.email);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(sentinels.url);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(sentinels.notes);
+    expect(runSwiftHelperMock).toHaveBeenCalledTimes(1);
+    expect(ensureBinaryMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a complete EventKit result without an aggregate warning for clean output", async () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    runSwiftHelperMock.mockResolvedValueOnce(
+      makeSwiftLine(
+        "evt-clean",
+        "Clean Event",
+        start,
+        end,
+        "https://meet.google.com/clean-event",
+        "Work",
+        "false",
+      ),
     );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    const result = await getCalendarEventsResult();
+    const result = await createDarwinEventKitProvider().getEvents(new AbortController().signal);
 
-    expect(result).toMatchObject({ kind: "ok", source: "live", completeness: "partial", events: [] });
-    if (result.kind === "ok" && result.source === "live") {
-      expect(result.observedAt).toBeTypeOf("number");
-    }
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      "[calendar:darwin] Parse diagnostic: line 1: malformed_record",
+    expect(result).toMatchObject({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      events: [{ id: "evt-clean", title: "Clean Event", startDate: start, endDate: end }],
+    });
+    expect("darwinPartialRefreshDiagnostics" in result).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+    expect(runSwiftHelperMock).toHaveBeenCalledTimes(1);
+    expect(ensureBinaryMock).not.toHaveBeenCalled();
+  });
+
+  it("clears a Darwin partial summary when a poll-level error retains its events", async () => {
+    const start = isoFromNow(60);
+    const end = isoFromNow(90);
+    const validLine = makeSwiftLine(
+      "evt-poll-error",
+      "Valid Event",
+      start,
+      end,
+      "https://meet.google.com/poll-error",
+      "Work",
+      "false",
     );
-    const logged = warn.mock.calls.flat().map(String).join("\n");
-    expect(logged).not.toContain(sentinels.title);
-    expect(logged).not.toContain(sentinels.email);
-    expect(logged).not.toContain(sentinels.url);
-    expect(logged).not.toContain(sentinels.notes);
+    runSwiftHelperMock.mockResolvedValueOnce(`${validLine}\nnot-json`);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await getCalendarEventsResult();
+    if (result.kind !== "ok") throw new Error("expected partial calendar result");
+    expect(getCalendarUiState().darwinPartialRefreshDiagnostics).toMatchObject({ total: 1 });
+
+    reportCalendarPollError("network unavailable", result.events);
+
+    expect(getCalendarUiState()).toMatchObject({
+      phase: "offline-cached",
+      darwinPartialRefreshDiagnostics: null,
+    });
+    warn.mockRestore();
   });
 });
 

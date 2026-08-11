@@ -32,6 +32,7 @@ tests/renderer/
 - Cast helper installed via `setup.as.ts` — prefer `.As<T>()`.
 - Meeting list: `parts.push()` + `.join('')`, never `html += ...`.
 - Settings: assert control **ids** (not hybrid switch ARIA); cover connect→disconnect round-trip; open-before options 0–10; dependent disable when auto-open off; alert-lead / late-join saves. Brand aurora is pure shared CSS/HTML (unit-tested under `tests/shared/`); settings suite focuses on form wiring.
+- `main-ui.test.ts` covers the limited-state presentation while asserting that Darwin aggregate diagnostics and native tray warning text never appear in renderer output. Diagnostic detail belongs to the Darwin tray, not the popover.
 
 ## ANTI-PATTERNS
 

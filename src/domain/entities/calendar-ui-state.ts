@@ -1,4 +1,4 @@
-import type { CalendarPermission } from "./calendar-result.js";
+import type { CalendarPermission, DarwinPartialRefreshDiagnostics } from "./calendar-result.js";
 import type { MeetingEvent } from "./meeting-event.js";
 
 /** High-level tray/settings presentation phase for calendar connectivity. */
@@ -18,6 +18,7 @@ export interface CalendarUiState {
   readonly events: MeetingEvent[] | null;
   readonly offline: boolean;
   readonly oauthConfigured: boolean;
+  readonly darwinPartialRefreshDiagnostics: DarwinPartialRefreshDiagnostics | null;
   /**
    * Age of offline cache in ms when phase is offline-cached; null otherwise.
    * Derived from cachedAt at publish time.
@@ -34,6 +35,7 @@ export function defaultCalendarUiState(): CalendarUiState {
     events: null,
     offline: false,
     oauthConfigured: false,
+    darwinPartialRefreshDiagnostics: null,
     cacheAgeMs: null,
   };
 }

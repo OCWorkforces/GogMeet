@@ -4,17 +4,17 @@
 
 ## FILES
 
-| File | Role | Key Exports |
-|------|------|-------------|
-| `browser-window.ts` | BrowserWindow config factory, CSP enforcement | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()` |
-| `window-chrome.ts` | Platform chrome + dialog canvas `#0d1117` + alert always-on-top | `DIALOG_BACKGROUND_COLOR`, `platformWindowChrome()`, `windowsSolidBackgroundColor()`, `bindWindowsThemeBackground()`, `applyAlertAlwaysOnTop()` |
-| `meet-url.ts` | Thin allowlisted open (delegates to ShellMeetingOpener) | `openMeetingUrl()` |
-| `join-meeting.ts` | Join hub free function (default-bound use case) | `joinMeetingById()`, `bindJoinMeeting()` |
-| `packageInfo.ts` | Lazy-load + cache `package.json` | `getPackageInfo()`, `PackageInfo`, `clearPackageInfoCache`, `isPackageInfoLoaded` |
-| `log.ts` | electron-log bootstrap + scopes | `configureMainLogging()`, `mainLog`, `schedulerLog`, `calendarLog` |
-| `system-settings.ts` | Open OS settings (non-meeting egress) | `openSystemSettings()` |
-| `performance-trace.ts` | Opt-in redacted bounded buffer (rows/bytes caps, startup-phase enum, terminal reserve) | `perfTrace`, `MAX_PERF_TRACE_ROWS` (1024), `MAX_PERF_TRACE_SERIALIZED_BYTES` (1 MiB), `PERF_TRACE_STARTUP_PHASES` |
-| `performance-trace-file.ts` | Fixed atomic JSONL sink under Electron `userData` | `flushPerfTraceToUserData`, `PERF_TRACE_FILENAME`, `registerPerfTraceBeforeQuitFlush` |
+| File                        | Role                                                                                   | Key Exports                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `browser-window.ts`         | BrowserWindow config factory, CSP enforcement                                          | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()`                                                        |
+| `window-chrome.ts`          | Platform chrome + dialog canvas `#0d1117` + alert always-on-top                        | `DIALOG_BACKGROUND_COLOR`, `platformWindowChrome()`, `windowsSolidBackgroundColor()`, `bindWindowsThemeBackground()`, `applyAlertAlwaysOnTop()` |
+| `meet-url.ts`               | Thin allowlisted open (delegates to ShellMeetingOpener)                                | `openMeetingUrl()`                                                                                                                              |
+| `join-meeting.ts`           | Join hub free function (default-bound use case)                                        | `joinMeetingById()`, `bindJoinMeeting()`                                                                                                        |
+| `packageInfo.ts`            | Lazy-load + cache `package.json`                                                       | `getPackageInfo()`, `PackageInfo`, `clearPackageInfoCache`, `isPackageInfoLoaded`                                                               |
+| `log.ts`                    | electron-log bootstrap + scopes                                                        | `configureMainLogging()`, `mainLog`, `schedulerLog`, `calendarLog`                                                                              |
+| `system-settings.ts`        | Open OS settings (non-meeting egress)                                                  | `openSystemSettings()`                                                                                                                          |
+| `performance-trace.ts`      | Opt-in redacted bounded buffer (rows/bytes caps, startup-phase enum, terminal reserve) | `perfTrace`, `MAX_PERF_TRACE_ROWS` (1024), `MAX_PERF_TRACE_SERIALIZED_BYTES` (1 MiB), `PERF_TRACE_STARTUP_PHASES`                               |
+| `performance-trace-file.ts` | Fixed atomic JSONL sink under Electron `userData`                                      | `flushPerfTraceToUserData`, `PERF_TRACE_FILENAME`, `registerPerfTraceBeforeQuitFlush`                                                           |
 
 ## Window chrome notes
 
@@ -35,14 +35,14 @@
 
 ## CANONICAL HOMES (not in this package)
 
-| Concern | Canonical home |
-| --- | --- |
-| URL allowlist + validate | `domain/services/url-validation.ts`, `domain/policies/meet-url-allowlist.ts` |
-| buildMeetUrl / detectPlatform | `domain/services/build-meet-url.ts`, `platform.ts` |
-| URL extract / clean description | `domain/services/url-extract.ts`, `clean-description.ts` |
-| Shell opener factory | `infrastructure/electron/shell-meeting-opener.ts` |
-| Unchecked casts | `shared/utils/as.ts` |
-| Brand-icon aurora (About/Settings/Update) | `shared/utils/app-icon-aurora.ts` |
+| Concern                                   | Canonical home                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| URL allowlist + validate                  | `domain/services/url-validation.ts`, `domain/policies/meet-url-allowlist.ts` |
+| buildMeetUrl / detectPlatform             | `domain/services/build-meet-url.ts`, `platform.ts`                           |
+| URL extract / clean description           | `domain/services/url-extract.ts`, `clean-description.ts`                     |
+| Shell opener factory                      | `infrastructure/electron/shell-meeting-opener.ts`                            |
+| Unchecked casts                           | `shared/utils/as.ts`                                                         |
+| Brand-icon aurora (About/Settings/Update) | `shared/utils/app-icon-aurora.ts`                                            |
 
 ## RULES
 

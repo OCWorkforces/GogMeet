@@ -1,28 +1,30 @@
 # GogMeet - AGENTS.md
 
-**Updated:** 2026-08-06  
-**App version:** 1.18.3  
-**Branch:** develop
+- **Updated:** 2026-08-11
+- **App version:** 1.18.4
+- **Branch:** develop
+
+`package.json` is the version source of truth. Keep this root metadata aligned with it, but do not hardcode the version elsewhere.
 
 Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
 ## STACK
 
-| Layer | Tech |
-| --- | --- |
-| Runtime | Electron `^43.3.0`; all BrowserWindows sandboxed/context-isolated/no Node integration |
-| Language | Typecheck via `@typescript/native` (TypeScript `^7.0.2`); package `typescript` `^6` for ESLint tooling; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
-| Build | Rslib for main/preload CJS; Rsbuild for three renderer entries |
-| Package | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` (`.nvmrc`) |
-| Calendar (macOS) | Swift EventKit helper `src/main/googlemeet-events.swift`; binary under `{tmpdir}/googlemeet/`; bounded spawn runner |
-| Calendar (Windows) | Google OAuth PKCE + Calendar API; encrypted under `userData`: tokens `calendar-auth/google.enc`, sync tokens `calendar-auth/google-sync.enc`, offline cache `calendar-cache.enc` |
-| Architecture | Clean Architecture hybrid: `src/domain` → application ports/use cases → infrastructure adapters → facades + `createAppGraph` |
-| Test | Vitest workspace: domain / application / main / renderer / shared / scripts; `setup.as.ts` installs cast extension |
-| Package build | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64` |
-| Updates/logging | `electron-updater` (packaged non-portable only), `electron-log` |
-| Lint edges | `eslint-plugin-boundaries` (`boundaries/dependencies: error`); `.sentrux/` is secondary (not CI-wired) |
-| Measurement | Opt-in `GOGMEET_PERF_TRACE=1` (1024 rows / 1 MiB, fixed atomic JSONL); private packaged probes via `GOGMEET_PERF_PROBE` (lab only); `perf:*` / `bench:*`; lab docs `docs/performance/measurement-lab.md`; weekly non-PR `measurement.yml` |
-| Guardrails | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` (+ `guardrails:self-test` / `guardrails:tests`); freezes include Swift/watch bounds, trace caps, probe prefix, `MAX_PAGES=50` |
+| Layer              | Tech                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime            | Electron `^43.3.0`; all BrowserWindows sandboxed/context-isolated/no Node integration                                                                                                                                                            |
+| Language           | Typecheck via `@typescript/native` (TypeScript `^7.0.2`); package `typescript` `^6` for ESLint tooling; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
+| Build              | Rslib for main/preload CJS; Rsbuild for three renderer entries                                                                                                                                                                                   |
+| Package            | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` (`.nvmrc`)                                                                                                                                         |
+| Calendar (macOS)   | Swift EventKit helper `src/main/googlemeet-events.swift`; binary under `{tmpdir}/googlemeet/`; bounded spawn runner                                                                                                                              |
+| Calendar (Windows) | Google OAuth PKCE + Calendar API; encrypted under `userData`: tokens `calendar-auth/google.enc`, sync tokens `calendar-auth/google-sync.enc`, offline cache `calendar-cache.enc`                                                                 |
+| Architecture       | Clean Architecture hybrid: `src/domain` → application ports/use cases → infrastructure adapters → facades + `createAppGraph`                                                                                                                     |
+| Test               | Vitest workspace: domain / application / main / renderer / shared / scripts; `setup.as.ts` installs cast extension                                                                                                                               |
+| Package build      | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64`                                                                                                                                                                                |
+| Updates/logging    | `electron-updater` (packaged non-portable only), `electron-log`                                                                                                                                                                                  |
+| Lint edges         | `eslint-plugin-boundaries` (`boundaries/dependencies: error`); `.sentrux/` is secondary (not CI-wired)                                                                                                                                           |
+| Measurement        | Opt-in `GOGMEET_PERF_TRACE=1` (1024 rows / 1 MiB, fixed atomic JSONL); private packaged probes via `GOGMEET_PERF_PROBE` (lab only); `perf:*` / `bench:*`; lab docs `docs/performance/measurement-lab.md`; weekly non-PR `measurement.yml`        |
+| Guardrails         | Permanent P-NEVER invariants: `docs/security/permanent-guardrails.md`; `bun run guardrails` (+ `guardrails:self-test` / `guardrails:tests`); freezes include Swift/watch bounds, trace caps, probe prefix, `MAX_PAGES=50`                        |
 
 ## STRUCTURE
 
@@ -58,66 +60,67 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-| --- | --- | --- |
-| Runtime bootstrap | `src/main/index.ts`, `app/lifecycle.ts` | `createAppGraph()` first; settings before scheduler; auto-updater last |
-| Composition root | `composition/app-graph.ts` | calendar / settings / join / opener / scheduler / watcher surfaces |
-| Add IPC | `shared/ipc-channels.ts` → `ipc-handlers/*` (graph) → preload → renderer | `typedHandle` / sender validation |
-| Pure domain | `src/domain/` | entities, policies, services |
-| Calendar result contract | `domain/entities/calendar-result.ts` | exhaustive ok provenance + helpers |
-| Calendar UI phases | `domain/entities/calendar-ui-state.ts` | includes `limited`, `cacheAgeMs` |
-| Calendar facade | `facades/calendar.ts` | use cases + CalendarPort; **no** `swift/*` or `calendar/auth/*` |
-| Calendar providers | `calendar/factory.ts`, `providers/*` | Darwin EventKit; Windows Google; fixture |
-| Calendar refresh | `calendar/refresh-coordinator.ts` | single-flight + one queued follow-up; `CalendarPublication` generation |
-| Google HTTP bounds | `calendar/google-http.ts` | 15s / 8MiB / 60s poll budget; typed errors |
-| Google OAuth / tokens | `calendar/auth/*` | PKCE; `if-needed` \| `force` refresh; preserve ciphertext |
-| Google incremental sync | `calendar/auth/google-sync-tokens.ts` + Google provider | encrypted `google-sync.enc` nextSyncToken map; process-local index; 410 → full fetch (ADR 0002) |
-| Offline cache | `calendar/offline-cache.ts` | schema v1 `{version,observedAt,cachedAt,events}`; complete writes only from Google |
-| URL extract / buildMeetUrl | `domain/services/url-extract.ts`, `build-meet-url.ts` | pure |
-| Allowlist / validate | `domain/policies/meet-url-allowlist.ts`, `services/url-validation.ts` | pure |
-| Meeting wall-clock | `domain/services/meeting-time.ts` | in-progress / upcoming / completed-today / display horizon |
-| Open meeting URL | `infrastructure/electron/shell-meeting-opener.ts` | allowlisted egress; thin free-fn in `utils/meet-url.ts` |
-| Settings store | `infrastructure/settings/json-settings-store.ts` | FS under userData; schema **v3** |
-| Join hub | `utils/join-meeting.ts` / `graph.join.byId` | marks opened via scheduler cancel |
-| Scheduler public API | `scheduler/facade.ts` | only external scheduler import |
-| Schedule decisions | `scheduler/core/plan-schedule.ts` | pure; `set-snapshot` before timers |
-| Display horizon | `system/display-horizon.ts` | wall-clock re-filter timer; no automation |
-| Swift one-shot runner | `swift/swift-helper-process.ts` | bounded spawn; integrity-only recompile in binary-manager |
-| Calendar watch | `facades/calendar-watcher.ts` | provider `startWatch` / `reviveWatch` |
-| Tray menu | `tray.ts`, `menu/meeting-menu.ts` | limited/offline rows; optional completed-today history; tray takes AppGraph; `requestTrayRebuild` microtask-coalesces bus bursts; `forceTrayMenuRefresh` sync force (horizon/settings) |
-| Settings UI | `renderer/settings/*`, `windows/settings-window.ts` | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save |
-| About UI | `windows/about-window.ts` | 320×360 data: HTML; canvas `#0d1117`; brand aurora; no Close (Esc / traffic lights); CSP; https-only repo |
-| Updates UI | `windows/update-window.ts` | 340×340–400 data: HTML; About-tier aurora; checking/result phases; dismiss-only Esc or multi-action buttons |
-| App-icon aurora | `shared/utils/app-icon-aurora.ts` | Pure CSS+HTML; calm Settings base; fancy About/Update tier; a11y media queries |
-| Window chrome | `utils/window-chrome.ts` | `DIALOG_BACKGROUND_COLOR`; kinds `popover`/`settings`/`about`/`update`/`alert` |
-| Unchecked casts | `shared/utils/as.ts` | `.As<T>()` / free `As<T>(value)` |
-| Opt-in perf trace | `main/utils/performance-trace.ts` + `performance-trace-file.ts` | `GOGMEET_PERF_TRACE=1`; 1024 rows / 1 MiB; fixed atomic `gogmeet-perf-trace-v1.jsonl` under userData |
-| Packaged probes | `app/performance-probe*.ts`, `app/performance-probes/*`, `calendar/providers/performance-probe-calendar.ts` | Lab only; never default product env |
-| Perf scripts | `scripts/performance/*` | `perf:report`, `perf:workspace-fingerprint`, `perf:startup`/`tray`/`alert`/`safe-storage` (exit 1 on crash/timeout) |
-| Parser bench | `tests/bench/`, `vitest.bench.config.ts` | `bench:calendar-parser` |
-| OS vs meeting host | `platform/os.ts` vs `domain/services/platform.ts` | |
-| Packaging / CI | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md` | |
-| Design / perf plan | `docs/clean-architecture-refactor-plan.md`, `docs/windows-*.md`, `docs/plans/*`, `docs/adr/*` | |
+| Task                       | Location                                                                                                    | Notes                                                                                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime bootstrap          | `src/main/index.ts`, `app/lifecycle.ts`                                                                     | `createAppGraph()` first; settings before scheduler; auto-updater last                                                                                                                 |
+| Composition root           | `composition/app-graph.ts`                                                                                  | calendar / settings / join / opener / scheduler / watcher surfaces                                                                                                                     |
+| Add IPC                    | `shared/ipc-channels.ts` → `ipc-handlers/*` (graph) → preload → renderer                                    | `typedHandle` / sender validation                                                                                                                                                      |
+| Pure domain                | `src/domain/`                                                                                               | entities, policies, services                                                                                                                                                           |
+| Calendar result contract   | `domain/entities/calendar-result.ts`                                                                        | exhaustive ok provenance + helpers; Darwin partial diagnostics                                                                                                                         |
+| Calendar UI phases         | `domain/entities/calendar-ui-state.ts`                                                                      | includes `limited`, `cacheAgeMs`, nullable Darwin diagnostics                                                                                                                          |
+| Calendar facade            | `facades/calendar.ts`                                                                                       | use cases + CalendarPort; **no** `swift/*` or `calendar/auth/*`                                                                                                                        |
+| Calendar providers         | `calendar/factory.ts`, `providers/*`                                                                        | Darwin EventKit; Windows Google; fixture                                                                                                                                               |
+| Calendar refresh           | `calendar/refresh-coordinator.ts`                                                                           | single-flight + one queued follow-up; `CalendarPublication` generation                                                                                                                 |
+| Google HTTP bounds         | `calendar/google-http.ts`                                                                                   | 15s / 8MiB / 60s poll budget; typed errors                                                                                                                                             |
+| Google OAuth / tokens      | `calendar/auth/*`                                                                                           | PKCE; `if-needed` \| `force` refresh; preserve ciphertext                                                                                                                              |
+| Google incremental sync    | `calendar/auth/google-sync-tokens.ts` + Google provider                                                     | encrypted `google-sync.enc` nextSyncToken map; process-local index; 410 → full fetch (ADR 0002)                                                                                        |
+| Offline cache              | `calendar/offline-cache.ts`                                                                                 | schema v1 `{version,observedAt,cachedAt,events}`; complete writes only from Google                                                                                                     |
+| URL extract / buildMeetUrl | `domain/services/url-extract.ts`, `build-meet-url.ts`                                                       | pure                                                                                                                                                                                   |
+| Allowlist / validate       | `domain/policies/meet-url-allowlist.ts`, `services/url-validation.ts`                                       | pure                                                                                                                                                                                   |
+| Meeting wall-clock         | `domain/services/meeting-time.ts`                                                                           | in-progress / upcoming / completed-today / display horizon                                                                                                                             |
+| Open meeting URL           | `infrastructure/electron/shell-meeting-opener.ts`                                                           | allowlisted egress; thin free-fn in `utils/meet-url.ts`                                                                                                                                |
+| Settings store             | `infrastructure/settings/json-settings-store.ts`                                                            | FS under userData; schema **v3**                                                                                                                                                       |
+| Join hub                   | `utils/join-meeting.ts` / `graph.join.byId`                                                                 | marks opened via scheduler cancel                                                                                                                                                      |
+| Scheduler public API       | `scheduler/facade.ts`                                                                                       | only external scheduler import                                                                                                                                                         |
+| Schedule decisions         | `scheduler/core/plan-schedule.ts`                                                                           | pure; `set-snapshot` before timers                                                                                                                                                     |
+| Display horizon            | `system/display-horizon.ts`                                                                                 | wall-clock re-filter timer; no automation                                                                                                                                              |
+| Swift one-shot runner      | `swift/swift-helper-process.ts`                                                                             | bounded spawn; integrity-only recompile in binary-manager                                                                                                                              |
+| Calendar watch             | `facades/calendar-watcher.ts`                                                                               | provider `startWatch` / `reviveWatch`                                                                                                                                                  |
+| Tray menu                  | `tray.ts`, `menu/meeting-menu.ts`                                                                           | limited/offline rows; optional completed-today history; tray takes AppGraph; `requestTrayRebuild` microtask-coalesces bus bursts; `forceTrayMenuRefresh` sync force (horizon/settings) |
+| Settings UI                | `renderer/settings/*`, `windows/settings-window.ts`                                                         | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save                                                                                                          |
+| About UI                   | `windows/about-window.ts`                                                                                   | 320×360 data: HTML; canvas `#0d1117`; brand aurora; no Close (Esc / traffic lights); CSP; https-only repo                                                                              |
+| Updates UI                 | `windows/update-window.ts`                                                                                  | 340×340–400 data: HTML; About-tier aurora; checking/result phases; dismiss-only Esc or multi-action buttons                                                                            |
+| App-icon aurora            | `shared/utils/app-icon-aurora.ts`                                                                           | Pure CSS+HTML; calm Settings base; fancy About/Update tier; a11y media queries                                                                                                         |
+| Window chrome              | `utils/window-chrome.ts`                                                                                    | `DIALOG_BACKGROUND_COLOR`; kinds `popover`/`settings`/`about`/`update`/`alert`                                                                                                         |
+| Unchecked casts            | `shared/utils/as.ts`                                                                                        | `.As<T>()` / free `As<T>(value)`                                                                                                                                                       |
+| Opt-in perf trace          | `main/utils/performance-trace.ts` + `performance-trace-file.ts`                                             | `GOGMEET_PERF_TRACE=1`; 1024 rows / 1 MiB; fixed atomic `gogmeet-perf-trace-v1.jsonl` under userData                                                                                   |
+| Packaged probes            | `app/performance-probe*.ts`, `app/performance-probes/*`, `calendar/providers/performance-probe-calendar.ts` | Lab only; never default product env                                                                                                                                                    |
+| Perf scripts               | `scripts/performance/*`                                                                                     | `perf:report`, `perf:workspace-fingerprint`, `perf:startup`/`tray`/`alert`/`safe-storage` (exit 1 on crash/timeout)                                                                    |
+| Parser bench               | `tests/bench/`, `vitest.bench.config.ts`                                                                    | `bench:calendar-parser`                                                                                                                                                                |
+| OS vs meeting host         | `platform/os.ts` vs `domain/services/platform.ts`                                                           |                                                                                                                                                                                        |
+| Packaging / CI             | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md`                                    |                                                                                                                                                                                        |
+| Design / perf plan         | `docs/clean-architecture-refactor-plan.md`, `docs/windows-*.md`, `docs/plans/*`, `docs/adr/*`               |                                                                                                                                                                                        |
 
 ## CODE MAP
 
-| Symbol / file | Role |
-| --- | --- |
-| `createAppGraph()` | composition root for main drivers |
-| `initializeApp()` / `shutdownApp()` | lifecycle; graph stored as `activeGraph` |
-| `facades/calendar.ts` | calendar use cases + UI state bus + refresh coordinator bind |
-| `refreshCalendarPublication` / `requestCalendarRefresh` | single-flight fetch → `CalendarPublication` |
-| `graph.calendar.getEvents` / `getEventsResult` | publication vs result-only coordinated refresh |
-| `scheduler/facade.ts` | only external scheduler import |
-| `republishUiForDisplayTick` | facade free-fn for wall-clock UI re-push (not on AppGraph) |
-| `scheduler/core/plan-schedule.ts` | pure schedule plan ADT (`set-snapshot`, arm-*) |
-| `domain/services/build-meet-url.ts` | pure join URL with identity params |
-| `filterCompletedTodayMeetings` / `isCompletedTodayMeeting` | completed-today history membership |
-| `truncateMiddle` / `MEETING_TITLE_DISPLAY_MAX_CHARS` | title display middle-truncate (25) |
-| `joinMeetingById` / `graph.join.byId` | join hub + suppress auto-open |
-| `isCalendarOk` / `isCalendarAutomationEligible` | ok narrowing; automation gate (live complete only) |
-| `googleHttpRequest` / `refreshGoogleAccessToken` | bounded Google transport; force/if-needed refresh |
-| `loadGoogleSyncTokens` / `saveGoogleSyncTokens` | encrypted Google nextSyncToken map |
+| Symbol / file                                              | Role                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `createAppGraph()`                                         | composition root for main drivers                            |
+| `initializeApp()` / `shutdownApp()`                        | lifecycle; graph stored as `activeGraph`                     |
+| `facades/calendar.ts`                                      | calendar use cases + UI state bus + refresh coordinator bind |
+| `refreshCalendarPublication` / `requestCalendarRefresh`    | single-flight fetch → `CalendarPublication`                  |
+| `graph.calendar.getEvents` / `getEventsResult`             | publication vs result-only coordinated refresh               |
+| `scheduler/facade.ts`                                      | only external scheduler import                               |
+| `republishUiForDisplayTick`                                | facade free-fn for wall-clock UI re-push (not on AppGraph)   |
+| `scheduler/core/plan-schedule.ts`                          | pure schedule plan ADT (`set-snapshot`, arm-*)               |
+| `domain/services/build-meet-url.ts`                        | pure join URL with identity params                           |
+| `filterCompletedTodayMeetings` / `isCompletedTodayMeeting` | completed-today history membership                           |
+| `truncateMiddle` / `MEETING_TITLE_DISPLAY_MAX_CHARS`       | title display middle-truncate (25)                           |
+| `joinMeetingById` / `graph.join.byId`                      | join hub + suppress auto-open                                |
+| `isCalendarOk` / `isCalendarAutomationEligible`            | ok narrowing; automation gate (live complete only)           |
+| `DarwinPartialRefreshDiagnostics`                          | six-count aggregate for Darwin live partial results          |
+| `googleHttpRequest` / `refreshGoogleAccessToken`           | bounded Google transport; force/if-needed refresh            |
+| `loadGoogleSyncTokens` / `saveGoogleSyncTokens`            | encrypted Google nextSyncToken map                           |
 
 ## CONVENTIONS
 
@@ -131,6 +134,9 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 - Prefer free-function `As<T>(v)` in production main/preload (survives Rslib tree-shaking); method `.As<T>()` is fine in tests once `setup.as.ts` installs the prototype. Never bare side-effect-only import of `as.js` for production call sites.
 - **CalendarResult** success is exhaustive: live `complete`\|`partial` or `offline-cache` with timestamps. Narrow with `isCalendarOk` / `isCalendarLiveOk` / `isCalendarOfflineOk`.
 - **Automation rule:** only live complete (`isCalendarAutomationEligible`) arms timers; partial/offline call `suspendAutomation` while keeping display/join data.
+- **Darwin partial refreshes:** the EventKit parser keeps valid events while recording skipped records. The Darwin provider aggregates `total`, `malformedRecord`, `malformedFieldCount`, `invalidIso`, `invalidId`, and `duplicateUid`; a nonzero total makes the live result partial and emits one count-only provider warning. `GetMeetings` publishes the existing `CalendarPublication`, clears stale diagnostics on complete, offline, and error states, and keeps partial events available for display and manual join.
+- **Darwin tray diagnostics:** only the native macOS tray renders the partial warning and diagnostic rows, all disabled. Its menu signature includes every diagnostic count so changed diagnostics rebuild the menu. Google and Windows use the generic partial state without Darwin diagnostic rows.
+- Renderer production has no diagnostics UI. It renders retained partial events or the ordinary no-events state, never tray warning text, diagnostic labels, or diagnostic tokens.
 - `CalendarPort.getEvents(signal: AbortSignal)` — providers must honor cancel.
 - Meeting URL allowlisting at egress only (`openMeetingUrl` / ShellMeetingOpener / `joinMeetingById`).
 - All user join paths call `joinMeetingById` / `graph.join.byId`.

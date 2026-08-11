@@ -1,3 +1,4 @@
+import type { DarwinPartialRefreshDiagnostics } from "../../domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { cleanDescription } from "../../domain/services/clean-description.js";
 import {
@@ -15,6 +16,51 @@ const EXPECTED_FIELD_COUNT = 9;
 export interface ParseResult {
   readonly events: readonly MeetingEvent[];
   readonly diagnostics: readonly ParseDiagnostic[];
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected parse diagnostic reason: ${value}`);
+}
+
+export function aggregateParseDiagnostics(
+  diagnostics: readonly ParseDiagnostic[],
+): DarwinPartialRefreshDiagnostics {
+  let malformedRecord = 0;
+  let malformedFieldCount = 0;
+  let invalidIso = 0;
+  let invalidId = 0;
+  let duplicateUid = 0;
+
+  for (const diagnostic of diagnostics) {
+    switch (diagnostic.reason) {
+      case "malformed_record":
+        malformedRecord += 1;
+        break;
+      case "malformed_field_count":
+        malformedFieldCount += 1;
+        break;
+      case "invalid_iso":
+        invalidIso += 1;
+        break;
+      case "invalid_id":
+        invalidId += 1;
+        break;
+      case "duplicate_uid":
+        duplicateUid += 1;
+        break;
+      default:
+        return assertNever(diagnostic.reason);
+    }
+  }
+
+  return {
+    total: malformedRecord + malformedFieldCount + invalidIso + invalidId + duplicateUid,
+    malformedRecord,
+    malformedFieldCount,
+    invalidIso,
+    invalidId,
+    duplicateUid,
+  };
 }
 
 /** Parse JSON Lines output from Swift helper into a {@link ParseResult}.

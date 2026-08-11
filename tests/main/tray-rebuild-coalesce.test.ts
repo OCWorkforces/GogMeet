@@ -33,6 +33,7 @@ const baseUi: CalendarUiState = {
   events: [],
   offline: false,
   oauthConfigured: true,
+  darwinPartialRefreshDiagnostics: null,
   cacheAgeMs: null,
 };
 
@@ -112,6 +113,111 @@ describe("trayMenuSignature", () => {
     const off = trayMenuSignature(baseUi, events, true, "ok", null, Date.now(), false);
     const on = trayMenuSignature(baseUi, events, true, "ok", null, Date.now(), true);
     expect(on).not.toBe(off);
+  });
+
+  it("changes for each diagnostic count but stays stable for identical summaries", () => {
+    const summary = {
+      total: 15,
+      malformedRecord: 2,
+      malformedFieldCount: 3,
+      invalidIso: 4,
+      invalidId: 5,
+      duplicateUid: 1,
+    };
+    const baseline = trayMenuSignature(
+      { ...baseUi, phase: "limited", darwinPartialRefreshDiagnostics: summary },
+      [],
+      true,
+      "ok",
+      null,
+    );
+    const identical = trayMenuSignature(
+      { ...baseUi, phase: "limited", darwinPartialRefreshDiagnostics: { ...summary } },
+      [],
+      true,
+      "ok",
+      null,
+    );
+
+    expect(identical).toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, total: 16 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, malformedRecord: 3 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, malformedFieldCount: 4 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, invalidIso: 5 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, invalidId: 6 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
+    expect(
+      trayMenuSignature(
+        {
+          ...baseUi,
+          phase: "limited",
+          darwinPartialRefreshDiagnostics: { ...summary, duplicateUid: 2 },
+        },
+        [],
+        true,
+        "ok",
+        null,
+      ),
+    ).not.toBe(baseline);
   });
 });
 

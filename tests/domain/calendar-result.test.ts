@@ -9,6 +9,7 @@ import {
   isCalendarOk,
   isValidCalendarTimestamp,
 } from "../../src/domain/entities/calendar-result.js";
+import { defaultCalendarUiState } from "../../src/domain/entities/calendar-ui-state.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
 describe("calendar-result provenance", () => {
@@ -27,6 +28,27 @@ describe("calendar-result provenance", () => {
     expect(offline.source).toBe("offline-cache");
     expect(offline.cachedAt).toBe(1_100);
     expect(offline.observedAt).toBe(900);
+  });
+
+  it("preserves a fixed Darwin diagnostic summary only when supplied for a live partial", () => {
+    const diagnostics = {
+      total: 5,
+      malformedRecord: 1,
+      malformedFieldCount: 1,
+      invalidIso: 1,
+      invalidId: 1,
+      duplicateUid: 1,
+    };
+
+    const partial = calendarLiveOk(events, "partial", 1_000, diagnostics);
+    const complete = calendarLiveOk(events, "complete", 1_000);
+
+    expect(partial.darwinPartialRefreshDiagnostics).toEqual(diagnostics);
+    expect(complete).not.toHaveProperty("darwinPartialRefreshDiagnostics");
+  });
+
+  it("defaults Darwin diagnostics to null in calendar UI state", () => {
+    expect(defaultCalendarUiState().darwinPartialRefreshDiagnostics).toBeNull();
   });
 
   it("narrows ok variants exhaustively", () => {

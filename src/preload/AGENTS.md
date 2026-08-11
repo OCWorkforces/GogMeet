@@ -4,10 +4,10 @@ Sandboxed Electron preload. It is the only bridge between renderer code and main
 
 ## Files
 
-| File | Role |
-| --- | --- |
-| `index.ts` | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type |
-| `tsconfig.json` | Preload TypeScript project |
+| File            | Role                                                                  |
+| --------------- | --------------------------------------------------------------------- |
+| `index.ts`      | `contextBridge.exposeInMainWorld("api", api)` and exported `Api` type |
+| `tsconfig.json` | Preload TypeScript project                                            |
 
 ## Exposed API
 
@@ -30,18 +30,20 @@ window.api = {
 
 Refresh is coordinated in main via the single-flight refresh coordinator: `calendar.getEvents()` is the sole renderer refresh path (no `scheduler.forcePoll` IPC — permanent guardrail). Responses and pushes use `CalendarPublication` (`publicationGeneration` + `result`).
 
+Darwin partial diagnostics travel only in that existing `CalendarPublication` result and in existing calendar UI state. They add no IPC channel or preload method.
+
 `export type Api = typeof api` is consumed by renderer ambient typings (`src/renderer/env.d.ts` and settings `env.d.ts`).
 
 Settings payloads include schema **v3** fields (e.g. `showCompletedTodayMeetings`); preload does not interpret display preferences.
 
 ## Trust-boundary branding
 
-| Renderer input | Validator | Main IPC payload |
-| --- | --- | --- |
-| raw URL string | `brandMeetUrl()` → `MeetUrl \| null` | `APP_OPEN_EXTERNAL: { url }` |
-| raw event id | `asEventId()` | `APP_JOIN_MEETING: { id }` |
+| Renderer input    | Validator                              | Main IPC payload                |
+| ----------------- | -------------------------------------- | ------------------------------- |
+| raw URL string    | `brandMeetUrl()` → `MeetUrl \| null`   | `APP_OPEN_EXTERNAL: { url }`    |
+| raw event id      | `asEventId()`                          | `APP_JOIN_MEETING: { id }`      |
 | raw height number | `clampWindowHeight()` → `WindowHeight` | `WINDOW_SET_HEIGHT: { height }` |
-| alert `EventId` | passthrough from main push | `ALERT_DISMISSED: { id }` |
+| alert `EventId`   | passthrough from main push             | `ALERT_DISMISSED: { id }`       |
 
 `brandMeetUrl` uses `asMeetUrl` + `isAllowedMeetHostname` from `src/domain/policies/meet-url-allowlist.ts`.
 Invalid URL → `openExternal` resolves `err("Invalid or disallowed URL")` without IPC.
@@ -55,11 +57,11 @@ Hostnames/suffixes live in **`src/domain/policies/meet-url-allowlist.ts`** (impo
 
 Subscriptions return `() => void`:
 
-| Channel | Method | Payload |
-| --- | --- | --- |
+| Channel                   | Method                     | Payload               |
+| ------------------------- | -------------------------- | --------------------- |
 | `CALENDAR_RESULT_UPDATED` | `calendar.onResultUpdated` | `CalendarPublication` |
-| `SETTINGS_CHANGED` | `settings.onChanged` | `AppSettings` |
-| `ALERT_SHOW` | `alert.onShowAlert` | `AlertPayload` |
+| `SETTINGS_CHANGED`        | `settings.onChanged`       | `AppSettings`         |
+| `ALERT_SHOW`              | `alert.onShowAlert`        | `AlertPayload`        |
 
 Main-side pushes use `typedSend()` with destroyed-window guards; never raw `webContents.send()`.
 

@@ -374,6 +374,36 @@ export function buildCalendarTrayMenuTemplate(
         label: (ui.lastError ?? "Some calendars could not be refreshed").slice(0, 80),
         enabled: false,
       });
+      const diagnostics = ui.darwinPartialRefreshDiagnostics;
+      if (isDarwin() && diagnostics !== null) {
+        items.push({
+          label: `EventKit skipped ${diagnostics.total} event record${
+            diagnostics.total === 1 ? "" : "s"
+          }`,
+          enabled: false,
+        });
+        if (diagnostics.malformedRecord > 0) {
+          items.push({
+            label: `Malformed records: ${diagnostics.malformedRecord}`,
+            enabled: false,
+          });
+        }
+        if (diagnostics.malformedFieldCount > 0) {
+          items.push({
+            label: `Unexpected field count: ${diagnostics.malformedFieldCount}`,
+            enabled: false,
+          });
+        }
+        if (diagnostics.invalidIso > 0) {
+          items.push({ label: `Invalid dates: ${diagnostics.invalidIso}`, enabled: false });
+        }
+        if (diagnostics.invalidId > 0) {
+          items.push({ label: `Missing event IDs: ${diagnostics.invalidId}`, enabled: false });
+        }
+        if (diagnostics.duplicateUid > 0) {
+          items.push({ label: `Duplicate event IDs: ${diagnostics.duplicateUid}`, enabled: false });
+        }
+      }
     }
     if (ui.offline) {
       items.push({ label: "Offline — showing last synced meetings", enabled: false });

@@ -45,6 +45,7 @@ function syntheticUi(events: MeetingEvent[]): CalendarUiState {
     events,
     offline: false,
     oauthConfigured: true,
+    darwinPartialRefreshDiagnostics: null,
     cacheAgeMs: null,
   };
 }

@@ -29,6 +29,7 @@ describe("createDisconnectCalendar", () => {
         phase: "disconnected",
         permission: "not-determined",
         oauthConfigured: true,
+        darwinPartialRefreshDiagnostics: null,
       }),
     );
     expect(publishCalendarStatus).toHaveBeenCalledWith(

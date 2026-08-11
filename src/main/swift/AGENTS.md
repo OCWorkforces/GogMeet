@@ -4,17 +4,17 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 
 ## Files
 
-| File | Role |
-| --- | --- |
-| `swift-helper-process.ts` | Bounded one-shot **spawn** runner: concurrent stdout/stderr drain, 8 MiB/256 KiB/15 s, AbortSignal, SIGTERM→5 s→SIGKILL |
-| `binary-manager.ts` | Locate source, coordinate cache/compile, `runSwiftHelper(signal?)`. Integrity-only recompile |
-| `binary-cache.ts` | Hash Swift source and manage `{tmpdir}/googlemeet/` binary/cache paths |
-| `binary-compiler.ts` | Compile Swift with arch-aware optimization flags and retry behavior |
+| File                        | Role                                                                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `swift-helper-process.ts`   | Bounded one-shot **spawn** runner: concurrent stdout/stderr drain, 8 MiB/256 KiB/15 s, AbortSignal, SIGTERM→5 s→SIGKILL                |
+| `binary-manager.ts`         | Locate source, coordinate cache/compile, `runSwiftHelper(signal?)`. Integrity-only recompile                                           |
+| `binary-cache.ts`           | Hash Swift source and manage `{tmpdir}/googlemeet/` binary/cache paths                                                                 |
+| `binary-compiler.ts`        | Compile Swift with arch-aware optimization flags and retry behavior                                                                    |
 | `calendar-watch-sidecar.ts` | Sidecar `--watch`; debounce CHANGED; backoff; **cooldown revive after MAX_RETRIES**; **stdout 8 MiB / stderr 256 KiB** stream ceilings |
-| `event-parser.ts` | Parse 9-field JSON Lines into `MeetingEvent[]` with branded fields + diagnostics |
-| `event-field-parser.ts` | Parse individual JSON record fields (description cleaning → domain `clean-description`) |
-| `event-validator.ts` | Validate Swift exit codes/output and map `SwiftHelperError` to `calendar-*` AppError kinds |
-| `guards.ts` | Exec/tuple guards; imports `isObjectRecord` from `domain/entities/type-guards` |
+| `event-parser.ts`           | Parse 9-field JSON Lines into `MeetingEvent[]` with branded fields plus internal diagnostics and a safe count aggregate                |
+| `event-field-parser.ts`     | Parse individual JSON record fields (description cleaning → domain `clean-description`)                                                |
+| `event-validator.ts`        | Validate Swift exit codes/output and map `SwiftHelperError` to `calendar-*` AppError kinds                                             |
+| `guards.ts`                 | Exec/tuple guards; imports `isObjectRecord` from `domain/entities/type-guards`                                                         |
 
 ## One-shot process runner
 
@@ -42,14 +42,14 @@ Runtime compilation and parsing layer for the **macOS EventKit** helper. Consume
 
 ## Swift protocol
 
-JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
+Each helper output line is a JSON array of exactly nine strings, in this order: `uid`, `title`, `startISO`, `endISO`, `url`, `calName`, `allDay`, `email`, `notes`.
 
-| Exit | Meaning | Production mapping |
-| --- | --- | --- |
-| `0` | Success | parse events (diagnostics → live **partial**) |
-| `2` | Permission denied | `CalendarResult` code `permission-denied` |
-| `3` | No calendars | `no-calendars` |
-| `4` | Runtime/helper error | `runtime` |
+| Exit | Meaning              | Production mapping                            |
+| ---- | -------------------- | --------------------------------------------- |
+| `0`  | Success              | parse events (diagnostics → live **partial**) |
+| `2`  | Permission denied    | `CalendarResult` code `permission-denied`     |
+| `3`  | No calendars         | `no-calendars`                                |
+| `4`  | Runtime/helper error | `runtime`                                     |
 
 ## Watch sidecar
 
@@ -68,6 +68,8 @@ JSON Lines: nine **JSON string** fields per line — `uid`, `title`, `startISO`,
 - `url` → `MeetUrl` only if `validateMeetUrl` succeeds (HTTPS + host allowlist).
 - Empty optionals → `undefined`; invalid lines → diagnostics; duplicate uid recorded.
 - Darwin provider: any diagnostic → `completeness: "partial"`.
+- Closed diagnostic reasons are `malformed_record`, `malformed_field_count`, `invalid_iso`, `invalid_id`, and `duplicate_uid`. Per-line diagnostics, including line numbers, stay inside the parser.
+- `aggregateParseDiagnostics` emits only `total` plus one count for each closed reason. The Darwin provider calls it once, retains valid events in a live partial result, and writes one `console.warn(summary)`. It never exposes raw records or retries/recompiles because of parser diagnostics.
 
 ## Rules
 

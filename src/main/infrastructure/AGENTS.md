@@ -1,19 +1,24 @@
 # infrastructure/
 
-## OVERVIEW
+## Overview
 
-Driven adapters implementing application ports. Calendar backends (Google OAuth, sync tokens, offline cache, EventKit) live under `src/main/calendar/`, not here.
+This directory contains two driven adapters: settings persistence and allowlisted meeting egress. It does not own calendar providers, network transport, OAuth, Swift, sync tokens, or offline calendar cache.
 
-| Path | Implements |
-| --- | --- |
-| `settings/json-settings-store.ts` | Implements `SettingsStorePort` (load/get/update) **plus** adapter-only `save`; JSON under `userData/settings.json`, schema **v3** migrate/rewrite (incl. `showCompletedTodayMeetings`) |
-| `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` — allowlisted `shell.openExternal` via domain `validateMeetUrl` |
+| Path                               | Implements          | Responsibility                                                                                                                                                     |
+| ---------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settings/json-settings-store.ts`  | `SettingsStorePort` | Loads, gets, and updates schema v3 settings under `userData/settings.json`. Its adapter-specific `save` persists the current settings and rewrites migrated input. |
+| `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` | Validates the meeting URL with the domain allowlist, then calls Electron `shell.openExternal`.                                                                     |
 
-Calendar providers satisfy `CalendarPort` methods via the facade adapter (not a separate infra class).
+## Boundaries
 
-## RULES
+- `JsonSettingsStore` is the concrete store used through the settings facade and composition. The application port exposes load, get, and update, not adapter-only save.
+- `ShellMeetingOpener` is the egress adapter. Explicit joins still enter through `joinMeetingById` or `graph.join.byId`, which select the meeting and cancel pending automatic browser work before this adapter opens a URL.
+- Calendar factory selection, Darwin EventKit, Google Calendar, Google HTTP, OAuth and token stores, incremental sync, offline cache, and the refresh coordinator live under `src/main/calendar/`.
+- Swift helper process, binary, protocol parsing, and sidecar behavior live under `src/main/swift/` and are only reached by the Darwin calendar provider.
 
-- May use Electron, Node FS, network, Swift.
-- Must not be imported by pure `src/domain/` or `application/use-cases` (only composition/facades/utils thin wrappers wire them).
-- Prefer importing `createShellMeetingOpener` / `createJsonSettingsStore` from composition or facades — not re-exported from utils.
-- Tests: `tests/main/json-settings-store.test.ts`, `tests/main/shell-meeting-opener.test.ts`.
+## Rules
+
+- These adapters may use the Electron and Node APIs their own contracts require. Do not add unrelated provider, transport, or Swift responsibilities here.
+- Pure `src/domain/` and application use cases must not import these concrete adapters. Composition and facades wire them through ports.
+- Import `createJsonSettingsStore` and `createShellMeetingOpener` from their adapter modules. Do not re-export them through `utils`.
+- Tests live in `tests/main/json-settings-store.test.ts` and `tests/main/shell-meeting-opener.test.ts`.
