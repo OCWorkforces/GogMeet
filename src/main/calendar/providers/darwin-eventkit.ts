@@ -13,7 +13,7 @@ import {
   startWatchSidecar,
   stopWatchSidecar,
 } from "../../swift/calendar-watch-sidecar.js";
-import { parseEvents } from "../../swift/event-parser.js";
+import { aggregateParseDiagnostics, parseEvents } from "../../swift/event-parser.js";
 import { SwiftHelperError } from "../../swift/event-validator.js";
 import { getErrorStderr } from "../../swift/guards.js";
 import type { CalendarProvider } from "../provider.js";
@@ -49,17 +49,19 @@ export function createDarwinEventKitProvider(): CalendarProvider {
       try {
         const output = await runSwiftHelper(signal);
         const { events, diagnostics } = parseEvents(output);
-        for (const d of diagnostics) {
-          console.warn(`[calendar:darwin] Parse diagnostic: line ${d.line}: ${d.reason}`);
-        }
+        const darwinPartialRefreshDiagnostics = aggregateParseDiagnostics(diagnostics);
         // Any record diagnostic makes the live result partial (not silent drop of the fetch).
-        const completeness = diagnostics.length > 0 ? "partial" : "complete";
+        const completeness = darwinPartialRefreshDiagnostics.total > 0 ? "partial" : "complete";
+        if (darwinPartialRefreshDiagnostics.total > 0) {
+          console.warn(darwinPartialRefreshDiagnostics);
+        }
         return {
           kind: "ok",
           source: "live",
           completeness,
           observedAt: Date.now(),
           events: [...events],
+          ...(darwinPartialRefreshDiagnostics.total > 0 ? { darwinPartialRefreshDiagnostics } : {}),
         };
       } catch (err) {
         if (err instanceof SwiftHelperError) {
