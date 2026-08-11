@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEvents } from "../../../src/main/swift/event-parser.js";
+import { aggregateParseDiagnostics, parseEvents } from "../../../src/main/swift/event-parser.js";
 import { cleanDescription } from "../../../src/domain/services/clean-description.js";
 import {
   classifySwiftError,
@@ -109,6 +109,59 @@ describe("parseEvents — empty / whitespace input", () => {
 });
 
 describe("parseEvents — malformed input", () => {
+  it("aggregates every closed diagnostic reason while retaining valid events", () => {
+    const start = isoFromNow(30);
+    const end = isoFromNow(60);
+    const valid = makeLine(
+      "valid-event",
+      "Valid",
+      start,
+      end,
+      "https://meet.google.com/valid-one-two",
+      "Work",
+      "false",
+    );
+    const invalidIso = makeLine(
+      "invalid-iso",
+      "Invalid ISO",
+      "not-a-date",
+      "also-not-a-date",
+      "https://meet.google.com/invalid-iso-one",
+      "Work",
+      "false",
+    );
+    const invalidId = makeLine(
+      " ",
+      "Invalid ID",
+      start,
+      end,
+      "https://meet.google.com/invalid-id-one",
+      "Work",
+      "false",
+    );
+
+    const result = parseEvents(
+      [
+        valid,
+        "not-json",
+        JSON.stringify(["too", "few", "fields"]),
+        invalidIso,
+        invalidId,
+        valid,
+      ].join("\n"),
+    );
+
+    expect(aggregateParseDiagnostics(result.diagnostics)).toEqual({
+      total: 5,
+      malformedRecord: 1,
+      malformedFieldCount: 1,
+      invalidIso: 1,
+      invalidId: 1,
+      duplicateUid: 1,
+    });
+    expect(result.events.map((event) => event.id)).toEqual(["valid-event"]);
+  });
+
   it("emits malformed_field_count diagnostic for wrong field count", () => {
     const tooFew = JSON.stringify(["only", "three", "fields"]);
     const { events, diagnostics } = parseEvents(tooFew);
