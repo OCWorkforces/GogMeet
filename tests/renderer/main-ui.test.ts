@@ -3,6 +3,7 @@ import type { Api } from "../../src/preload/index.js";
 import type { CalendarPermission } from "../../src/domain/entities/calendar-result.js";
 import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
+import { CALENDAR_LIMITED_COPY } from "../../src/domain/entities/calendar-ui-state.js";
 import { truncateMiddle } from "../../src/domain/services/truncate-middle.js";
 import { createMockEvent, createMockSettings } from "../helpers/test-utils.js";
 
@@ -203,6 +204,40 @@ describe("renderer unchanged calendar updates", () => {
     await vi.waitFor(() => expect(renderer.getEvents).toHaveBeenCalledTimes(2));
     expect(document.body.textContent).toContain(displayedTitle("Manual refresh meeting"));
     expect(document.body.textContent).toContain("Updated just now");
+  });
+
+  it("renders retained live partial events without tray-only limited diagnostics", async () => {
+    const event = createMockEvent({ title: "Partial retained event" });
+    const renderer = await startRenderer([]);
+
+    renderer.resultUpdatedCallback({
+      publicationGeneration: 2,
+      result: {
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events: [event],
+        darwinPartialRefreshDiagnostics: {
+          total: 1,
+          malformedRecord: 1,
+          malformedFieldCount: 0,
+          invalidIso: 0,
+          invalidId: 0,
+          duplicateUid: 0,
+        },
+      },
+    });
+
+    expect(document.body.textContent).toContain(displayedTitle("Partial retained event"));
+    expect(document.body.textContent).not.toContain(CALENDAR_LIMITED_COPY);
+    expect(document.body.textContent).not.toContain("EventKit skipped");
+    expect(document.body.textContent).not.toContain("Malformed records:");
+    expect(document.body.textContent).not.toContain("malformed_record");
+    expect(document.body.textContent).not.toContain("malformed_field_count");
+    expect(document.body.textContent).not.toContain("invalid_iso");
+    expect(document.body.textContent).not.toContain("invalid_id");
+    expect(document.body.textContent).not.toContain("duplicate_uid");
   });
 });
 
