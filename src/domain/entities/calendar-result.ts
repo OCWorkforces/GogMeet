@@ -1,5 +1,14 @@
 import type { MeetingEvent } from "./meeting-event.js";
 
+export interface DarwinPartialRefreshDiagnostics {
+  readonly total: number;
+  readonly malformedRecord: number;
+  readonly malformedFieldCount: number;
+  readonly invalidIso: number;
+  readonly invalidId: number;
+  readonly duplicateUid: number;
+}
+
 /**
  * CalendarResult — domain result for calendar fetches (EventKit / Google / fixture).
  *
@@ -19,6 +28,7 @@ export interface CalendarResultOkLive {
   /** Completion time of the successful live aggregation that produced the snapshot. */
   readonly observedAt: number;
   readonly events: MeetingEvent[];
+  readonly darwinPartialRefreshDiagnostics?: DarwinPartialRefreshDiagnostics;
 }
 
 /** Successful offline-cache read. */
@@ -78,6 +88,7 @@ export function calendarLiveOk(
   events: MeetingEvent[],
   completeness: "complete" | "partial",
   observedAt: number = Date.now(),
+  darwinPartialRefreshDiagnostics?: DarwinPartialRefreshDiagnostics,
 ): CalendarResultOkLive {
   return {
     kind: "ok",
@@ -85,6 +96,7 @@ export function calendarLiveOk(
     completeness,
     observedAt,
     events,
+    ...(darwinPartialRefreshDiagnostics ? { darwinPartialRefreshDiagnostics } : {}),
   };
 }
 

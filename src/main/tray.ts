@@ -187,6 +187,17 @@ export function trayMenuSignature(
   const upcomingSig = eventListSignature(
     filterUpcomingMeetings(list, nowMs, { excludeAllDay: true }),
   );
+  const diagnosticsSignature =
+    ui.darwinPartialRefreshDiagnostics === null
+      ? "none"
+      : [
+          ui.darwinPartialRefreshDiagnostics.total,
+          ui.darwinPartialRefreshDiagnostics.malformedRecord,
+          ui.darwinPartialRefreshDiagnostics.malformedFieldCount,
+          ui.darwinPartialRefreshDiagnostics.invalidIso,
+          ui.darwinPartialRefreshDiagnostics.invalidId,
+          ui.darwinPartialRefreshDiagnostics.duplicateUid,
+        ].join(":");
   return [
     ui.permission,
     ui.phase,
@@ -194,6 +205,7 @@ export function trayMenuSignature(
     ui.oauthConfigured ? "1" : "0",
     ui.accountEmail ?? "",
     ui.lastError ?? "",
+    diagnosticsSignature,
     showTomorrow ? "1" : "0",
     showCompletedToday ? "1" : "0",
     statusKind,
@@ -216,6 +228,7 @@ function refreshContextMenu(mainWindow: BrowserWindow, options?: { force?: boole
       events: null,
       offline: false,
       oauthConfigured: false,
+      darwinPartialRefreshDiagnostics: null,
       cacheAgeMs: null,
     } satisfies CalendarUiState);
   const events = cachedMeetings ?? ui.events ?? [];
