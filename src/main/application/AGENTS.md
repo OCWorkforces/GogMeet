@@ -1,20 +1,20 @@
 # application/
 
-## OVERVIEW
+## Overview
 
-Application layer: **ports** (interfaces) and **use cases**. No Electron, Node I/O, or Swift. Lint bans Electron and Node FS here.
+The application layer contains ports and use cases. It has no Electron, Node I/O, or Swift dependencies. Lint rules enforce that boundary.
 
-## STRUCTURE
+## Structure
 
 ```text
 application/
 ├── ports/
-│   ├── calendar-port.ts          # getEvents(signal), permission, optional watch/OAuth hooks
-│   ├── settings-store-port.ts    # load / get / update (save is JsonSettingsStore-only)
-│   ├── meeting-opener-port.ts    # open(url) → Result
-│   ├── scheduler-port.ts         # cancelPendingBrowserOpen, getLastKnownEvents, forcePoll(): Promise<void> (narrow; graph has ForcePollOptions)
+│   ├── calendar-port.ts          # getEvents(signal), permission, optional watch and OAuth hooks
+│   ├── settings-store-port.ts    # load / get / update
+│   ├── meeting-opener-port.ts    # open(url) -> Result
+│   ├── scheduler-port.ts         # narrow scheduler dependencies
 │   ├── clock-port.ts             # now()
-│   └── event-publisher-port.ts   # publish calendar UI updates (publishMeetingList optional)
+│   └── event-publisher-port.ts   # calendar UI status and optional meeting-list publication
 └── use-cases/
     ├── join-meeting.ts
     ├── get-meetings.ts
@@ -28,20 +28,26 @@ application/
 
 ## Calendar use cases
 
-| Use case | Notes |
-| --- | --- |
-| `get-meetings.ts` | Calls `calendar.getEvents(signal)`. Maps live complete → ready/empty; **partial → `limited`**; offline-cache → `offline-cached` + `cacheAgeMs`; offline never grants permission from ok alone |
-| `join-meeting.ts` | Explicit join from lastKnown or fetch; any `isCalendarOk` variant with events is joinable |
-| `request-calendar-access.ts` / `get-calendar-permission-status.ts` / `disconnect-calendar.ts` | Permission + disconnect ports (Darwin TCC / Google OAuth path behind CalendarPort) |
-| `load-settings.ts` / `get-settings.ts` / `update-settings.ts` | SettingsStorePort wrappers (schema **v3**). Persist-to-disk `save` is on `JsonSettingsStore`, not the port |
+| Use case                                                                                    | Notes                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-meetings.ts`                                                                           | Calls `calendar.getEvents(signal)` and projects the result into `CalendarUiState`, then publishes the snapshot. Live complete becomes `ready` or `empty`; live partial becomes `limited` with retained events; offline cache becomes `offline-cached` with `cacheAgeMs`; errors become `error`. |
+| `join-meeting.ts`                                                                           | Explicit join from last-known data or a fetch. Any successful result with events remains joinable.                                                                                                                                                                                              |
+| `request-calendar-access.ts`, `get-calendar-permission-status.ts`, `disconnect-calendar.ts` | Permission and disconnect through `CalendarPort`; the provider owns Darwin TCC or Google OAuth details.                                                                                                                                                                                         |
+| `load-settings.ts`, `get-settings.ts`, `update-settings.ts`                                 | `SettingsStorePort` wrappers for schema v3. Adapter-only disk save belongs to `JsonSettingsStore`.                                                                                                                                                                                              |
 
-## RULES
+## GetMeetings projection rules
 
-- Ports are TypeScript interfaces only (no Electron).
-- Use cases depend on ports + `src/domain`, not concrete adapters.
-- `CalendarPort.getEvents` **requires** `AbortSignal`. Production fetches go through the calendar **refresh coordinator** (single-flight); use cases still accept a signal for cancel.
-- `CalendarPort` optionals mirror providers: `startWatch` / `stopWatch` / `disconnect` / `warmup` / `getAccountLabel` / `isOAuthConfigured` / `isOAuthInFlight` / `reviveWatch`.
-- `SchedulerPort` is intentionally narrower than `graph.scheduler` (e.g. port `forcePoll` is `Promise<void>`; graph returns `Promise<CalendarPublication | null>`).
-- Free-function facades in `src/main/facades/` and `utils/join-meeting.ts` are one-line delegates with module-level default bind.
-- Production defaults are production-safe without lifecycle bind; `composition/bind-composition.ts` formalizes rebind for tests/graph.
-- Unit tests: `tests/application/` (no Electron mocks) — get-meetings, join-meeting, disconnect-calendar (add suites when new use cases ship).
+- The use case preserves a live partial result's valid events and marks its snapshot `limited`. It copies optional Darwin count-only diagnostics only from that partial result.
+- Complete live, offline-cache, and error projections clear `darwinPartialRefreshDiagnostics`. Offline also clears `cacheAgeMs` only outside the offline-cache projection.
+- Offline success preserves a prior granted or denied permission. It never infers permission from `kind: "ok"`.
+- `GetMeetings` returns `CalendarResult`, not `CalendarPublication`. The facade and refresh coordinator own publication generation and concurrent-refresh coordination.
+
+## Rules
+
+- Ports are TypeScript interfaces. Use cases depend on ports and `src/domain`, never concrete adapters.
+- `CalendarPort.getEvents` requires `AbortSignal`. The coordinator passes it through to the use case and provider so cancellation reaches the boundary.
+- Provider optionals on `CalendarPort` include watch, disconnect, warmup, account label, OAuth state, and watch revival.
+- `SchedulerPort` is deliberately narrower than `AppGraph.scheduler`. Its `forcePoll` returns `Promise<void>`; the graph returns `Promise<CalendarPublication | null>`.
+- Calendar facade work is not limited to one-line delegation. It lazily resolves provider ports, owns permission and UI snapshot state, binds use cases to the refresh coordinator, exposes the latest publication, and publishes poll-level errors. Keep those responsibilities out of use cases.
+- Production defaults work before lifecycle bind. `composition/bind-composition.ts` provides explicit rebinds for graph creation and tests.
+- Application tests live in `tests/application/` and use no Electron mocks.

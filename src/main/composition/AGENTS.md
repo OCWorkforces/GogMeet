@@ -1,32 +1,32 @@
 # composition/
 
-## OVERVIEW
+## Overview
 
-Composition root for the main process.
+This directory is the main-process composition root. It builds a production `AppGraph` and rebinds module-level facade defaults so lifecycle, IPC, tray, and shortcuts share the same surfaces.
 
-| File | Role |
-| --- | --- |
-| `app-graph.ts` | `AppGraph` types + `createAppGraph()` — production wiring of calendar, settings, join, opener, scheduler, watcher |
-| `create-test-app-graph.ts` | `createTestAppGraph(overrides)` — partial graph for tests; **defaults `skipBind: true`** so mocked facades are not rebound |
-| `bind-composition.ts` | Rebinds free-function defaults for calendar + settings + join only (`rebind*Defaults`) |
+| File                       | Role                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `app-graph.ts`             | `AppGraph` types and `createAppGraph()`, which wires calendar, settings, join, opener, scheduler, and watcher surfaces. |
+| `create-test-app-graph.ts` | `createTestAppGraph(overrides)`, a partial graph helper that defaults `skipBind` to `true`.                             |
+| `bind-composition.ts`      | Rebinds calendar, settings, and join facade defaults.                                                                   |
 
-## AppGraph surfaces
+## Calendar graph contract
 
-| Surface | Typical methods |
-| --- | --- |
-| `calendar` | `getEvents` → `refreshCalendarPublication` (publication envelope; no signal on graph), `getEventsResult` → result-only refresh (join/shortcuts), requestPermission, getPermissionStatus, disconnect, getUiState, warmup, invalidatePermissionCache, shouldAutoRequestPermission, reportPollError |
-| `settings` | load, get, update, save |
-| `join` | `byId(id)` |
-| `opener` | `MeetingOpenerPort.open` |
-| `scheduler` | `forcePoll(options?: ForcePollOptions)` → publication or null (`reason: "user"` bypasses 10s coalesce), start, `stop({ preserveFiredState? })`, restart, setWindow, setTrayTitleCallback, initPowerCallbacks, getLastKnownEvents, cancelPendingBrowserOpen |
-| `watcher` | start, stop, revive |
+- `graph.calendar.getEvents()` returns `CalendarPublication`, the coordinated envelope `{ publicationGeneration, result }`. It has no caller-provided signal because the refresh coordinator owns the provider call and its cancellation.
+- `graph.calendar.getEventsResult()` returns only the enclosed `CalendarResult` for callers that need data rather than publication metadata, such as explicit join paths.
+- `CalendarResult` describes the fetch outcome. `CalendarPublication` identifies a result produced by the coordinator and is used for refresh consumers and IPC pushes. Do not collapse the two contracts.
+- The graph exposes UI snapshot reads, permission flow, disconnect, warmup, permission-cache invalidation, auto-request eligibility, and poll-level error reporting through its calendar surface.
+- `graph.scheduler.forcePoll(options?)` returns a coordinated publication or `null`. `reason: "user"` bypasses the 10-second coalesce. `graph.scheduler` does not own display-horizon republish; lifecycle imports `republishUiForDisplayTick()` from `scheduler/facade.ts`.
 
-**Not on the graph (free-function / facade only):** `republishUiForDisplayTick` — lifecycle imports it from `scheduler/facade.js` for display-horizon ticks (display-only republish; no fetch).
+## Construction and probe use
 
-## RULES
+- `createAppGraph()` is pure dependency wiring apart from facade default binding and lazy adapter creation. It does not initiate a calendar request, OAuth flow, or eager settings write.
+- Normal lifecycle calls it once before IPC. Pass the resulting graph to tray, IPC handlers, and shortcuts rather than rebuilding surfaces at each boundary.
+- The tray packaged probe also creates the production graph so it exercises production tray setup and callbacks, but supplies synthetic events and calendar UI snapshots through the main bus.
+- Probe mode is selected and preflighted by `app/`, not composition. The calendar factory rejects invalid packaged-probe preflight before selecting any real provider.
 
-- Pure wiring only: no network/OAuth/eager FS writes beyond lazy factories.
-- Call `createAppGraph()` once at the start of `initializeApp` (before IPC).
-- Prefer passing `AppGraph` into IPC / tray / shortcuts; free functions remain for internal adapters and display-horizon republish.
-- Options: `skipBind` (tests mocking facades; production omits it so defaults bind), `opener` override.
-- Tests: `tests/helpers/app-graph.ts` → `testAppGraph()`; or `createTestAppGraph` (already `skipBind: true` by default) with surface overrides.
+## Rules
+
+- Keep this directory to wiring. Network, OAuth, EventKit, Swift, calendar transport, and persistence implementation belong to their actual adapter directories.
+- Options are `skipBind` for tests with mocked facade defaults and `opener` for a meeting-opener override.
+- Use `tests/helpers/app-graph.ts` or `createTestAppGraph()` for test graphs. The latter defaults to `skipBind: true` so it does not rebind mocked facades.
