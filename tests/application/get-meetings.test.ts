@@ -5,6 +5,15 @@ import type { CalendarUiState } from "../../src/domain/entities/calendar-ui-stat
 import type { CalendarPort } from "../../src/main/application/ports/calendar-port.js";
 import { createMockEvent } from "../helpers/test-utils.js";
 
+const darwinPartialRefreshDiagnostics = {
+  total: 5,
+  malformedRecord: 1,
+  malformedFieldCount: 1,
+  invalidIso: 1,
+  invalidId: 1,
+  duplicateUid: 1,
+} as const;
+
 describe("createGetMeetings", () => {
   let uiState: CalendarUiState;
   let published: CalendarUiState[];
@@ -74,6 +83,133 @@ describe("createGetMeetings", () => {
     expect(uiState.offline).toBe(false);
     expect(uiState.lastError).toMatch(/could not be refreshed/i);
     expect(cachedPermission).toBe("granted");
+  });
+
+  it("projects Darwin partial diagnostics while retaining the generic limited state", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents).mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "partial",
+      observedAt: Date.now(),
+      events,
+      darwinPartialRefreshDiagnostics,
+    });
+
+    await create().execute();
+
+    expect(uiState.phase).toBe("limited");
+    expect(uiState.lastError).toMatch(/could not be refreshed/i);
+    expect(uiState.events).toEqual(events);
+    expect(uiState.darwinPartialRefreshDiagnostics).toEqual(darwinPartialRefreshDiagnostics);
+  });
+
+  it("clears Darwin partial diagnostics after a live complete refresh", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents)
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events,
+        darwinPartialRefreshDiagnostics,
+      })
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "complete",
+        observedAt: Date.now(),
+        events,
+      });
+
+    const getMeetings = create();
+    await getMeetings.execute();
+    uiState = { ...uiState, darwinPartialRefreshDiagnostics };
+    await getMeetings.execute();
+
+    expect(uiState.phase).toBe("ready");
+    expect(uiState.darwinPartialRefreshDiagnostics).toBeNull();
+  });
+
+  it("clears Darwin partial diagnostics after an offline-cache refresh", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents)
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events,
+        darwinPartialRefreshDiagnostics,
+      })
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "offline-cache",
+        observedAt: Date.now() - 60_000,
+        cachedAt: Date.now() - 30_000,
+        events,
+      });
+
+    const getMeetings = create();
+    await getMeetings.execute();
+    uiState = { ...uiState, darwinPartialRefreshDiagnostics };
+    await getMeetings.execute();
+
+    expect(uiState.phase).toBe("offline-cached");
+    expect(uiState.darwinPartialRefreshDiagnostics).toBeNull();
+  });
+
+  it("clears Darwin partial diagnostics after a provider error", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents)
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events,
+        darwinPartialRefreshDiagnostics,
+      })
+      .mockResolvedValueOnce({ kind: "err", error: "no calendars", code: "no-calendars" });
+    vi.mocked(calendar.getPermissionStatus).mockResolvedValue("denied");
+
+    const getMeetings = create();
+    await getMeetings.execute();
+    uiState = { ...uiState, darwinPartialRefreshDiagnostics };
+    await getMeetings.execute();
+
+    expect(uiState.phase).toBe("error");
+    expect(uiState.darwinPartialRefreshDiagnostics).toBeNull();
+  });
+
+  it("keeps Google partials generic and clears Darwin partial diagnostics", async () => {
+    const events = [createMockEvent()];
+    vi.mocked(calendar.getEvents)
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events,
+        darwinPartialRefreshDiagnostics,
+      })
+      .mockResolvedValueOnce({
+        kind: "ok",
+        source: "live",
+        completeness: "partial",
+        observedAt: Date.now(),
+        events,
+      });
+
+    const getMeetings = create();
+    await getMeetings.execute();
+    uiState = { ...uiState, darwinPartialRefreshDiagnostics };
+    await getMeetings.execute();
+
+    expect(uiState.phase).toBe("limited");
+    expect(uiState.lastError).toMatch(/could not be refreshed/i);
+    expect(uiState.darwinPartialRefreshDiagnostics).toBeNull();
   });
 
   it("publishes offline-cached without granting permission from kind alone", async () => {
