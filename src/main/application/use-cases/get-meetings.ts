@@ -44,6 +44,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
             offline: true,
             accountEmail: email,
             oauthConfigured,
+            darwinPartialRefreshDiagnostics: null,
             cacheAgeMs,
           };
           deps.setUiState(next);
@@ -62,6 +63,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
             offline: false,
             accountEmail: email,
             oauthConfigured,
+            darwinPartialRefreshDiagnostics: result.darwinPartialRefreshDiagnostics ?? null,
             cacheAgeMs: null,
           };
           deps.setUiState(next);
@@ -78,6 +80,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
           offline: false,
           accountEmail: email,
           oauthConfigured,
+          darwinPartialRefreshDiagnostics: null,
           cacheAgeMs: null,
         };
         deps.setUiState(next);
@@ -93,6 +96,7 @@ export function createGetMeetings(deps: GetMeetingsDeps): GetMeetings {
         phase: "error",
         lastError: result.error,
         oauthConfigured,
+        darwinPartialRefreshDiagnostics: null,
         cacheAgeMs: null,
       };
       deps.setUiState(next);

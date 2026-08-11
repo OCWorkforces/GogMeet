@@ -1,82 +1,69 @@
-# Main Process — Electron Main
+# Main Process: Electron Main
 
-Electron main owns app lifecycle, tray/menu, BrowserWindows, system APIs, IPC handlers, scheduler orchestration, settings persistence, and **calendar access through pluggable providers** (macOS EventKit / Windows Google Calendar). `app/lifecycle.ts` is the startup/shutdown coordinator; `composition/app-graph.ts` is the composition root.
+Electron main owns lifecycle, tray and menu, BrowserWindows, system APIs, typed IPC, scheduler orchestration, settings persistence, and calendar access through pluggable providers. `app/lifecycle.ts` starts and stops the process. `composition/app-graph.ts` wires its production dependencies.
 
 ## Files and subsystems
 
-| Area | Files | Responsibility |
-| --- | --- | --- |
-| Root | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift` | bootstrap (single-instance), tray, bus, Swift **source** (Darwin) |
-| `app/` | `lifecycle.ts`, `ipc.ts`, **performance-probe*** | init order, shutdown, IPC registration; lab packaged probes |
-| `composition/` | `app-graph.ts`, `bind-composition.ts`, `create-test-app-graph.ts` | `createAppGraph` + use-case default rebind |
-| `application/` | `ports/`, `use-cases/` | ports + pure-ish use-case factories |
-| `infrastructure/` | `settings/`, `electron/` | JsonSettingsStore, ShellMeetingOpener |
-| `facades/` | calendar, watcher, status, settings | free-function main surface + default binds |
-| `calendar/` | factory, providers (incl. **performance-probe**), **google-http**, auth (OAuth/tokens/**sync tokens**), offline-cache, **refresh-coordinator** | CalendarProvider backends + single-flight refresh + Google incremental sync + lab probe |
-| `platform/` | `os.ts` | `isDarwin` / `isWin32` |
-| `windows/` | about (320×360, aurora), update (340×340–400, aurora), alert, settings (520×760, Dock) | BrowserWindow singletons; Settings/About/Update canvas `#0d1117`; hide-cache; alert hide/reuse |
-| `system/` | power, **display-horizon**, shortcuts, auto-launch, auto-updater, notification | OS integration + wall-clock UI re-filter |
-| `scheduler/` | facade + core + adapters + timers | poll, plan (`set-snapshot`), auto-open, alerts |
-| `swift/` | **swift-helper-process**, binary-manager, parser, sidecar, … | EventKit helper leaf (Darwin provider only) |
-| `ipc-handlers/` | per-domain handlers | typed IPC (receive `AppGraph`) |
-| `menu/` | `meeting-menu.ts` | tray menu templates (limited/offline rows; optional completed-today history) |
-| `utils/` | browser-window, **window-chrome** (`DIALOG_BACKGROUND_COLOR`), meet-url, join-meeting, log, packageInfo, system-settings, **performance-trace** | security + join hub + helpers |
+| Area              | Files                                                                       | Responsibility                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Root              | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift`               | Single-instance bootstrap, production tray, main bus, and Darwin Swift source                                       |
+| `app/`            | `lifecycle.ts`, `ipc.ts`, `performance-probe*`                              | Lifecycle, IPC registration, and private packaged measurement probes                                                |
+| `composition/`    | `app-graph.ts`, `bind-composition.ts`, `create-test-app-graph.ts`           | Production graph construction and facade default binding                                                            |
+| `application/`    | `ports/`, `use-cases/`                                                      | Port contracts and use-case projections with no Electron, Node I/O, or Swift                                        |
+| `infrastructure/` | `settings/`, `electron/`                                                    | `JsonSettingsStore` and `ShellMeetingOpener` only                                                                   |
+| `facades/`        | calendar, watcher, status, settings                                         | Main-process application surface, UI snapshot publication, and default binds                                        |
+| `calendar/`       | factory, providers, `google-http`, auth, offline cache, refresh coordinator | Provider implementation, OAuth, Google transport and sync, offline cache, coordinated refreshes, and probe provider |
+| `platform/`       | `os.ts`                                                                     | `isDarwin` and `isWin32`                                                                                            |
+| `windows/`        | about, update, alert, settings                                              | BrowserWindow ownership, including hide and reuse for alert and settings windows                                    |
+| `system/`         | power, display horizon, shortcuts, auto-launch, auto-updater, notification  | OS integration and wall-clock display refreshes                                                                     |
+| `scheduler/`      | facade, core, adapters, timers                                              | Polling, schedule planning, automatic joins, alerts, and timer state                                                |
+| `swift/`          | helper process, binary manager, parser, sidecar                             | EventKit helper implementation, reachable only from the Darwin provider                                             |
+| `ipc-handlers/`   | per-domain handlers                                                         | Typed IPC handlers that receive `AppGraph`                                                                          |
+| `menu/`           | `meeting-menu.ts`                                                           | Tray menu templates, including limited, offline, and completed-today rows                                           |
+| `utils/`          | window helpers, join hub, URL helpers, logging, performance trace           | Main-process helpers and egress support                                                                             |
 
 ## Lifecycle order
 
-`initializeApp(win)` order:
+`initializeApp(win)` creates and stores `AppGraph` before IPC, warms the calendar provider in the background, loads settings and permission status, installs the tray, wires scheduler callbacks and display-horizon refreshes, then starts scheduler and watcher. Power, shortcuts, notifications, auto-launch, and the packaged non-portable updater follow. Darwin may request not-determined calendar permission. Windows OAuth starts only from tray or Settings.
 
-1. `createAppGraph()` — bind composition; store as `activeGraph`.
-2. `warmupCalendarProvider()` — Swift compile on Darwin / token soft-refresh on Google (background).
-3. `registerIpcHandlers(win, graph)`.
-4. Parallel `graph.settings.load()` + calendar permission status; **auto-request only on Darwin** (`shouldAutoRequestPermission()`).
-5. `setupTray(win, graph)`.
-6. Scheduler callbacks + window injection via `graph.scheduler.*` (`setTrayTitleCallback`, `setSchedulerWindow`, `initPowerCallbacks`).
-7. Wire **display-horizon** ticks: `onDisplayHorizonTick` → free-function `republishUiForDisplayTick()` + `forceTrayMenuRefresh()` (display-only; not on `AppGraph.scheduler`).
-8. `graph.scheduler.start()` then `graph.watcher.start()`.
-9. Power events, shortcuts (`registerShortcuts(graph)`), notifications, auto-launch sync.
-10. `initAutoUpdater()` — packaged non-portable only.
+`shutdownApp()` cleans up power and display-horizon listeners, destroys cached windows, stops scheduler and watcher, unregisters shortcuts, and clears the active graph. Resume and unlock invalidate calendar permission cache, revive the watcher, and restart the scheduler.
 
-`shutdownApp()`: power cleanup → unsubscribe/clear display horizon → **`destroyAlertWindow` / `destroySettingsWindow` / `destroyAboutWindow` / `destroyUpdateWindow`** → `graph.scheduler.stop()` + `graph.watcher.stop()` (or free-fn fallback) → unregister shortcuts → clear `activeGraph`.
+## Calendar publication and automation
 
-Power resume/unlock: `invalidatePermissionCache()` → `watcher.revive()` → `scheduler.restart()`.
+- Calendar calls use `facades/calendar.ts`, never provider factories directly.
+- `refreshCalendarPublication()` and `requestCalendarRefresh()` share one in-flight fetch. A concurrent request queues at most one follow-up. All waiters receive the final `CalendarPublication` for that chain. The coordinator assigns monotonic `publicationGeneration`, retains only the final publication, and cancellation aborts provider work before a later request starts a new lifecycle epoch.
+- `CalendarPublication` is `{ publicationGeneration, result }`. It is the coordinated refresh and IPC envelope. `CalendarResult` is the underlying live complete or partial, offline-cache, or error outcome.
+- `GetMeetings` projects results into the calendar UI snapshot. Complete live data becomes `ready` or `empty`; live partial becomes `limited`; offline cache becomes `offline-cached` with `cacheAgeMs`; errors become `error`.
+- Partial results keep valid events. The scheduler keeps those events for tray, popover, shortcuts, and explicit joins, then suspends browser, alert, title, countdown, and in-meeting automation. Only live complete results schedule automatic work.
+- Darwin partial results may include the optional count-only `darwinPartialRefreshDiagnostics` aggregate. It is not a generic provider feature. It clears on complete live, offline-cache, error, and poll-level error states. Native macOS tray code may render those disabled diagnostic rows; renderer production UI does not present diagnostic labels or tokens.
 
 ## Architecture rules
 
-- `events.ts` decouples scheduler/power/calendar UI from tray (`meeting-list-updated`, `calendar-status-updated`, `power-state-changed`).
-- Prefer `AppGraph` for lifecycle, IPC, tray, and shortcuts. Free functions remain for internal adapters and tests.
-- `scheduler/facade.ts` is the only scheduler import outside `scheduler/` (and graph wrappers).
-- Callers use `facades/calendar.ts` (not factory/providers) for calendar access.
-- Calendar fetches go through the refresh coordinator (`refreshCalendarPublication` / `requestCalendarRefresh`) — one in-flight fetch + at most one queued follow-up.
-- `swift/` only from `calendar/providers/darwin-eventkit.ts` and internal `swift/**`.
-- Calendar results are exhaustive (live complete/partial / offline-cache); ports require `AbortSignal`.
-- Settings schema **v3** includes display-only `showCompletedTodayMeetings` (tray + popover history; no scheduler restart).
-- Google provider may use incremental `nextSyncToken` (encrypted sync file + process-local index); facades still must not import `calendar/auth/*`.
-- Meeting host detection: `domain/services/platform.ts`. OS: `platform/os.ts`.
-- Display-horizon ticks use free-function `republishUiForDisplayTick` (not on `AppGraph.scheduler`).
+- `events.ts` decouples scheduler, power, calendar UI, and tray through `meeting-list-updated`, `calendar-status-updated`, and `power-state-changed`.
+- Prefer `AppGraph` for lifecycle, IPC, tray, and shortcuts. Keep free functions for internal adapters, test default binding, and display-horizon republish.
+- Outside `scheduler/`, import only `scheduler/facade.ts` or use `graph.scheduler`.
+- `swift/` may be imported only by `calendar/providers/darwin-eventkit.ts` and `swift/**`. Facades must not import `swift/*` or `calendar/auth/*`.
+- Calendar ports require `AbortSignal`. `showCompletedTodayMeetings` is display-only and does not restart the scheduler.
+- Meeting host detection belongs to `domain/services/platform.ts`; OS detection belongs to `platform/os.ts`.
 
-## IPC and security
+## IPC, security, and tray
 
-- `typedHandle` / `typedSend`; always validate sender for renderer-originated IPC.
-- Meeting egress: ShellMeetingOpener / `openMeetingUrl` / allowlist; rebrand fire-and-forget payloads in main.
-- Sandbox + context isolation + no Node in renderers.
-- Meeting joins go through `joinMeetingById` / `graph.join.byId`. Non-meeting links use documented helpers (`openSystemSettings`, About repo exact match).
+- Use `typedHandle` and `typedSend`, and validate senders for renderer-originated IPC.
+- Meeting egress goes through the allowlisted `ShellMeetingOpener`, `openMeetingUrl`, and `joinMeetingById` or `graph.join.byId`.
+- Renderers stay sandboxed and context-isolated with no Node integration.
+- Install the tray context menu before activation. Bus-driven rebuilds are microtask-coalesced; display-horizon ticks and the completed-history setting force an immediate rebuild.
+- A user tray refresh bypasses the 10-second auto, watch, and power coalesce. macOS clicks use a soft refresh; Windows also rebuilds from cache before opening its context menu.
 
-## Tray invariants
+## Packaged probes
 
-- Install menu with `tray.setContextMenu()` before first activation.
-- Bus-driven list/status/theme: `requestTrayRebuild` — at most one microtask-coalesced rebuild while signals burst; skips rebuild when `trayMenuSignature` is unchanged.
-- Display-horizon ticks and completed-history setting changes: sync `forceTrayMenuRefresh()` (force signature clear + immediate install).
-- Menu cache signature includes wall-clock upcoming membership **and** `showCompletedTodayMeetings` so ended meetings / history toggle invalidate without content changes.
-- macOS click: `forcePoll({ reason: "auto" })` only (soft; 10s coalesce). Windows click: same soft poll + sync force rebuild from cache then `popUpContextMenu`.
-- Menu **Refresh / Retry / Connect-granted**: `forcePoll({ reason: "user" })` then `requestTrayRebuild({ force: true })` — immediate re-fetch, no 10s poll coalesce.
-- Countdown: `setTitle` on Darwin; capped tooltip on Windows (16/32 theme icons; skip no-op `setToolTip`).
-- Menu join/refresh via `MenuCallbacks.onJoinMeeting` / `onForcePoll` (graph-backed).
+- `GOGMEET_PERF_PROBE` is a lab and CI facility, never a product setting. Its only modes are `startup`, `tray`, `alert`, and `safe-storage`.
+- Preflight runs before calendar or token adapters. It requires a packaged app, `GOGMEET_PERF_TRACE=1`, and a real `--user-data-dir` beneath `os.tmpdir()` whose supplied and resolved leaf names start with `gogmeet-perf-probe-`.
+- A bad preflight blocks probe execution, and the probe calendar factory throws rather than reaching EventKit or Google. Startup uses `initializeApp({ probeSafe: true })`, which suppresses external mutators.
+- The tray probe drives production `setupTray` and rebuild paths with synthetic events and UI snapshots. The alert probe drives production `showAlert` and alert-window lifecycle with synthetic meetings. The safe-storage probe uses the real encrypted token and offline-cache adapters with synthetic values.
 
 ## Notes
 
-- Swift source `asarUnpack` for packaged mac builds.
-- Windows Google requires `GOOGLE_OAUTH_CLIENT_ID` at runtime/package.
-- Fixture: unpackaged + `GOGMEET_CALENDAR_FIXTURE` path only.
-- Packaged probe (lab only): `GOGMEET_PERF_PROBE` + trace + isolated userData → private empty calendar; factory **throws** on bad preflight; `initializeApp({ probeSafe: true })` for startup probes.
-- `index.ts` configures `electron-log` via `utils/log.ts` and suppresses Chromium DNS sorter warnings with `log-level=3`.
+- Swift source is unpacked for packaged macOS builds.
+- Windows Google Calendar requires `GOOGLE_OAUTH_CLIENT_ID` at runtime or package time.
+- The fixture provider is available only to unpackaged builds with `GOGMEET_CALENDAR_FIXTURE`.
+- `index.ts` configures `electron-log` through `utils/log.ts` and sets Chromium `log-level=3`.

@@ -6,8 +6,8 @@ OS process-platform helpers. Do **not** confuse with `domain/services/platform.t
 
 ## FILES
 
-| File | Role | Key Exports |
-|------|------|-------------|
+| File    | Role                          | Key Exports               |
+| ------- | ----------------------------- | ------------------------- |
 | `os.ts` | `process.platform` predicates | `isDarwin()`, `isWin32()` |
 
 ## NOTES

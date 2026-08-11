@@ -8,16 +8,18 @@ Type-safe IPC handler registry. Invoke handlers use `typedHandle()`; fire-and-fo
 
 ## FILES
 
-| File | Exports | Role |
-| --- | --- | --- |
-| `shared.ts` | `typedHandle`, `typedSend`, sender validators, window-height bounds (`MIN_WINDOW_HEIGHT` **220** / `MAX_WINDOW_HEIGHT` **480**) | Type-safe IPC wrapper + origin validation (dev: localhost:5173; packaged: `file://` under `lib/renderer/{index,settings,alert}.html`) |
-| `app.ts` | `registerAppHandlers(graph)` | `APP_OPEN_EXTERNAL` → `graph.opener.open`; `APP_JOIN_MEETING` → `graph.join.byId`; `APP_GET_VERSION` |
-| `calendar.ts` | `registerCalendarHandlers(graph)` | get events / permission / disconnect / UI state; forcePoll on granted |
-| `settings.ts` | `registerSettingsHandlers(win, graph)` | get/set settings; invalid sender → fresh defaults without persistence |
-| `window.ts` | `registerWindowHandlers(win)` | `WINDOW_SET_HEIGHT` fire-and-forget |
-| `alert.ts` | `registerAlertHandlers(graph)` | `ALERT_DISMISSED` re-brands `id` then `graph.scheduler.cancelPendingBrowserOpen` |
+| File          | Exports                                                                                                                         | Role                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `shared.ts`   | `typedHandle`, `typedSend`, sender validators, window-height bounds (`MIN_WINDOW_HEIGHT` **220** / `MAX_WINDOW_HEIGHT` **480**) | Type-safe IPC wrapper + origin validation (dev: localhost:5173; packaged: `file://` under `lib/renderer/{index,settings,alert}.html`) |
+| `app.ts`      | `registerAppHandlers(graph)`                                                                                                    | `APP_OPEN_EXTERNAL` → `graph.opener.open`; `APP_JOIN_MEETING` → `graph.join.byId`; `APP_GET_VERSION`                                  |
+| `calendar.ts` | `registerCalendarHandlers(graph)`                                                                                               | get events / permission / disconnect / UI state; forcePoll on granted                                                                 |
+| `settings.ts` | `registerSettingsHandlers(win, graph)`                                                                                          | get/set settings; invalid sender → fresh defaults without persistence                                                                 |
+| `window.ts`   | `registerWindowHandlers(win)`                                                                                                   | `WINDOW_SET_HEIGHT` fire-and-forget                                                                                                   |
+| `alert.ts`    | `registerAlertHandlers(graph)`                                                                                                  | `ALERT_DISMISSED` re-brands `id` then `graph.scheduler.cancelPendingBrowserOpen`                                                      |
 
 Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` → `graph.calendar.getEvents` / `refreshCalendarPublication` (no separate force-poll IPC channel). Push channel is `CALENDAR_RESULT_UPDATED` with `CalendarPublication`.
+
+Existing `CalendarPublication` and `CalendarUiState` channels carry the optional safe Darwin aggregate when a live partial result has one. It is numeric-only: `total`, `malformedRecord`, `malformedFieldCount`, `invalidIso`, `invalidId`, and `duplicateUid`. No new channel, handler, or renderer display is needed. Other results clear the UI-state aggregate, and Google partials carry no Darwin aggregate.
 
 **Never reintroduce** `SCHEDULER_FORCE_POLL` / `scheduler:force-poll` or events-only `CALENDAR_EVENTS_UPDATED` — permanent guardrail G6 (`docs/security/permanent-guardrails.md`, `bun run guardrails`).
 
@@ -30,6 +32,7 @@ Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` → `graph.calendar.ge
 **Push channels** — `typedSend` with destroyed-window guards: `SETTINGS_CHANGED`, `CALENDAR_RESULT_UPDATED`, `ALERT_SHOW`.
 
 **Settings side effects** (`settings.ts`):
+
 - Timing keys (`openBeforeMinutes`, `windowAlert`, `autoOpenEnabled`, `alertLeadSeconds`, `lateJoinGraceMinutes`, quiet hours, `nativeNotifications`) → `graph.scheduler.restart()`.
 - `showTomorrowMeetings` alone → optional `forcePoll()` (no full restart).
 - `showCompletedTodayMeetings` alone → `forceTrayMenuRefresh()` only (display-only; **no** restart / force-poll).
@@ -38,20 +41,20 @@ Calendar refresh is coordinated via `CALENDAR_GET_EVENTS` → `graph.calendar.ge
 
 ## CHANNEL→HANDLER MAP
 
-| Channel | Handler File | Type |
-| --- | --- | --- |
-| `APP_OPEN_EXTERNAL` | app.ts | invoke → `Result` via `graph.opener` |
-| `APP_JOIN_MEETING` | app.ts | invoke `{ id }` → `Result` via `graph.join.byId` |
-| `APP_GET_VERSION` | app.ts | invoke |
-| `CALENDAR_GET_EVENTS` | calendar.ts | invoke → `CalendarPublication` |
-| `CALENDAR_REQUEST_PERMISSION` | calendar.ts | invoke (+ main `forcePoll` when granted) |
-| `CALENDAR_PERMISSION_STATUS` | calendar.ts | invoke |
-| `CALENDAR_DISCONNECT` | calendar.ts | invoke |
-| `CALENDAR_UI_STATE` | calendar.ts | invoke → `CalendarUiState` |
-| `SETTINGS_GET` | settings.ts | invoke |
-| `SETTINGS_SET` | settings.ts | invoke (+ selective restart / auto-launch) |
-| `WINDOW_SET_HEIGHT` | window.ts | fire-and-forget |
-| `ALERT_DISMISSED` | alert.ts | fire-and-forget |
+| Channel                       | Handler File | Type                                             |
+| ----------------------------- | ------------ | ------------------------------------------------ |
+| `APP_OPEN_EXTERNAL`           | app.ts       | invoke → `Result` via `graph.opener`             |
+| `APP_JOIN_MEETING`            | app.ts       | invoke `{ id }` → `Result` via `graph.join.byId` |
+| `APP_GET_VERSION`             | app.ts       | invoke                                           |
+| `CALENDAR_GET_EVENTS`         | calendar.ts  | invoke → `CalendarPublication`                   |
+| `CALENDAR_REQUEST_PERMISSION` | calendar.ts  | invoke (+ main `forcePoll` when granted)         |
+| `CALENDAR_PERMISSION_STATUS`  | calendar.ts  | invoke                                           |
+| `CALENDAR_DISCONNECT`         | calendar.ts  | invoke                                           |
+| `CALENDAR_UI_STATE`           | calendar.ts  | invoke → `CalendarUiState`                       |
+| `SETTINGS_GET`                | settings.ts  | invoke                                           |
+| `SETTINGS_SET`                | settings.ts  | invoke (+ selective restart / auto-launch)       |
+| `WINDOW_SET_HEIGHT`           | window.ts    | fire-and-forget                                  |
+| `ALERT_DISMISSED`             | alert.ts     | fire-and-forget                                  |
 
 ## ANTI-PATTERNS
 

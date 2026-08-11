@@ -1,44 +1,36 @@
 # facades/
 
-## OVERVIEW
+## Overview
 
-Main-process **application surface** modules: calendar access facade (provider-backed + refresh coordinator), change watching, last-poll status for the tray menu, and persistent settings (schema **v3**).
+Facades provide the main-process application surface for calendar access, calendar watching, last-poll status, and persistent settings. They are not pure domain code. Production callers usually use `AppGraph`; facade free functions support internal consumers and default binding.
 
-These are **not** pure domain (see `src/domain/`). They may use Electron/`node:fs`/providers; prefer one-line use-case delegates and ports over growing facade logic. Production code often reaches them through `AppGraph`; free functions remain for scheduler internals and default binds.
+## Files
 
-## FILES
+| File                  | Exports                                                                                                                | Purpose                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calendar.ts`         | refresh, result, latest-publication, cancellation, permission, disconnect, warmup, UI, poll-error, and binding helpers | Lazily resolves provider ports, owns calendar UI snapshot and permission cache, binds `GetMeetings` into the coordinator, and publishes snapshot changes. |
+| `calendar-watcher.ts` | start, stop, revive watcher                                                                                            | Connects provider watch support to coalesced scheduler poll requests.                                                                                     |
+| `calendar-status.ts`  | `recordCalendarResult`, `getLastCalendarStatus`                                                                        | Stores reduced tray status: `unknown`, successful timestamp, or error code and message.                                                                   |
+| `settings.ts`         | load, save, get, update, and binding helpers                                                                           | Settings surface over `JsonSettingsStore`; port methods are load, get, and update, while save is adapter-specific.                                        |
 
-| File | Exports | Purpose |
-| --- | --- | --- |
-| `calendar.ts` | `refreshCalendarPublication`, `getCalendarEventsResult`, `getLastPublication`, `cancelActiveCalendarRefresh`, `getCalendarPort`, permission/disconnect/warmup/UI/`reportCalendarPollError`, bind/rebind helpers | Stable facade over factory + **refresh-coordinator**; publishes `CalendarUiState` on the main bus; module-load binds fetcher to get-meetings use case |
-| `calendar-watcher.ts` | `startCalendarWatcher`, `stopCalendarWatcher`, `reviveCalendarWatcher` | Provider `startWatch` / `stopWatch` → `forcePoll({ reason: "watch" })` (10s coalesce); uses `getCalendarPort()`; revive after give-up/resume |
-| `calendar-status.ts` | `recordCalendarResult`, `getLastCalendarStatus` | Last poll ok/err for tray menu error rows (`isCalendarOk`) |
-| `settings.ts` | `loadSettings`, `saveSettings`, `getSettings`, `updateSettings`, bind helpers | JSON-persisted settings via JsonSettingsStore; schema **v3**. Port is load/get/update; **`save` requires `JsonSettingsStore.save`** |
+## Calendar snapshot and publication
 
-## WHERE TO LOOK
+- `CalendarUiState` is the synchronous tray and Settings snapshot. Its fields are permission, phase, last error, account email, nullable events, offline flag, OAuth configuration, nullable Darwin partial diagnostics, and nullable offline `cacheAgeMs`.
+- `GetMeetings` updates and publishes the snapshot for every provider result. Complete live results clear diagnostics and cache age. Offline results clear diagnostics and set cache age. Errors clear diagnostics and cache age. `reportCalendarPollError()` also clears diagnostics.
+- A live partial result becomes `limited`, retains its valid events, and may carry `darwinPartialRefreshDiagnostics`. The aggregate is optional, count-only, and Darwin-specific. Facades do not add diagnostic channels or renderer presentation.
+- `refreshCalendarPublication()` returns the coordinator's `CalendarPublication`. `getCalendarEventsResult()` returns its enclosed result, and `getLastPublication()` returns the last completed coordinator publication.
+- The refresh coordinator permits one provider call at a time. Requests during that call share the chain and queue at most one follow-up. Waiters resolve to the final publication in the chain. Cancellation aborts active provider work and invalidates that lifecycle's chain.
+- Scheduler policy handles automation eligibility: live complete can schedule; partial and offline snapshots remain display and explicit-join data while automatic work is suspended.
 
-| Task | Location |
-| --- | --- |
-| Add a setting field | `settings.ts` + `domain/entities/settings.ts` + `domain/services/settings-parse.ts` + JSON store partial merge |
-| CalendarResult provenance | `domain/entities/calendar-result.ts` → `isCalendarOk` / automation helpers |
-| Publication envelope | `domain/entities/calendar-publication.ts` + `refreshCalendarPublication` |
-| UI phases (`limited`, offline age) | `domain/entities/calendar-ui-state.ts` + `application/use-cases/get-meetings.ts` |
-| Platform backends | `../calendar/` (factory + providers + google-http) |
-| Single-flight refresh | `../calendar/refresh-coordinator.ts` (bound in `calendar.ts`) |
-| Swift internals | `../swift/AGENTS.md` (Darwin provider only) |
-| Tray empty/error/limited/history | `getCalendarUiState` / `calendar-status-updated` / `menu/meeting-menu.ts` |
-| Graph wiring | `../composition/app-graph.ts` |
+## Boundaries and call paths
 
-## NOTES
+- Do not import `swift/*` or `calendar/auth/*` here. Use `CalendarPort` methods for account label, warmup, OAuth state, watch, and revival.
+- Provider implementation belongs in `../calendar/`: Darwin EventKit, Google Calendar, Google HTTP, OAuth and sync-token storage, offline cache, and coordinator.
+- `calendar-watcher.ts` uses `getCalendarPort()` and requests `forcePoll({ reason: "watch" })`. Providers without `startWatch` remain poll-only.
+- Calendar status intentionally has no source, completeness, event, cache-age, or diagnostic data. Menu presentation combines it with the full calendar UI snapshot when needed.
+- Invalidate the calendar permission cache before scheduler restart after resume. Lifecycle may auto-request only on Darwin; Windows Connect remains a tray or Settings action.
 
-- **Must not** import `swift/*` or `calendar/auth/*`. Use CalendarPort methods (`getAccountLabel`, `reviveWatch`, …).
-- Darwin EventKit: `calendar/providers/darwin-eventkit.ts`.
-- Windows: `calendar/providers/google-calendar.ts` (OAuth + API + google-http + incremental sync tokens). Auth modules stay provider-only.
-- Watch is poll-only when provider omits `startWatch` (Google/fixture).
-- `settings.ts` uses `domain/entities/type-guards` (`isObjectRecord`), never `swift/guards`.
-- Permission cache in `calendar.ts`; invalidate on power resume before `restartScheduler()`.
-- Lifecycle auto-request only when `shouldAutoRequestCalendarPermission()` (Darwin). Windows Connect is tray/Settings-only.
-- Poll failures should call `reportCalendarPollError` so the tray is not stuck on “Loading…”.
-- `calendar-watcher.ts` calls `forcePoll()` from `../scheduler/facade.js` on change.
-- `poll.ts` must call `recordCalendarResult()` after every fetch so the tray menu can show permission/runtime rows.
-- Schema **v3** fields include timing/automation (`autoOpenEnabled`, `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, quiet hours enable + start/end) plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` range is **0–10**. Full UI lives in `renderer/settings` (not this facade).
+## Settings rules
+
+- `settings.ts` uses `domain/entities/type-guards`, not Swift guards.
+- Schema v3 includes timing and automation settings plus display-only `showCompletedTodayMeetings` and `showTomorrowMeetings`. `openBeforeMinutes` is 0 through 10. The full UI is in `renderer/settings`.

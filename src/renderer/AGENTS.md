@@ -8,11 +8,11 @@ Primary meeting list UX for users is the **native tray menu**; the main BrowserW
 
 ## ENTRY POINTS
 
-| Entry | HTML | Window | Role |
-| --- | --- | --- | --- |
-| `index.ts` | `index.html` | 360×480 popover | Meeting list, state machine, push updates, manual refresh |
-| `settings/index.ts` | `settings/index.html` | Settings 520×760, canvas `#0d1117` (Dock on macOS) | Full schema v3 prefs + calendar connect; auto-save |
-| `alert/index.ts` | `alert/index.html` | Full-screen overlay | Dark overlay, fade+zoom; `alert:show` push |
+| Entry               | HTML                  | Window                                             | Role                                                      |
+| ------------------- | --------------------- | -------------------------------------------------- | --------------------------------------------------------- |
+| `index.ts`          | `index.html`          | 360×480 popover                                    | Meeting list, state machine, push updates, manual refresh |
+| `settings/index.ts` | `settings/index.html` | Settings 520×760, canvas `#0d1117` (Dock on macOS) | Full schema v3 prefs + calendar connect; auto-save        |
+| `alert/index.ts`    | `alert/index.html`    | Full-screen overlay                                | Dark overlay, fade+zoom; `alert:show` push                |
 
 ## STRUCTURE
 
@@ -35,6 +35,7 @@ src/renderer/
 - `AppState` lives in `src/shared/app-state.ts` and is imported by `index.ts` and `rendering/body.ts`.
 - Discriminated union (not a linear pipeline): `loading` \| `no-permission` \| `no-events` \| `has-events` \| `error`. Tray/settings phases `limited` / `offline-cached` are **`CalendarUiPhase`**, not popover `AppState`.
 - `loadEvents()` uses `window.api.calendar.getEvents()` → `CalendarPublication`; pushes deliver the same envelope via `onResultUpdated`.
+- Partial results render their retained events, or the ordinary no-events state when none remain. Renderer production never renders the native tray warning, diagnostic labels, or diagnostic count tokens.
 - Refresh/retry use the same `loadEvents()` path (no renderer force-poll IPC). `loadGeneration` ignores stale publications.
 - On show: always local `render()` with `Date.now()` so ended meetings drop immediately; network refresh is debounced separately (`lastPollTime` ≥5s).
 - Soft labels / end membership while open are refreshed by main display-horizon pushes (`CALENDAR_RESULT_UPDATED`), not a renderer interval.

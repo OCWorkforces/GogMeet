@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../../src/domain/entities/settings.js";
 import type { CalendarResult } from "../../src/domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../src/domain/entities/meeting-event.js";
 import { createMockEvent, asTestEventId, asTestIsoUtc, asTestMeetUrl, isoFromNow } from "../helpers/test-utils.js";
@@ -184,6 +183,14 @@ describe("poll()", () => {
         completeness: "partial",
         observedAt: Date.now(),
         events: [event],
+        darwinPartialRefreshDiagnostics: {
+          total: 1,
+          malformedRecord: 1,
+          malformedFieldCount: 0,
+          invalidIso: 0,
+          invalidId: 0,
+          duplicateUid: 0,
+        },
       },
     });
     await poll();
@@ -198,6 +205,9 @@ describe("poll()", () => {
     expect(stateModule.state.lastKnownEvents && stateModule.state.lastKnownEvents.kind === "ok"
       ? stateModule.state.lastKnownEvents.events
       : []).toHaveLength(1);
+    expect(stateModule.state.lastKnownEvents).toMatchObject({
+      darwinPartialRefreshDiagnostics: { total: 1 },
+    });
   });
 
   it("offline-cache suspends automation and preserves joinable events", async () => {

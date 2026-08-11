@@ -268,6 +268,7 @@ export function reportCalendarPollError(error: string, lastEvents: MeetingEvent[
     events: lastEvents,
     offline: !!(lastEvents && lastEvents.length > 0),
     oauthConfigured: lazyCalendarPort().isOAuthConfigured?.() ?? false,
+    darwinPartialRefreshDiagnostics: null,
   });
   mainBus.emit("calendar-status-updated", uiState);
 }
