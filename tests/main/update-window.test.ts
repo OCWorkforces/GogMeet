@@ -28,7 +28,7 @@ const windowInstances: WindowMock[] = [];
 
 vi.mock("electron", () => ({
   app: {
-    getVersion: vi.fn().mockReturnValue("1.18.3"),
+    getVersion: vi.fn().mockReturnValue("1.18.4"),
     getName: vi.fn().mockReturnValue("GogMeet"),
     getAppPath: vi.fn().mockReturnValue("/app"),
     isPackaged: false,
@@ -112,7 +112,7 @@ describe("update-window", () => {
     const { BrowserWindow } = await getElectron();
 
     const pending = presentUpdateDialog({
-      message: "GogMeet is up to date (v1.18.3)",
+      message: "GogMeet is up to date (v1.18.4)",
       // Dismiss-only — no OK button
       buttons: [],
     });
@@ -140,7 +140,7 @@ describe("update-window", () => {
     expect(html).toContain("app-icon-aurora--about");
     expect(html).toContain("app-icon-aurora--update");
     expect(html).toContain("You’re up to date");
-    expect(html).toContain("GogMeet is up to date (v1.18.3)");
+    expect(html).toContain("GogMeet is up to date (v1.18.4)");
     expect(html).not.toContain("update-btn-0");
     expect(html).not.toContain('id="update-close"');
     expect(html).not.toContain(">OK<");
