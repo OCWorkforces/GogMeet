@@ -4,14 +4,14 @@ Vitest workspace (`vitest.workspace.ts`) with six projects. `main` runs in Node 
 
 ## Projects
 
-| Project | Env | Setup | Scope | Coverage floors (L/S/F/B) |
-| --- | --- | --- | --- | --- |
-| `domain` | Node | `setup.as.ts` | Pure `src/domain/**` | 90 / 90 / 90 / 80 |
-| `application` | Node | `setup.as.ts` | Ports/use-case unit tests | 80 / 80 / 80 / 70 |
-| `main` | Node | `setup.main.ts` (imports as) | Electron main, scheduler, providers, Swift, IPC, tray | 90 / 90 / 90 / 80 |
-| `renderer` | jsdom | `setup.as.ts` | Browser-only UI | soft 70 / 70 / 70 / 50 |
-| `shared` | Node | `setup.as.ts` | IPC contracts, cast helper, app-icon aurora | 90 / 90 / 80 / 80 |
-| `scripts` | Node | `setup.as.ts` | Repository automation under `scripts/` | none |
+| Project       | Env   | Setup                        | Scope                                                 | Coverage floors (L/S/F/B) |
+| ------------- | ----- | ---------------------------- | ----------------------------------------------------- | ------------------------- |
+| `domain`      | Node  | `setup.as.ts`                | Pure `src/domain/**`                                  | 90 / 90 / 90 / 80         |
+| `application` | Node  | `setup.as.ts`                | Ports/use-case unit tests                             | 80 / 80 / 80 / 70         |
+| `main`        | Node  | `setup.main.ts` (imports as) | Electron main, scheduler, providers, Swift, IPC, tray | 90 / 90 / 90 / 80         |
+| `renderer`    | jsdom | `setup.as.ts`                | Browser-only UI                                       | soft 70 / 70 / 70 / 50    |
+| `shared`      | Node  | `setup.as.ts`                | IPC contracts, cast helper, app-icon aurora           | 90 / 90 / 80 / 80         |
+| `scripts`     | Node  | `setup.as.ts`                | Repository automation under `scripts/`                | none                      |
 
 Global coverage include: `src/**/*.{ts,tsx}` with floors **90 / 90 / 90 / 80**. Platform-edge excludes: `swift/calendar-watch-sidecar.ts`, `calendar/providers/darwin-eventkit.ts`.
 
@@ -28,7 +28,7 @@ tests/
 ├── helpers/               # test-utils, ipc-sender, app-graph
 ├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
-├── main/                  # Node + Electron mock suites (~84 top-level *.test.ts + swift/)
+├── main/                  # Node + Electron mock suites (flat top-level *.test.ts + swift/)
 │   └── swift/             # swift-helper-process, event-parser only
 ├── renderer/              # jsdom suites (+ rendering/, utils/)
 ├── shared/                # as.test, contracts, app-icon-aurora
@@ -38,26 +38,27 @@ tests/
 
 ## High-value main suites (non-exhaustive)
 
-| Suite | Focus |
-| --- | --- |
-| `google-http.test.ts` | bounds, timeout, abort, error classes |
-| `google-oauth.test.ts` / `google-token-store.test.ts` | force/if-needed, preserve ciphertext |
-| `google-sync-tokens.test.ts` | encrypted nextSyncToken map load/save/clear |
-| `google-calendar.test.ts` | 401, offline, provenance, incremental, **pagination-limit**, **429**, multi-cal partial |
-| `calendar-factory.test.ts` | platform selection + **probe fail-closed** |
-| `calendar-refresh-coordinator.test.ts` | single-flight, follow-up, cancel, generation |
-| `swift/swift-helper-process.test.ts` | real spawn bounds + kill paths |
-| `swift-binary-manager.test.ts` | integrity-only recompile |
-| `calendar-watch-sidecar.test.ts` | stream ceilings, overflow, restart budget |
-| `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers |
-| `guardrails-security.test.ts` | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix |
-| `scheduler-*.test.ts` | plan, timers, poll, forcePoll, auto-open off, automation eligibility |
-| `meeting-menu.test.ts` / `tray*.test.ts` | completed-today history rows + cache signature + microtask rebuild coalesce |
-| `display-horizon.test.ts` | wall-clock re-filter arm/fire |
-| `alert-window.test.ts` | queue, coalesce, hide/reuse, destroy, generation-safe handoff |
-| `about-window.test.ts` | 320×360, CSP meta, aurora markup, no Close, https-only openExternal, Esc/traffic-light dismiss |
-| `update-window.test.ts` | 340×340–400, aurora, checking/result phases, Esc dismiss, action sentinels, generation races |
-| `settings-window.test.ts` / `window-chrome.test.ts` | 520×760; dialog canvas `#0d1117` |
+| Suite                                                       | Focus                                                                                                                           |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `google-http.test.ts`                                       | bounds, timeout, abort, error classes                                                                                           |
+| `google-oauth.test.ts` / `google-token-store.test.ts`       | force/if-needed, preserve ciphertext                                                                                            |
+| `google-sync-tokens.test.ts`                                | encrypted nextSyncToken map load/save/clear                                                                                     |
+| `google-calendar.test.ts`                                   | 401, offline, provenance, incremental, **pagination-limit**, **429**, multi-cal partial                                         |
+| `calendar-factory.test.ts`                                  | platform selection + **probe fail-closed**                                                                                      |
+| `calendar-refresh-coordinator.test.ts`                      | single-flight, follow-up, cancel, generation                                                                                    |
+| `swift/swift-helper-process.test.ts`                        | real spawn bounds + kill paths                                                                                                  |
+| `swift-binary-manager.test.ts`                              | integrity-only recompile                                                                                                        |
+| `calendar-watch-sidecar.test.ts`                            | stream ceilings, overflow, restart budget                                                                                       |
+| `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers                                                                            |
+| `guardrails-security.test.ts`                               | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix                                                                        |
+| `scheduler-*.test.ts`                                       | plan, timers, poll, forcePoll, auto-open off, automation eligibility                                                            |
+| `meeting-menu.test.ts` / `tray*.test.ts`                    | completed-today history rows + cache signature + microtask rebuild coalesce                                                     |
+| `display-horizon.test.ts`                                   | wall-clock re-filter arm/fire                                                                                                   |
+| `alert-window.test.ts`                                      | queue, coalesce, hide/reuse, destroy, generation-safe handoff                                                                   |
+| `about-window.test.ts`                                      | 320×360, CSP meta, aurora markup, no Close, https-only openExternal, Esc/traffic-light dismiss                                  |
+| `update-window.test.ts`                                     | 340×340–400, aurora, checking/result phases, Esc dismiss, action sentinels, generation races                                    |
+| `settings-window.test.ts` / `window-chrome.test.ts`         | 520×760; dialog canvas `#0d1117`                                                                                                |
+| Darwin diagnostic coverage                                  | Aggregate counts, count-only provider warning, retained partial events, automation suspension, and native tray-only diagnostics |
 
 ## Main-project mocks
 
@@ -112,3 +113,4 @@ bun run perf:workspace-fingerprint
 - Alert window hide/reuse + generation-safe queue (`autoOpenAt` preserved; destroy never cancels browser-open).
 - Settings/About/Update brand aurora (`shared/utils/app-icon-aurora.ts`); About 320×360 (no Close); Update native dialog + auto-updater session dismiss / cancelId tests.
 - Performance stability: Google pagination/429, watch stream bounds, bounded traces, packaged probe preflight (lab only).
+- Darwin partial diagnostics: `calendar-result` carries the fixed aggregate; application tests project it into limited UI state and clear it on later states; main tests cover parser/provider aggregation, one count-only privacy-preserving warning, retained events with automation suspension, and Darwin tray rows, signature changes, and rebuilds. `renderer/main-ui.test.ts` asserts the renderer does not expose the native tray diagnostic text or fields.
