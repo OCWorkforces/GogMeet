@@ -39,6 +39,7 @@ export function createGetCalendarPermissionStatus(
             : "disconnected",
         oauthConfigured: deps.calendar.isOAuthConfigured?.() ?? false,
         accountEmail: (await deps.calendar.getAccountLabel?.()) ?? ui.accountEmail,
+        darwinPartialRefreshDiagnostics: null,
       };
       deps.setUiState(next);
       deps.publisher.publishCalendarStatus(deps.getUiState());
