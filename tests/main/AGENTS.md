@@ -25,20 +25,20 @@ Domain-pure suites (brand, url-extract, meet-url build, pick-join-target, settin
 
 ## SCHEDULER SUITES
 
-| Area | Files |
-| --- | --- |
-| State machine | `scheduler.test.ts`, `scheduler-state-replace.test.ts` |
-| Poll/restart races | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts` (user vs auto coalesce), `scheduler-restart-preserves-suppression.test.ts` |
-| Pure plan | `scheduler-plan-schedule.test.ts` |
+| Area                 | Files                                                                                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State machine        | `scheduler.test.ts`, `scheduler-state-replace.test.ts`                                                                                                     |
+| Poll/restart races   | `scheduler-poll.test.ts`, `scheduler-facade-force-poll.test.ts` (user vs auto coalesce), `scheduler-restart-preserves-suppression.test.ts`                 |
+| Pure plan            | `scheduler-plan-schedule.test.ts`                                                                                                                          |
 | Browser/alert timers | `scheduler-browser-timer.test.ts`, `scheduler-alert-timer.test.ts`, `scheduler-auto-open-deadline.test.ts`, `scheduler-facade-cancel-browser-open.test.ts` |
-| Late-join | `late-join.test.ts` (`firedEvents` only) |
-| Tray countdown | `scheduler-title-countdown.test.ts`, `scheduler-countdown.test.ts` |
+| Late-join            | `late-join.test.ts` (`firedEvents` only)                                                                                                                   |
+| Tray countdown       | `scheduler-title-countdown.test.ts`, `scheduler-countdown.test.ts`                                                                                         |
 
 Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind live Map/Set refs after scheduler resets when a suite stores local state refs.
 
 ## CALENDAR / PROVIDERS / SWIFT
 
-- `calendar.test.ts` — facade over provider mocks, permission cache, provenance fixtures.
+- `calendar.test.ts` — facade over provider mocks, permission cache, provenance fixtures, and one count-only Darwin provider warning with no event details or other private payload.
 - `calendar-factory.test.ts` / `fixture-calendar.test.ts` — factory selection, fixture gate, **probe preflight fail-closed** (no EventKit/Google fallthrough).
 - `google-http.test.ts` — bounded transport (timeout, body limits, abort).
 - `google-oauth.test.ts` / `google-token-store.test.ts` — force/if-needed refresh, preserve ciphertext.
@@ -47,12 +47,14 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `offline-cache.test.ts` — encrypt round-trip (schema v1 metadata + ended filter).
 - `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
-- `swift/event-parser.test.ts` — field parsing, diagnostics, error classification.
+- `swift/event-parser.test.ts` — field parsing, diagnostics, error classification, and aggregation into the fixed Darwin diagnostic counts.
 - `swift-binary-manager.test.ts` — integrity-only recompile (top-level).
 - `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch; stream ceilings + overflow; restart budget.
 - `performance-trace.test.ts` / `performance-trace-file.test.ts` — bounded buffer + atomic flush.
 - `performance-probe.test.ts` / `performance-probe-drivers.test.ts` — contract, private provider, tray/alert/safe-storage drivers.
 - `shell-meeting-opener.test.ts` / `guardrails-security.test.ts` / `after-pack.test.ts` — egress, permanent freezes (`MAX_PAGES`, watch=one-shot, trace caps, probe prefix).
+
+`scheduler-poll.test.ts` covers retained partial events for display and manual join while `suspendAutomation` cancels automatic work. `meeting-menu.test.ts`, `tray.test.ts`, and `tray-rebuild-coalesce.test.ts` cover Darwin-only diagnostic rows, all diagnostic counts in the menu signature, and a rebuild when those counts change.
 
 Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<T>()` for Electron mock shapes.
 
@@ -68,7 +70,7 @@ Provider tests must pass `AbortController` signal into `getEvents`. Prefer `.As<
 ## WINDOWS / SYSTEM / UTILS
 
 - Tray/menu: `tray.test.ts` (setup with graph, menus, Windows left-click, history signature, user Refresh await+rebuild), `meeting-menu.test.ts` (join/poll callbacks + completed-today rows), `tray-rebuild-coalesce.test.ts` (microtask coalesce + reschedule start/end signature + force path).
-- Windows: `alert-window` (queue + hide/reuse + destroy + **generation-safe** immediate/height/close + `autoOpenAt` on queued entries), `settings-window` (520×760), `about-window` (320×360, aurora CSS/HTML, CSP, https-only repo, no Close — Esc/traffic lights, `isSafeAboutRepositoryUrl`), `update-window` (340×340–400, aurora, Esc dismiss or action buttons, checking/result phases), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`.
+- Windows: `alert-window` (queue + hide/reuse + destroy + **generation-safe** immediate/height/close + `autoOpenAt` on queued entries), `settings-window` (520×760), `about-window` (320×360, aurora CSS/HTML, CSP, https-only repo, no Close, Esc/traffic lights, `isSafeAboutRepositoryUrl`), `update-window` (340×340 to 400, aurora, Esc dismiss or action buttons, checking/result phases), `browser-window`, `window-chrome` (`DIALOG_BACKGROUND_COLOR` `#0d1117`), `dock-visibility`. Keep update-window version fixtures aligned with the current `package.json` version; this guide intentionally does not pin a release number.
 - System: `power`, `display-horizon`, `shortcuts` (graph + `join.byId`), `notification`, `auto-launch`, `auto-updater` (portable skip + unpackaged no-op).
 - Utils: `join-meeting.test.ts`, `system-settings.test.ts`, `package-info.test.ts`, `settings.test.ts`, `json-settings-store.test.ts` (v3 migrate), `log.test.ts`, `safe-storage-performance.test.ts`.
 
