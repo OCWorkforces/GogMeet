@@ -9,6 +9,7 @@ const {
   mockStartScheduler,
   mockStopScheduler,
   mockRestartScheduler,
+  mockForcePoll,
   mockSetSchedulerWindow,
   mockSetTrayTitleCallback,
   mockGetSettings,
@@ -40,6 +41,7 @@ const {
   mockStartScheduler: vi.fn(),
   mockStopScheduler: vi.fn(),
   mockRestartScheduler: vi.fn(),
+  mockForcePoll: vi.fn().mockResolvedValue(null),
   mockSetSchedulerWindow: vi.fn(),
   mockSetTrayTitleCallback: vi.fn(),
   mockGetSettings: vi.fn().mockReturnValue({
@@ -61,7 +63,15 @@ const {
   mockAllowSleep: vi.fn(),
   mockGetCalendarPermissionStatus: vi.fn().mockResolvedValue("granted"),
   mockRequestCalendarPermission: vi.fn().mockResolvedValue("granted"),
-  mockGetCalendarEventsResult: vi.fn().mockResolvedValue({ kind: "ok", source: "live", completeness: "complete", observedAt: Date.now(), events: [] }),
+  mockGetCalendarEventsResult: vi
+    .fn()
+    .mockResolvedValue({
+      kind: "ok",
+      source: "live",
+      completeness: "complete",
+      observedAt: Date.now(),
+      events: [],
+    }),
   mockInvalidateCalendarPermissionCache: vi.fn(),
   mockInitPowerCallbacks: vi.fn(),
   mockWarmupCalendarProvider: vi.fn().mockResolvedValue(undefined),
@@ -102,6 +112,7 @@ vi.mock("../../src/main/system/shortcuts.js", () => ({
 
 vi.mock("../../src/main/system/power.js", () => ({
   initPowerManagement: mockInitPowerManagement,
+  initPowerEvents: vi.fn(),
   cleanupPowerManagement: mockCleanupPowerManagement,
   getPollInterval: mockGetPollInterval,
   preventSleep: mockPreventSleep,
@@ -170,8 +181,11 @@ vi.mock("../../src/main/scheduler/facade.js", () => ({
   startScheduler: mockStartScheduler,
   stopScheduler: mockStopScheduler,
   restartScheduler: mockRestartScheduler,
+  forcePoll: mockForcePoll,
   setSchedulerWindow: mockSetSchedulerWindow,
   setTrayTitleCallback: mockSetTrayTitleCallback,
+  cancelPendingBrowserOpen: vi.fn(),
+  getLastKnownEvents: vi.fn().mockReturnValue(null),
 }));
 
 import { initializeApp, shutdownApp } from "../../src/main/app/lifecycle.js";
@@ -194,9 +208,7 @@ describe("lifecycle", () => {
       expect(mockSetupTray).toHaveBeenCalledWith(mockWindow, expect.any(Object));
 
       // Scheduler receives tray callback and window reference
-      expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(
-        mockUpdateTrayTitle,
-      );
+      expect(mockSetTrayTitleCallback).toHaveBeenCalledWith(mockUpdateTrayTitle);
       expect(mockSetSchedulerWindow).toHaveBeenCalledWith(mockWindow);
 
       // Calendar permission checked before scheduler starts
@@ -264,33 +276,48 @@ describe("lifecycle", () => {
     });
 
     it("syncs auto-launch with launchAtLogin from settings", async () => {
-      mockGetSettings.mockReturnValue(
-        createMockSettings({ launchAtLogin: true }),
-      );
+      mockGetSettings.mockReturnValue(createMockSettings({ launchAtLogin: true }));
 
       await initializeApp(mockWindow);
 
       expect(mockSyncAutoLaunch).toHaveBeenCalledWith(true);
     });
-  })
+  });
 
   describe("power callback", () => {
-    it("invalidates calendar permission cache before restarting scheduler on wake/unlock", async () => {
+    it("invalidates permission cache and forcePolls on wake/unlock without full restart", async () => {
       await initializeApp(mockWindow);
 
       expect(mockInitPowerManagement).toHaveBeenCalledOnce();
-      const callback = mockInitPowerManagement.mock.calls[0]?.[0] as (() => void) | undefined;
+      const callback = mockInitPowerManagement.mock.calls[0]?.[0] as
+        ((reason: "battery" | "ac" | "resume" | "unlock") => void) | undefined;
       expect(typeof callback).toBe("function");
 
       const callOrder: string[] = [];
       mockInvalidateCalendarPermissionCache.mockImplementation(() => callOrder.push("invalidate"));
-      mockRestartScheduler.mockImplementation(() => callOrder.push("restart"));
+      mockForcePoll.mockImplementation(async () => {
+        callOrder.push("forcePoll");
+        return null;
+      });
+      mockReviveCalendarWatcher.mockImplementation(() => callOrder.push("revive"));
 
-      callback!();
+      callback!("resume");
 
       expect(mockInvalidateCalendarPermissionCache).toHaveBeenCalledOnce();
-      expect(mockRestartScheduler).toHaveBeenCalledOnce();
-      expect(callOrder).toEqual(["invalidate", "restart"]);
+      expect(mockReviveCalendarWatcher).toHaveBeenCalledOnce();
+      expect(mockForcePoll).toHaveBeenCalledWith({ reason: "power" });
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
+      expect(callOrder).toEqual(["invalidate", "revive", "forcePoll"]);
+    });
+
+    it("forcePolls on AC/battery without invalidating permission cache", async () => {
+      await initializeApp(mockWindow);
+      const callback = mockInitPowerManagement.mock.calls[0]?.[0] as
+        ((reason: "battery" | "ac" | "resume" | "unlock") => void) | undefined;
+      callback!("battery");
+      expect(mockForcePoll).toHaveBeenCalledWith({ reason: "power" });
+      expect(mockInvalidateCalendarPermissionCache).not.toHaveBeenCalled();
+      expect(mockRestartScheduler).not.toHaveBeenCalled();
     });
   });
 
@@ -325,7 +352,6 @@ describe("lifecycle", () => {
       expect(mockStartScheduler).not.toHaveBeenCalled();
     });
   });
-
 
   describe("shutdownApp", () => {
     it("calls cleanupPowerManagement and stopScheduler", () => {
