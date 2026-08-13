@@ -9,8 +9,8 @@ Repository automation scripts for local development and asset generation. Invoke
 | `dev.ts`                                | Bun dev orchestrator: rslib watch for main/preload, rsbuild dev server, Electron launch                                                          |
 | `generate-calendar-tray-icons.mjs`      | Sharp asset generator: tray PNGs (mac 18/36 + win 16/32), `build/icon.icns` (mac/iconutil), `build/icon.ico`, About SVG                          |
 | `validate-node.mjs`                     | Host-Node 26 guard + icon generator under host Node (`bun run validate:node`)                                                                    |
-| `verify-macos-release.mjs`              | Official macOS release verifier (DMG/ZIP inventory, signing, stapling, Swift smoke)                                                              |
-| `macos-release-verifier-*.mjs`          | Helpers for mac verifier: container, pure helpers, injectable natives                                                                            |
+| `verify-macos-release.mjs`              | Official macOS release verifier (DMG/ZIP inventory, signing, stapling, dual-source Swift smoke)                                                  |
+| `macos-release-verifier-*.mjs`          | Helpers for mac verifier: container, pure helpers, injectable natives (dual Swift sources + dual-source `source.hash`)                           |
 | `verify-windows-release.mjs`            | Windows release inventory (NSIS + portable x64/arm64; optional latest.yml)                                                                       |
 | `merge-windows-latest-yml.mjs`          | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds                                                                 |
 | `next-beta-tag.mjs`                     | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version                                                                   |
@@ -28,7 +28,7 @@ Repository automation scripts for local development and asset generation. Invoke
 | `guardrails-scan.test.ts`                                                | P-NEVER scanner + self-test fixtures                                                                 |
 | `next-beta-tag.test.ts`                                                  | Beta tag / app version numbering                                                                     |
 | `merge-windows-latest-yml.test.ts`                                       | Dual-arch latest.yml merge                                                                           |
-| `verify-macos-release.test.ts` / `macos-release-verifier-native.test.ts` | Official mac verifier pure helpers + natives                                                         |
+| `verify-macos-release.test.ts` / `macos-release-verifier-native.test.ts` | Official mac verifier pure helpers + natives (both Swift sources + dual-source hash)                 |
 | `verify-windows-release.test.ts`                                         | Windows artifact inventory                                                                           |
 | `performance-*.test.ts`                                                  | report, tray, google, safe-storage, startup, alert, build-package, google-shadow, **packaged-probe** |
 | `calendar-parser-bench-fixtures.test.ts`                                 | Bench fixture integrity                                                                              |
@@ -82,8 +82,11 @@ Repository automation scripts for local development and asset generation. Invoke
 ## `verify-macos-release.mjs` Contract
 
 - macOS only; fail closed for missing/extra/wrong-version DMG/ZIP containers.
-- Attach DMG read-only / extract ZIP with `ditto`; check signing, hardened runtime, stapling, entitlements, unpacked Swift source.
+- Attach DMG read-only / extract ZIP with `ditto`; check signing, hardened runtime, stapling, entitlements, **both** unpacked Swift sources:
+  - `…/app.asar.unpacked/src/main/googlemeet-events.swift`
+  - `…/app.asar.unpacked/src/main/swift/event-occurrence-identity.swift`
 - Swift cache smoke only from ZIP matching runner arch; isolated `TMPDIR`; accept helper exits `0`, `2`, or `3`.
+- `source.hash` must match SHA-256 of **identity + `"\n"` + events** (same order as runtime `readSwiftSource`).
 - `xcrun stapler validate` against the contained app only.
 - Native command execution injectable via `macos-release-verifier-native.mjs`; pure helpers unit-tested.
 

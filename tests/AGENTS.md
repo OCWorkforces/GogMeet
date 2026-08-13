@@ -29,7 +29,7 @@ tests/
 ├── domain/                # pure domain suites (calendar-result, truncate-middle, meeting-time, …)
 ├── application/           # use-case suites (get-meetings, join, disconnect)
 ├── main/                  # Node + Electron mock suites (flat top-level *.test.ts + swift/)
-│   └── swift/             # swift-helper-process, event-parser only
+│   └── swift/             # swift-helper-process, event-parser, event-occurrence-identity
 ├── renderer/              # jsdom suites (+ rendering/, utils/)
 ├── shared/                # as.test, contracts, app-icon-aurora
 ├── scripts/               # validate-node, release verifiers, guardrails, performance lab, latest.yml
@@ -47,7 +47,8 @@ tests/
 | `calendar-factory.test.ts`                                  | platform selection + **probe fail-closed**                                                                                      |
 | `calendar-refresh-coordinator.test.ts`                      | single-flight, follow-up, cancel, generation                                                                                    |
 | `swift/swift-helper-process.test.ts`                        | real spawn bounds + kill paths                                                                                                  |
-| `swift-binary-manager.test.ts`                              | integrity-only recompile                                                                                                        |
+| `swift/event-occurrence-identity.test.ts`                   | darwin-only real `swiftc` of occurrence-aware uid helper                                                                        |
+| `swift-binary-manager.test.ts`                              | dual-source integrity hash/compile + integrity-only recompile                                                                   |
 | `calendar-watch-sidecar.test.ts`                            | stream ceilings, overflow, restart budget                                                                                       |
 | `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers                                                                            |
 | `guardrails-security.test.ts`                               | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix                                                                        |

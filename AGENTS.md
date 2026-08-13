@@ -1,7 +1,7 @@
 # GogMeet - AGENTS.md
 
-- **Updated:** 2026-08-11
-- **App version:** 1.18.4
+- **Updated:** 2026-08-13
+- **App version:** 1.18.6
 - **Branch:** develop
 
 `package.json` is the version source of truth. Keep this root metadata aligned with it, but do not hardcode the version elsewhere.
@@ -12,11 +12,11 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 
 | Layer              | Tech                                                                                                                                                                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runtime            | Electron `^43.3.0`; all BrowserWindows sandboxed/context-isolated/no Node integration                                                                                                                                                            |
+| Runtime            | Electron `^43.4.0`; all BrowserWindows sandboxed/context-isolated/no Node integration                                                                                                                                                            |
 | Language           | Typecheck via `@typescript/native` (TypeScript `^7.0.2`); package `typescript` `^6` for ESLint tooling; `isolatedDeclarations`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noPropertyAccessFromIndexSignature`, `exactOptionalPropertyTypes` |
 | Build              | Rslib for main/preload CJS; Rsbuild for three renderer entries                                                                                                                                                                                   |
 | Package            | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` (`.nvmrc`)                                                                                                                                         |
-| Calendar (macOS)   | Swift EventKit helper `src/main/googlemeet-events.swift`; binary under `{tmpdir}/googlemeet/`; bounded spawn runner                                                                                                                              |
+| Calendar (macOS)   | Swift EventKit helper: `googlemeet-events.swift` + `swift/event-occurrence-identity.swift` (occurrence-aware UIDs); binary under `{tmpdir}/googlemeet/`; bounded spawn runner                                                                   |
 | Calendar (Windows) | Google OAuth PKCE + Calendar API; encrypted under `userData`: tokens `calendar-auth/google.enc`, sync tokens `calendar-auth/google-sync.enc`, offline cache `calendar-cache.enc`                                                                 |
 | Architecture       | Clean Architecture hybrid: `src/domain` → application ports/use cases → infrastructure adapters → facades + `createAppGraph`                                                                                                                     |
 | Test               | Vitest workspace: domain / application / main / renderer / shared / scripts; `setup.as.ts` installs cast extension                                                                                                                               |
@@ -41,8 +41,8 @@ GogMeet/
 │   │   ├── calendar/     # factory, providers, google-http, offline-cache, auth (+ sync tokens), refresh-coordinator
 │   │   ├── scheduler/    # facade + planSchedule (pure) + interpret + state/
 │   │   ├── ipc-handlers/ # typed IPC (receives AppGraph)
-│   │   ├── menu/, system/, windows/, utils/, platform/, swift/, app/
-│   │   ├── tray.ts, events.ts, index.ts, googlemeet-events.swift
+│   │   ├── menu/, system/, windows/, utils/, platform/, swift/ (+ event-occurrence-identity.swift), app/
+│   │   └── tray.ts, events.ts, index.ts, googlemeet-events.swift
 │   ├── preload/          # contextBridge → window.api
 │   ├── renderer/         # popover, settings, alert (vanilla TS)
 │   └── assets/           # tray icons (mac 18/36 + win 16/32) + about-icon.svg (About + Settings brand)
@@ -84,7 +84,8 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Scheduler public API       | `scheduler/facade.ts`                                                                                       | only external scheduler import                                                                                                                                                         |
 | Schedule decisions         | `scheduler/core/plan-schedule.ts`                                                                           | pure; `set-snapshot` before timers                                                                                                                                                     |
 | Display horizon            | `system/display-horizon.ts`                                                                                 | wall-clock re-filter timer; no automation                                                                                                                                              |
-| Swift one-shot runner      | `swift/swift-helper-process.ts`                                                                             | bounded spawn; integrity-only recompile in binary-manager                                                                                                                              |
+| Swift one-shot runner      | `swift/swift-helper-process.ts`, `binary-manager.ts`, `binary-cache.ts`                                     | bounded spawn; integrity-only recompile; dual-source hash (identity + `"\n"` + events)                                                                                                 |
+| Swift sources (macOS)      | `googlemeet-events.swift`, `swift/event-occurrence-identity.swift`                                          | both in electron-builder `files` + `asarUnpack`; release verifier dual-hash                                                                                                            |
 | Calendar watch             | `facades/calendar-watcher.ts`                                                                               | provider `startWatch` / `reviveWatch`                                                                                                                                                  |
 | Tray menu                  | `tray.ts`, `menu/meeting-menu.ts`                                                                           | limited/offline rows; optional completed-today history; tray takes AppGraph; `requestTrayRebuild` microtask-coalesces bus bursts; `forceTrayMenuRefresh` sync force (horizon/settings) |
 | Settings UI                | `renderer/settings/*`, `windows/settings-window.ts`                                                         | 520×760; canvas `#0d1117`; brand aurora icon; full schema v3 prefs; auto-save                                                                                                          |
@@ -121,6 +122,8 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | `DarwinPartialRefreshDiagnostics`                          | six-count aggregate for Darwin live partial results          |
 | `googleHttpRequest` / `refreshGoogleAccessToken`           | bounded Google transport; force/if-needed refresh            |
 | `loadGoogleSyncTokens` / `saveGoogleSyncTokens`            | encrypted Google nextSyncToken map                           |
+| `eventRecordIdentifier` (Swift)                            | occurrence-aware EventKit uid (`id:bitPattern`)              |
+| `readSwiftSource` / `COMPILED_SWIFT_SOURCE_PATH`           | dual-source concat for compile + `source.hash`               |
 
 ## CONVENTIONS
 
@@ -193,7 +196,7 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 ## NOTES
 
 - macOS: EventKit permission / AppleScript probes; lifecycle may auto-request when not-determined. Windows: never auto-OAuth.
-- Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`. One-shot: spawn stream 8 MiB/256 KiB/15 s; recompile only after integrity failure. Watch sidecar: same 8 MiB/256 KiB stream ceilings; stdout overflow terminates child (restart budget, never recompile); stderr past ceiling is suppressed once without restart; **one** `scheduleRestart` per child (error+exit de-duped).
+- Swift protocol: JSON Lines 9 strings; exit codes 0/2/3/4; cache mode `0o700` under `os.tmpdir()/googlemeet`. **UID field** is occurrence-aware (`eventRecordIdentifier`: `calendarItemIdentifier` + occurrence/start date bit-pattern) so recurring instances do not collide. Sources: `googlemeet-events.swift` + `swift/event-occurrence-identity.swift` (both packaged/`asarUnpack`); compile materializes a single temp unit under the cache dir (top-level script mode); integrity `source.hash` digests **identity + `"\n"` + events** (release verifier must match). One-shot: spawn stream 8 MiB/256 KiB/15 s; recompile only after integrity failure. Watch sidecar: same 8 MiB/256 KiB stream ceilings; Swift helper debounce 1000 ms, Node sidecar debounce 2000 ms; stdout overflow terminates child (restart budget, never recompile); stderr past ceiling is suppressed once without restart; **one** `scheduleRestart` per child (error+exit de-duped).
 - Google: bounded HTTP (15 s request, 8 MiB body, 60 s poll budget); 401 → force refresh once; credentials preserved on transient failures. Incremental **429** preserves token/index and does **not** same-poll full-window retry (5xx still may).
 - Google incremental sync (ADR 0002): after a successful full window list, store opaque `nextSyncToken` per calendar in `calendar-auth/google-sync.enc`; later polls may use `syncToken` + process-local event index; HTTP **410** clears that token/index and full-fetches; disconnect clears tokens + index; cold process always full-fetches. Page chains capped at **50**; remaining `nextPageToken` or mid-chain malformed pages → `pagination-limit` (live partial when any calendar completes; no incomplete token/index/cache commit).
 - Windows offline: encrypted cache schema v1 `{version,observedAt,cachedAt,events}`; Google writes only **live complete** snapshots; load rejects legacy/corrupt/future metadata and filters ended events.

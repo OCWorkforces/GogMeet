@@ -17,7 +17,7 @@ Electron Builder resources and packaging hooks. Operational packaging code, not 
 
 | Task                        | Location                                      | Notes                                              |
 | --------------------------- | --------------------------------------------- | -------------------------------------------------- |
-| Packaged file set / targets | `../electron-builder.yml`                     | mac DMG/ZIP; win NSIS+portable; `asarUnpack` Swift |
+| Packaged file set / targets | `../electron-builder.yml`                     | mac DMG/ZIP; win NSIS+portable; `asarUnpack` **both** Swift sources |
 | Shrink mac bundle           | `after-pack.cjs`                              | Gate: `electronPlatformName === "darwin"`          |
 | App / tray icons            | `../scripts/generate-calendar-tray-icons.mjs` | icns, ico, mac 18/36 tray, win 16/32 tray          |
 
@@ -27,7 +27,7 @@ Electron Builder resources and packaging hooks. Operational packaging code, not 
 - Keep release versions in root `package.json`. Electron Builder interpolates that value through `${version}`; do not maintain a second version in build assets.
 - Mac: DMG+ZIP for arm64 + x64; `minimumSystemVersion` **11.0.0**; built-in `notarize: false`. The custom `afterSign` hook runs only for Darwin, submits the signed `.app` with `notarytool`, then staples and validates it before container creation when `APPLE_ID`, `APPLE_TEAM_ID`, and an app-specific password are available. It also accepts the legacy password variable with a warning, and skips notarization when credentials are absent.
 - Official Windows artifacts: separate `--x64` and `--arm64` invocations (not dual-arch single NSIS).
-- Swift source must stay `asarUnpack` for mac packaged builds.
+- Both Swift sources must stay in `files` and `asarUnpack` for mac packaged builds: `src/main/googlemeet-events.swift` and `src/main/swift/event-occurrence-identity.swift` (compile-on-device + dual-source integrity hash).
 - Do not hand-edit generated `icon.icns` / `icon.ico` / tray PNGs.
 - Keep `allow-jit`, Calendar, and Apple Events grants. `allow-unsigned-executable-memory` remains for Electron 43 + hardened runtime unless package smoke proves it can be removed.
 

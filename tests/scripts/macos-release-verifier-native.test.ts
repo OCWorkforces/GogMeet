@@ -23,7 +23,14 @@ type CommandResult = {
   readonly stdout: string;
 };
 
-const SOURCE = "fixture Swift source";
+const EVENT_SOURCE = "fixture Swift source";
+const IDENTITY_SOURCE = "fixture identity source";
+/** Same order/separator as runtime `readSwiftSource` and the native verifier. */
+const COMPILED_SOURCE_HASH = createHash("sha256")
+  .update(
+    Buffer.concat([Buffer.from(IDENTITY_SOURCE), Buffer.from("\n"), Buffer.from(EVENT_SOURCE)]),
+  )
+  .digest("hex");
 const ARTIFACTS: readonly ReleaseArtifact[] = [
   { arch: "arm64", format: "dmg", name: "GogMeet-1.15.5-arm64.dmg" },
   { arch: "arm64", format: "zip", name: "GogMeet-1.15.5-arm64.zip" },
@@ -35,7 +42,8 @@ const SIGNING_DISPLAY = [
   "CodeDirectory v=20500 flags=0x10000(runtime) hashes=123",
   "Authority=Developer ID Application: iWorkforces (ABCDE12345)",
 ].join("\n");
-const ENTITLEMENTS = "<plist><dict><key>com.apple.security.cs.allow-jit</key><true/></dict></plist>";
+const ENTITLEMENTS =
+  "<plist><dict><key>com.apple.security.cs.allow-jit</key><true/></dict></plist>";
 
 type CommandCall = {
   readonly args: readonly string[];
@@ -47,13 +55,34 @@ const success = (stdout = ""): CommandResult => ({ signal: null, status: 0, stde
 async function createApp(root: string): Promise<void> {
   const appPath = join(root, "GogMeet.app");
   await mkdir(join(appPath, "Contents", "MacOS"), { recursive: true });
-  await mkdir(join(appPath, "Contents", "Resources", "app.asar.unpacked", "src", "main"), {
+  await mkdir(join(appPath, "Contents", "Resources", "app.asar.unpacked", "src", "main", "swift"), {
     recursive: true,
   });
   await writeFile(join(appPath, "Contents", "MacOS", "GogMeet"), "fixture executable");
   await writeFile(
-    join(appPath, "Contents", "Resources", "app.asar.unpacked", "src", "main", "googlemeet-events.swift"),
-    SOURCE,
+    join(
+      appPath,
+      "Contents",
+      "Resources",
+      "app.asar.unpacked",
+      "src",
+      "main",
+      "googlemeet-events.swift",
+    ),
+    EVENT_SOURCE,
+  );
+  await writeFile(
+    join(
+      appPath,
+      "Contents",
+      "Resources",
+      "app.asar.unpacked",
+      "src",
+      "main",
+      "swift",
+      "event-occurrence-identity.swift",
+    ),
+    IDENTITY_SOURCE,
   );
 }
 
@@ -68,7 +97,9 @@ describeMac("verifyReleaseArtifacts", () => {
     );
     const calls: CommandCall[] = [];
     await mkdir(distDir);
-    await Promise.all(ARTIFACTS.map((artifact) => writeFile(join(distDir, artifact.name), "fixture container")));
+    await Promise.all(
+      ARTIFACTS.map((artifact) => writeFile(join(distDir, artifact.name), "fixture container")),
+    );
     await writeFile(sentinelPath, "preserve me");
 
     const run = async (
@@ -100,10 +131,7 @@ describeMac("verifyReleaseArtifacts", () => {
       const helperPath = join(cacheDir, "googlemeet-events");
       writeFileSync(helperPath, "fixture helper");
       chmodSync(helperPath, 0o700);
-      writeFileSync(
-        join(cacheDir, "source.hash"),
-        createHash("sha256").update(SOURCE).digest("hex"),
-      );
+      writeFileSync(join(cacheDir, "source.hash"), COMPILED_SOURCE_HASH);
       return { exit: Promise.resolve(), pid: 2_147_483_647 };
     };
 
@@ -121,16 +149,24 @@ describeMac("verifyReleaseArtifacts", () => {
       for (const artifact of ARTIFACTS.filter((entry) => entry.format === "dmg")) {
         const artifactPath = join(distDir, artifact.name);
         const verifyIndex = calls.findIndex(
-          (call) => call.command === "hdiutil" && call.args[0] === "verify" && call.args[1] === artifactPath,
+          (call) =>
+            call.command === "hdiutil" &&
+            call.args[0] === "verify" &&
+            call.args[1] === artifactPath,
         );
         const attachIndex = calls.findIndex(
-          (call) => call.command === "hdiutil" && call.args[0] === "attach" && call.args[1] === artifactPath,
+          (call) =>
+            call.command === "hdiutil" &&
+            call.args[0] === "attach" &&
+            call.args[1] === artifactPath,
         );
         expect(verifyIndex).toBeGreaterThanOrEqual(0);
         expect(verifyIndex).toBeLessThan(attachIndex);
         expect(calls[attachIndex]?.args).not.toContain("-noverify");
       }
-      expect(calls.filter((call) => call.command === "codesign" && call.args[0] === "--verify")).toHaveLength(4);
+      expect(
+        calls.filter((call) => call.command === "codesign" && call.args[0] === "--verify"),
+      ).toHaveLength(4);
       expect(calls.filter((call) => call.command === "xcrun")).toHaveLength(4);
       expect(await readFile(sentinelPath, "utf8")).toBe("preserve me");
       const remainingVerifierDirs = (await readdir(tmpdir())).filter(

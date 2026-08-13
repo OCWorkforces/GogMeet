@@ -152,7 +152,11 @@ requestCalendarAccess { granted in
         }
         let url = findMeetUrl(event.url?.absoluteString) ?? findMeetUrl(event.location) ?? findMeetUrl(event.notes) ?? ""
 
-        let uid = event.calendarItemIdentifier
+        let uid = eventRecordIdentifier(
+            calendarItemIdentifier: event.calendarItemIdentifier,
+            occurrenceDate: event.occurrenceDate,
+            startDate: event.startDate
+        )
         let title = event.title ?? ""
         let start = isoFormatter.string(from: event.startDate)
         let end = isoFormatter.string(from: event.endDate)

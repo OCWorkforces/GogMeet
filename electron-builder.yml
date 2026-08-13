@@ -14,6 +14,7 @@ files:
   - lib/**/*
   - src/assets/**/*
   - src/main/googlemeet-events.swift
+  - src/main/swift/event-occurrence-identity.swift
   - package.json
   - assets/**/*
   - '!**/*.map'
@@ -21,6 +22,7 @@ files:
 # Unpack Swift file from asar so swiftc can read it (external tools cannot read asar archives)
 asarUnpack:
   - "src/main/googlemeet-events.swift"
+  - "src/main/swift/event-occurrence-identity.swift"
 
 # === ELECTRON LOCALES ===
 # Only keep English (saves ~5-10MB)
