@@ -52,14 +52,23 @@ export function loadWindowContent(win: BrowserWindow, page: string): void {
   });
 }
 
-type CSPSource = `'self'` | `'unsafe-inline'` | `data:` | `ws://localhost:*`;
+type CSPSource = `'self'` | `'unsafe-inline'` | `'none'` | `data:` | `ws://localhost:*`;
 type CSPDirectiveName =
-  "default-src" | "script-src" | "style-src" | "img-src" | "font-src" | "connect-src";
+  | "default-src"
+  | "script-src"
+  | "style-src"
+  | "img-src"
+  | "font-src"
+  | "connect-src"
+  | "base-uri"
+  | "object-src"
+  | "frame-src"
+  | "form-action";
 type CSPDirective = `${CSPDirectiveName} ${CSPSource}${string}`;
 type CSP = `${CSPDirective}` | `${CSPDirective}; ${string}`;
 
 const CSP_BASE: CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'";
 
 let cspHeadersConfigured = false;
 

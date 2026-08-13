@@ -5,9 +5,10 @@
  */
 
 import { app, safeStorage } from "electron";
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { isObjectRecord } from "../../../domain/entities/type-guards.js";
+import { ensureSecureDir, writeSecureFile } from "../../utils/secure-fs.js";
 
 export const GOOGLE_SYNC_SCHEMA_VERSION = 1 as const;
 
@@ -70,12 +71,12 @@ export async function loadGoogleSyncTokens(): Promise<Record<string, string>> {
 
 export async function saveGoogleSyncTokens(tokens: Record<string, string>): Promise<void> {
   try {
-    await mkdir(authDir(), { recursive: true });
+    await ensureSecureDir(authDir());
     const payload: GoogleSyncTokenFileV1 = {
       version: GOOGLE_SYNC_SCHEMA_VERSION,
       tokens,
     };
-    await writeFile(syncPath(), encode(JSON.stringify(payload)));
+    await writeSecureFile(syncPath(), encode(JSON.stringify(payload)));
   } catch (err) {
     console.warn("[calendar:google-sync] Failed to persist sync tokens (redacted)");
     void err;

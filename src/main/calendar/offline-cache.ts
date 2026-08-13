@@ -8,13 +8,15 @@
  */
 
 import { app, safeStorage } from "electron";
-import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { MeetingEvent } from "../../domain/entities/meeting-event.js";
 import { isValidCalendarTimestamp } from "../../domain/entities/calendar-result.js";
 import { isObjectRecord } from "../../domain/entities/type-guards.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../domain/entities/brand.js";
+import { asEventId, asIsoUtc } from "../../domain/entities/brand.js";
+import { validateMeetUrl } from "../../domain/services/url-validation.js";
+import { ensureSecureDir, writeSecureFile } from "../utils/secure-fs.js";
 
 export const OFFLINE_CACHE_SCHEMA_VERSION = 1 as const;
 
@@ -82,7 +84,7 @@ function mapEvent(raw: unknown): MeetingEvent | null {
   };
 
   if (typeof raw["meetUrl"] === "string" && raw["meetUrl"].length > 0) {
-    const u = asMeetUrl(raw["meetUrl"]);
+    const u = validateMeetUrl(raw["meetUrl"]);
     if (u.ok) event.meetUrl = u.value;
   }
   if (typeof raw["userEmail"] === "string" && raw["userEmail"].length > 0) {
@@ -162,8 +164,8 @@ export async function saveOfflineCache(
       events,
     };
     const path = cachePath();
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, encode(JSON.stringify(payload)));
+    await ensureSecureDir(dirname(path));
+    await writeSecureFile(path, encode(JSON.stringify(payload)));
   } catch (err) {
     console.warn("[calendar:cache] Failed to save offline cache:", err);
   }
