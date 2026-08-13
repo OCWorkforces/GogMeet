@@ -1,9 +1,9 @@
 {
   "name": "gogmeet",
-  "version": "1.18.6",
+  "version": "1.19.0",
   "author": "iWorkforces Engineers",
   "repository": "https://github.com/iWorkforces/GogMeet",
-  "authorEmail": "kennydizi@iworkforces.com",
+  "authorEmail": "chitrung09t2@gmail.com",
   "description": "GogMeet is a desktop application that helps you keep track of your meetings and reminds you before they start.",
   "main": "lib/main/index.cjs",
   "devDependencies": {
