@@ -121,23 +121,48 @@ requestCalendarAccess { granted in
     ) else {
         fail("could not compile zoom URL regex", code: 4)
     }
+    guard let teamsRegex = try? NSRegularExpression(
+        pattern: #"https://(?:teams\.microsoft\.com|teams\.live\.com)/[^\s"'<>\\]+"#
+    ) else {
+        fail("could not compile teams URL regex", code: 4)
+    }
+    guard let webexRegex = try? NSRegularExpression(
+        pattern: #"https://(?:[a-zA-Z0-9-]+\.)*webex\.com/[^\s"'<>\\]+"#
+    ) else {
+        fail("could not compile webex URL regex", code: 4)
+    }
+    guard let hrefRegex = try? NSRegularExpression(
+        pattern: #"href\s*=\s*[\"'](https://[^\"']+)[\"']"#
+    ) else {
+        fail("could not compile href URL regex", code: 4)
+    }
+    guard let bareHostRegex = try? NSRegularExpression(
+        pattern: #"(?:^|[\s\"'<>(])((?:(?:[a-zA-Z0-9-]+\.)*zoom\.us|meet\.google\.com|calendly\.com|teams\.microsoft\.com|teams\.live\.com|(?:[a-zA-Z0-9-]+\.)*webex\.com)/[^\s\"'<>\\]+)"#
+    ) else {
+        fail("could not compile bare host URL regex", code: 4)
+    }
     let isoFormatter = ISO8601DateFormatter()
 
     func findMeetUrl(_ text: String?) -> String? {
         guard let t = text else { return nil }
         let nsRange = NSRange(t.startIndex..., in: t)
-        // Try Zoom first, then Meet, then Calendly (wrapper solves to Meet via 302)
-        if let match = zoomRegex.firstMatch(in: t, range: nsRange),
-           let matchRange = Range(match.range, in: t) {
+        // Zoom → Meet → Teams → Webex → Calendly (mirrors domain url-extract)
+        let ordered = [zoomRegex, meetRegex, teamsRegex, webexRegex, calendlyRegex]
+        for regex in ordered {
+            if let match = regex.firstMatch(in: t, range: nsRange),
+               let matchRange = Range(match.range, in: t) {
+                return String(t[matchRange])
+            }
+        }
+        if let match = hrefRegex.firstMatch(in: t, range: nsRange),
+           match.numberOfRanges > 1,
+           let matchRange = Range(match.range(at: 1), in: t) {
             return String(t[matchRange])
         }
-        if let match = meetRegex.firstMatch(in: t, range: nsRange),
-           let matchRange = Range(match.range, in: t) {
-            return String(t[matchRange])
-        }
-        if let match = calendlyRegex.firstMatch(in: t, range: nsRange),
-           let matchRange = Range(match.range, in: t) {
-            return String(t[matchRange])
+        if let match = bareHostRegex.firstMatch(in: t, range: nsRange),
+           match.numberOfRanges > 1,
+           let matchRange = Range(match.range(at: 1), in: t) {
+            return "https://" + String(t[matchRange])
         }
         return nil
     }

@@ -12,9 +12,9 @@ describe("extractMeetingUrlFromText", () => {
   });
 
   it("extracts Google Meet URLs", () => {
-    expect(
-      extractMeetingUrlFromText("Join https://meet.google.com/abc-defg-hij please"),
-    ).toBe("https://meet.google.com/abc-defg-hij");
+    expect(extractMeetingUrlFromText("Join https://meet.google.com/abc-defg-hij please")).toBe(
+      "https://meet.google.com/abc-defg-hij",
+    );
   });
 
   it("extracts Zoom apex and subdomain URLs", () => {
@@ -27,9 +27,30 @@ describe("extractMeetingUrlFromText", () => {
   });
 
   it("extracts Calendly URLs", () => {
+    expect(extractMeetingUrlFromText("Book: https://calendly.com/team/30min?month=2026-04")).toBe(
+      "https://calendly.com/team/30min?month=2026-04",
+    );
+  });
+
+  it("extracts Teams and Webex URLs", () => {
     expect(
-      extractMeetingUrlFromText("Book: https://calendly.com/team/30min?month=2026-04"),
-    ).toBe("https://calendly.com/team/30min?month=2026-04");
+      extractMeetingUrlFromText("https://teams.microsoft.com/l/meetup-join/19%3ameeting"),
+    ).toBe("https://teams.microsoft.com/l/meetup-join/19%3ameeting");
+    expect(extractMeetingUrlFromText("https://acme.webex.com/meet/alice")).toBe(
+      "https://acme.webex.com/meet/alice",
+    );
+  });
+
+  it("extracts join URL from HTML href before tag strip would drop it", () => {
+    expect(
+      extractMeetingUrlFromText('<p>Join <a href="https://zoom.us/j/123456789">here</a></p>'),
+    ).toBe("https://zoom.us/j/123456789");
+  });
+
+  it("normalizes scheme-less host paths", () => {
+    expect(extractMeetingUrlFromText("Room: zoom.us/j/123456789")).toBe(
+      "https://zoom.us/j/123456789",
+    );
   });
 
   it("prefers Zoom over Meet over Calendly within one text", () => {
@@ -44,15 +65,12 @@ describe("extractMeetingUrlFromText", () => {
   });
 
   it("prefers Meet over Calendly when Zoom is absent", () => {
-    const text =
-      "https://calendly.com/x/y and https://meet.google.com/aaa-bbbb-ccc later";
+    const text = "https://calendly.com/x/y and https://meet.google.com/aaa-bbbb-ccc later";
     expect(extractMeetingUrlFromText(text)).toBe("https://meet.google.com/aaa-bbbb-ccc");
   });
 
   it("rejects non-allowlisted hosts even if regex-ish", () => {
-    expect(
-      extractMeetingUrlFromText("https://meet.google.com.evil.com/phish"),
-    ).toBeUndefined();
+    expect(extractMeetingUrlFromText("https://meet.google.com.evil.com/phish")).toBeUndefined();
     expect(extractMeetingUrlFromText("http://meet.google.com/abc-defg-hij")).toBeUndefined();
   });
 
@@ -78,12 +96,9 @@ describe("extractMeetingUrl (multi-field)", () => {
 
   it("honors field order over later higher-priority hosts", () => {
     // hangoutLink / location / notes style: earlier field wins even if later has Zoom
-    expect(
-      extractMeetingUrl(
-        "https://meet.google.com/abc-defg-hij",
-        "https://zoom.us/j/1",
-      ),
-    ).toBe("https://meet.google.com/abc-defg-hij");
+    expect(extractMeetingUrl("https://meet.google.com/abc-defg-hij", "https://zoom.us/j/1")).toBe(
+      "https://meet.google.com/abc-defg-hij",
+    );
   });
 
   it("returns undefined when no field matches", () => {

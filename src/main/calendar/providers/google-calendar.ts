@@ -13,11 +13,12 @@ import {
   calendarOfflineOk,
 } from "../../../domain/entities/calendar-result.js";
 import type { MeetingEvent } from "../../../domain/entities/meeting-event.js";
-import { asEventId, asIsoUtc, asMeetUrl } from "../../../domain/entities/brand.js";
+import { asEventId, asIsoUtc } from "../../../domain/entities/brand.js";
 import { formatAppError } from "../../../domain/entities/errors.js";
 import { isObjectRecord } from "../../../domain/entities/type-guards.js";
 import { cleanDescription } from "../../../domain/services/clean-description.js";
 import { extractMeetingUrl } from "../../../domain/services/url-extract.js";
+import { validateMeetUrl } from "../../../domain/services/url-validation.js";
 import type { CalendarProvider } from "../provider.js";
 import { clearGoogleTokens, loadGoogleTokens } from "../auth/google-token-store.js";
 import {
@@ -223,6 +224,7 @@ function mapGoogleEvent(
   const hangout = typeof raw["hangoutLink"] === "string" ? raw["hangoutLink"] : undefined;
   const location = typeof raw["location"] === "string" ? raw["location"] : undefined;
   const descriptionRaw = typeof raw["description"] === "string" ? raw["description"] : undefined;
+  // Extract join URLs from raw HTML descriptions before tag stripping (href-only links).
   const description = descriptionRaw !== undefined ? cleanDescription(descriptionRaw) : undefined;
 
   const entryPoints: string[] = [];
@@ -235,10 +237,16 @@ function mapGoogleEvent(
     }
   }
 
-  const extracted = extractMeetingUrl(hangout, ...entryPoints, location, description);
+  const extracted = extractMeetingUrl(
+    hangout,
+    ...entryPoints,
+    location,
+    descriptionRaw,
+    description,
+  );
   let meetUrl: MeetingEvent["meetUrl"];
   if (extracted !== undefined) {
-    const branded = asMeetUrl(extracted);
+    const branded = validateMeetUrl(extracted);
     if (branded.ok) meetUrl = branded.value;
   }
 
@@ -427,6 +435,24 @@ function filterEventsInWindow(
   });
 }
 
+/** Drop process-local index entries outside the poll window after incremental apply. */
+function pruneIndexOutsideWindow(
+  index: Map<string, MeetingEvent>,
+  timeMin: string,
+  timeMax: string,
+): void {
+  const minMs = new Date(timeMin).getTime();
+  const maxMs = new Date(timeMax).getTime();
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) return;
+  for (const [id, event] of index) {
+    const start = new Date(event.startDate).getTime();
+    const end = new Date(event.endDate).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= minMs || start >= maxMs) {
+      index.delete(id);
+    }
+  }
+}
+
 async function fetchEventsForCalendar(
   accessToken: string,
   calendarId: string,
@@ -461,6 +487,7 @@ async function fetchEventsForCalendar(
       }
       for (const id of inc.deletedIds) index.delete(id);
       for (const ev of inc.upserts) index.set(ev.id, ev);
+      pruneIndexOutsideWindow(index, timeMin, timeMax);
       if (inc.nextSyncToken) {
         const all = await loadGoogleSyncTokens();
         all[calendarId] = inc.nextSyncToken;
