@@ -5,10 +5,12 @@
 | **Title** | GogMeet Multi-Sprint Enhancement Development Plan |
 | **Author** | TBD (engineering) |
 | **Date** | 2026-07-25 |
-| **Status** | Approved (user decisions incorporated) — revision 5 |
-| **Branch context** | `general-enhancements` |
-| **Workspace** | `/Users/mac/Documents/techx/GogMeet` |
-| **App version at analysis** | `1.16.0` |
+| **Status** | **Historical** (revision 5) — see `docs/STATUS.md` for shipped vs open |
+| **Branch context** | Was `general-enhancements`; product now on `develop` / `main` |
+| **Workspace** | Historical path; current workspace is the GogMeet repo root |
+| **App version at analysis** | `1.16.0` (stale — do not treat claims below as live 1.18+ bugs) |
+
+> **Banner:** Large parts of this plan (updater wiring, join-by-id, allowlist, late-join, settings v3, Google Windows MVP, etc.) are **already shipped**. Use `docs/STATUS.md` and root `AGENTS.md` for current truth. Keep this file as decision history and residual backlog only.
 
 ---
 
