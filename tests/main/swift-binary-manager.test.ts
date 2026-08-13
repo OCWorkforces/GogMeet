@@ -61,9 +61,11 @@ async function loadModule() {
 
 const EXPECTED_BINARY_DIR = join(tmpdir(), "googlemeet");
 const EXPECTED_BINARY_PATH = join(EXPECTED_BINARY_DIR, "googlemeet-events");
+const EXPECTED_COMPILED_SWIFT_SOURCE_PATH = join(EXPECTED_BINARY_DIR, "googlemeet-events.swift");
 const EXPECTED_HASH_PATH = join(EXPECTED_BINARY_DIR, "source.hash");
 
 const FAKE_SOURCE = Buffer.from("swift-source");
+const FAKE_COMPILED_SOURCE = Buffer.concat([FAKE_SOURCE, Buffer.from("\n"), FAKE_SOURCE]);
 
 function setReadFileForSourceAndHash(
   sourceBytes: Buffer,
@@ -85,16 +87,16 @@ async function sha256Hex(bytes: Buffer): Promise<string> {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+async function compiledSwiftSourceHash(): Promise<string> {
+  return sha256Hex(FAKE_COMPILED_SOURCE);
+}
+
 /**
  * Compile-retry sleeps use real exponential backoff. Collapsing setTimeout to
  * microtasks avoids Windows CI hangs that fake-timer races do not fix reliably.
  */
 function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
-  return vi.spyOn(globalThis, "setTimeout").mockImplementation(((
-    handler: TimerHandler,
-    _ms?: number,
-    ...args: unknown[]
-  ) => {
+  return vi.spyOn(globalThis, "setTimeout").mockImplementation((handler, _ms, ...args) => {
     const handle = {
       unref: () => handle,
       ref: () => handle,
@@ -105,7 +107,7 @@ function mockImmediateSetTimeout(): ReturnType<typeof vi.spyOn> {
       });
     }
     return handle;
-  }) as typeof setTimeout);
+  });
 }
 
 beforeEach(() => {
@@ -303,7 +305,7 @@ describe("tryInstallBundledHelper", () => {
     expect(copyFileMock).toHaveBeenCalledWith(preferred, EXPECTED_BINARY_PATH);
     expect(writeFileMock).toHaveBeenCalledWith(
       EXPECTED_HASH_PATH,
-      await sha256Hex(FAKE_SOURCE),
+      await compiledSwiftSourceHash(),
       "utf-8",
     );
   });
@@ -359,7 +361,7 @@ describe("tryInstallBundledHelper", () => {
 
 describe("ensureBinary", () => {
   it("returns early (cache hit) when binary exists and stored hash matches", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValueOnce(undefined);
 
@@ -386,7 +388,7 @@ describe("ensureBinary", () => {
     expect(execFileAsyncMock).toHaveBeenCalledTimes(2);
     expect(execFileAsyncMock.mock.calls[0][0]).toBe("swiftc");
     expect(execFileAsyncMock.mock.calls[1][0]).toBe("strip");
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     expect(writeFileMock).toHaveBeenCalledWith(
       EXPECTED_HASH_PATH,
       expectedHash,
@@ -410,7 +412,7 @@ describe("ensureBinary", () => {
     expect(args).toContain(EXPECTED_BINARY_PATH);
     expect(writeFileMock).toHaveBeenCalledWith(
       EXPECTED_HASH_PATH,
-      await sha256Hex(FAKE_SOURCE),
+      await compiledSwiftSourceHash(),
       "utf-8",
     );
   });
@@ -483,7 +485,7 @@ describe("ensureBinary", () => {
     );
     expect(writeFileMock).toHaveBeenCalledWith(
       EXPECTED_HASH_PATH,
-      await sha256Hex(FAKE_SOURCE),
+      await compiledSwiftSourceHash(),
       "utf-8",
     );
   });
@@ -502,7 +504,11 @@ describe("ensureBinary", () => {
 
       const mod = await loadModule();
       await expect(mod.ensureBinary()).rejects.toThrow("second swiftc failed");
-      expect(writeFileMock).not.toHaveBeenCalled();
+      expect(writeFileMock).not.toHaveBeenCalledWith(
+        EXPECTED_HASH_PATH,
+        expect.anything(),
+        "utf-8",
+      );
     } finally {
       setTimeoutSpy.mockRestore();
     }
@@ -521,7 +527,7 @@ describe("ensureBinary", () => {
 
     expect(writeFileMock).toHaveBeenCalledWith(
       EXPECTED_HASH_PATH,
-      await sha256Hex(FAKE_SOURCE),
+      await compiledSwiftSourceHash(),
       "utf-8",
     );
   });
@@ -547,7 +553,7 @@ describe("ensureBinary", () => {
   });
 
   it("trims whitespace when comparing stored hash", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, `  ${expectedHash}\n`);
     accessMock.mockResolvedValueOnce(undefined);
 
@@ -602,7 +608,9 @@ describe("ensureBinary", () => {
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
     accessMock.mockRejectedValue(new Error("ENOENT"));
     const sharedFailure = new Error("hash write failed");
-    writeFileMock.mockRejectedValueOnce(sharedFailure);
+    writeFileMock.mockImplementation(async (path: string) => {
+      if (path === EXPECTED_HASH_PATH) throw sharedFailure;
+    });
     const mod = await loadModule();
 
     // When
@@ -626,7 +634,7 @@ describe("ensureBinary", () => {
 
 describe("ensureBinary source-hash memoization", () => {
   it("reuses cached source hash across calls when mtime is unchanged (no repeated source read)", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
     statMock.mockResolvedValue({ mtimeMs: 12_345 });
@@ -639,17 +647,19 @@ describe("ensureBinary source-hash memoization", () => {
     const sourceReads = readFileMock.mock.calls.filter(
       (c) => c[0] !== EXPECTED_HASH_PATH,
     );
-    expect(sourceReads.length).toBe(1);
+    expect(sourceReads.length).toBe(2);
     expect(execFileAsyncMock).not.toHaveBeenCalled();
     expect(unlinkMock).not.toHaveBeenCalled();
   });
 
   it("invalidates the memoized source hash when mtime changes", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
     statMock
       .mockResolvedValueOnce({ mtimeMs: 1_000 })
+      .mockResolvedValueOnce({ mtimeMs: 1_000 })
+      .mockResolvedValueOnce({ mtimeMs: 2_000 })
       .mockResolvedValueOnce({ mtimeMs: 2_000 });
 
     const mod = await loadModule();
@@ -659,7 +669,7 @@ describe("ensureBinary source-hash memoization", () => {
     const sourceReads = readFileMock.mock.calls.filter(
       (c) => c[0] !== EXPECTED_HASH_PATH,
     );
-    expect(sourceReads.length).toBe(2);
+    expect(sourceReads.length).toBe(4);
   });
 
   it("surfaces the clear readSwiftSource error when the source file is missing", async () => {
@@ -682,7 +692,7 @@ describe("ensureBinary source-hash memoization", () => {
 
 describe("runSwiftHelper", () => {
   it("returns trimmed stdout from the binary on the happy path", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
 
@@ -703,7 +713,7 @@ describe("runSwiftHelper", () => {
   });
 
   it("recompiles once on integrity spawn ENOENT after revalidation", async () => {
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     // ensureBinaryCycle probes executable twice on the cache-hit path; after spawn
     // ENOENT, revalidate reports missing binary; recompile path also probes twice.
@@ -752,7 +762,7 @@ describe("runSwiftHelper", () => {
     const { SwiftHelperProcessError } = await import(
       "../../src/main/swift/swift-helper-process.js"
     );
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
 
@@ -770,7 +780,7 @@ describe("runSwiftHelper", () => {
     const { SwiftHelperProcessError } = await import(
       "../../src/main/swift/swift-helper-process.js"
     );
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
 
@@ -787,7 +797,7 @@ describe("runSwiftHelper", () => {
     const { SwiftHelperProcessError } = await import(
       "../../src/main/swift/swift-helper-process.js"
     );
-    const expectedHash = await sha256Hex(FAKE_SOURCE);
+    const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
 
@@ -810,7 +820,7 @@ describe("runSwiftHelper", () => {
   it("throws when recompile after integrity spawn fails", async () => {
     const setTimeoutSpy = mockImmediateSetTimeout();
     try {
-      const expectedHash = await sha256Hex(FAKE_SOURCE);
+      const expectedHash = await compiledSwiftSourceHash();
       setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
       accessMock
         .mockResolvedValueOnce(undefined) // initial ensureBinary
@@ -841,8 +851,8 @@ describe("runSwiftHelper", () => {
   });
 });
 
-describe("path resolution", () => {
-  it("uses SWIFT_SRC_DEV (project src/main path) in dev mode", async () => {
+describe("Swift source compilation", () => {
+  it("compiles generated source from both dev Swift files", async () => {
     setReadFileForSourceAndHash(FAKE_SOURCE, null);
     accessMock.mockRejectedValueOnce(new Error("ENOENT"));
 
@@ -857,11 +867,13 @@ describe("path resolution", () => {
     expect(sourceReadCall).toBeDefined();
     expect(sourceReadCall![0] as string).not.toContain(".asar");
 
-    const swiftCall = execFileAsyncMock.mock.calls.find(
-      (c) => c[0] === "swiftc",
-    );
+    const swiftCall = execFileAsyncMock.mock.calls.find((c) => c[0] === "swiftc");
     expect(swiftCall).toBeDefined();
     const args = swiftCall![1] as string[];
-    expect(args[0]).toBe(sourceReadCall![0]);
+    expect(args[0]).toBe(EXPECTED_COMPILED_SWIFT_SOURCE_PATH);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      EXPECTED_COMPILED_SWIFT_SOURCE_PATH,
+      FAKE_COMPILED_SOURCE,
+    );
   });
 });

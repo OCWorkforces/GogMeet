@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import {
   BINARY_PATH,
+  COMPILED_SWIFT_SOURCE_PATH,
   HASH_PATH,
   ensureSecureCacheDir,
   installBundledHelperCandidates,
@@ -11,6 +12,7 @@ import {
   lockdownBinary,
   readSwiftSource,
   resolveBundledHelperPath,
+  resolveSwiftOccurrenceIdentitySourcePath,
   resolveSwiftSourcePath,
   verifyBinaryHash,
 } from "./binary-cache.js";
@@ -35,8 +37,10 @@ let hashVerified = false;
 let ensureBinaryInFlight: Promise<void> | null = null;
 
 interface SourceHashCacheEntry {
-  readonly path: string;
-  readonly mtimeMs: number;
+  readonly occurrenceIdentityPath: string;
+  readonly occurrenceIdentityMtimeMs: number;
+  readonly swiftSourcePath: string;
+  readonly swiftSourceMtimeMs: number;
   readonly hash: string;
 }
 let sourceHashCache: SourceHashCacheEntry | null = null;
@@ -48,28 +52,40 @@ let sourceHashCache: SourceHashCacheEntry | null = null;
  * The cache is process-local; the on-disk hash sidecar is unchanged.
  */
 async function getSourceHash(swiftSrc: string): Promise<string> {
-  // Try to stat first for the mtime cache key. If stat fails (e.g. ENOENT),
-  // fall through to readSwiftSource so the caller sees the clear
-  // "Swift source not found at ..." error rather than a raw ENOENT.
-  let mtimeMs: number | null = null;
+  const occurrenceIdentitySrc = resolveSwiftOccurrenceIdentitySourcePath();
+  let swiftSourceMtimeMs: number | null = null;
+  let occurrenceIdentityMtimeMs: number | null = null;
   try {
-    const stats = await stat(swiftSrc);
-    mtimeMs = stats.mtimeMs;
+    const [swiftSourceStats, occurrenceIdentityStats] = await Promise.all([
+      stat(swiftSrc),
+      stat(occurrenceIdentitySrc),
+    ]);
+    swiftSourceMtimeMs = swiftSourceStats.mtimeMs;
+    occurrenceIdentityMtimeMs = occurrenceIdentityStats.mtimeMs;
   } catch (err) {
     logDebug(err);
   }
   if (
-    mtimeMs !== null &&
+    swiftSourceMtimeMs !== null &&
+    occurrenceIdentityMtimeMs !== null &&
     sourceHashCache !== null &&
-    sourceHashCache.path === swiftSrc &&
-    sourceHashCache.mtimeMs === mtimeMs
+    sourceHashCache.swiftSourcePath === swiftSrc &&
+    sourceHashCache.swiftSourceMtimeMs === swiftSourceMtimeMs &&
+    sourceHashCache.occurrenceIdentityPath === occurrenceIdentitySrc &&
+    sourceHashCache.occurrenceIdentityMtimeMs === occurrenceIdentityMtimeMs
   ) {
     return sourceHashCache.hash;
   }
   const sourceBytes = await readSwiftSource(swiftSrc);
   const hash = createHash("sha256").update(sourceBytes).digest("hex");
-  if (mtimeMs !== null) {
-    sourceHashCache = { path: swiftSrc, mtimeMs, hash };
+  if (swiftSourceMtimeMs !== null && occurrenceIdentityMtimeMs !== null) {
+    sourceHashCache = {
+      swiftSourcePath: swiftSrc,
+      swiftSourceMtimeMs,
+      occurrenceIdentityPath: occurrenceIdentitySrc,
+      occurrenceIdentityMtimeMs,
+      hash,
+    };
   } else {
     sourceHashCache = null;
   }
@@ -169,7 +185,8 @@ async function ensureBinaryCycle(): Promise<void> {
     invalidateSourceHashCache();
   }
 
-  await compileWithRetries(swiftSrc);
+  await writeFile(COMPILED_SWIFT_SOURCE_PATH, await readSwiftSource(swiftSrc));
+  await compileWithRetries(COMPILED_SWIFT_SOURCE_PATH);
 
   // Strip debug symbols from compiled binary for smaller size
   await stripBinary();
