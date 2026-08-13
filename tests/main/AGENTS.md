@@ -10,7 +10,7 @@ Vitest `main` project: Node environment plus `tests/setup.main.ts` Electron mock
 tests/main/                         # flat *.test.ts (no scheduler/ subdirectory)
 ├── app-graph*.test.ts / lifecycle / app-bootstrap / index-bootstrap / bind-composition
 ├── scheduler-*.test.ts             # facade, poll, timers, plan-schedule, auto-open off, …
-├── swift/                          # swift-helper-process, event-parser only
+├── swift/                          # swift-helper-process, event-parser, event-occurrence-identity
 ├── swift-binary-manager / swift-guards / calendar-watch-sidecar  # top-level (not under swift/)
 ├── calendar*.test.ts / google-* / fixture / offline-cache / refresh-coordinator / watcher
 ├── performance-probe* / performance-trace* / shell-meeting-opener / guardrails-security / after-pack
@@ -48,7 +48,8 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `calendar-refresh-coordinator.test.ts` — single-flight, follow-up queue, cancel, publication generation.
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification, and aggregation into the fixed Darwin diagnostic counts.
-- `swift-binary-manager.test.ts` — integrity-only recompile (top-level).
+- `swift/event-occurrence-identity.test.ts` — darwin-only real `swiftc` of occurrence-aware uid helper (long timeout).
+- `swift-binary-manager.test.ts` — dual-source integrity hash/compile + integrity-only recompile (top-level).
 - `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch; stream ceilings + overflow; restart budget.
 - `performance-trace.test.ts` / `performance-trace-file.test.ts` — bounded buffer + atomic flush.
 - `performance-probe.test.ts` / `performance-probe-drivers.test.ts` — contract, private provider, tray/alert/safe-storage drivers.

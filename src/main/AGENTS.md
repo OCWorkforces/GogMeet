@@ -6,7 +6,7 @@ Electron main owns lifecycle, tray and menu, BrowserWindows, system APIs, typed 
 
 | Area              | Files                                                                       | Responsibility                                                                                                      |
 | ----------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Root              | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift`               | Single-instance bootstrap, production tray, main bus, and Darwin Swift source                                       |
+| Root              | `index.ts`, `tray.ts`, `events.ts`, `googlemeet-events.swift`               | Single-instance bootstrap, production tray, main bus, and primary Darwin Swift source                               |
 | `app/`            | `lifecycle.ts`, `ipc.ts`, `performance-probe*`                              | Lifecycle, IPC registration, and private packaged measurement probes                                                |
 | `composition/`    | `app-graph.ts`, `bind-composition.ts`, `create-test-app-graph.ts`           | Production graph construction and facade default binding                                                            |
 | `application/`    | `ports/`, `use-cases/`                                                      | Port contracts and use-case projections with no Electron, Node I/O, or Swift                                        |
@@ -17,7 +17,7 @@ Electron main owns lifecycle, tray and menu, BrowserWindows, system APIs, typed 
 | `windows/`        | about, update, alert, settings                                              | BrowserWindow ownership, including hide and reuse for alert and settings windows                                    |
 | `system/`         | power, display horizon, shortcuts, auto-launch, auto-updater, notification  | OS integration and wall-clock display refreshes                                                                     |
 | `scheduler/`      | facade, core, adapters, timers                                              | Polling, schedule planning, automatic joins, alerts, and timer state                                                |
-| `swift/`          | helper process, binary manager, parser, sidecar                             | EventKit helper implementation, reachable only from the Darwin provider                                             |
+| `swift/`          | helper process, binary manager/cache/compiler, parser, sidecar, occurrence identity | EventKit helper (dual Swift sources), reachable only from the Darwin provider                                |
 | `ipc-handlers/`   | per-domain handlers                                                         | Typed IPC handlers that receive `AppGraph`                                                                          |
 | `menu/`           | `meeting-menu.ts`                                                           | Tray menu templates, including limited, offline, and completed-today rows                                           |
 | `utils/`          | window helpers, join hub, URL helpers, logging, performance trace           | Main-process helpers and egress support                                                                             |
@@ -63,7 +63,7 @@ Electron main owns lifecycle, tray and menu, BrowserWindows, system APIs, typed 
 
 ## Notes
 
-- Swift source is unpacked for packaged macOS builds.
+- Both Darwin Swift sources are packaged and `asarUnpack`ed: `googlemeet-events.swift` and `swift/event-occurrence-identity.swift`. Integrity hash digests identity + `"\n"` + events (see `swift/AGENTS.md`).
 - Windows Google Calendar requires `GOOGLE_OAUTH_CLIENT_ID` at runtime or package time.
 - The fixture provider is available only to unpackaged builds with `GOGMEET_CALENDAR_FIXTURE`.
 - `index.ts` configures `electron-log` through `utils/log.ts` and sets Chromium `log-level=3`.
