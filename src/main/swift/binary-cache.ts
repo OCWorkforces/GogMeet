@@ -112,8 +112,9 @@ export function resolveSwiftOccurrenceIdentitySourcePath(): string {
 }
 
 /**
- * Read the Swift source contents, throwing a clear error if the file does not
- * exist (covers both dev-mode missing source and packaged extraction failure).
+ * Read both Swift sources for compile/hash: occurrence-identity first, then
+ * events, joined by a single newline (must match the macOS release verifier).
+ * Throws a clear error if either file is missing (dev or packaged).
  */
 export async function readSwiftSource(swiftSrc: string): Promise<Buffer> {
   try {
@@ -124,14 +125,15 @@ export async function readSwiftSource(swiftSrc: string): Promise<Buffer> {
     return Buffer.concat([identitySource, Buffer.from("\n"), eventSource]);
   } catch (err) {
     const cause = err instanceof Error ? err.message : String(err);
+    const identitySrc = resolveSwiftOccurrenceIdentitySourcePath();
     if (isPackaged) {
       throw new Error(
-        `Swift source not found at ${swiftSrc}. Ensure asarUnpack is configured for googlemeet-events.swift. Cause: ${cause}`,
+        `Swift sources not found (events: ${swiftSrc}; identity: ${identitySrc}). Ensure asarUnpack includes googlemeet-events.swift and event-occurrence-identity.swift. Cause: ${cause}`,
         { cause: err },
       );
     }
     throw new Error(
-      `Swift source not found at ${swiftSrc}. Ensure the file exists. Cause: ${cause}`,
+      `Swift sources not found (events: ${swiftSrc}; identity: ${identitySrc}). Ensure both files exist. Cause: ${cause}`,
       { cause: err },
     );
   }

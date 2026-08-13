@@ -686,7 +686,7 @@ describe("ensureBinary source-hash memoization", () => {
     });
 
     const mod = await loadModule();
-    await expect(mod.ensureBinary()).rejects.toThrow(/Swift source not found at/);
+    await expect(mod.ensureBinary()).rejects.toThrow(/Swift sources not found/);
   });
 });
 

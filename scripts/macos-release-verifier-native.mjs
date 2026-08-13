@@ -14,7 +14,25 @@ import {
 } from "./macos-release-verifier-helpers.mjs";
 
 const BUNDLE_ID = "com.ocworkforces.gogmeet";
-const APP_SOURCE_PATH = ["Contents", "Resources", "app.asar.unpacked", "src", "main", "googlemeet-events.swift"];
+/** Unpacked EventKit helper — must match `resolveSwiftSourcePath` packaged layout. */
+const APP_EVENT_SOURCE_PATH = [
+  "Contents",
+  "Resources",
+  "app.asar.unpacked",
+  "src",
+  "main",
+  "googlemeet-events.swift",
+];
+/** Unpacked occurrence-identity helper — must match `resolveSwiftOccurrenceIdentitySourcePath`. */
+const APP_IDENTITY_SOURCE_PATH = [
+  "Contents",
+  "Resources",
+  "app.asar.unpacked",
+  "src",
+  "main",
+  "swift",
+  "event-occurrence-identity.swift",
+];
 const CACHE_WAIT_MS = 60_000;
 
 export function createCommandRunner(spawnProcess = spawn) {
@@ -80,7 +98,9 @@ export async function verifyReleaseArtifacts(options) {
       }
     }
     if (!ranNativeSmoke) {
-      throw new ReleaseVerificationError(`No ZIP artifact matches the native ${nativeArchitecture} architecture for runtime smoke`);
+      throw new ReleaseVerificationError(
+        `No ZIP artifact matches the native ${nativeArchitecture} architecture for runtime smoke`,
+      );
     }
   } finally {
     await rm(workDir, { recursive: true, force: true });
@@ -92,7 +112,14 @@ async function verifyDmg(options) {
   await mkdir(mountDir);
   await requireSuccess(options.run("hdiutil", ["verify", options.artifactPath]), "hdiutil verify");
   await requireSuccess(
-    options.run("hdiutil", ["attach", options.artifactPath, "-nobrowse", "-readonly", "-mountpoint", mountDir]),
+    options.run("hdiutil", [
+      "attach",
+      options.artifactPath,
+      "-nobrowse",
+      "-readonly",
+      "-mountpoint",
+      mountDir,
+    ]),
     "hdiutil attach",
   );
   try {
@@ -104,24 +131,41 @@ async function verifyDmg(options) {
 }
 
 async function verifyApp(options) {
-  await requireSuccess(options.run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", options.appPath]), "codesign verify");
-  const display = await requireSuccess(options.run("codesign", ["-dvv", options.appPath]), "codesign display");
+  await requireSuccess(
+    options.run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", options.appPath]),
+    "codesign verify",
+  );
+  const display = await requireSuccess(
+    options.run("codesign", ["-dvv", options.appPath]),
+    "codesign display",
+  );
   assertCodesignDisplay(`${display.stdout}\n${display.stderr}`, BUNDLE_ID);
-  const entitlements = await requireSuccess(options.run("codesign", ["-d", "--entitlements", ":-", options.appPath]), "codesign entitlements");
+  const entitlements = await requireSuccess(
+    options.run("codesign", ["-d", "--entitlements", ":-", options.appPath]),
+    "codesign entitlements",
+  );
   assertEntitlements(`${entitlements.stdout}\n${entitlements.stderr}`);
   const mainExecutable = join(options.appPath, "Contents", "MacOS", "GogMeet");
   const lipo = await requireSuccess(options.run("lipo", ["-archs", mainExecutable]), "lipo");
   assertMainArchitecture(lipo.stdout, options.arch);
-  await requireSuccess(options.run("spctl", ["--assess", "--type", "execute", "--verbose=4", options.appPath]), "spctl assess");
-  await requireSuccess(options.run("xcrun", ["stapler", "validate", options.appPath]), "xcrun stapler validate");
+  await requireSuccess(
+    options.run("spctl", ["--assess", "--type", "execute", "--verbose=4", options.appPath]),
+    "spctl assess",
+  );
+  await requireSuccess(
+    options.run("xcrun", ["stapler", "validate", options.appPath]),
+    "xcrun stapler validate",
+  );
   await requireSwiftSource(options.appPath);
 }
 
 async function requireSwiftSource(appPath) {
-  const sourcePath = join(appPath, ...APP_SOURCE_PATH);
-  const sourceStats = await stat(sourcePath);
-  if (!sourceStats.isFile()) {
-    throw new ReleaseVerificationError(`Missing unpacked Swift source: ${sourcePath}`);
+  for (const relativeParts of [APP_EVENT_SOURCE_PATH, APP_IDENTITY_SOURCE_PATH]) {
+    const sourcePath = join(appPath, ...relativeParts);
+    const sourceStats = await stat(sourcePath);
+    if (!sourceStats.isFile()) {
+      throw new ReleaseVerificationError(`Missing unpacked Swift source: ${sourcePath}`);
+    }
   }
 }
 
@@ -137,7 +181,10 @@ async function smokeSwiftRuntime(options) {
     await waitForFiles([helperPath, hashPath], CACHE_WAIT_MS);
     await requireCachePermissions(cacheDir, helperPath);
     await requireSourceHash(options.appPath, hashPath);
-    const result = await options.run(helperPath, [], { env: { ...process.env, TMPDIR: isolatedTmp }, timeoutMs: 15_000 });
+    const result = await options.run(helperPath, [], {
+      env: { ...process.env, TMPDIR: isolatedTmp },
+      timeoutMs: 15_000,
+    });
     assertSwiftHelperResult(result);
   } finally {
     await stopApp(appProcess);
@@ -167,7 +214,10 @@ async function stopApp(appProcess) {
   } catch (error) {
     if (!isMissingProcess(error)) throw error;
   }
-  const exited = await Promise.race([appProcess.exit.then(() => true), delay(5_000).then(() => false)]);
+  const exited = await Promise.race([
+    appProcess.exit.then(() => true),
+    delay(5_000).then(() => false),
+  ]);
   if (!exited) {
     try {
       process.kill(-appProcess.pid, "SIGKILL");
@@ -183,7 +233,9 @@ async function waitForFiles(paths, timeoutMs) {
     if (await Promise.all(paths.map(fileExists)).then((results) => results.every(Boolean))) return;
     await delay(250);
   }
-  throw new ReleaseVerificationError(`Timed out waiting for Swift helper cache: ${paths.join(", ")}`);
+  throw new ReleaseVerificationError(
+    `Timed out waiting for Swift helper cache: ${paths.join(", ")}`,
+  );
 }
 
 async function fileExists(path) {
@@ -205,19 +257,34 @@ async function requireCachePermissions(cacheDir, helperPath) {
   }
 }
 
+/**
+ * Digest both unpacked Swift sources in the same order/separator as runtime
+ * `readSwiftSource` (identity + "\\n" + events) so `source.hash` matches.
+ */
 async function requireSourceHash(appPath, hashPath) {
-  const sourcePath = join(appPath, ...APP_SOURCE_PATH);
-  const expected = createHash("sha256").update(await readFile(sourcePath)).digest("hex");
+  const identityPath = join(appPath, ...APP_IDENTITY_SOURCE_PATH);
+  const eventPath = join(appPath, ...APP_EVENT_SOURCE_PATH);
+  const [identitySource, eventSource] = await Promise.all([
+    readFile(identityPath),
+    readFile(eventPath),
+  ]);
+  const expected = createHash("sha256")
+    .update(Buffer.concat([identitySource, Buffer.from("\n"), eventSource]))
+    .digest("hex");
   const actual = (await readFile(hashPath, "utf8")).trim();
   if (actual !== expected) {
-    throw new ReleaseVerificationError("Swift helper source hash does not match the unpacked source");
+    throw new ReleaseVerificationError(
+      "Swift helper source hash does not match the unpacked source",
+    );
   }
 }
 
 async function requireSuccess(commandResult, label) {
   const result = await commandResult;
   if (result.status !== 0 || result.signal !== null) {
-    throw new ReleaseVerificationError(`${label} failed: ${result.stderr.trim() || result.stdout.trim() || result.signal || result.status}`);
+    throw new ReleaseVerificationError(
+      `${label} failed: ${result.stderr.trim() || result.stdout.trim() || result.signal || result.status}`,
+    );
   }
   return result;
 }
