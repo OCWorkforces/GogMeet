@@ -48,7 +48,8 @@ tests/
 | `calendar-refresh-coordinator.test.ts`                      | single-flight, follow-up, cancel, generation                                                                                    |
 | `swift/swift-helper-process.test.ts`                        | real spawn bounds + kill paths                                                                                                  |
 | `swift/event-occurrence-identity.test.ts`                   | darwin-only real `swiftc` of occurrence-aware uid helper                                                                        |
-| `swift-binary-manager.test.ts`                              | dual-source integrity hash/compile + integrity-only recompile                                                                   |
+| `swift-binary-manager.test.ts`                              | dual-source integrity hash/compile (distinct fixtures) + integrity-only recompile                                               |
+| `lifecycle` / `power`                                       | power `forcePoll` reasons (no full restart storms)                                                                              |
 | `calendar-watch-sidecar.test.ts`                            | stream ceilings, overflow, restart budget                                                                                       |
 | `performance-trace*.test.ts` / `performance-probe*.test.ts` | bounded traces, atomic flush, probe contract/drivers                                                                            |
 | `guardrails-security.test.ts`                               | freezes: SECURE prefs, bounds, `MAX_PAGES`, probe prefix                                                                        |

@@ -8,7 +8,7 @@ export interface AppSettings {
   launchAtLogin: boolean;
   /** Whether to show tomorrow's meetings in the tray menu */
   showTomorrowMeetings: boolean;
-  /** Whether to show today's completed meetings as history in the popover */
+  /** Whether to show today's completed meetings as history in the tray menu (and list UI) */
   showCompletedTodayMeetings: boolean;
   /** Whether to show a window alert before auto-open */
   windowAlert: boolean;
@@ -20,7 +20,7 @@ export interface AppSettings {
   nativeNotifications: boolean;
   /** Minutes after start to still auto-open (0 = off) */
   lateJoinGraceMinutes: number;
-  /** Suppress alert + notifications during quiet hours (auto-open continues) */
+  /** Suppress alert + notifications during quiet hours (auto-open still continues) */
   quietHoursEnabled: boolean;
   /** Quiet hours start local "HH:mm" */
   quietHoursStart: string;

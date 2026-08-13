@@ -7,7 +7,7 @@ This directory contains two driven adapters: settings persistence and allowliste
 | Path                               | Implements          | Responsibility                                                                                                                                                     |
 | ---------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `settings/json-settings-store.ts`  | `SettingsStorePort` | Loads, gets, and updates schema v3 settings under `userData/settings.json`. Its adapter-specific `save` persists the current settings and rewrites migrated input. |
-| `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` | Validates the meeting URL with the domain allowlist, then calls Electron `shell.openExternal`.                                                                     |
+| `electron/shell-meeting-opener.ts` | `MeetingOpenerPort` | Validates the meeting URL with the domain allowlist, then calls Electron `shell.openExternal`. Logs host only (no full URL) on block/failure.                      |
 
 ## Boundaries
 

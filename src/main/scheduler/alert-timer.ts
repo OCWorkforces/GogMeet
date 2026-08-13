@@ -38,8 +38,9 @@ export function scheduleAlertTimer(
     alertFiredEvents.set(event.id, endMs + FIRED_EVENT_TTL_MS);
     try {
       showAlert(event, autoOpenAt);
-    } catch {
-      // Non-critical — alert is optional UX
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[scheduler] Alert presentation failed:", message);
     }
     console.log(
       `[scheduler] Alert shown for "${event.title}" (${Math.round(alertDelayMs / 1000)}s before open)`,

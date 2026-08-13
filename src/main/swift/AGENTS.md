@@ -97,6 +97,6 @@ Each helper output line is a JSON array of exactly nine strings, in this order: 
   - `tests/main/swift/swift-helper-process.test.ts` (real Node fixture)
   - `tests/main/swift/event-parser.test.ts`
   - `tests/main/swift/event-occurrence-identity.test.ts` (darwin-only real `swiftc` of the identity source)
-  - `tests/main/swift-binary-manager.test.ts` (dual-source hash/compile path mocks)
+  - `tests/main/swift-binary-manager.test.ts` (distinct identity/events fixtures; order-sensitive dual-source hash)
   - `tests/main/swift-guards.test.ts`
   - `tests/main/calendar-watch-sidecar.test.ts` (mocked exec/spawn as appropriate)

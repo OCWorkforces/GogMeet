@@ -39,7 +39,8 @@ describe("url-validation", () => {
 
     it("rejects non-allowed URLs", () => {
       expect(isAllowedMeetUrl("https://evil.com/phishing")).toBe(false);
-      expect(isAllowedMeetUrl("https://teams.microsoft.com/meet")).toBe(false);
+      expect(isAllowedMeetUrl("https://teams.microsoft.com/l/meetup-join/x")).toBe(true);
+      expect(isAllowedMeetUrl("https://company.webex.com/meet/user")).toBe(true);
     });
 
     it("rejects http:// (non-https)", () => {

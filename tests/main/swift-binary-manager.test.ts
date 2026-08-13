@@ -23,23 +23,16 @@ vi.mock("../../src/main/swift/swift-helper-process.js", async () => {
   };
 });
 
-const {
-  accessMock,
-  mkdirMock,
-  readFileMock,
-  writeFileMock,
-  unlinkMock,
-  statMock,
-  copyFileMock,
-} = vi.hoisted(() => ({
-  accessMock: vi.fn(),
-  mkdirMock: vi.fn(),
-  readFileMock: vi.fn(),
-  writeFileMock: vi.fn(),
-  unlinkMock: vi.fn(),
-  statMock: vi.fn(),
-  copyFileMock: vi.fn(),
-}));
+const { accessMock, mkdirMock, readFileMock, writeFileMock, unlinkMock, statMock, copyFileMock } =
+  vi.hoisted(() => ({
+    accessMock: vi.fn(),
+    mkdirMock: vi.fn(),
+    readFileMock: vi.fn(),
+    writeFileMock: vi.fn(),
+    unlinkMock: vi.fn(),
+    statMock: vi.fn(),
+    copyFileMock: vi.fn(),
+  }));
 vi.mock("node:fs/promises", () => ({
   access: accessMock,
   mkdir: mkdirMock,
@@ -64,19 +57,35 @@ const EXPECTED_BINARY_PATH = join(EXPECTED_BINARY_DIR, "googlemeet-events");
 const EXPECTED_COMPILED_SWIFT_SOURCE_PATH = join(EXPECTED_BINARY_DIR, "googlemeet-events.swift");
 const EXPECTED_HASH_PATH = join(EXPECTED_BINARY_DIR, "source.hash");
 
-const FAKE_SOURCE = Buffer.from("swift-source");
-const FAKE_COMPILED_SOURCE = Buffer.concat([FAKE_SOURCE, Buffer.from("\n"), FAKE_SOURCE]);
+const FAKE_EVENT_SOURCE = Buffer.from("swift-events-source");
+const FAKE_IDENTITY_SOURCE = Buffer.from("swift-identity-source");
+/** Distinct dual-source concat (identity + "\\n" + events) matching production order. */
+const FAKE_COMPILED_SOURCE = Buffer.concat([
+  FAKE_IDENTITY_SOURCE,
+  Buffer.from("\n"),
+  FAKE_EVENT_SOURCE,
+]);
+/** @deprecated alias for event bytes in older call sites */
+const FAKE_SOURCE = FAKE_EVENT_SOURCE;
 
-function setReadFileForSourceAndHash(
-  sourceBytes: Buffer,
-  storedHash: string | null,
-): void {
+function setReadFileForSourceAndHash(sourceBytes: Buffer, storedHash: string | null): void {
   readFileMock.mockImplementation(async (path: string, _enc?: string) => {
     if (path === EXPECTED_HASH_PATH) {
       if (storedHash === null) {
         throw new Error("ENOENT");
       }
       return storedHash;
+    }
+    const pathStr = String(path);
+    if (pathStr.endsWith(join("event-occurrence-identity.swift"))) {
+      return FAKE_IDENTITY_SOURCE;
+    }
+    if (pathStr.endsWith(join("googlemeet-events.swift"))) {
+      return sourceBytes;
+    }
+    // Default dual-source reads use identity path vs events path.
+    if (pathStr.includes("event-occurrence-identity")) {
+      return FAKE_IDENTITY_SOURCE;
     }
     return sourceBytes;
   });
@@ -246,10 +255,7 @@ describe("installBundledHelperCandidates", () => {
     );
 
     expect(ok).toBe(true);
-    expect(copyFileMock).toHaveBeenCalledWith(
-      "/Resources/googlemeet-events",
-      EXPECTED_BINARY_PATH,
-    );
+    expect(copyFileMock).toHaveBeenCalledWith("/Resources/googlemeet-events", EXPECTED_BINARY_PATH);
     expect(writeFileMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH, hash, "utf-8");
   });
 
@@ -324,11 +330,7 @@ describe("tryInstallBundledHelper", () => {
     expect(ok).toBe(true);
     expect(copyFileMock).toHaveBeenCalledWith("/only/preferred", EXPECTED_BINARY_PATH);
     // No hash write when source hash is unavailable
-    expect(writeFileMock).not.toHaveBeenCalledWith(
-      EXPECTED_HASH_PATH,
-      expect.anything(),
-      "utf-8",
-    );
+    expect(writeFileMock).not.toHaveBeenCalledWith(EXPECTED_HASH_PATH, expect.anything(), "utf-8");
   });
 
   it("probes additional Resources layouts when resourcesPath is set", async () => {
@@ -389,11 +391,7 @@ describe("ensureBinary", () => {
     expect(execFileAsyncMock.mock.calls[0][0]).toBe("swiftc");
     expect(execFileAsyncMock.mock.calls[1][0]).toBe("strip");
     const expectedHash = await compiledSwiftSourceHash();
-    expect(writeFileMock).toHaveBeenCalledWith(
-      EXPECTED_HASH_PATH,
-      expectedHash,
-      "utf-8",
-    );
+    expect(writeFileMock).toHaveBeenCalledWith(EXPECTED_HASH_PATH, expectedHash, "utf-8");
   });
 
   it("compiles fresh when binary does not exist", async () => {
@@ -425,9 +423,7 @@ describe("ensureBinary", () => {
     const mod = await loadModule();
     await mod.ensureBinary();
 
-    const swiftCall = execFileAsyncMock.mock.calls.find(
-      (c) => c[0] === "swiftc",
-    );
+    const swiftCall = execFileAsyncMock.mock.calls.find((c) => c[0] === "swiftc");
     expect(swiftCall).toBeDefined();
     const args = swiftCall![1] as string[];
     const tIdx = args.indexOf("-target");
@@ -442,9 +438,7 @@ describe("ensureBinary", () => {
     const mod = await loadModule();
     await mod.ensureBinary();
 
-    const swiftCall = execFileAsyncMock.mock.calls.find(
-      (c) => c[0] === "swiftc",
-    );
+    const swiftCall = execFileAsyncMock.mock.calls.find((c) => c[0] === "swiftc");
     expect(swiftCall).toBeDefined();
     const args = swiftCall![1] as string[];
     const tIdx = args.indexOf("-target");
@@ -545,11 +539,7 @@ describe("ensureBinary", () => {
     await mod.ensureBinary();
 
     expect(unlinkMock).toHaveBeenCalledWith(EXPECTED_BINARY_PATH);
-    expect(execFileAsyncMock).toHaveBeenCalledWith(
-      "swiftc",
-      expect.any(Array),
-      expect.any(Object),
-    );
+    expect(execFileAsyncMock).toHaveBeenCalledWith("swiftc", expect.any(Array), expect.any(Object));
   });
 
   it("trims whitespace when comparing stored hash", async () => {
@@ -644,9 +634,7 @@ describe("ensureBinary source-hash memoization", () => {
     await mod.ensureBinary();
     await mod.ensureBinary();
 
-    const sourceReads = readFileMock.mock.calls.filter(
-      (c) => c[0] !== EXPECTED_HASH_PATH,
-    );
+    const sourceReads = readFileMock.mock.calls.filter((c) => c[0] !== EXPECTED_HASH_PATH);
     expect(sourceReads.length).toBe(2);
     expect(execFileAsyncMock).not.toHaveBeenCalled();
     expect(unlinkMock).not.toHaveBeenCalled();
@@ -666,9 +654,7 @@ describe("ensureBinary source-hash memoization", () => {
     await mod.ensureBinary();
     await mod.ensureBinary();
 
-    const sourceReads = readFileMock.mock.calls.filter(
-      (c) => c[0] !== EXPECTED_HASH_PATH,
-    );
+    const sourceReads = readFileMock.mock.calls.filter((c) => c[0] !== EXPECTED_HASH_PATH);
     expect(sourceReads.length).toBe(4);
   });
 
@@ -736,13 +722,11 @@ describe("runSwiftHelper", () => {
       stderr: "",
     });
 
-    runSwiftHelperProcessMock
-      .mockRejectedValueOnce(spawnEnoent)
-      .mockResolvedValueOnce({
-        stdout: "fresh-output\n",
-        stderr: "",
-        exitCode: 0,
-      });
+    runSwiftHelperProcessMock.mockRejectedValueOnce(spawnEnoent).mockResolvedValueOnce({
+      stdout: "fresh-output\n",
+      stderr: "",
+      exitCode: 0,
+    });
 
     // After invalidate, ensureBinary recompiles via execFile (swiftc + strip)
     execFileAsyncMock
@@ -759,9 +743,8 @@ describe("runSwiftHelper", () => {
   });
 
   it("does not recompile on timeout", async () => {
-    const { SwiftHelperProcessError } = await import(
-      "../../src/main/swift/swift-helper-process.js"
-    );
+    const { SwiftHelperProcessError } =
+      await import("../../src/main/swift/swift-helper-process.js");
     const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
@@ -777,9 +760,8 @@ describe("runSwiftHelper", () => {
   });
 
   it("does not recompile on stdout overflow", async () => {
-    const { SwiftHelperProcessError } = await import(
-      "../../src/main/swift/swift-helper-process.js"
-    );
+    const { SwiftHelperProcessError } =
+      await import("../../src/main/swift/swift-helper-process.js");
     const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
@@ -794,9 +776,8 @@ describe("runSwiftHelper", () => {
   });
 
   it("does not recompile on semantic permission exit", async () => {
-    const { SwiftHelperProcessError } = await import(
-      "../../src/main/swift/swift-helper-process.js"
-    );
+    const { SwiftHelperProcessError } =
+      await import("../../src/main/swift/swift-helper-process.js");
     const expectedHash = await compiledSwiftSourceHash();
     setReadFileForSourceAndHash(FAKE_SOURCE, expectedHash);
     accessMock.mockResolvedValue(undefined);
@@ -853,19 +834,24 @@ describe("runSwiftHelper", () => {
 
 describe("Swift source compilation", () => {
   it("compiles generated source from both dev Swift files", async () => {
-    setReadFileForSourceAndHash(FAKE_SOURCE, null);
+    setReadFileForSourceAndHash(FAKE_EVENT_SOURCE, null);
     accessMock.mockRejectedValueOnce(new Error("ENOENT"));
 
     const mod = await loadModule();
     await mod.ensureBinary();
 
-    const sourceReadCall = readFileMock.mock.calls.find(
+    const eventReadCall = readFileMock.mock.calls.find(
       (c) =>
-        typeof c[0] === "string" &&
-        c[0].endsWith(join("src", "main", "googlemeet-events.swift")),
+        typeof c[0] === "string" && c[0].endsWith(join("src", "main", "googlemeet-events.swift")),
     );
-    expect(sourceReadCall).toBeDefined();
-    expect(sourceReadCall![0] as string).not.toContain(".asar");
+    expect(eventReadCall).toBeDefined();
+    expect(eventReadCall![0] as string).not.toContain(".asar");
+
+    const identityReadCall = readFileMock.mock.calls.find(
+      (c) =>
+        typeof c[0] === "string" && String(c[0]).endsWith(join("event-occurrence-identity.swift")),
+    );
+    expect(identityReadCall).toBeDefined();
 
     const swiftCall = execFileAsyncMock.mock.calls.find((c) => c[0] === "swiftc");
     expect(swiftCall).toBeDefined();
@@ -875,5 +861,11 @@ describe("Swift source compilation", () => {
       EXPECTED_COMPILED_SWIFT_SOURCE_PATH,
       FAKE_COMPILED_SOURCE,
     );
+    // Order freeze: identity first, then events (not the reverse).
+    expect(
+      FAKE_COMPILED_SOURCE.equals(
+        Buffer.concat([FAKE_EVENT_SOURCE, Buffer.from("\n"), FAKE_IDENTITY_SOURCE]),
+      ),
+    ).toBe(false);
   });
 });

@@ -6,10 +6,11 @@
 
 | File                        | Role                                                                                   | Key Exports                                                                                                                                     |
 | --------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `browser-window.ts`         | BrowserWindow config factory, CSP enforcement                                          | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()`                                                        |
+| `browser-window.ts`         | BrowserWindow config factory, CSP enforcement (incl. base-uri/object/frame/form)       | `SECURE_WEB_PREFERENCES`, `getPreloadPath()`, `loadWindowContent()`, `setupCspHeaders()`                                                        |
 | `window-chrome.ts`          | Platform chrome + dialog canvas `#0d1117` + alert always-on-top                        | `DIALOG_BACKGROUND_COLOR`, `platformWindowChrome()`, `windowsSolidBackgroundColor()`, `bindWindowsThemeBackground()`, `applyAlertAlwaysOnTop()` |
-| `meet-url.ts`               | Thin allowlisted open (delegates to ShellMeetingOpener)                                | `openMeetingUrl()`                                                                                                                              |
-| `join-meeting.ts`           | Join hub free function (default-bound use case)                                        | `joinMeetingById()`, `bindJoinMeeting()`                                                                                                        |
+| `meet-url.ts`               | Composition-bound allowlisted open (default ShellMeetingOpener)                        | `openMeetingUrl()`, `bindMeetingOpener()`, `rebindMeetingOpenerDefaults()`                                                                      |
+| `secure-fs.ts`              | Owner-only dir/file modes for secret and cache paths                                   | `ensureSecureDir()`, `writeSecureFile()`, `SECURE_DIR_MODE` / `SECURE_FILE_MODE`                                                                |
+| `join-meeting.ts`           | Join hub free function (default-bound use case)                                        | `joinMeetingById()`, `bindJoinMeeting()`, `rebindJoinMeetingDefaults()`                                                                         |
 | `packageInfo.ts`            | Lazy-load + cache `package.json`                                                       | `getPackageInfo()`, `PackageInfo`, `clearPackageInfoCache`, `isPackageInfoLoaded`                                                               |
 | `log.ts`                    | electron-log bootstrap + scopes                                                        | `configureMainLogging()`, `mainLog`, `schedulerLog`, `calendarLog`                                                                              |
 | `system-settings.ts`        | Open OS settings (non-meeting egress)                                                  | `openSystemSettings()`                                                                                                                          |
@@ -49,5 +50,5 @@
 - Before meeting URL egress, use `openMeetingUrl()` / `joinMeetingById` / graph surfaces.
 - Join paths must use `joinMeetingById` (not raw unenriched openExternal).
 - Do not re-export domain or infrastructure modules from this package.
-- Prefer `createShellMeetingOpener` from infrastructure for new composition wiring; `openMeetingUrl` remains the free-function convenience for scheduler adapters.
+- Prefer graph.opener / `bindMeetingOpener` from composition; `openMeetingUrl` delegates to the bound port (scheduler auto-open and join share that instance after `createAppGraph`).
 - Do not leave default-on tracing or secret-bearing metadata in product paths.

@@ -23,6 +23,22 @@ function displayMeetingTitle(title: string): string {
   return truncateMiddle(title, MEETING_TITLE_DISPLAY_MAX_CHARS);
 }
 
+/** Human offline cache age for tray (uses `cacheAgeMs` from CalendarUiState). */
+export function formatOfflineCacheAgeLabel(cacheAgeMs: number | null): string {
+  if (cacheAgeMs === null || !Number.isFinite(cacheAgeMs) || cacheAgeMs < 0) {
+    return "Offline — showing last synced meetings";
+  }
+  const minutes = Math.floor(cacheAgeMs / 60_000);
+  if (minutes < 1) return "Offline — last synced just now";
+  if (minutes === 1) return "Offline — last synced 1 min ago";
+  if (minutes < 60) return `Offline — last synced ${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "Offline — last synced 1 hr ago";
+  if (hours < 48) return `Offline — last synced ${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `Offline — last synced ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export interface MenuCallbacks {
   onAbout: () => void;
   onOpenSettings: () => void;
@@ -324,7 +340,7 @@ export function buildCalendarTrayMenuTemplate(
       }
       if (!ui.oauthConfigured) {
         items.push({
-          label: "Set GOOGLE_OAUTH_CLIENT_ID to enable",
+          label: "This build can’t connect to Google Calendar",
           enabled: false,
         });
       }
@@ -371,6 +387,10 @@ export function buildCalendarTrayMenuTemplate(
     items.push(...dayRows);
     if (ui.phase === "limited") {
       items.push({
+        label: "Auto-open paused — calendar incomplete",
+        enabled: false,
+      });
+      items.push({
         label: (ui.lastError ?? "Some calendars could not be refreshed").slice(0, 80),
         enabled: false,
       });
@@ -406,7 +426,14 @@ export function buildCalendarTrayMenuTemplate(
       }
     }
     if (ui.offline) {
-      items.push({ label: "Offline — showing last synced meetings", enabled: false });
+      items.push({
+        label: formatOfflineCacheAgeLabel(ui.cacheAgeMs),
+        enabled: false,
+      });
+      items.push({
+        label: "Auto-open paused — offline cache",
+        enabled: false,
+      });
     }
   } else if (ui.phase === "empty" || ui.permission === "granted") {
     items.push({ label: "No upcoming meetings", enabled: false });

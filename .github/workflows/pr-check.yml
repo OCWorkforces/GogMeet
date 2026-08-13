@@ -63,6 +63,9 @@ jobs:
       - name: Permanent guardrails freeze tests
         run: bun run guardrails:tests
 
+      - name: Swift package layout (dual sources)
+        run: bun run check:swift-package-layout
+
       - name: Build
         run: bun run build
 

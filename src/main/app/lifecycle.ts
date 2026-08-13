@@ -175,15 +175,20 @@ export async function initializeApp(
     const tWatch = performance.now();
     tryRun("startCalendarWatcher", () => graph.watcher.start());
     traceStartupPhase("watcher", tWatch);
-    // First poll is driven by scheduler.start → poll; mark boundary after start for probe.
-    traceStartupPhase("first-poll", tSched);
+    // first-poll is owned by the first completed guarded poll (see scheduler poll path).
 
     if (!probeSafe) {
       tryRun("initPowerManagement", () =>
-        initPowerManagement(() => {
+        initPowerManagement((reason) => {
+          if (reason === "battery" || reason === "ac") {
+            // Interval source already flipped in power.ts; re-arm next tick only.
+            void graph.scheduler.forcePoll({ reason: "power" });
+            return;
+          }
           graph.calendar.invalidatePermissionCache();
           graph.watcher.revive();
-          graph.scheduler.restart();
+          // Coalesced forcePoll (reason power) — avoid full stop/start restart storms.
+          void graph.scheduler.forcePoll({ reason: "power" });
         }),
       );
       tryRun("initPowerEvents", () => initPowerEvents());

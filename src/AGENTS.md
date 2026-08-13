@@ -91,8 +91,8 @@ Application source is split by Electron process and Clean Architecture layers. K
 
 Add new meeting hosts after updating **both** extraction paths and allowlists:
 
-1. Swift `findMeetUrl` in `googlemeet-events.swift` (Zoom → Meet → Calendly order).
-2. `domain/services/url-extract.ts` regex priority for cloud providers.
+1. Swift `findMeetUrl` in `googlemeet-events.swift` (Zoom → Meet → Teams → Webex → Calendly; HTML href + bare hosts).
+2. `domain/services/url-extract.ts` same priority for cloud providers (incl. href/bare).
 3. `domain/policies/meet-url-allowlist.ts` + preload hostname check.
 4. Tests under `tests/domain/` (extract, allowlist, buildMeetUrl) + main egress tests.
 

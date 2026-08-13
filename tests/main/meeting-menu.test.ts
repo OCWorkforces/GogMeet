@@ -972,7 +972,9 @@ describe("status rows and calendar tray extras", () => {
       { ...baseCallbacks, onConnectGoogle },
     );
     expect(noOauth.some((i) => i.label === "No calendar connected")).toBe(true);
-    expect(noOauth.some((i) => String(i.label).includes("GOOGLE_OAUTH_CLIENT_ID"))).toBe(true);
+    expect(noOauth.some((i) => String(i.label).includes("can’t connect to Google Calendar"))).toBe(
+      true,
+    );
 
     const evt = makeEvent();
     const limited = buildCalendarTrayMenuTemplate(
@@ -990,6 +992,7 @@ describe("status rows and calendar tray extras", () => {
       { ...baseCallbacks, onDisconnectGoogle },
     );
     expect(limited.some((i) => String(i.label).includes("Connected as"))).toBe(true);
+    expect(limited.some((i) => String(i.label).includes("Auto-open paused"))).toBe(true);
     expect(limited.some((i) => String(i.label).includes("partial failure"))).toBe(true);
     expect(limited.some((i) => String(i.label).includes("Offline"))).toBe(true);
     const disconnect = limited.find((i) => i.label === "Disconnect Google Calendar");
@@ -1052,6 +1055,7 @@ describe("status rows and calendar tray extras", () => {
     const labels = items
       .map((item) => item.label)
       .filter((label): label is string => typeof label === "string");
+    expect(labels).toContain("Auto-open paused — calendar incomplete");
     const warningIndex = labels.indexOf(CALENDAR_LIMITED_COPY);
     const diagnostics = labels.slice(warningIndex, warningIndex + 7);
     const warningItemIndex = items.findIndex((item) => item.label === CALENDAR_LIMITED_COPY);
@@ -1141,5 +1145,21 @@ describe("status rows and calendar tray extras", () => {
     expect(findItem(items, CALENDAR_LIMITED_COPY)).toMatchObject({ enabled: false });
     expect(items.some((item) => String(item.label).startsWith("EventKit skipped"))).toBe(false);
     expect(items.some((item) => String(item.label).startsWith("Malformed records:"))).toBe(false);
+  });
+});
+
+describe("formatOfflineCacheAgeLabel", () => {
+  it("formats ages across minutes, hours, and days", async () => {
+    const { formatOfflineCacheAgeLabel } = await import("../../src/main/menu/meeting-menu.js");
+    expect(formatOfflineCacheAgeLabel(null)).toBe("Offline — showing last synced meetings");
+    expect(formatOfflineCacheAgeLabel(-1)).toBe("Offline — showing last synced meetings");
+    expect(formatOfflineCacheAgeLabel(30_000)).toBe("Offline — last synced just now");
+    expect(formatOfflineCacheAgeLabel(60_000)).toBe("Offline — last synced 1 min ago");
+    expect(formatOfflineCacheAgeLabel(5 * 60_000)).toBe("Offline — last synced 5 min ago");
+    expect(formatOfflineCacheAgeLabel(60 * 60_000)).toBe("Offline — last synced 1 hr ago");
+    expect(formatOfflineCacheAgeLabel(3 * 60 * 60_000)).toBe("Offline — last synced 3 hr ago");
+    // Under 48 hours stays in hours.
+    expect(formatOfflineCacheAgeLabel(24 * 60 * 60_000)).toBe("Offline — last synced 24 hr ago");
+    expect(formatOfflineCacheAgeLabel(3 * 24 * 60 * 60_000)).toBe("Offline — last synced 3 days ago");
   });
 });

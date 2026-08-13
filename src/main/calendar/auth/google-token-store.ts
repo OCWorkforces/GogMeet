@@ -7,10 +7,11 @@
  */
 
 import { app, safeStorage } from "electron";
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { isObjectRecord } from "../../../domain/entities/type-guards.js";
+import { ensureSecureDir, writeSecureFile } from "../../utils/secure-fs.js";
 import { getGoogleOAuthClientId } from "./google-client-id.js";
 
 export const GOOGLE_AUTH_SCHEMA_VERSION = 1 as const;
@@ -197,9 +198,9 @@ export async function saveGoogleTokens(
     ...(tokens.scope !== undefined ? { scope: tokens.scope } : {}),
   };
 
-  await mkdir(authDir(), { recursive: true });
+  await ensureSecureDir(authDir());
   const encoded = encodePayload(JSON.stringify(payload));
-  await writeFile(tokenPath(), encoded);
+  await writeSecureFile(tokenPath(), encoded);
 }
 
 /** Delete token file if present. */
