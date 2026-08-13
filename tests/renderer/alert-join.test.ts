@@ -14,8 +14,11 @@ describe("alert join and dismiss", () => {
   beforeEach(async () => {
     vi.resetModules();
     onShowAlert = null;
-    notifyDismissed.mockClear();
-    joinMeeting.mockClear();
+    notifyDismissed.mockReset();
+    joinMeeting.mockReset();
+    joinMeeting.mockResolvedValue({ ok: true, value: undefined });
+    // Isolate document listeners so re-imports do not stack click/keydown handlers.
+    document.body.replaceWith(document.createElement("body"));
     document.body.innerHTML = '<div id="app"></div>';
 
     Object.defineProperty(window, "api", {
@@ -82,6 +85,39 @@ describe("alert join and dismiss", () => {
     await vi.waitFor(() => {
       expect(notifyDismissed).toHaveBeenCalledWith("evt-join-me");
     });
+  });
+
+  it("Join failure keeps the alert open with an error banner", async () => {
+    joinMeeting.mockResolvedValue({ ok: false, error: "Blocked by allowlist" });
+    showAlert({ id: asTestEventId("evt-join-fail"), hasMeetUrl: true });
+    const joinBtn = document.querySelector<HTMLButtonElement>('[data-action="join"]');
+    expect(joinBtn).not.toBeNull();
+    joinBtn!.click();
+
+    await vi.waitFor(() => {
+      expect(joinMeeting).toHaveBeenCalledWith("evt-join-fail");
+    });
+    await vi.waitFor(() => {
+      const banner = document.getElementById("join-error");
+      expect(banner).not.toBeNull();
+      expect(banner?.textContent).toContain("Blocked by allowlist");
+    });
+    expect(notifyDismissed).not.toHaveBeenCalled();
+    const btnAfter = document.querySelector<HTMLButtonElement>('[data-action="join"]');
+    expect(btnAfter?.disabled).toBe(false);
+    expect(btnAfter?.textContent).toContain("Join Meeting");
+  });
+
+  it("Join failure with empty error uses a generic message", async () => {
+    joinMeeting.mockResolvedValue({ ok: false, error: "" });
+    showAlert({ id: asTestEventId("evt-join-empty"), hasMeetUrl: true });
+    document.querySelector<HTMLButtonElement>('[data-action="join"]')!.click();
+
+    await vi.waitFor(() => {
+      const banner = document.getElementById("join-error");
+      expect(banner?.textContent).toContain("Could not open the meeting");
+    });
+    expect(notifyDismissed).not.toHaveBeenCalled();
   });
 
   it("Dismiss notifies main without joining", async () => {

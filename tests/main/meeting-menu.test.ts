@@ -1147,3 +1147,19 @@ describe("status rows and calendar tray extras", () => {
     expect(items.some((item) => String(item.label).startsWith("Malformed records:"))).toBe(false);
   });
 });
+
+describe("formatOfflineCacheAgeLabel", () => {
+  it("formats ages across minutes, hours, and days", async () => {
+    const { formatOfflineCacheAgeLabel } = await import("../../src/main/menu/meeting-menu.js");
+    expect(formatOfflineCacheAgeLabel(null)).toBe("Offline — showing last synced meetings");
+    expect(formatOfflineCacheAgeLabel(-1)).toBe("Offline — showing last synced meetings");
+    expect(formatOfflineCacheAgeLabel(30_000)).toBe("Offline — last synced just now");
+    expect(formatOfflineCacheAgeLabel(60_000)).toBe("Offline — last synced 1 min ago");
+    expect(formatOfflineCacheAgeLabel(5 * 60_000)).toBe("Offline — last synced 5 min ago");
+    expect(formatOfflineCacheAgeLabel(60 * 60_000)).toBe("Offline — last synced 1 hr ago");
+    expect(formatOfflineCacheAgeLabel(3 * 60 * 60_000)).toBe("Offline — last synced 3 hr ago");
+    // Under 48 hours stays in hours.
+    expect(formatOfflineCacheAgeLabel(24 * 60 * 60_000)).toBe("Offline — last synced 24 hr ago");
+    expect(formatOfflineCacheAgeLabel(3 * 24 * 60 * 60_000)).toBe("Offline — last synced 3 days ago");
+  });
+});
