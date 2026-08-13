@@ -972,7 +972,9 @@ describe("status rows and calendar tray extras", () => {
       { ...baseCallbacks, onConnectGoogle },
     );
     expect(noOauth.some((i) => i.label === "No calendar connected")).toBe(true);
-    expect(noOauth.some((i) => String(i.label).includes("GOOGLE_OAUTH_CLIENT_ID"))).toBe(true);
+    expect(noOauth.some((i) => String(i.label).includes("can’t connect to Google Calendar"))).toBe(
+      true,
+    );
 
     const evt = makeEvent();
     const limited = buildCalendarTrayMenuTemplate(
@@ -990,6 +992,7 @@ describe("status rows and calendar tray extras", () => {
       { ...baseCallbacks, onDisconnectGoogle },
     );
     expect(limited.some((i) => String(i.label).includes("Connected as"))).toBe(true);
+    expect(limited.some((i) => String(i.label).includes("Auto-open paused"))).toBe(true);
     expect(limited.some((i) => String(i.label).includes("partial failure"))).toBe(true);
     expect(limited.some((i) => String(i.label).includes("Offline"))).toBe(true);
     const disconnect = limited.find((i) => i.label === "Disconnect Google Calendar");
@@ -1052,6 +1055,7 @@ describe("status rows and calendar tray extras", () => {
     const labels = items
       .map((item) => item.label)
       .filter((label): label is string => typeof label === "string");
+    expect(labels).toContain("Auto-open paused — calendar incomplete");
     const warningIndex = labels.indexOf(CALENDAR_LIMITED_COPY);
     const diagnostics = labels.slice(warningIndex, warningIndex + 7);
     const warningItemIndex = items.findIndex((item) => item.label === CALENDAR_LIMITED_COPY);

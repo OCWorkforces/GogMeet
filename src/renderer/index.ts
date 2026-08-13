@@ -254,6 +254,23 @@ async function init() {
       void window.api.app.joinMeeting(eventId).then((result) => {
         if (!result.ok) {
           console.error("[renderer] Join failed:", result.error);
+          const message =
+            typeof result.error === "string" && result.error.length > 0
+              ? result.error
+              : "Could not open the meeting";
+          let banner = document.getElementById("join-error-banner");
+          if (!banner) {
+            banner = document.createElement("div");
+            banner.id = "join-error-banner";
+            banner.setAttribute("role", "alert");
+            banner.style.cssText =
+              "margin:8px 12px;padding:8px 10px;border-radius:8px;background:rgba(255,69,58,0.16);color:#ffb4ae;font-size:12px;";
+            document.body.prepend(banner);
+          }
+          banner.textContent = message.slice(0, 160);
+          window.setTimeout(() => {
+            banner?.remove();
+          }, 5_000);
         }
       });
     },
