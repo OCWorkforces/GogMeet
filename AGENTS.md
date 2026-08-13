@@ -1,12 +1,12 @@
 # GogMeet - AGENTS.md
 
 - **Updated:** 2026-08-13
-- **App version:** 1.18.6
+- **App version:** 1.19.0
 - **Branch:** develop
 
-`package.json` is the version source of truth. Keep this root metadata aligned with it, but do not hardcode the version elsewhere.
+`package.json` is the version source of truth. Keep this root metadata aligned with it, but do not hardcode the version elsewhere. Shipped vs open backlog: `docs/STATUS.md`.
 
-Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Calendly events, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
+Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a Swift helper; **Windows** uses Google Calendar API + OAuth PKCE (Google-only MVP — not EventKit multi-account parity). Lists Meet/Zoom/Teams/Webex/Calendly join links, auto-opens join URLs before start, optional alert window, tray menu, optional completed-today history, and `CmdOrCtrl+Shift+M` to join the next meeting.
 
 ## STACK
 
@@ -17,7 +17,7 @@ Desktop tray app for calendar meeting reminders. **macOS** reads EventKit via a 
 | Build              | Rslib for main/preload CJS; Rsbuild for three renderer entries                                                                                                                                                                                   |
 | Package            | Bun `>=1.3.0`, `packageManager: bun@1.3.14`; host Node floor `>=20`, CI/recommended Node `26` (`.nvmrc`)                                                                                                                                         |
 | Calendar (macOS)   | Swift EventKit helper: `googlemeet-events.swift` + `swift/event-occurrence-identity.swift` (occurrence-aware UIDs); binary under `{tmpdir}/googlemeet/`; bounded spawn runner                                                                   |
-| Calendar (Windows) | Google OAuth PKCE + Calendar API; encrypted under `userData`: tokens `calendar-auth/google.enc`, sync tokens `calendar-auth/google-sync.enc`, offline cache `calendar-cache.enc`                                                                 |
+| Calendar (Windows) | Google OAuth PKCE + Calendar API; encrypted under `userData` with owner-only modes: tokens `calendar-auth/google.enc`, sync tokens `calendar-auth/google-sync.enc`, offline cache `calendar-cache.enc`                                          |
 | Architecture       | Clean Architecture hybrid: `src/domain` → application ports/use cases → infrastructure adapters → facades + `createAppGraph`                                                                                                                     |
 | Test               | Vitest workspace: domain / application / main / renderer / shared / scripts; `setup.as.ts` installs cast extension                                                                                                                               |
 | Package build      | electron-builder: mac DMG+ZIP; win NSIS+portable; `arm64` + `x64`                                                                                                                                                                                |
@@ -99,8 +99,11 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | Perf scripts               | `scripts/performance/*`                                                                                     | `perf:report`, `perf:workspace-fingerprint`, `perf:startup`/`tray`/`alert`/`safe-storage` (exit 1 on crash/timeout)                                                                    |
 | Parser bench               | `tests/bench/`, `vitest.bench.config.ts`                                                                    | `bench:calendar-parser`                                                                                                                                                                |
 | OS vs meeting host         | `platform/os.ts` vs `domain/services/platform.ts`                                                           |                                                                                                                                                                                        |
-| Packaging / CI             | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md`                                    |                                                                                                                                                                                        |
+| Packaging / CI             | `electron-builder.yml`, `build/AGENTS.md`, `.github/workflows/AGENTS.md`, `check:swift-package-layout`       | dual Swift sources + dual-source hash formula                                                                                                                                          |
+| Shipped vs backlog         | `docs/STATUS.md`                                                                                            | prefer over historical `docs/enhancement-development-plan.md`                                                                                                                          |
 | Design / perf plan         | `docs/clean-architecture-refactor-plan.md`, `docs/windows-*.md`, `docs/plans/*`, `docs/adr/*`               |                                                                                                                                                                                        |
+| Secure secret files        | `main/utils/secure-fs.ts`                                                                                   | `0o700` dirs / `0o600` files for OAuth, sync tokens, offline cache                                                                                                                     |
+| Shared meeting opener      | `utils/meet-url.ts` + `composition/app-graph.ts`                                                            | single bound opener for IPC, join hub, auto-open                                                                                                                                       |
 
 ## CODE MAP
 
@@ -124,6 +127,9 @@ Skip generated/cache outputs: `lib/`, `dist/`, `coverage/`, `node_modules/`, `.e
 | `loadGoogleSyncTokens` / `saveGoogleSyncTokens`            | encrypted Google nextSyncToken map                           |
 | `eventRecordIdentifier` (Swift)                            | occurrence-aware EventKit uid (`id:bitPattern`)              |
 | `readSwiftSource` / `COMPILED_SWIFT_SOURCE_PATH`           | dual-source concat for compile + `source.hash`               |
+| `bindMeetingOpener` / `openMeetingUrl`                     | composition-bound egress (not a second shell opener)         |
+| `formatOfflineCacheAgeLabel`                               | tray offline age from `cacheAgeMs`                           |
+| `ensureSecureDir` / `writeSecureFile`                      | owner-only modes for secret/cache paths                      |
 
 ## CONVENTIONS
 
@@ -173,6 +179,7 @@ bun run test:coverage
 bun run lint
 bun run format:check
 bun run validate:node
+bun run check:swift-package-layout
 bun run guardrails
 bun run guardrails:self-test
 bun run guardrails:tests
@@ -208,9 +215,10 @@ Permanent non-goals (plaintext tokens, weak Electron prefs, deleted IPC shims, u
 - Auto-open: non-all-day when `autoOpenEnabled`; `openBeforeMinutes` 0–10; alert ~`alertLeadSeconds` before open; dismiss cancels open. Snapshot state is independent of browser timers (`set-snapshot`).
 - Display “In progress” / upcoming lists use wall-clock `start ≤ now < end` / `end > now` (`domain/services/meeting-time.ts`). Providers may still return same-day ended events; UI must re-filter when the clock advances (display-horizon timer + tray/popover open rebuild — not content signature alone).
 - Calendar refresh: single-flight coordinator (`refresh-coordinator.ts`); poll and IPC `CALENDAR_GET_EVENTS` share it; at most one queued follow-up; cancel on scheduler stop.
-- Poll: 2 min AC / 4 min battery; auto/watch `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then `requestTrayRebuild({ force: true })`. Bus-driven list/status updates use microtask-coalesced `requestTrayRebuild`; display-horizon and completed-history toggle use sync `forceTrayMenuRefresh`.
+- Poll: 2 min AC / 4 min battery; auto/watch/power `forcePoll` coalesces within 10s; tray **Refresh** uses `forcePoll({ reason: "user" })` (no coalesce) then `requestTrayRebuild({ force: true })`. Power **resume/unlock** and AC/battery use `forcePoll({ reason: "power" })` (no full scheduler restart). Bus-driven list/status updates use microtask-coalesced `requestTrayRebuild`; display-horizon and completed-history toggle use sync `forceTrayMenuRefresh`. Startup `first-poll` trace fires when the first guarded poll **settles**.
 - Auto-updater: packaged non-portable only; install policy `full` (mac **Developer ID** / Windows NSIS) vs `feed-only` (ad-hoc/unsigned mac — Open Releases only). Quiet background check (~5s) + single-flight with tray **Check for Updates…**. Manual path presents native **`windows/update-window.ts`** (aurora; checking → result; dismiss-only Esc or action buttons; session dismiss tracking). Portable/unpackaged explain-only. Releases URL pinned to `iWorkforces/GogMeet`.
-- Supported hosts: Meet, Zoom (`.zoom.us`), Calendly. New wrappers: Swift extract + domain url-extract + allowlist + tests.
+- Supported hosts: Meet, Zoom (`.zoom.us`), Teams (`teams.microsoft.com` / `teams.live.com`), Webex (`.webex.com`), Calendly. Extract also handles HTML `href=` and scheme-less bare hosts. New wrappers: Swift extract + domain url-extract + allowlist + tests.
+- Limited/offline UI: tray shows **Auto-open paused** (automation remains live-complete only) and offline **last synced** age via `cacheAgeMs`. Join failures surface in alert (stay open) and popover banner; Settings calendar is platform-gated (EventKit vs Google).
 - Performance / stability plan: `docs/plans/gogmeet-performance-stability-hardening.md` — product hardenings + measurement lab shipped; **no product optimization** from `retained` receipts (separate plan required). Weekly non-PR lab: `measurement.yml` (synthetic + optional native package jobs).
 - Packaged measurement probe: `GOGMEET_PERF_PROBE=startup|tray|alert|safe-storage` is **lab/CI only** (never production user env). Requires packaged + `GOGMEET_PERF_TRACE=1` + isolated `--user-data-dir` (`gogmeet-perf-probe-` under tmpdir); private empty calendar; factory fail-closed on bad preflight. Measure scripts: exit **0** blocked/threshold, exit **1** timeout/crash/missing-trace.
 - Beta: push to `develop` → `vX.Y.Z-beta-N` pre-release. Official: `v${package.json.version}` from `main`.

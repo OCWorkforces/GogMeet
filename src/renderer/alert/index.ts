@@ -137,9 +137,34 @@ function render(data: AlertPayload): void {
 
 async function joinFromAlert(): Promise<void> {
   if (!currentPayload?.hasMeetUrl) return;
+  const joinBtn = document.querySelector<HTMLButtonElement>('[data-action="join"]');
+  if (joinBtn) {
+    joinBtn.disabled = true;
+    joinBtn.textContent = "Opening…";
+  }
   const result = await window.api.app.joinMeeting(currentPayload.id);
   if (!result.ok) {
     console.error("[alert] Join failed:", result.error);
+    const errorText =
+      typeof result.error === "string" && result.error.length > 0
+        ? result.error
+        : "Could not open the meeting";
+    let banner = document.getElementById("join-error");
+    if (!banner) {
+      banner = document.createElement("p");
+      banner.id = "join-error";
+      banner.setAttribute("role", "alert");
+      banner.style.cssText =
+        "margin:12px 0 0;padding:8px 12px;border-radius:8px;background:rgba(255,69,58,0.18);color:#ffb4ae;font-size:13px;line-height:1.35;";
+      const actions = document.querySelector(".alert-actions");
+      actions?.parentElement?.insertBefore(banner, actions);
+    }
+    banner.textContent = errorText.slice(0, 160);
+    if (joinBtn) {
+      joinBtn.disabled = false;
+      joinBtn.textContent = "Join Meeting";
+    }
+    return;
   }
   dismissAlert();
 }

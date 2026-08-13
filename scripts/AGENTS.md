@@ -15,6 +15,7 @@ Repository automation scripts for local development and asset generation. Invoke
 | `merge-windows-latest-yml.mjs`          | Rebuilds `dist/latest.yml` listing both NSIS arches after sequential arch builds                                                                 |
 | `next-beta-tag.mjs`                     | Pure helper for develop beta numbering: next `vX.Y.Z-beta-N` tag + app version                                                                   |
 | `guardrails-scan.mjs`                   | Permanent P-NEVER scan (`bun run guardrails`); `--self-test` / `guardrails:self-test` for fixture mode                                           |
+| `check-swift-package-layout.mjs`        | Dual Swift sources on disk + electron-builder `files`/`asarUnpack` + dual-source hash formula (`bun run check:swift-package-layout`)             |
 | `performance/report.mjs`                | Aggregate opt-in perf JSONL → p50/p95/min/max/sampleCount (`bun run perf:report`)                                                                |
 | `performance/workspace-fingerprint.mjs` | Fixed-exclusion HEAD + tracked-diff + untracked manifest digests (`perf:workspace-fingerprint`)                                                  |
 | `performance/measure-*.mjs`             | Lab harnesses: google-calendar, **tray/alert/startup/safe-storage** (packaged probe profile; synthetic never native), build-package (`perf:lab`) |

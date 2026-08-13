@@ -15,24 +15,26 @@ export function getPollInterval(): number {
   return isOnBattery() ? BASE_POLL_INTERVAL_MS * 2 : BASE_POLL_INTERVAL_MS;
 }
 
-export function initPowerManagement(onChange: () => void): void {
+/** Why power management invoked the lifecycle callback. */
+export type PowerChangeReason = "battery" | "ac" | "resume" | "unlock";
+
+export function initPowerManagement(onChange: (reason: PowerChangeReason) => void): void {
   cachedOnBattery = powerMonitor.onBatteryPower;
+  // AC/battery only changes poll interval — callers should re-arm ticks, not full restart.
   powerMonitor.on("on-battery", () => {
     cachedOnBattery = true;
-    onChange();
+    onChange("battery");
   });
   powerMonitor.on("on-ac", () => {
     cachedOnBattery = false;
-    onChange();
+    onChange("ac");
   });
-  // F4: re-fetch calendar + reschedule timers after sleep/wake or screen unlock.
-  // System timers do not fire reliably across sleep, and screen-lock can suppress
-  // alert visibility — force a poll on resume/unlock so missed meetings surface.
+  // Sleep/wake and unlock: timers may be stale; re-fetch without tearing down fired state.
   powerMonitor.on("resume", () => {
-    onChange();
+    onChange("resume");
   });
   powerMonitor.on("unlock-screen", () => {
-    onChange();
+    onChange("unlock");
   });
 }
 

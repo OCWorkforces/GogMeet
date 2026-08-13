@@ -63,7 +63,9 @@ Electron main owns lifecycle, tray and menu, BrowserWindows, system APIs, typed 
 
 ## Notes
 
-- Both Darwin Swift sources are packaged and `asarUnpack`ed: `googlemeet-events.swift` and `swift/event-occurrence-identity.swift`. Integrity hash digests identity + `"\n"` + events (see `swift/AGENTS.md`).
-- Windows Google Calendar requires `GOOGLE_OAUTH_CLIENT_ID` at runtime or package time.
+- Both Darwin Swift sources are packaged and `asarUnpack`ed: `googlemeet-events.swift` and `swift/event-occurrence-identity.swift`. Integrity hash digests identity + `"\n"` + events (see `swift/AGENTS.md`). PR check runs `check:swift-package-layout`.
+- Power resume/unlock and AC/battery call `forcePoll({ reason: "power" })` (not full `restartScheduler`).
+- Google OAuth/sync/offline files use owner-only modes (`utils/secure-fs.ts`).
+- Windows Google Calendar requires `GOOGLE_OAUTH_CLIENT_ID` at runtime or package time (Settings uses user-facing copy when missing).
 - The fixture provider is available only to unpackaged builds with `GOGMEET_CALENDAR_FIXTURE`.
 - `index.ts` configures `electron-log` through `utils/log.ts` and sets Chromium `log-level=3`.

@@ -12,6 +12,7 @@ import { cancelBrowserTimer } from "./browser-timer.js";
 import type { EventId } from "../../domain/entities/brand.js";
 import { FIRED_EVENT_TTL_MS } from "./state/state-timers.js";
 import { cancelCalendarRefresh } from "../calendar/refresh-coordinator.js";
+import { isPerfTraceEnabled, perfTrace } from "../utils/performance-trace.js";
 
 /** Minimum ms between auto/watch force-polls — prevents thrash from rapid clicks or wake storms */
 const FORCE_POLL_COALESCE_MS = 10_000;
@@ -44,6 +45,10 @@ let queuedPollRequested = false;
 /** Monotonic lifecycle generation; never reset so stopped schedulers cannot collide by epoch reuse */
 let lifecycleGeneration = 0;
 
+/** Emit startup `first-poll` once after the first guarded poll settles. */
+let firstPollTraced = false;
+let firstPollStartMs = 0;
+
 /**
  * Run poll() with concurrency guard + at-most-one queued follow-up.
  * - If no poll is in flight, runs poll() and updates lastPollCompletedAt on completion.
@@ -56,6 +61,9 @@ async function runGuardedPoll(): Promise<CalendarPublication | null> {
     queuedPollRequested = true;
     return inFlightPoll;
   }
+  if (!firstPollTraced && firstPollStartMs === 0) {
+    firstPollStartMs = performance.now();
+  }
   const run = (async (): Promise<CalendarPublication | null> => {
     while (true) {
       const generation = lifecycleGeneration;
@@ -66,6 +74,17 @@ async function runGuardedPoll(): Promise<CalendarPublication | null> {
       } finally {
         if (isCurrentGeneration()) {
           lastPollCompletedAt = Date.now();
+          if (!firstPollTraced && isPerfTraceEnabled()) {
+            firstPollTraced = true;
+            const startMs = firstPollStartMs || performance.now();
+            perfTrace({
+              operation: "startup-phase",
+              phase: "first-poll",
+              outcome: "ok",
+              startMs,
+              durationMs: Math.max(0, performance.now() - startMs),
+            });
+          }
         }
       }
       if (!queuedPollRequested) return latest;
@@ -197,6 +216,8 @@ export function _resetForceTestState(): void {
   lastPollCompletedAt = 0;
   inFlightPoll = null;
   queuedPollRequested = false;
+  firstPollTraced = false;
+  firstPollStartMs = 0;
 }
 
 /** Restart the scheduler - call when settings change to apply new timing.

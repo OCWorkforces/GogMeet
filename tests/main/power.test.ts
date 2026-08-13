@@ -87,36 +87,40 @@ describe("power", () => {
       const handler = resumeCall![1] as () => void;
       handler();
       expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("resume");
     });
 
     it("invokes onChange when unlock-screen event fires (F4: post-lock poll)", () => {
       const onChange = vi.fn();
       initPowerManagement(onChange);
-      const unlockCall = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "unlock-screen");
+      const unlockCall = vi
+        .mocked(powerMonitor.on)
+        .mock.calls.find((c) => c[0] === "unlock-screen");
       expect(unlockCall).toBeDefined();
       const handler = unlockCall![1] as () => void;
       handler();
       expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("unlock");
     });
 
     it("on-battery and on-ac handlers flip cached state and call onChange", () => {
       const onChange = vi.fn();
       initPowerManagement(onChange);
-      const onBattery = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "on-battery")?.[1] as
-        | (() => void)
-        | undefined;
+      const onBattery = vi
+        .mocked(powerMonitor.on)
+        .mock.calls.find((c) => c[0] === "on-battery")?.[1] as (() => void) | undefined;
       const onAc = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "on-ac")?.[1] as
-        | (() => void)
-        | undefined;
+        (() => void) | undefined;
       expect(onBattery).toBeTypeOf("function");
       expect(onAc).toBeTypeOf("function");
       onBattery?.();
       expect(isOnBattery()).toBe(true);
       expect(getPollInterval()).toBe(240_000);
-      expect(onChange).toHaveBeenCalled();
+      expect(onChange).toHaveBeenCalledWith("battery");
       onAc?.();
       expect(isOnBattery()).toBe(false);
       expect(getPollInterval()).toBe(120_000);
+      expect(onChange).toHaveBeenCalledWith("ac");
       expect(onChange).toHaveBeenCalledTimes(2);
     });
 
@@ -126,12 +130,11 @@ describe("power", () => {
       mainBus.on("power-state-changed", busSpy);
       vi.mocked(powerMonitor.on).mockClear();
       initPowerEvents();
-      const onBattery = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "on-battery")?.[1] as
-        | (() => void)
-        | undefined;
+      const onBattery = vi
+        .mocked(powerMonitor.on)
+        .mock.calls.find((c) => c[0] === "on-battery")?.[1] as (() => void) | undefined;
       const onAc = vi.mocked(powerMonitor.on).mock.calls.find((c) => c[0] === "on-ac")?.[1] as
-        | (() => void)
-        | undefined;
+        (() => void) | undefined;
       onBattery?.();
       onAc?.();
       expect(busSpy).toHaveBeenCalledWith({ onAC: false });

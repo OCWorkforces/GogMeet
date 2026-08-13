@@ -5,10 +5,15 @@ export const MEET_URL_ALLOWED_HOSTNAMES: readonly string[] = [
   "accounts.google.com",
   "zoom.us",
   "calendly.com",
+  "teams.microsoft.com",
+  "teams.live.com",
 ] as const;
 
-/** Hostname suffixes that allow any subdomain (e.g. us02web.zoom.us). */
-export const MEET_URL_ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [".zoom.us"] as const;
+/** Hostname suffixes that allow any subdomain (e.g. us02web.zoom.us, *.webex.com). */
+export const MEET_URL_ALLOWED_HOSTNAME_SUFFIXES: readonly string[] = [
+  ".zoom.us",
+  ".webex.com",
+] as const;
 
 export function isAllowedMeetHostname(hostname: string): boolean {
   if (MEET_URL_ALLOWED_HOSTNAMES.includes(hostname)) return true;

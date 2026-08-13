@@ -43,14 +43,53 @@ let saveIndicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const ALERT_LEAD_OPTIONS = [0, 15, 30, 60, 120, 180, 300] as const;
 
+function isDarwinRenderer(): boolean {
+  return /Mac/i.test(navigator.userAgent) && !/Win|Windows/i.test(navigator.userAgent);
+}
+
 function calendarAccountSectionHtml(): string {
+  // macOS uses EventKit system calendars — do not surface Google Connect UI.
+  if (isDarwinRenderer()) {
+    const permission = calendarUi.permission;
+    const statusLine =
+      permission === "granted"
+        ? "Using system calendars (EventKit)"
+        : permission === "denied"
+          ? "Calendar access denied — enable in System Settings"
+          : "Calendar access not granted yet";
+    const dotClass =
+      permission === "granted" ? "account-status-dot account-status-dot--on" : "account-status-dot";
+    return `
+      <section class="settings-section" aria-labelledby="section-calendar">
+        <h2 class="settings-section-heading" id="section-calendar">Calendar</h2>
+        <div class="settings-group" id="calendar-account-group">
+          <div class="setting-row">
+            <div class="setting-row-inner">
+              <span class="setting-label" id="account-label">macOS calendars</span>
+              <span class="account-status" id="account-status-text">
+                <span class="${dotClass}" aria-hidden="true"></span>
+                <span class="setting-description">${statusLine}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        ${
+          calendarUi.lastError
+            ? `<p class="settings-error" role="alert">${escapeHtml(calendarUi.lastError)}</p>`
+            : ""
+        }
+        <p class="settings-section-footer">GogMeet reads meetings from calendars already on this Mac. Grant access from the tray if prompted.</p>
+      </section>
+  `;
+  }
+
   const connected = calendarUi.permission === "granted";
   const email = calendarUi.accountEmail ? escapeHtml(calendarUi.accountEmail) : "Google Calendar";
   const statusLine = connected
     ? `Connected as ${email}`
     : calendarUi.oauthConfigured
-      ? "Not connected — required on Windows for meeting reminders"
-      : "OAuth client ID not configured (GOOGLE_OAUTH_CLIENT_ID)";
+      ? "Not connected — required for meeting reminders on Windows"
+      : "This build can’t connect to Google Calendar";
   const actionLabel = connected
     ? "Disconnect"
     : calendarUi.permission === "denied"
@@ -87,7 +126,7 @@ function calendarAccountSectionHtml(): string {
             ? `<p class="settings-error" role="alert">${escapeHtml(calendarUi.lastError)}</p>`
             : ""
         }
-        <p class="settings-section-footer">On Windows, connect a Google account to list meetings. On macOS, EventKit uses system calendars.</p>
+        <p class="settings-section-footer">Connect a Google account to list meetings. Outlook/Microsoft Graph is planned for a later version.</p>
       </section>
   `;
 }
@@ -299,7 +338,7 @@ function render(errorMessage?: string): void {
           ${toggleRowHtml(
             "quiet-hours-toggle",
             "Quiet Hours",
-            "Hide alerts and notifications; auto-open continues",
+            "Hides alerts and OS notifications only. Browser auto-open still runs so you don’t miss joins (times may wrap past midnight)",
             settings.quietHoursEnabled,
             "quiet-hours-save-indicator",
           )}

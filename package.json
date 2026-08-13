@@ -1,9 +1,9 @@
 {
   "name": "gogmeet",
-  "version": "1.18.6",
+  "version": "1.19.0",
   "author": "iWorkforces Engineers",
   "repository": "https://github.com/iWorkforces/GogMeet",
-  "authorEmail": "kennydizi@iworkforces.com",
+  "authorEmail": "chitrung09t2@gmail.com",
   "description": "GogMeet is a desktop application that helps you keep track of your meetings and reminds you before they start.",
   "main": "lib/main/index.cjs",
   "devDependencies": {
@@ -78,6 +78,7 @@
     "perf:alert": "node scripts/performance/measure-alert.mjs",
     "perf:build-package": "node scripts/performance/measure-build-package.mjs",
     "perf:lab": "bun run perf:google && bun run perf:tray && bun run perf:safe-storage && bun run perf:startup && bun run perf:alert && bun run perf:build-package",
+    "check:swift-package-layout": "node scripts/check-swift-package-layout.mjs",
     "guardrails": "node scripts/guardrails-scan.mjs",
     "guardrails:self-test": "node scripts/guardrails-scan.mjs --self-test",
     "guardrails:tests": "vitest run -c vitest.workspace.ts --project main tests/main/guardrails-security.test.ts tests/main/browser-window.test.ts tests/main/google-token-store.test.ts tests/main/offline-cache.test.ts tests/main/join-meeting.test.ts tests/main/calendar-refresh-coordinator.test.ts tests/main/scheduler-poll.test.ts tests/main/performance-trace.test.ts --project scripts tests/scripts/guardrails-scan.test.ts tests/scripts/performance-report.test.ts",
