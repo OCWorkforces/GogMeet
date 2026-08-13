@@ -8,7 +8,7 @@ This directory is the main-process composition root. It builds a production `App
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `app-graph.ts`             | `AppGraph` types and `createAppGraph()`, which wires calendar, settings, join, opener, scheduler, and watcher surfaces. |
 | `create-test-app-graph.ts` | `createTestAppGraph(overrides)`, a partial graph helper that defaults `skipBind` to `true`.                             |
-| `bind-composition.ts`      | Rebinds calendar, settings, and join facade defaults.                                                                   |
+| `bind-composition.ts`      | Rebinds meeting opener, calendar, settings, and join facade defaults.                                                   |
 
 ## Calendar graph contract
 
@@ -29,4 +29,5 @@ This directory is the main-process composition root. It builds a production `App
 
 - Keep this directory to wiring. Network, OAuth, EventKit, Swift, calendar transport, and persistence implementation belong to their actual adapter directories.
 - Options are `skipBind` for tests with mocked facade defaults and `opener` for a meeting-opener override.
+- Production graphs bind a **single** `MeetingOpenerPort` via `bindMeetingOpener` and rebind join defaults so IPC, join hub, and auto-open share egress. `skipBind` test graphs skip that rebind unless an explicit `opener` is passed.
 - Use `tests/helpers/app-graph.ts` or `createTestAppGraph()` for test graphs. The latter defaults to `skipBind: true` so it does not rebind mocked facades.

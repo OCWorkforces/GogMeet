@@ -58,10 +58,10 @@ Success is **exhaustive** (no optional provenance for callers to guess):
 
 | File                             | Role                                                                                                                                                     |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `policies/meet-url-allowlist.ts` | HTTPS host allowlist + `isAllowedMeetHostname` (`meet.google.com`, `calendar.google.com`, `accounts.google.com`, `zoom.us` / `.zoom.us`, `calendly.com`) |
+| `policies/meet-url-allowlist.ts` | HTTPS host allowlist + `isAllowedMeetHostname` (Meet, calendar/accounts.google.com, Zoom / `.zoom.us`, Teams, Webex / `.webex.com`, Calendly) |
 | `services/url-validation.ts`     | `validateMeetUrl` / `isAllowedMeetUrl`                                                                                                                   |
 | `services/build-meet-url.ts`     | pure join URL + Meet `authuser` / Zoom `uname`                                                                                                           |
-| `services/url-extract.ts`        | free-text Zoom → Meet → Calendly extract                                                                                                                 |
+| `services/url-extract.ts`        | free-text Zoom → Meet → Teams → Webex → Calendly; HTML `href=` + scheme-less bare hosts                                                                  |
 | `services/clean-description.ts`  | notes cleaner for EventKit/Google                                                                                                                        |
 | `services/pick-join-target.ts`   | next joinable meeting                                                                                                                                    |
 | `services/meeting-time.ts`       | in-progress / not-ended / upcoming filter / **completed-today** / display horizon                                                                        |

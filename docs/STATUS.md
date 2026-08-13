@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| **App version** | See root `package.json` (source of truth) |
+| **App version** | **1.19.0** (root `package.json` is source of truth) |
 | **Branch context** | `develop` / `main` |
 | **Last status refresh** | 2026-08-13 |
 
@@ -15,8 +15,14 @@ This file tells agents and humans what is **shipped**, what is **historical**, a
 - Late-join grace, quiet hours (alerts/notifications only; auto-open continues by design)
 - Settings schema **v3** full timing UI
 - Google OAuth PKCE + incremental sync (ADR 0002) + offline complete-only cache
-- Darwin occurrence-aware EventKit UIDs + dual-source Swift package/hash
+- Darwin occurrence-aware EventKit UIDs + dual-source Swift package/hash + PR `check:swift-package-layout`
 - Darwin partial refresh diagnostics (tray-only rows)
+- Teams/Webex allowlist + HTML href / bare-host extract (TS + Swift)
+- Power `forcePoll` (no full restart storms); first-poll settle trace
+- Owner-only secret/cache file modes; CSP harden; redacted egress logs
+- Join failure UX; tray auto-open-paused + offline age; platform-gated Settings calendar
+- Shared composition-bound meeting opener
+- Google process-local index prune outside poll window
 - Auto-updater + native update dialog (packaged non-portable)
 - Permanent guardrails scan + freeze tests
 - Performance measurement lab (evidence-only; no product opts from `retained` alone)

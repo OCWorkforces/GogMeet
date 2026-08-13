@@ -48,7 +48,7 @@ src/renderer/
 
 - `events/delegation.ts` on `#app` with `data-action`.
 - Actions: `refresh`, `retry`, `grant-access`, `join-meeting` (uses **`data-event-id`**, not raw URL).
-- Join → `window.api.app.joinMeeting(eventId)`.
+- Join → `window.api.app.joinMeeting(eventId)`; failures show a temporary error banner (do not only `console.error`).
 - Completed history rows have **no** `data-action` / event id / join control.
 
 ## SETTINGS WINDOW (schema v3)
@@ -56,9 +56,9 @@ src/renderer/
 - Visual system: System Settings–inspired **grouped inset lists** on fixed product canvas **`#0d1117`** (groups `#161b22`); dark `color-scheme`; prefers-contrast / reduced-motion.
 - Brand mark: 72px app icon with aurora under the title bar (`.settings-brand`); imports `about-icon.svg` + injects `APP_ICON_AURORA_CSS` once (`#app-icon-aurora-styles`). Uses shared **base** aurora tier (calmer than About/Update fancy). Same helper powers About (96px) and Update (88px) with `.app-icon-aurora--about`.
 - Sections: **Calendar** · **Joining Meetings** · **Tray Menu** · **General** (`settings/index.ts` + `settings/styles.css`).
-- Calendar: `getUiState` / `requestPermission` / `disconnect`; `escapeHtml` for email + lastError + save errors; status dot + Connect/Disconnect/Reconnect.
+- Calendar: **platform-gated** — Darwin shows EventKit status only; Windows shows Connect/Disconnect Google (user-facing copy when OAuth is not baked in). `getUiState` / `requestPermission` / `disconnect`; `escapeHtml` for email + lastError + save errors.
 - Prefs auto-save: toggle / select / time → `window.api.settings.set()` → "Saved" (concurrent saves coalesced).
-- Joining fields: `autoOpenEnabled`, `openBeforeMinutes` (0–10), `windowAlert` (Meeting Alert), `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, `quietHoursEnabled` + `quietHoursStart`/`End` (`HH:mm`). Dependents disable when Auto-Open / Meeting Alert / Quiet Hours are off.
+- Joining fields: `autoOpenEnabled`, `openBeforeMinutes` (0–10), `windowAlert` (Meeting Alert), `alertLeadSeconds`, `nativeNotifications`, `lateJoinGraceMinutes`, `quietHoursEnabled` + `quietHoursStart`/`End` (`HH:mm`). Quiet hours copy states alerts/notifications only (auto-open continues; times may wrap midnight). Dependents disable when Auto-Open / Meeting Alert / Quiet Hours are off.
 - Toggles use native checkboxes (styled track); no hybrid `role="switch"`.
 - Save failure reverts toggle + shows escaped error (`role="alert"`).
 - Hide-cache soft-refresh: `visibilitychange` → re-`get()` settings + calendar UI; `settings.onChanged` re-renders when idle.
@@ -67,7 +67,7 @@ src/renderer/
 ## ALERT WINDOW
 
 - Payload: `AlertPayload` with optional `hasMeetUrl` / `autoOpenAt` — **no meetUrl string**.
-- Join when `hasMeetUrl` → `app.joinMeeting(id)` then dismiss.
+- Join when `hasMeetUrl` → `app.joinMeeting(id)`; on failure keep the alert open with an error banner; dismiss only after success.
 - Dismiss → `alert.notifyDismissed(id)` (cancels pending auto-open).
 - Escape dismisses.
 - Main reuses a hidden BrowserWindow across presentations (see `main/windows/AGENTS.md`); renderer still fully re-renders from each `ALERT_SHOW` push.

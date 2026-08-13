@@ -6,7 +6,7 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 
 | File              | Role                                                                         |
 | ----------------- | ---------------------------------------------------------------------------- |
-| `meeting-menu.ts` | `buildMeetingMenuTemplate`, `buildCalendarTrayMenuTemplate`, `MenuCallbacks` |
+| `meeting-menu.ts` | `buildMeetingMenuTemplate`, `buildCalendarTrayMenuTemplate`, `formatOfflineCacheAgeLabel`, `MenuCallbacks` |
 
 ## CONTRACT
 
@@ -37,10 +37,10 @@ Builds Electron `MenuItemConstructorOptions[]` for the tray icon. Pure builder �
 ### `buildCalendarTrayMenuTemplate(ui, showTomorrow, callbacks, status?, showCompletedToday?)`
 
 - Input: `CalendarUiState` (permission, phase, errors, events, offline, oauthConfigured, `cacheAgeMs`).
-- **Windows / non-Darwin:** Connect / Reconnect / Disconnect Google, error + Retry, offline hint.
-- **Darwin:** meeting list when granted; uses same meeting rows + footer.
-- **`phase === "limited"`:** show the existing generic limited warning under meeting rows. On Darwin only, follow it with disabled positive-count rows in this fixed order: skipped records, malformed records, unexpected field count, invalid dates, missing event IDs, duplicate event IDs. Google partials remain generic.
-- **`offline`:** “Offline — showing last synced meetings” when events present.
+- **Windows / non-Darwin:** Connect / Reconnect / Disconnect Google; misconfigured builds use user-facing “can’t connect” copy (not raw env-var labels).
+- **Darwin:** meeting list when granted; uses same meeting rows + footer (no Google Connect block).
+- **`phase === "limited"`:** disabled **“Auto-open paused — calendar incomplete”**, then the limited warning / `lastError`. On Darwin only, follow with disabled positive-count diagnostic rows (skipped records, malformed records, unexpected field count, invalid dates, missing IDs, duplicates). Google partials remain generic beyond the pause line.
+- **`offline`:** `formatOfflineCacheAgeLabel(cacheAgeMs)` plus **“Auto-open paused — offline cache”** when events present.
 - Same completed-today history rules as `buildMeetingMenuTemplate` when the preference is on.
 
 ## CONSUMERS

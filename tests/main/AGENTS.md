@@ -49,7 +49,8 @@ Use `vi.advanceTimersByTimeAsync()` when promise callbacks may flush. Rebind liv
 - `swift/swift-helper-process.test.ts` — real spawn bounds + kill paths.
 - `swift/event-parser.test.ts` — field parsing, diagnostics, error classification, and aggregation into the fixed Darwin diagnostic counts.
 - `swift/event-occurrence-identity.test.ts` — darwin-only real `swiftc` of occurrence-aware uid helper (long timeout).
-- `swift-binary-manager.test.ts` — dual-source integrity hash/compile + integrity-only recompile (top-level).
+- `swift-binary-manager.test.ts` — dual-source integrity hash/compile (distinct fixtures + order freeze) + integrity-only recompile (top-level).
+- `lifecycle.test.ts` / `power.test.ts` — power reasons → `forcePoll({ reason: "power" })` (no full restart on wake).
 - `swift-guards.test.ts` / `calendar-watch-sidecar.test.ts` — guards + watch; stream ceilings + overflow; restart budget.
 - `performance-trace.test.ts` / `performance-trace-file.test.ts` — bounded buffer + atomic flush.
 - `performance-probe.test.ts` / `performance-probe-drivers.test.ts` — contract, private provider, tray/alert/safe-storage drivers.
