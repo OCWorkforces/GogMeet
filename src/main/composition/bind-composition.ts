@@ -9,6 +9,7 @@
 import { rebindCalendarDefaults } from "../facades/calendar.js";
 import { rebindSettingsDefaults } from "../facades/settings.js";
 import { rebindJoinMeetingDefaults } from "../utils/join-meeting.js";
+import { rebindMeetingOpenerDefaults } from "../utils/meet-url.js";
 
 export interface CompositionBindings {
   /** Reserved for future AppGraph-style handles */
@@ -20,6 +21,7 @@ export interface CompositionBindings {
  * Safe to call multiple times; idempotent rebind of free-function delegates.
  */
 export function bindComposition(): CompositionBindings {
+  rebindMeetingOpenerDefaults();
   rebindCalendarDefaults();
   rebindSettingsDefaults();
   rebindJoinMeetingDefaults();

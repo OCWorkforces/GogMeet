@@ -212,6 +212,7 @@ describe("createAppGraph surface coverage", () => {
     createAppGraph({ skipBind: false });
     expect(rebindCalendarDefaults).toHaveBeenCalledOnce();
     expect(rebindSettingsDefaults).toHaveBeenCalledOnce();
-    expect(rebindJoinMeetingDefaults).toHaveBeenCalledOnce();
+    // bindComposition + post-opener rebind after single egress instance is installed
+    expect(rebindJoinMeetingDefaults).toHaveBeenCalledTimes(2);
   });
 });

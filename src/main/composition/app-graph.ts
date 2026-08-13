@@ -27,7 +27,8 @@ import {
   reviveCalendarWatcher,
 } from "../facades/calendar-watcher.js";
 import { getSettings, loadSettings, updateSettings, saveSettings } from "../facades/settings.js";
-import { joinMeetingById } from "../utils/join-meeting.js";
+import { joinMeetingById, rebindJoinMeetingDefaults } from "../utils/join-meeting.js";
+import { bindMeetingOpener } from "../utils/meet-url.js";
 import {
   forcePoll,
   getLastKnownEvents,
@@ -153,6 +154,15 @@ export function createAppGraph(options: CreateAppGraphOptions = {}): AppGraph {
   }
 
   const opener = options.opener ?? createShellMeetingOpener();
+  // Share one egress instance for IPC + join + auto-open in production graphs.
+  // skipBind test graphs keep their own mocks; only rebind when composition is live
+  // or the caller injected an explicit opener.
+  if (!options.skipBind || options.opener !== undefined) {
+    bindMeetingOpener(opener);
+    if (!options.skipBind) {
+      rebindJoinMeetingDefaults();
+    }
+  }
 
   return {
     calendar: {
