@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 const { mockContextBridge, mockIpcRenderer } = vi.hoisted(() => ({
   mockContextBridge: {
@@ -18,6 +18,10 @@ vi.mock("electron", () => ({
 }));
 
 describe("preload/index.ts", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
   it("exposes api via contextBridge", async () => {
     await import("../../src/preload/index.js");
 
