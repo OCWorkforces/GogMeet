@@ -64,7 +64,6 @@ describe("auto-launch", () => {
 
       expect(app.setLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: true,
-        openAsHidden: false,
       });
     });
 
@@ -91,7 +90,6 @@ describe("auto-launch", () => {
 
       expect(app.setLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: false,
-        openAsHidden: false,
       });
     });
 
@@ -103,7 +101,6 @@ describe("auto-launch", () => {
 
       expect(app.setLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: true,
-        openAsHidden: false,
       });
     });
 
@@ -114,7 +111,6 @@ describe("auto-launch", () => {
 
       expect(app.setLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: false,
-        openAsHidden: false,
       });
     });
 
@@ -151,7 +147,6 @@ describe("auto-launch", () => {
 
       expect(app.setLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: true,
-        openAsHidden: false,
       });
     });
 
